@@ -33,6 +33,7 @@ from finetune_studio.data.fs.paths import brain_index_dir
 from finetune_studio.knowledge.errors import KnowledgeError
 from finetune_studio.smart_brain.constants import DEFAULT_TOP_K
 from finetune_studio.webui.engine_guard import ENGINE_LOCK
+from finetune_studio.webui.errors import ApiError
 from finetune_studio.webui.live_sse import sse_data, sse_response
 
 log = logging.getLogger(__name__)
@@ -53,7 +54,7 @@ def _project_404(pid: str) -> JSONResponse | None:
     """
     from finetune_studio import db
     if not db.get_project(pid):
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
     return None
 
 
@@ -162,7 +163,7 @@ async def brain_patch_settings(pid: str, req: SettingsPatch):
     )
     index = BrainIndex(_corpus_dir(pid))
     if not index.exists():
-        return JSONResponse({"error": "no corpus"}, status_code=404)
+        return JSONResponse({"detail": "no corpus"}, status_code=404)
     m = Manifest.from_json(json.loads((_corpus_dir(pid) / "manifest.json").read_text()))
     if req.embedder is not None:
         m.rag_settings.embedder = req.embedder
@@ -201,7 +202,7 @@ async def brain_build(pid: str, req: BuildRequest):
         raise
     except Exception as e:
         log.exception("index build failed")
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=500)
+        return JSONResponse({"ok": False, "detail": str(e)}, status_code=500)
     # Build is synchronous: the corpus is already written when we return.
     # ``building: false`` keeps the UI from claiming an in-flight embed.
     return {
@@ -234,7 +235,7 @@ async def brain_quick(pid: str, req: QuickRequest):
     from finetune_studio.knowledge import sources
 
     if not db.get_project(pid):
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
 
     promoted: list[dict] = []
     failed: list[dict] = []
@@ -252,12 +253,11 @@ async def brain_quick(pid: str, req: QuickRequest):
 
     build = await brain_build(pid, BuildRequest())
     if isinstance(build, JSONResponse):
-        build_dict = {"ok": False, **json.loads(build.body)}
-    else:
-        build_dict = build
-    return {"ok": bool(build_dict.get("ok", True)),
-            "promoted": len(promoted), "promoted_files": promoted,
-            "failed": failed, "build": build_dict}
+        # The parse step's work is kept; the build failure still answers with the build's own status.
+        reason = json.loads(build.body).get("detail") or "index build failed"
+        raise ApiError(build.status_code, f"converted {len(promoted)} file(s), then the index build failed: {reason}",
+                       code="build_failed", promoted=len(promoted), promoted_files=promoted, failed=failed)
+    return {"ok": True, "promoted": len(promoted), "promoted_files": promoted, "failed": failed, "build": build}
 
 
 def _build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
@@ -353,7 +353,7 @@ async def brain_rebuild_vectors(pid: str, req: RebuildVectorsRequest):
     from finetune_studio.smart_brain import BrainIndex, Manifest
     index = BrainIndex(_corpus_dir(pid))
     if not index.exists():
-        return JSONResponse({"error": "no corpus"}, status_code=404)
+        return JSONResponse({"detail": "no corpus"}, status_code=404)
     embedder = req.embedder
     if not embedder:
         # ``POST /brain/settings`` writes a changed embedder to
@@ -374,7 +374,7 @@ async def brain_rebuild_vectors(pid: str, req: RebuildVectorsRequest):
         return {"ok": True, **result}
     except Exception as e:
         log.exception("rebuild failed")
-        return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+        return JSONResponse({"ok": False, "detail": str(e)}, status_code=400)
 
 
 _STOP = frozenset(["what", "which", "when", "where", "whom", "whose", "does", "that", "this", "with", "from", "have", "about", "tell", "there", "their", "into"])
@@ -395,11 +395,11 @@ async def brain_search(pid: str, req: SearchRequest):
     from finetune_studio.smart_brain import BrainIndex
     index = BrainIndex(_corpus_dir(pid))
     if not index.exists():
-        return JSONResponse({"error": "no corpus — build first"}, status_code=400)
+        return JSONResponse({"detail": "no corpus — build first"}, status_code=400)
     try:
         q = index.load()
     except Exception as e:  # noqa: BLE001
-        return JSONResponse({"error": f"load failed: {e}"}, status_code=500)
+        return JSONResponse({"detail": f"load failed: {e}"}, status_code=500)
     hits = q.search(req.query, top_k=req.top_k,
                     hybrid=req.hybrid, rerank=req.rerank,
                     rerank_top_n=req.rerank_top_n)
@@ -432,16 +432,16 @@ async def brain_chat(pid: str, req: ChatRequest):
 
     index = BrainIndex(_corpus_dir(pid))
     if not index.exists():
-        return JSONResponse({"error": "no corpus — build first"}, status_code=400)
+        return JSONResponse({"detail": "no corpus — build first"}, status_code=400)
     try:
         q = index.load()
     except Exception as e:  # noqa: BLE001
-        return JSONResponse({"error": f"load failed: {e}"}, status_code=500)
+        return JSONResponse({"detail": f"load failed: {e}"}, status_code=500)
 
     # Use the last user message as the search query
     user_messages = [m for m in req.messages if m.get("role") == "user"]
     if not user_messages:
-        return JSONResponse({"error": "no user message to search for"}, status_code=400)
+        return JSONResponse({"detail": "no user message to search for"}, status_code=400)
     last_user = user_messages[-1]["content"]
 
     hits = q.search(last_user, top_k=req.top_k)
@@ -473,7 +473,7 @@ async def brain_chat(pid: str, req: ChatRequest):
         async with ENGINE_LOCK:
             reply = await asyncio.to_thread(_generate)
     except ValueError as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
 
     # Strip thinking block for UI
     from finetune_studio.webui.thinking import split_thinking
@@ -502,7 +502,7 @@ async def brain_coverage(pid: str):
     from finetune_studio.knowledge.sources import list_sources
 
     if not db.get_project(pid):
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
     sources = [s for s in list_sources(pid) if s.ready]
     # Empty states are normal (Quick work polls this on every load), so they are
     # 200 with ``state`` rather than a 400 the browser logs as an error.

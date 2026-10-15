@@ -249,18 +249,8 @@ kbd { border:1px solid var(--border-strong); padding:0 4px; font-size:11px; }
     notes: {}, sig: '', paneSig: '', timer: null, busy: false,
   };
 
-  async function jreq(method, url, body) {
-    const opt = { method: method, headers: {} };
-    if (body !== undefined) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
-    const r = await fetch(url, opt);
-    const data = await r.json().catch(function() { return {}; });
-    if (!r.ok) {
-      const err = new Error(data.error || data.detail || ('HTTP ' + r.status));
-      err.status = r.status; err.data = data;
-      throw err;
-    }
-    return data;
-  }
+  // Throws ApiError (message = server detail, .status, .data) on any non-2xx.
+  function jreq(method, url, body) { return api.request(method, url, body); }
 
   function baseName(p) { const parts = String(p || '').replace(/\/+$/, '').split('/'); return parts[parts.length - 1] || p || ''; }
   // a run's model path usually ends in 'merged' or a bare file name: keep the parent folder for context
@@ -327,9 +317,9 @@ kbd { border:1px solid var(--border-strong); padding:0 4px; font-size:11px; }
     const form = new FormData();
     form.append('file', input.files[0]);
     try {
-      const r = await fetch('/api/benchmarks/projects/' + encodeURIComponent(PID) + '/suites/import', { method: 'POST', body: form });
-      const data = await r.json().catch(function() { return {}; });
-      if (!r.ok) { msg.textContent = 'Import failed: ' + (data.error || ('HTTP ' + r.status)); return; }
+      let data;
+      try { data = await api.post('/api/benchmarks/projects/' + encodeURIComponent(PID) + '/suites/import', form); }
+      catch (e) { msg.textContent = 'Import failed: ' + e.message; return; }
       const sel = $('t-suite');
       let opt = Array.from(sel.options).find(function(o) { return o.value === data.path; });
       if (!opt) { opt = document.createElement('option'); opt.value = data.path; sel.appendChild(opt); }

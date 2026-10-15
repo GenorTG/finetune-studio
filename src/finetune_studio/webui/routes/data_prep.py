@@ -33,7 +33,7 @@ def _project_404(pid: str) -> JSONResponse | None:
     """
     from finetune_studio import db
     if not db.get_project(pid):
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
     return None
 
 _QA_EDITABLE_FIELDS = frozenset({"question", "answer", "status", "chunk_idx", "note"})
@@ -139,7 +139,7 @@ async def load_provider(pid: str, request: Request):
     if missing:
         return JSONResponse(
             {"ok": False, "code": "helper_missing", "missing_path": missing,
-             "error": helper_missing_message(missing)},
+             "detail": helper_missing_message(missing)},
             status_code=400,
         )
     # Free whatever the global inference_engine (testing/chat/RAG/benchmarks)
@@ -161,7 +161,7 @@ async def load_provider(pid: str, request: Request):
             return {"ok": True, "active": active}
         except Exception as e:
             log.exception("load failed")
-            return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
+            return JSONResponse({"ok": False, "detail": str(e)}, status_code=400)
 
 
 @router.get("/providers/helper/status")
@@ -199,7 +199,7 @@ async def helper_use(request: Request):
     path = str((body or {}).get("path") or "").strip()
     resolved = Path(path).expanduser()
     if not path or resolved.suffix.lower() != ".gguf" or not resolved.is_file():
-        return JSONResponse({"ok": False, "error": f"Not a GGUF file: {path or '(empty)'}"}, status_code=400)
+        return JSONResponse({"ok": False, "detail": f"Not a GGUF file: {path or '(empty)'}"}, status_code=400)
     get_manager().upsert_provider(id=DEFAULT_HELPER_PROVIDER_ID, model_id=str(resolved))
     return {"ok": True, "path": str(resolved)}
 
@@ -243,11 +243,11 @@ async def parse_source_route(pid: str, request: Request):
     body = await request.json()
     fid = str(body.get("file_id") or "")
     if not fid:
-        return JSONResponse({"error": "file_id required"}, status_code=400)
+        return JSONResponse({"detail": "file_id required"}, status_code=400)
     source = sources.stage(pid, fid)
     source = await asyncio.to_thread(sources.parse, pid, source.id)
     if source.status == sources.ERROR:
-        return JSONResponse({"error": source.error, "source": source.as_dict()}, status_code=422)
+        return JSONResponse({"detail": source.error, "source": source.as_dict()}, status_code=422)
     return {"ok": True, "source": source.as_dict()}
 
 
@@ -281,7 +281,7 @@ async def qa_context_route(pid: str, qa_id: str):
     from finetune_studio.data.fs.qa_review import pair_context
     ctx = await asyncio.to_thread(pair_context, pid, qa_id)
     if ctx is None:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse({"detail": "not found"}, status_code=404)
     return ctx
 
 
@@ -293,18 +293,18 @@ async def add_qa_route(pid: str, request: Request):
         return missing
     body = await request.json()
     if not isinstance(body, dict):
-        return JSONResponse({"error": "JSON object body required"}, status_code=400)
+        return JSONResponse({"detail": "JSON object body required"}, status_code=400)
     question, answer = str(body.get("question") or "").strip(), str(body.get("answer") or "").strip()
     if not question or not answer or not body.get("source_id"):
-        return JSONResponse({"error": "source_id, question and answer are required"}, status_code=400)
+        return JSONResponse({"detail": "source_id, question and answer are required"}, status_code=400)
     from finetune_studio.data.fs.qa_review import add_reviewer_pair
     try:
         return await asyncio.to_thread(add_reviewer_pair, pid, str(body["source_id"]), int(body.get("chunk_idx") or 1),
                                        question, answer)
     except KeyError as e:
-        return JSONResponse({"error": str(e)}, status_code=404)
+        return JSONResponse({"detail": str(e)}, status_code=404)
     except ValueError as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
 
 
 @router.post("/projects/{pid}/data-prep/dedupe")
@@ -343,11 +343,11 @@ async def update_qa_route(pid: str, qa_id: str, request: Request):
         return missing
     body = await request.json()
     if not isinstance(body, dict):
-        return JSONResponse({"error": "JSON object body required"}, status_code=400)
+        return JSONResponse({"detail": "JSON object body required"}, status_code=400)
     fields = {k: v for k, v in body.items() if k in _QA_EDITABLE_FIELDS}
     if not fields:
         return JSONResponse(
-            {"error": f"no editable fields; allowed: {sorted(_QA_EDITABLE_FIELDS)}"},
+            {"detail": f"no editable fields; allowed: {sorted(_QA_EDITABLE_FIELDS)}"},
             status_code=400,
         )
     from finetune_studio.data.fs import qa as qa_fs
@@ -355,7 +355,7 @@ async def update_qa_route(pid: str, qa_id: str, request: Request):
         fields["reviewed_at"] = time.time()  # a human verdict (approve/reject/reset) — told apart from machine auto-approval
     updated = await asyncio.to_thread(qa_fs.update_qa_pair, pid, qa_id, **fields)
     if updated is None:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse({"detail": "not found"}, status_code=404)
     return updated
 
 
@@ -368,7 +368,7 @@ async def bulk_action(pid: str, request: Request):
     ids, action = body.get("ids", []), body.get("action", "")
     new_status = {"approve": "approved", "reject": "rejected", "reset": "pending"}.get(action)
     if not new_status:
-        return JSONResponse({"error": f"unknown action: {action}"}, status_code=400)
+        return JSONResponse({"detail": f"unknown action: {action}"}, status_code=400)
     note = body.get("note")
     from finetune_studio.data.fs import qa as qa_fs
     from finetune_studio.data.fs.qa_review import status_counts
@@ -398,7 +398,7 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
     if missing is not None:
         return missing
     if only not in ("approved", "pending", "rejected", "all"):
-        return JSONResponse({"error": f"unknown only filter: {only}"}, status_code=400)
+        return JSONResponse({"detail": f"unknown only filter: {only}"}, status_code=400)
     from finetune_studio.data.prep.dataset_build import (
         ExportBlocked,
         completeness_gate,
@@ -409,16 +409,16 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
     try:
         grounding = resolve_grounding(pid, grounded_share, distractors)
     except ValueError as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
     try:
         await asyncio.to_thread(completeness_gate, pid, force=force)
     except ExportBlocked as blocked:
-        return JSONResponse({"error": str(blocked), "incomplete_files": blocked.files,
+        return JSONResponse({"detail": str(blocked), "incomplete_files": blocked.files,
                              "hint": "pass ?force=true to export anyway"}, status_code=409)
     try:
         result = await asyncio.to_thread(build_qa_export, pid, fmt, only, grounding=grounding)
     except ValueError as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
     body = result.body
     n_grounded = result.grounding.grounded if result.grounding else 0
     # The export lives in a stream buffer; persist it to the project's datasets

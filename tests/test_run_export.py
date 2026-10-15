@@ -273,7 +273,7 @@ class TestGgufArtifactVerification:
         body = r.json()
         assert body.get("ok") is False
         assert body.get("status") == "failed"
-        assert "convert_hf_to_gguf" in body["error"]
+        assert "convert_hf_to_gguf" in body["detail"]
 
 
 class TestExportApiAdapterOnly:
@@ -378,7 +378,7 @@ class TestExportApiAdapterOnly:
         body = r.json()
         assert body.get("ok") is False
         assert body.get("status") == "failed"
-        assert "AWQ" in body["error"]
+        assert "AWQ" in body["detail"]
 
     def test_post_rejects_gptq(
         self, client, tmp_path: Path
@@ -407,4 +407,4 @@ class TestExportApiAdapterOnly:
         assert body.get("ok") is False
         assert body.get("status") == "failed"
         assert body.get("format") == "gptq"
-        assert "GPTQ" in body["error"]
+        assert "GPTQ" in body["detail"]

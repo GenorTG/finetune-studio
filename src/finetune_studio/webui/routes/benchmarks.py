@@ -44,7 +44,7 @@ def _project_404(pid: str) -> JSONResponse | None:
     starts work.
     """
     if not db.get_project(pid):
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
     return None
 
 
@@ -52,10 +52,10 @@ def _benchmark_for_project(bid: str, pid: str) -> dict[str, Any] | JSONResponse:
     """Load a benchmark only when its parent run belongs to ``pid``."""
     benchmark = db.get_benchmark(bid)
     if not benchmark:
-        return JSONResponse({"error": "benchmark not found"}, status_code=404)
+        return JSONResponse({"detail": "benchmark not found"}, status_code=404)
     run = db.get_run(str(benchmark.get("run_id") or ""))
     if not run or run.get("project_id") != pid:
-        return JSONResponse({"error": "benchmark not found"}, status_code=404)
+        return JSONResponse({"detail": "benchmark not found"}, status_code=404)
     return benchmark
 
 
@@ -77,7 +77,7 @@ def _quiz_suite_redirect(suite_path: str, pid: str) -> JSONResponse | None:
     if scoring_mode_for_suite(str(suite_path), pid) == "exact":
         return None
     return JSONResponse(
-        {"error": "this is a project quiz, not a public benchmark: run it on the Testing page, where the "
+        {"detail": "this is a project quiz, not a public benchmark: run it on the Testing page, where the "
                   "transcripts are saved and judged afterwards (AI judge or you)"},
         status_code=400,
     )
@@ -124,10 +124,10 @@ def _validate_suite_file(
     RealBenchmarkSuite). File suites load JSON as before.
     """
     if not suite_path or not str(suite_path).strip():
-        return None, None, JSONResponse({"error": "suite_path required"}, status_code=400)
+        return None, None, JSONResponse({"detail": "suite_path required"}, status_code=400)
     if require_selectable and not is_selectable_suite(suite_path, project_id):
         return None, None, JSONResponse(
-            {"error": f"suite not selectable: {suite_path}"},
+            {"detail": f"suite not selectable: {suite_path}"},
             status_code=400,
         )
 
@@ -144,12 +144,12 @@ def _validate_suite_file(
             )
         except Exception as exc:  # noqa: BLE001
             return None, None, JSONResponse(
-                {"error": f"real suite load failed: {exc}"},
+                {"detail": f"real suite load failed: {exc}"},
                 status_code=400,
             )
         if len(cases) < 1:
             return None, None, JSONResponse(
-                {"error": "suite has no cases"},
+                {"detail": "suite has no cases"},
                 status_code=400,
             )
         return cases, meta.as_dict(), None
@@ -157,19 +157,19 @@ def _validate_suite_file(
     path = Path(suite_path)
     if not path.is_file():
         return None, None, JSONResponse(
-            {"error": f"suite not found: {suite_path}"},
+            {"detail": f"suite not found: {suite_path}"},
             status_code=404,
         )
     try:
         cases = load_test_suite(str(path))
     except Exception as exc:  # noqa: BLE001
         return None, None, JSONResponse(
-            {"error": f"suite parse failed: {exc}"},
+            {"detail": f"suite parse failed: {exc}"},
             status_code=400,
         )
     if len(cases) < 1:
         return None, None, JSONResponse(
-            {"error": "suite has no cases"},
+            {"detail": "suite has no cases"},
             status_code=400,
         )
     return cases, None, None
@@ -339,7 +339,7 @@ async def _execute_benchmark(
 
     result = await asyncio.to_thread(_blocking)
     if "_load_error" in result:
-        return JSONResponse({"error": f"load failed: {result['_load_error']}"}, status_code=500)
+        return JSONResponse({"detail": f"load failed: {result['_load_error']}"}, status_code=500)
     return result
 
 
@@ -363,7 +363,7 @@ async def import_suite_route(pid: str, file: UploadFile = File(...)) -> dict[str
     try:
         meta = await asyncio.to_thread(import_suite, pid, file.filename or "quiz.json", raw)
     except SuiteImportError as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
     return {"ok": True, **meta}
 
 
@@ -392,14 +392,14 @@ async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] 
         max_tokens = _int_field(body, "max_tokens", 512)
         num_samples, full_run, seed, order = _parse_sample_knobs(body)
     except ValueError as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
 
     run = db.get_run(rid)
     if not run:
-        return JSONResponse({"error": "run not found"}, status_code=404)
+        return JSONResponse({"detail": "run not found"}, status_code=404)
     if run["project_id"] != pid:
         return JSONResponse(
-            {"error": "run does not belong to project"},
+            {"detail": "run does not belong to project"},
             status_code=400,
         )
 
@@ -407,7 +407,7 @@ async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] 
         status = run.get("status") or "unknown"
         return JSONResponse(
             {
-                "error": (
+                "detail": (
                     f"Run {rid} has no trained model (status: {status})"
                 ),
             },
@@ -434,12 +434,12 @@ async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] 
         target_model = os.path.abspath(target_model)
     if requested_model and not os.path.exists(target_model):
         return JSONResponse(
-            {"error": f"requested benchmark model not found: {target_model}"},
+            {"detail": f"requested benchmark model not found: {target_model}"},
             status_code=404,
         )
     if not target_model:
         return JSONResponse(
-            {"error": f"Run {rid} has no trained model (status: {run.get('status')})"},
+            {"detail": f"Run {rid} has no trained model (status: {run.get('status')})"},
             status_code=409,
         )
 
@@ -453,7 +453,7 @@ async def run_benchmark(pid: str, rid: str, request: Request) -> dict[str, Any] 
             real_meta=real_meta,
         )
     except Exception as exc:  # noqa: BLE001
-        return JSONResponse({"error": str(exc)}, status_code=500)
+        return JSONResponse({"detail": str(exc)}, status_code=500)
 
 
 @router.post("/projects/{pid}/base/run", response_model=None)
@@ -466,18 +466,18 @@ async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSO
         max_tokens = _int_field(body, "max_tokens", 512)
         num_samples, full_run, seed, order = _parse_sample_knobs(body)
     except ValueError as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
 
     from finetune_studio.db.runs import backfill_project_base_model
     backfill_project_base_model(pid)
     project = db.get_project(pid)
     if not project:
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
 
     target_model = (project.get("base_model") or "").strip()
     if not target_model:
         return JSONResponse(
-            {"error": "This project has no base model yet. Train a run first, or set one under project Settings."},
+            {"detail": "This project has no base model yet. Train a run first, or set one under project Settings."},
             status_code=400,
         )
 
@@ -526,7 +526,7 @@ async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSO
             real_meta=real_meta,
         )
     except Exception as exc:  # noqa: BLE001
-        return JSONResponse({"error": str(exc)}, status_code=500)
+        return JSONResponse({"detail": str(exc)}, status_code=500)
 
 @router.get("/projects/{pid}/runs/{rid}/history", response_model=None)
 async def run_history(pid: str, rid: str) -> list[dict[str, Any]] | dict[str, str] | JSONResponse:
@@ -536,7 +536,7 @@ async def run_history(pid: str, rid: str) -> list[dict[str, Any]] | dict[str, st
         return missing
     run = db.get_run(rid)
     if not run or run["project_id"] != pid:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse({"detail": "not found"}, status_code=404)
     return db.list_benchmarks(rid)
 
 
@@ -545,9 +545,9 @@ async def delete_run(pid: str, rid: str) -> dict[str, Any] | JSONResponse:
     """Delete a training run and its benchmark results."""
     run = db.get_run(rid)
     if not run:
-        return JSONResponse({"error": "run not found"}, status_code=404)
+        return JSONResponse({"detail": "run not found"}, status_code=404)
     if run["project_id"] != pid:
-        return JSONResponse({"error": "project mismatch"}, status_code=403)
+        return JSONResponse({"detail": "project mismatch"}, status_code=403)
     with db.cursor() as c:
         c.execute("DELETE FROM benchmark_cases WHERE run_id = ?", (rid,))
         c.execute("DELETE FROM benchmark_runs WHERE run_id = ?", (rid,))
@@ -607,14 +607,14 @@ async def set_verdict(
     if isinstance(benchmark, JSONResponse):
         return benchmark
     if not any(case.get("id") == cid for case in db.list_cases(bid)):
-        return JSONResponse({"error": "case not found"}, status_code=404)
+        return JSONResponse({"detail": "case not found"}, status_code=404)
     try:
         body = await request.json()
     except ValueError:
-        return JSONResponse({"error": "request body must be valid JSON"}, status_code=400)
+        return JSONResponse({"detail": "request body must be valid JSON"}, status_code=400)
     verdict = body.get("verdict") if isinstance(body, dict) else None
     if verdict not in VERDICTS:
-        return JSONResponse({"error": f"verdict must be one of {', '.join(VERDICTS)}"}, status_code=400)
+        return JSONResponse({"detail": f"verdict must be one of {', '.join(VERDICTS)}"}, status_code=400)
     from finetune_studio.db import judgements as jdb
 
     jdb.add_judgement(cid, kind="human", verdict=verdict, reasoning=str(body.get("reasoning") or "human override"),
@@ -634,23 +634,23 @@ async def compare_runs(pid: str, run_a: str = "", run_b: str = "") -> dict[str, 
     # "run_a and run_b required", which sends the caller hunting for a
     # missing query param instead of the project that does not exist.
     if not db.get_project(pid):
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
 
     if not run_a or not run_b:
         return JSONResponse(
-            {"error": "run_a and run_b required"},
+            {"detail": "run_a and run_b required"},
             status_code=400,
         )
 
     run_a_row = db.get_run(run_a)
     run_b_row = db.get_run(run_b)
     if not run_a_row:
-        return JSONResponse({"error": f"run not found: {run_a}"}, status_code=404)
+        return JSONResponse({"detail": f"run not found: {run_a}"}, status_code=404)
     if not run_b_row:
-        return JSONResponse({"error": f"run not found: {run_b}"}, status_code=404)
+        return JSONResponse({"detail": f"run not found: {run_b}"}, status_code=404)
     if run_a_row.get("project_id") != pid or run_b_row.get("project_id") != pid:
         return JSONResponse(
-            {"error": "runs do not belong to this project"},
+            {"detail": "runs do not belong to this project"},
             status_code=400,
         )
 
@@ -658,7 +658,7 @@ async def compare_runs(pid: str, run_a: str = "", run_b: str = "") -> dict[str, 
     b_by_suite = _suite_scores_for_run(run_b)
     if not a_by_suite and not b_by_suite:
         return JSONResponse(
-            {"error": "no benchmarks for either run"},
+            {"detail": "no benchmarks for either run"},
             status_code=404,
         )
 
@@ -715,20 +715,20 @@ async def evaluate_training_for_run(
         max_cases = _int_field(body, "max_cases", 200)
         max_tokens = _int_field(body, "max_tokens", 512)
     except ValueError as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
 
     run = db.get_run(rid)
     if not run:
-        return JSONResponse({"error": "run not found"}, status_code=404)
+        return JSONResponse({"detail": "run not found"}, status_code=404)
     if run["project_id"] != pid:
         return JSONResponse(
-            {"error": "run does not belong to project"},
+            {"detail": "run does not belong to project"},
             status_code=400,
         )
     if not _run_is_benchmarkable(run):
         status = run.get("status") or "unknown"
         return JSONResponse(
-            {"error": f"Run {rid} has no trained model (status: {status})"},
+            {"detail": f"Run {rid} has no trained model (status: {status})"},
             status_code=409,
         )
 
@@ -743,9 +743,9 @@ async def evaluate_training_for_run(
             build_training_eval, pid, dataset_id=dataset_id, max_cases=max_cases,
         )
     except LookupError as e:
-        return JSONResponse({"error": str(e)}, status_code=404)
+        return JSONResponse({"detail": str(e)}, status_code=404)
     except (FileNotFoundError, ValueError) as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
 
     try:
         row = await testing_jobs.start_run_job(testing_jobs.RunSpec(
@@ -756,5 +756,5 @@ async def evaluate_training_for_run(
                           "dataset_id": meta.dataset_id, "dataset_name": meta.dataset_name},
         ))
     except testing_jobs.TestingBusy as exc:
-        return JSONResponse({"error": str(exc), "active": exc.active}, status_code=409)
+        return JSONResponse({"detail": str(exc), "active": exc.active}, status_code=409)
     return JSONResponse({"ok": True, "benchmark_id": row["id"], "benchmark": row}, status_code=202)

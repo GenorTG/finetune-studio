@@ -234,13 +234,13 @@ async def brain_delete_document(pid: str, doc_id: str):
     from finetune_studio.smart_brain import BrainIndex
     index = BrainIndex(corpus_dir(pid))
     if not index.exists():
-        return JSONResponse({"error": "no corpus"}, status_code=404)
+        return JSONResponse({"detail": "no corpus"}, status_code=404)
     try:
         index.remove_source(doc_id)
         return {"ok": True, "removed": doc_id}
     except Exception as e:
         log.exception("remove source failed")
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
 
 
 @router.delete("/{pid}/brain/documents")
@@ -249,11 +249,11 @@ async def brain_clear_documents(pid: str):
     from finetune_studio.smart_brain import BrainIndex
     index = BrainIndex(corpus_dir(pid))
     if not index.exists():
-        return JSONResponse({"error": "no corpus"}, status_code=404)
+        return JSONResponse({"detail": "no corpus"}, status_code=404)
     try:
         index.clear_sources()
         return {"ok": True}
     except Exception as e:  # noqa: BLE001
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
 
 

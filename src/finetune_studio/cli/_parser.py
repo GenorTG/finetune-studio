@@ -98,6 +98,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_svc = sub.add_parser("service", help="Install or remove the optional systemd user unit")
     p_svc.add_argument("action", choices=["install", "uninstall", "status", "restart"])
     p_svc.add_argument("--no-start", action="store_true", help="install: write and enable the unit but do not start it")
+    # ── jobs: training/export/... as their own processes ──
+    p_jobs = sub.add_parser("jobs", help="Long jobs (training, export, ...) that run as their own processes")
+    jobs_sub = p_jobs.add_subparsers(dest="jobs_action")
+    p_jl = jobs_sub.add_parser("list", help="Running jobs (--all: also finished ones from the last week)")
+    p_jl.add_argument("--all", action="store_true")
+    p_js = jobs_sub.add_parser("stop", help="Stop a job cooperatively (training saves what it has)")
+    p_js.add_argument("id")
+    p_jg = jobs_sub.add_parser("logs", help="Recent output of a job")
+    p_jg.add_argument("id")
+    p_jg.add_argument("-n", "--lines", type=int, default=100)
+    p_jobs.set_defaults(all=False)
+
     # ── access: password, API tokens, sessions, listen address ──
     p_auth = sub.add_parser("auth", help="Password, API tokens and browser sessions (who may use the web UI)")
     auth_sub = p_auth.add_subparsers(dest="auth_action", required=True)

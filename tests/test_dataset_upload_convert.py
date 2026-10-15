@@ -129,5 +129,5 @@ def test_upload_unmappable_csv_is_400_and_writes_nothing(client, fake_home):
     r = client.post(f"/api/projects/{pid}/datasets/upload",
                     files={"file": ("x.csv", b"a,b\n1,2\n", "text/csv")})
     assert r.status_code == 400, r.text
-    assert "a, b" in r.json()["error"]
+    assert "a, b" in r.json()["detail"]
     assert client.get(f"/api/projects/{pid}/datasets").json() == {"datasets": []}

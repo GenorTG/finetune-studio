@@ -110,7 +110,7 @@ async def test_vision_settings():
     """One real reading of a generated picture with a random code: proves the seated model sees, and how fast."""
     seat = vision.get_seat()
     if seat.mode == "off":
-        return JSONResponse({"ok": False, "error": "the Vision reader is off"}, status_code=400)
+        return JSONResponse({"ok": False, "detail": "the Vision reader is off"}, status_code=400)
     code = str(random.randint(100000, 999999))
 
     def _read() -> dict[str, Any]:
@@ -118,16 +118,17 @@ async def test_vision_settings():
         try:
             reader = vision.Reader(seat)
         except vision.VisionError as e:
-            return {"ok": False, "error": str(e)}
+            return {"ok": False, "detail": str(e), "code": "vision_failed"}
         try:
             reply = reader.read(_probe_image(code), "Settings test", "test image")
         except vision.VisionError as e:
-            return {"ok": False, "error": str(e)}
+            return {"ok": False, "detail": str(e), "code": "vision_failed"}
         finally:
             reader.close()
         ok = code in reply.replace(" ", "")
         return {"ok": ok, "reply": reply[:200], "latency_ms": int((time.perf_counter() - t0) * 1000),
-                **({} if ok else {"error": f"the model did not read the code {code} in the test picture"})}
+                **({} if ok else {"detail": f"the model did not read the code {code} in the test picture",
+                                 "code": "vision_misread"})}
 
     result = await asyncio.to_thread(_read)
     return JSONResponse(result, status_code=200 if result["ok"] else 502)

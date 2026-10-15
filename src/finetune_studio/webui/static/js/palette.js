@@ -55,9 +55,7 @@
       return projectsCache;
     }
     try {
-      const r = await fetch("/api/projects");
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      projectsCache = await r.json();
+      projectsCache = await api.get("/api/projects");
       projectsCachedAt = Date.now();
       return projectsCache;
     } catch (e) {

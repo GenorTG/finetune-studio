@@ -195,8 +195,9 @@ class TestExportUiReadableErrors:
             / "templates"
             / "export_models.html"
         ).read_text(encoding="utf-8")
-        assert "non-JSON response" in html
-        assert "d.detail" in html
+        # Errors come from api.js (ApiError.message = server detail, non-JSON bodies included).
+        assert "await api.post(API + '/runs/'" in html
+        assert "e.message" in html and "e.data" in html
         # The artifact path / size now come from the finished job row (SSE),
         # not from the POST response, which only acknowledges the queued job.
         assert "row.output_path" in html

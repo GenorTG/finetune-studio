@@ -126,16 +126,15 @@ def _resource_snapshot_detail(model_path: str = "") -> str:
 
 
 def _load_failure(status_code: int, error: str, model_path: str = "") -> JSONResponse:
-    """Honest failure: a real 4xx/5xx whose JSON body keeps ``status``/``loaded``/``error``/``model``.
+    """Honest failure: a real 4xx/5xx whose JSON body keeps ``status``/``loaded``/``detail``/``model``.
 
-    ``fts.api.post`` throws on non-2xx with ``body.error`` as the message, so the
-    UI shows the same text the 200-with-status:"error" body used to carry.
+    ``api.post`` throws on non-2xx with ``body.detail`` as the message (webui/errors.py contract).
     """
     hint = _vram_hint(model_path) if model_path else ""
     detail = hint or _resource_snapshot_detail(model_path)
     msg = f"{error}{detail}" if detail and detail not in error else error
     return JSONResponse(
-        {"status": "error", "loaded": False, "error": msg, "model": None},
+        {"status": "error", "loaded": False, "detail": msg, "model": None},
         status_code=status_code,
     )
 
@@ -243,7 +242,7 @@ async def load_model_endpoint(request: Request):
     Success (HTTP 200) always includes ``status="loaded"`` and ``loaded=True``.
     Failures are real HTTP errors — 400 no path, 404 path does not exist, 500
     load failed / nothing held after the load — with ``status="error"``,
-    ``loaded=False`` and an actionable ``error`` string in the body. Never claim
+    ``loaded=False`` and an actionable ``detail`` string in the body. Never claim
     loaded unless the engine actually holds a model.
     """
     from finetune_studio.webui.app import inference_engine
@@ -306,7 +305,7 @@ async def unload_model_endpoint():
         await asyncio.to_thread(release_brain_models, "unload all models")
         return {"status": "unloaded"}
     except Exception as e:  # noqa: BLE001
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return JSONResponse({"detail": str(e)}, status_code=500)
 
 
 # ── /api/inference/* (status, chat, memory-estimate) ─────────────
@@ -370,7 +369,7 @@ async def inference_chat(request: Request):
 
     if inference_engine.model is None:
         return JSONResponse(
-            {"error": "No model loaded. Click 'Load model' first."}, status_code=409
+            {"detail": "No model loaded. Click 'Load model' first."}, status_code=409
         )
 
     body = await _json_body(request)
@@ -392,7 +391,7 @@ async def inference_chat(request: Request):
                 repeat_penalty=body.get("repeat_penalty", 1.1),
             )
     except Exception as e:  # noqa: BLE001
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return JSONResponse({"detail": str(e)}, status_code=500)
 
     # inference_engine.generate() returns a string — split thinking from response
     if isinstance(response, dict):
@@ -418,7 +417,7 @@ async def inference_memory_estimate(request: Request):
     body = await _json_body(request)
     model_path = body.get("model_path") or body.get("path") or ""
     if not model_path:
-        return JSONResponse({"error": "No model_path provided"}, status_code=400)
+        return JSONResponse({"detail": "No model_path provided"}, status_code=400)
     try:
         est = inference_engine.estimate_memory(
             model_path,
@@ -435,4 +434,4 @@ async def inference_memory_estimate(request: Request):
             log.debug("GPU usage probe failed: %s", e)
         return est
     except Exception as e:  # noqa: BLE001
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return JSONResponse({"detail": str(e)}, status_code=500)

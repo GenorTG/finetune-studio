@@ -29,8 +29,11 @@ class _FakeEngine:
     def on_update(self, cb: object) -> None:
         self.cb = cb
 
-    def start(self, config: object, data: list, system_prompt: str) -> None:
-        self.started = {"config": config, "data": data, "system_prompt": system_prompt}
+    def start(self, config: object, data: list, system_prompt: str, *, run_id: str, output_dir: str,
+              project_id: str | None) -> str:
+        self.started = {"config": config, "data": data, "system_prompt": system_prompt, "run_id": run_id,
+                        "output_dir": output_dir, "project_id": project_id}
+        return "training-job"
 
 
 @pytest.fixture
@@ -74,8 +77,8 @@ def test_remote_repo_id_is_blocked(client, fake_engine, fake_home, tmp_path):
     pid = _project(client)
     r = _start(client, pid, _jsonl(tmp_path), "SomeOrg/BigModel-70B")
     body = r.json()
-    assert "error" in body and "not local" in body["error"], body
-    assert "allow_download" in body["error"], body
+    assert "detail" in body and "not local" in body["detail"], body
+    assert "allow_download" in body["detail"], body
     assert not fake_engine.started, "engine must not start when the guard fires"
 
 
@@ -114,3 +117,28 @@ def test_existing_local_path_untouched(client, fake_engine, fake_home, tmp_path)
     r = _start(client, pid, _jsonl(tmp_path), str(model_dir))
     assert r.json().get("status") == "started", r.text
     assert fake_engine.started["config"].model_path == str(model_dir)
+
+
+def test_start_passes_the_run_to_the_job_and_a_busy_gpu_is_a_409(client, fake_engine, tmp_path, monkeypatch):
+    """The route hands run id / output dir / project to the job process; a busy GPU is a real 409, not a 500."""
+    from finetune_studio import db
+    from finetune_studio.jobs.launch import JobRejected
+
+    model_dir = tmp_path / "local-model"
+    model_dir.mkdir()
+    pid = _project(client)
+    r = _start(client, pid, _jsonl(tmp_path), str(model_dir))
+    assert r.status_code == 200, r.text
+    run_id = r.json()["run_id"]
+    assert fake_engine.started["run_id"] == run_id and fake_engine.started["project_id"] == pid
+    assert fake_engine.started["output_dir"].endswith(f"runs/{run_id}")
+
+    def busy(*a, **k):
+        raise JobRejected(409, "the GPU is busy with export job x (export)", "gpu_busy")
+
+    monkeypatch.setattr(fake_engine, "start", busy)
+    r = _start(client, pid, _jsonl(tmp_path), str(model_dir))
+    assert r.status_code == 409, r.text
+    assert r.json()["code"] == "gpu_busy" and "GPU is busy" in r.json()["detail"]
+    refused = [x for x in db.list_runs(pid) if x["id"] != run_id]
+    assert [x["status"] for x in refused] == ["error"]

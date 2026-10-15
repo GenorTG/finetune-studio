@@ -111,7 +111,7 @@ def test_register_rejects_data_path_outside_project(client_and_db):
     try:
         r = client.post(f"/api/projects/{pid}/datasets", json={"data_path": path})
         assert r.status_code == 403, r.text
-        assert "outside the project directory" in r.json()["error"]
+        assert "outside the project directory" in r.json()["detail"]
     finally:
         os.unlink(path)
 
@@ -121,7 +121,7 @@ def test_register_rejects_when_neither_field_supplied(client_and_db):
     pid = _create_project(client, db_path)
     r = client.post(f"/api/projects/{pid}/datasets", json={})
     assert r.status_code == 400, r.text
-    assert "required" in r.json()["error"]
+    assert "required" in r.json()["detail"]
 
 
 def test_register_file_id_from_other_project_is_403(client_and_db):
@@ -133,7 +133,7 @@ def test_register_file_id_from_other_project_is_403(client_and_db):
 
     r = client.post(f"/api/projects/{pid_b}/datasets", json={"file_id": fid_a})
     assert r.status_code == 403, r.text
-    assert "another project" in r.json()["error"]
+    assert "another project" in r.json()["detail"]
 
 
 def test_register_file_id_unknown_is_400(client_and_db):
@@ -144,4 +144,4 @@ def test_register_file_id_unknown_is_400(client_and_db):
         json={"file_id": "deadbeefdeadbeefdeadbeefdeadbeef"},
     )
     assert r.status_code == 400, r.text  # resolved to "" then 400
-    assert "required" in r.json()["error"]
+    assert "required" in r.json()["detail"]

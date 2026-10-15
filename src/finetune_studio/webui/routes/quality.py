@@ -26,6 +26,7 @@ from pydantic import BaseModel
 
 from finetune_studio.config import settings
 from finetune_studio.data.fs.paths import resolve_in_project, resolve_within
+from finetune_studio.webui.errors import ApiError
 
 router = APIRouter(prefix="/api/data", tags=["data-quality"])
 
@@ -53,7 +54,11 @@ class DataJobResponse(BaseModel):
     command: str
     path: str
     result: dict[str, Any] | None = None
-    error: str | None = None
+
+
+def _failed(command: str, exc: Exception) -> ApiError:
+    """A command that crashed is a 500 with the reason, never a 200 ``status: "error"``."""
+    return ApiError(500, f"{command} failed: {exc}", code=f"{command.replace('-', '_')}_failed")
 
 
 def _load_jsonl(path: str) -> list[dict]:
@@ -88,8 +93,8 @@ def data_analyze(req: DataJobRequest) -> DataJobResponse:
         analyzer = DataQualityAnalyzer()
         report = analyzer.analyze(req.path)
         return DataJobResponse(status="ok", command="analyze", path=req.path, result=report)
-    except Exception as exc:  # noqa: BLE001 — route boundary must surface errors
-        return DataJobResponse(status="error", command="analyze", path=req.path, error=str(exc))
+    except Exception as exc:
+        raise _failed("analyze", exc) from exc
 
 
 # ── CLI: fts augment ─────────────────────────────────────────────────────
@@ -131,8 +136,8 @@ def data_augment(req: DataJobRequest) -> DataJobResponse:
             "output_path": output_path,
         }
         return DataJobResponse(status="ok", command="augment", path=req.path, result=result)
-    except Exception as exc:  # noqa: BLE001
-        return DataJobResponse(status="error", command="augment", path=req.path, error=str(exc))
+    except Exception as exc:
+        raise _failed("augment", exc) from exc
 
 
 # ── CLI: fts optimize ────────────────────────────────────────────────────
@@ -161,8 +166,8 @@ def data_optimize(req: DataJobRequest) -> DataJobResponse:
             ],
         }
         return DataJobResponse(status="ok", command="optimize", path=req.path, result=result)
-    except Exception as exc:  # noqa: BLE001
-        return DataJobResponse(status="error", command="optimize", path=req.path, error=str(exc))
+    except Exception as exc:
+        raise _failed("optimize", exc) from exc
 
 
 # ── CLI: fts validate-hallucination ─────────────────────────────────────
@@ -180,8 +185,8 @@ def data_hallucination_check(req: DataJobRequest) -> DataJobResponse:
         return DataJobResponse(
             status="ok", command="validate-hallucination", path=req.path, result=report,
         )
-    except Exception as exc:  # noqa: BLE001
-        return DataJobResponse(status="error", command="validate-hallucination", path=req.path, error=str(exc))
+    except Exception as exc:
+        raise _failed("validate-hallucination", exc) from exc
 
 
 # ── CLI: fts convert ─────────────────────────────────────────────────────
@@ -200,27 +205,20 @@ def data_convert(req: ConvertRequest) -> DataJobResponse:
     src = Path(req.path)
     if not src.exists():
         raise HTTPException(status_code=404, detail=f"File not found: {req.path}")
+    from finetune_studio.data.converter import (
+        csv_to_jsonl,
+        json_to_jsonl,
+        jsonl_to_json,
+    )
+    converters = {(".jsonl", "json"): jsonl_to_json, (".json", "jsonl"): json_to_jsonl,
+                  (".csv", "jsonl"): lambda a, b: csv_to_jsonl(a, b, system_prompt=req.system_prompt)}
+    convert = converters.get((src.suffix, req.target_format))
+    if convert is None:
+        raise ApiError(400, f"Cannot convert {src.suffix} -> .{req.target_format}", code="unsupported_conversion")
     try:
-        from finetune_studio.data.converter import (
-            csv_to_jsonl,
-            json_to_jsonl,
-            jsonl_to_json,
-        )
-
         output_path = req.output or str(src.with_suffix(f".{req.target_format}"))
-        if src.suffix == ".jsonl" and req.target_format == "json":
-            jsonl_to_json(str(src), output_path)
-        elif src.suffix == ".json" and req.target_format == "jsonl":
-            json_to_jsonl(str(src), output_path)
-        elif src.suffix == ".csv" and req.target_format == "jsonl":
-            csv_to_jsonl(str(src), output_path, system_prompt=req.system_prompt)
-        else:
-            return DataJobResponse(
-                status="error", command="convert", path=req.path,
-                error=f"Cannot convert {src.suffix} -> .{req.target_format}",
-            )
-
+        convert(str(src), output_path)
         result = {"output_path": output_path}
         return DataJobResponse(status="ok", command="convert", path=req.path, result=result)
-    except Exception as exc:  # noqa: BLE001
-        return DataJobResponse(status="error", command="convert", path=req.path, error=str(exc))
+    except Exception as exc:
+        raise _failed("convert", exc) from exc

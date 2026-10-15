@@ -23,6 +23,7 @@ from finetune_studio.cli.commands.compare import cmd_compare
 from finetune_studio.cli.commands.convert import cmd_convert
 from finetune_studio.cli.commands.dataset import cmd_dataset
 from finetune_studio.cli.commands.files import cmd_files
+from finetune_studio.cli.commands.jobs import cmd_jobs
 from finetune_studio.cli.commands.models import cmd_models
 from finetune_studio.cli.commands.optimize import cmd_optimize
 from finetune_studio.cli.commands.service import cmd_down, cmd_service, cmd_up
@@ -46,6 +47,7 @@ from finetune_studio.cli.commands.webui import cmd_webui
 
 COMMANDS = {
     "auth": cmd_auth,
+    "jobs": cmd_jobs,
     "server": cmd_server,
     "models": cmd_models,
     "train": cmd_train,

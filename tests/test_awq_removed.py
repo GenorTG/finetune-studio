@@ -70,7 +70,7 @@ def test_export_api_rejects_awq(client, tmp_path: Path) -> None:
     assert r.status_code == 400, r.text
     body = r.json()
     assert body.get("ok") is False
-    assert "AWQ" in body["error"]
+    assert "AWQ" in body["detail"]
 
 
 @pytest.mark.parametrize("fmt", sorted(SUPPORTED_EXPORT_FORMATS))

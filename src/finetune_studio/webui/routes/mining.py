@@ -28,14 +28,14 @@ router = APIRouter()
 def _project_404(pid: str) -> JSONResponse | None:
     from finetune_studio import db
     if not db.get_project(pid):
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
     return None
 
 
 def _source_404(pid: str, source_id: str) -> JSONResponse | None:
     from finetune_studio.knowledge.sources import get_source
     if get_source(pid, source_id) is None:
-        return JSONResponse({"error": "file not found"}, status_code=404)
+        return JSONResponse({"detail": "file not found"}, status_code=404)
     return None
 
 
@@ -43,8 +43,8 @@ async def _json(request: Request) -> dict[str, Any] | JSONResponse:
     try:
         body = await request.json()
     except ValueError:
-        return JSONResponse({"error": "invalid JSON"}, status_code=400)
-    return body if isinstance(body, dict) else JSONResponse({"error": "expected a JSON object"}, status_code=400)
+        return JSONResponse({"detail": "invalid JSON"}, status_code=400)
+    return body if isinstance(body, dict) else JSONResponse({"detail": "expected a JSON object"}, status_code=400)
 
 
 @router.post("/api/projects/{pid}/mining/jobs")
@@ -57,11 +57,11 @@ async def submit_jobs(pid: str, request: Request):
     from finetune_studio.data.mining import MiningError, get_scheduler
     ids = body.get("source_ids")
     if not isinstance(ids, list):
-        return JSONResponse({"error": "source_ids must be a list"}, status_code=400)
+        return JSONResponse({"detail": "source_ids must be a list"}, status_code=400)
     try:
         jobs = await asyncio.to_thread(get_scheduler().submit, pid, [str(i) for i in ids], str(body.get("kind") or "mine"))
     except MiningError as e:
-        return JSONResponse({"error": str(e)}, status_code=e.status)
+        return JSONResponse({"detail": str(e)}, status_code=e.status)
     return {"ok": True, "jobs": jobs}
 
 
@@ -83,7 +83,7 @@ async def cancel_job(pid: str, job_id: str):
     try:
         return {"ok": True, "job": await asyncio.to_thread(get_scheduler().cancel, pid, job_id)}
     except MiningError as e:
-        return JSONResponse({"error": str(e)}, status_code=e.status)
+        return JSONResponse({"detail": str(e)}, status_code=e.status)
 
 
 @router.post("/api/projects/{pid}/mining/files/{source_id}/reset")
@@ -94,7 +94,7 @@ async def reset_file(pid: str, source_id: str):
     try:
         return {"ok": True, **await asyncio.to_thread(get_scheduler().reset, pid, source_id)}
     except MiningError as e:
-        return JSONResponse({"error": str(e)}, status_code=e.status)
+        return JSONResponse({"detail": str(e)}, status_code=e.status)
 
 
 def _checklist(pid: str, source_id: str) -> dict[str, Any]:
@@ -138,7 +138,7 @@ async def exclude_item(pid: str, item_id: str, request: Request):
         return body
     from finetune_studio import db
     if not db.mining.get_item(pid, item_id):
-        return JSONResponse({"error": "item not found"}, status_code=404)
+        return JSONResponse({"detail": "item not found"}, status_code=404)
     item = await asyncio.to_thread(db.mining.set_item_exclusion, pid, item_id, str(body.get("reason") or "").strip()[:500])
     return {"ok": True, "item": item}
 
@@ -153,7 +153,7 @@ async def confirm_proposals(pid: str, source_id: str, request: Request):
         return body
     ids = body.get("item_ids")
     if ids is not None and not (isinstance(ids, list) and all(isinstance(i, str) for i in ids)):
-        return JSONResponse({"error": "item_ids must be a list of item ids"}, status_code=422)
+        return JSONResponse({"detail": "item_ids must be a list of item ids"}, status_code=422)
     from finetune_studio import db
     n = await asyncio.to_thread(db.mining.confirm_proposals, pid, source_id, ids)
     return {"ok": True, "confirmed": n}
@@ -174,7 +174,7 @@ async def get_round(pid: str, round_id: str):
     from finetune_studio import db
     row = await asyncio.to_thread(db.mining.get_round, pid, round_id)
     if not row:
-        return JSONResponse({"error": "round not found"}, status_code=404)
+        return JSONResponse({"detail": "round not found"}, status_code=404)
     return row
 
 
@@ -206,5 +206,5 @@ async def pair_items(pid: str, qa_id: str):
         return missing
     out = await asyncio.to_thread(_pair_items, pid, qa_id)
     if out is None:
-        return JSONResponse({"error": "pair not found"}, status_code=404)
+        return JSONResponse({"detail": "pair not found"}, status_code=404)
     return out

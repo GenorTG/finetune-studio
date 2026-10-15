@@ -38,10 +38,13 @@ class SupervisorClient:
         self.path = path or socket_path()
         self.timeout = timeout
 
-    def _call(self, method: str, url: str) -> dict[str, Any]:
+    def _call(self, method: str, url: str, body: dict[str, Any] | None = None) -> dict[str, Any]:
         conn = UnixHTTPConnection(str(self.path), self.timeout)
         try:
-            conn.request(method, url)
+            if body is None:
+                conn.request(method, url)
+            else:
+                conn.request(method, url, body=json.dumps(body), headers={"Content-Type": "application/json"})
             resp = conn.getresponse()
             body = resp.read()
         except OSError as exc:
@@ -51,9 +54,9 @@ class SupervisorClient:
         try:
             data = json.loads(body or b"{}")
         except ValueError:
-            data = {"error": body.decode("utf-8", "replace")[:200]}
+            data = {"detail": body.decode("utf-8", "replace")[:200]}
         if resp.status >= 400:
-            raise SupervisorError(resp.status, str(data.get("error", resp.reason)))
+            raise SupervisorError(resp.status, str(data.get("detail", resp.reason)))
         return data
 
     def status(self) -> dict[str, Any]:
@@ -70,3 +73,19 @@ class SupervisorClient:
 
     def shutdown(self) -> dict[str, Any]:
         return self._call("POST", "/v1/shutdown")
+
+    # ── jobs ──
+    def jobs(self) -> list[dict[str, Any]]:
+        return self._call("GET", "/v1/jobs")["jobs"]
+
+    def start_job(self, job_id: str) -> dict[str, Any]:
+        return self._call("POST", "/v1/jobs", {"id": job_id})
+
+    def job(self, job_id: str) -> dict[str, Any]:
+        return self._call("GET", f"/v1/jobs/{job_id}")
+
+    def stop_job(self, job_id: str) -> dict[str, Any]:
+        return self._call("POST", f"/v1/jobs/{job_id}/stop")
+
+    def job_logs(self, job_id: str, lines: int = 100) -> list[str]:
+        return self._call("GET", f"/v1/jobs/{job_id}/logs?lines={lines}")["lines"]

@@ -105,8 +105,7 @@ function onHfQueryInput() {
 const _favCache = new Set();
 async function loadFavorites() {
   try {
-    const r = await fetch('/api/favorites');
-    const d = await r.json();
+    const d = await api.get('/api/favorites');
     _favCache.clear();
     (d || []).forEach(f => _favCache.add(f.path));
   } catch (_) { /* ignore */ }
@@ -120,23 +119,23 @@ function isFavorited(repoId) {
 }
 async function toggleFavorite(repoId, btn) {
   if (!repoId) return;
+  try {
   if (isFavorited(repoId)) {
     // Remove
     const path = [..._favCache].find(p => p.endsWith(repoId)) || repoId;
-    await fetch('/api/favorites/' + encodeURIComponent(path), { method: 'DELETE' });
+    await api.del('/api/favorites/' + encodeURIComponent(path));
     _favCache.delete(path);
     if (btn) { btn.textContent = '☆'; btn.classList.remove('fav-active'); btn.title = 'Add to favorites'; btn.setAttribute('aria-label', 'Add to favorites'); }
     if (window.fts) window.fts.notify('Removed from favorites', 'info');
   } else {
     // Add
-    await fetch('/api/favorites', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: repoId, name: repoId })
-    });
+    await api.post('/api/favorites', { path: repoId, name: repoId });
     _favCache.add(repoId);
     if (btn) { btn.textContent = '★'; btn.classList.add('fav-active'); btn.title = 'Remove from favorites'; btn.setAttribute('aria-label', 'Remove from favorites'); }
     if (window.fts) window.fts.notify('Added to favorites', 'success');
+  }
+  } catch (e) {
+    if (window.fts) window.fts.notify('Favorites update failed: ' + e.message, 'error');
   }
 }
 function renderResults(results) {

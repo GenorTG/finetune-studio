@@ -182,7 +182,7 @@ def test_export_blocks_until_every_file_is_complete(client_and_db) -> None:
     r = client.get(f"/api/projects/{pid}/data-prep/export")
     assert r.status_code == 409
     body = r.json()
-    assert "blocked" in body["error"] and "notes.txt (gaps)" in body["error"]
+    assert "blocked" in body["detail"] and "notes.txt (gaps)" in body["detail"]
     assert body["incomplete_files"][0]["filename"] == "notes.txt" and body["incomplete_files"][0]["counts"]["open"] == 1
 
 

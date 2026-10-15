@@ -295,16 +295,9 @@
     if (el) el.textContent = sub;
   }
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-  async function api(u, opts) {
-    var r = await fetch(u, opts);
-    var d = await r.json().catch(function () { return {}; });
-    if (!r.ok) throw new Error((d && (d.detail || d.error)) || ("HTTP " + r.status));
-    return d;
-  }
-  function post(u, body) {
-    return api(u, { method: "POST", headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(body || {}) });
-  }
+  /* Shared api.js client: a failed call throws with the server's `detail` as the message. */
+  function api(u) { return window.api.get(u); }
+  function post(u, body) { return window.api.post(u, body || {}); }
 
   /* ── mode toggle ── */
   window.wizSetMode = function (m) {
@@ -456,8 +449,8 @@
       var helperId = prov.helper_provider_id || "local-default";
       if ((prov.helper || {}).kind !== "openai_compat" && (!prov.active || prov.active.id !== helperId)) {
         line("Loading helper (" + (prov.helper_label || helperId) + ")…");
-        var lr = await post("/api/providers/" + helperId + "/load", {});
-        if (!lr || lr.ok === false || lr.error) throw new Error("helper load failed: " + ((lr && lr.error) || "unknown"));
+        try { await post("/api/providers/" + helperId + "/load", {}); }
+        catch (e) { throw new Error("helper load failed: " + e.message); }
         line("Helper ready.");
       }
       // Quick mode approves only what THIS run wrote: pairs that were pending before stay for the reviewer.
@@ -468,7 +461,6 @@
         var ids = kind === "mine" ? mine : fill;
         if (!ids.length) continue;
         var q = await post("/api/projects/" + PID + "/mining/jobs", { source_ids: ids, kind: kind });
-        if (!q || q.error) throw new Error((q && q.error) || "could not queue the mining jobs");
         q.jobs.forEach(function (j) { jobIds.push(j.id); });
         line("Queued " + q.jobs.length + " " + (kind === "mine" ? "mining" : "gap-filling") + " job(s), one per document.");
       }
@@ -512,9 +504,8 @@
       set("wiz-brain", "building the index — the first build downloads the embedding model and can take a minute or two. Keep this page open.");
       line("Smart Brain quick build: parsing every unparsed file + building the index…");
       var d = await post("/api/projects/" + PID + "/brain/quick", {});
-      if (d && d.error) throw new Error(d.error);
       var b = d.build || {};
-      if (b.ok === false) throw new Error(b.error || "build failed");
+      if (b.ok === false) throw new Error(b.detail || "build failed");
       line("Smart Brain ready: " + (b.documents != null ? b.documents : "?") + " docs / "
            + (b.chunks != null ? b.chunks : "?") + " chunks"
            + (d.promoted ? " · " + d.promoted + " file(s) newly promoted" : "")
@@ -567,9 +558,9 @@
       if (!r.ok) {
         var d = await r.json().catch(function () { return {}; });
         if (r.status === 409 && Array.isArray(d.incomplete_files) && d.incomplete_files.length) {
-          wizShowExportGate(d.incomplete_files.map(function (f) { return f.filename; }), d.error || "Dataset export blocked.");
+          wizShowExportGate(d.incomplete_files.map(function (f) { return f.filename; }), d.detail || "Dataset export blocked.");
         }
-        throw new Error(d.detail || d.error || ("HTTP " + r.status));
+        throw new Error(d.detail || ("HTTP " + r.status));
       }
       var b = await r.blob();
       var rows = r.headers.get("X-Rows"), grounded = r.headers.get("X-Grounded-Rows");
@@ -682,7 +673,6 @@
         startBody.num_epochs = ep;   // top-level field, same as the Training page form
       }
       var r = await post("/api/training/start", startBody);
-      if (r.error) throw new Error(r.error);
       wizLastRunId = r.run_id || "";
       line("Training started (" + (r.steps || "?") + " steps). This page will keep polling — long step, go do something else and come back.");
       for (;;) {
@@ -717,8 +707,7 @@
       var sampleEl = document.getElementById("wiz-test-sample");
       var sampleN = sampleEl && sampleEl.value ? parseInt(sampleEl.value, 10) : 0;
       if (sampleN > 0) line("Sampling " + sampleN + " random questions (explicit opt-in) — the verdict will be labeled sampled.");
-      var gen = await post("/api/training/runs/" + run.id + "/auto-suites/generate", sampleN > 0 ? { sample_size: sampleN } : {});
-      if (gen && gen.error) throw new Error(gen.error);
+      await post("/api/training/runs/" + run.id + "/auto-suites/generate", sampleN > 0 ? { sample_size: sampleN } : {});
       var suites = await api("/api/training/runs/" + run.id + "/auto-suites");
       if (!Array.isArray(suites) || !suites.length) throw new Error("no quiz was generated");
       var suite = suites[0];
@@ -728,7 +717,6 @@
         project_id: PID, suite_path: suite.suite_path,
         model_path: (run.output_path || "") + "/merged", max_tokens: 256,
       });
-      if (started.error) throw new Error(started.error);
       var bid = started.benchmark_id;
       var runRow = null;
       for (;;) {
@@ -819,7 +807,6 @@
     var label = (document.getElementById(labelId) || {}).value || "";
     post("/api/projects/" + PID + "/versions", { label: label || fallback })
       .then(function (v) {
-        if (v.error) throw new Error(v.error);
         line("Version v" + v.version_number + " pinned.");
         wizRefresh("version");
       })
@@ -840,7 +827,6 @@
     set("wiz-brain", "building the index — the first build downloads the embedding model and can take a minute or two.");
     line("Smart Brain build starting (can take a minute on first use)…");
     post("/api/projects/" + PID + "/brain/build", { reset: false }).then(function (d) {
-      if (d.error) throw new Error(d.error);
       line("Smart Brain build done: " + d.documents + " docs / " + d.chunks + " chunks");
       wizRefresh("brain");
     }).catch(function (e) { line("Smart Brain build FAILED: " + e.message); });

@@ -216,8 +216,8 @@ async def hf_search(q: str = "", task: str = "text-generation",
         results = _search_hf(req)
     except HFUnavailableError as e:
         return JSONResponse(
-            {"error": "HuggingFace Hub is unreachable right now — check your connection and retry.",
-             "detail": str(e)[:200], "results": [], "task": task, "query": q},
+            {"detail": f"Hugging Face Hub is unreachable right now: check your connection and retry ({str(e)[:200]})",
+             "code": "hub_unreachable", "results": [], "task": task, "query": q},
             status_code=502,
         )
     return {"results": results, "task": task, "query": q}
@@ -227,7 +227,7 @@ async def hf_search(q: str = "", task: str = "text-generation",
 async def hf_info(repo_id: str):
     info = _model_info(repo_id)
     if info is None:
-        return JSONResponse({"error": "model not found or fetch failed"}, status_code=404)
+        return JSONResponse({"detail": "model not found or fetch failed"}, status_code=404)
     return info
 
 
@@ -271,7 +271,7 @@ async def hf_download_progress(job_id: str):
     from finetune_studio import db
     row = db.get_hf_download(job_id)
     if row is None:
-        return JSONResponse({"error": "unknown job_id"}, status_code=404)
+        return JSONResponse({"detail": "unknown job_id"}, status_code=404)
     return row
 
 
@@ -284,7 +284,7 @@ async def hf_download_cancel(job_id: str):
         from finetune_studio import db
         row = db.get_hf_download(job_id)
         if row is None:
-            return JSONResponse({"error": "unknown job_id"}, status_code=404)
+            return JSONResponse({"detail": "unknown job_id"}, status_code=404)
         if row.get("status") in ("completed", "error", "cancelled"):
             return {"ok": True, "job_id": job_id, "status": row["status"]}
         db.mark_hf_download_cancelled(job_id)
@@ -417,7 +417,7 @@ async def hf_delete_local(repo_id: str):
     """Delete a locally cached model."""
     target = _local_dir(repo_id)
     if not target.exists():
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse({"detail": "not found"}, status_code=404)
     # Model dirs are gigabytes: delete off the event loop.
     await asyncio.to_thread(shutil.rmtree, target)
     # The registry still lists the deleted model (and every model picker offers it) until a rescan.
@@ -433,7 +433,7 @@ async def hf_local_files(repo_id: str):
     """List files in a local model dir with sizes."""
     target = _local_dir(repo_id)
     if not target.exists():
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse({"detail": "not found"}, status_code=404)
     def _list() -> list[dict]:
         out = []
         for p in sorted(target.rglob("*")):
@@ -484,7 +484,7 @@ async def add_favorite(request: Request):
     name = body.get('name', path.split('/')[-1] if path else '')
     note = body.get('note', '')
     if not path or not isinstance(path, str):
-        return JSONResponse({"error": "path required"}, status_code=400)
+        return JSONResponse({"detail": "path required"}, status_code=400)
     db.add_model_favorite(model_path=path, name=name, note=note)
     return {"ok": True}
 

@@ -11,6 +11,7 @@ from pathlib import Path
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 
+from finetune_studio.jobs.launch import JobRejected
 from finetune_studio.training.data import (
     format_for_preference,
     format_for_unpaired,
@@ -18,7 +19,7 @@ from finetune_studio.training.data import (
 )
 from finetune_studio.training.engine import TrainingConfig
 from finetune_studio.training.monitor import training_events
-from finetune_studio.training.run_persistence import attach_run
+from finetune_studio.training.remote import TrainingBusy
 from finetune_studio.webui.app import training_engine
 from finetune_studio.webui.live_sse import sse_response
 
@@ -328,7 +329,7 @@ async def recommend_config(
                       gradient_accumulation_steps=grad_accum)
         return adv.to_dict()
     except ValueError as e:
-        return JSONResponse(status_code=400, content={"error": str(e)})
+        return JSONResponse(status_code=400, content={"detail": str(e), "code": "bad_request"})
 
 @router.get("/status")
 async def status():
@@ -346,7 +347,7 @@ async def latest_failure(project_id: str):
     from finetune_studio import db
     from finetune_studio.training.failure_hint import diagnose_failure
     if not db.get_project(project_id):
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
     runs = db.list_runs(project_id)
     run = runs[0] if runs else None
     if not run or run.get("status") not in ("failed", "error"):
@@ -425,7 +426,7 @@ async def list_training_runs_for_project(pid: str):
     from finetune_studio import db
     from finetune_studio.db.runs import list_runs
     if not db.get_project(pid):
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
     return list_runs(pid)
 
 
@@ -435,9 +436,9 @@ async def start_training(request: Request):
     try:
         body = await request.json()
     except ValueError:
-        return JSONResponse({"error": "request body must be valid JSON"}, status_code=400)
+        return JSONResponse({"detail": "request body must be valid JSON"}, status_code=400)
     if not isinstance(body, dict):
-        return JSONResponse({"error": "JSON object body required"}, status_code=400)
+        return JSONResponse({"detail": "JSON object body required"}, status_code=400)
 
     # Extract data_path and project_id FIRST
     data_path = body.get("data_path", "")
@@ -446,10 +447,10 @@ async def start_training(request: Request):
     if dataset_id and not data_path:
         ds = db.get_dataset(dataset_id)
         if not ds or ds.get("project_id") != project_id:
-            return JSONResponse({"error": f"dataset {dataset_id!r} not found in this project"}, status_code=404)
+            return JSONResponse({"detail": f"dataset {dataset_id!r} not found in this project"}, status_code=404)
         data_path = ds["data_path"]
     if not data_path:
-        return JSONResponse({"error": "No data_path / dataset_id provided"}, status_code=400)
+        return JSONResponse({"detail": "No data_path / dataset_id provided"}, status_code=400)
 
     preset_id = body.get("preset_id")
     overrides = body.get("overrides") or {}
@@ -465,7 +466,7 @@ async def start_training(request: Request):
                        if body.get(k) not in (None, "")}
                 config = _apply_preset(preset_id, {**top, **overrides})
             except (ValueError, TypeError) as e:
-                return JSONResponse({"error": str(e)}, status_code=400)
+                return JSONResponse({"detail": str(e)}, status_code=400)
             if not config.model_path and body.get("model_path"):
                 config.model_path = body["model_path"]
             if merge_flag is not None:
@@ -502,15 +503,15 @@ async def start_training(request: Request):
             )
         _apply_checkpoint_fields(config, body)
     except (ValueError, TypeError, OverflowError) as e:
-        return JSONResponse({"error": f"invalid training parameter: {e}"}, status_code=400)
+        return JSONResponse({"detail": f"invalid training parameter: {e}"}, status_code=400)
     if config.save_total_limit < 1:
-        return JSONResponse({"error": "save_limit must be >= 1"}, status_code=400)
+        return JSONResponse({"detail": "save_limit must be >= 1"}, status_code=400)
     if config.early_stopping and config.eval_steps <= 0:
-        return JSONResponse({"error": "Early stopping needs evaluation: set "
+        return JSONResponse({"detail": "Early stopping needs evaluation: set "
                              "'Eval every N steps' above 0."}, status_code=400)
     for _name in ("num_epochs", "batch_size", "gradient_accumulation_steps", "max_seq_length", "lora_rank"):
         if getattr(config, _name, 1) < 1:
-            return JSONResponse({"error": f"{_name} must be >= 1"}, status_code=400)
+            return JSONResponse({"detail": f"{_name} must be >= 1"}, status_code=400)
     merge_on_save = config.merge_on_save
 
     start_run_id = str(body.get("start_run_id") or "").strip()
@@ -522,24 +523,24 @@ async def start_training(request: Request):
         try:
             config.model_path = resolve_start_point(project_id, start_run_id)
         except StartPointError as e:
-            return JSONResponse({"error": str(e)}, status_code=400)
+            return JSONResponse({"detail": str(e)}, status_code=400)
     if not config.model_path:
-        return JSONResponse({"error": "No model_path provided"}, status_code=400)
+        return JSONResponse({"detail": "No model_path provided"}, status_code=400)
     config.model_path, dl_err = _resolve_model_path(
         config.model_path, _optional_body_bool(body, "allow_download") or False
     )
     if dl_err:
-        return JSONResponse({"error": dl_err}, status_code=400)
+        return JSONResponse({"detail": dl_err}, status_code=400)
     training_data = load_jsonl(data_path)
     if not training_data:
-        return JSONResponse({"error": "Training dataset is empty"}, status_code=400)
+        return JSONResponse({"detail": "Training dataset is empty"}, status_code=400)
     training_mode = str(body.get("training_mode") or "sft").strip().lower()
     supported_training_modes = {
         "sft", "dpo", "kto", "tool_sft", "continued_pretraining", "reasoning_distillation",
     }
     if training_mode not in supported_training_modes:
         return JSONResponse({
-            "error": "training_mode must be one of: " + ", ".join(sorted(supported_training_modes)),
+            "detail": "training_mode must be one of: " + ", ".join(sorted(supported_training_modes)),
         }, status_code=400)
     if training_mode in PREFERENCE_MODES:
         # LoRA preference tuning needs its own optimizer scale (see PREFERENCE_DEFAULTS);
@@ -553,45 +554,45 @@ async def start_training(request: Request):
         try:
             beta = float(body.get("preference_beta") or config.preference_beta)
         except (TypeError, ValueError):
-            return JSONResponse({"error": "preference_beta must be a number"}, status_code=400)
+            return JSONResponse({"detail": "preference_beta must be a number"}, status_code=400)
         if not 0 < beta <= 1:
-            return JSONResponse({"error": "preference_beta must be in (0, 1]"}, status_code=400)
+            return JSONResponse({"detail": "preference_beta must be in (0, 1]"}, status_code=400)
         config.preference_beta = beta
         if training_mode == "dpo":
             raw_weight = body.get("preference_sft_weight")
             try:
                 sft_weight = DEFAULT_KEEP_CHOSEN_WEIGHT if raw_weight in (None, "") else float(raw_weight)
             except (TypeError, ValueError):
-                return JSONResponse({"error": "preference_sft_weight must be a number"}, status_code=400)
+                return JSONResponse({"detail": "preference_sft_weight must be a number"}, status_code=400)
             if not 0 <= sft_weight <= 10:
-                return JSONResponse({"error": "preference_sft_weight must be between 0 and 10"}, status_code=400)
+                return JSONResponse({"detail": "preference_sft_weight must be between 0 and 10"}, status_code=400)
             config.preference_sft_weight = sft_weight
         if training_mode == "dpo":
             try:
                 format_for_preference(training_data)
             except (TypeError, ValueError) as e:
                 return JSONResponse({
-                    "error": f"Invalid preference dataset: {e}. Each row needs prompt, chosen, and rejected.",
+                    "detail": f"Invalid preference dataset: {e}. Each row needs prompt, chosen, and rejected.",
                 }, status_code=400)
             if len(training_data) < 2:
                 return JSONResponse({
-                    "error": "DPO needs at least 2 preference pairs so one can be held out for validation.",
+                    "detail": "DPO needs at least 2 preference pairs so one can be held out for validation.",
                 }, status_code=400)
         else:
             try:
                 unpaired = format_for_unpaired(training_data)
             except (TypeError, ValueError) as e:
                 return JSONResponse({
-                    "error": f"Invalid KTO dataset: {e}. Each row needs prompt, completion and a true/false "
+                    "detail": f"Invalid KTO dataset: {e}. Each row needs prompt, completion and a true/false "
                              "label (preference rows prompt/chosen/rejected are converted automatically).",
                 }, status_code=400)
             if len(unpaired) < 4:
                 return JSONResponse({
-                    "error": "KTO needs at least 4 examples so a validation holdout still has both kinds.",
+                    "detail": "KTO needs at least 4 examples so a validation holdout still has both kinds.",
                 }, status_code=400)
             if config.batch_size < 2:
                 return JSONResponse({
-                    "error": "KTO needs batch_size >= 2: its KL term is estimated from other prompts in the "
+                    "detail": "KTO needs batch_size >= 2: its KL term is estimated from other prompts in the "
                              "same batch (TRL: 'Actual (not effective) batch size must be > 1').",
                 }, status_code=400)
     elif training_mode == "continued_pretraining":
@@ -599,7 +600,7 @@ async def start_training(request: Request):
         try:
             format_for_continued_pretraining(training_data)
         except (TypeError, ValueError) as e:
-            return JSONResponse({"error": f"Invalid continued-pretraining dataset: {e}"}, status_code=400)
+            return JSONResponse({"detail": f"Invalid continued-pretraining dataset: {e}"}, status_code=400)
     elif training_mode in {"tool_sft", "reasoning_distillation"}:
         from finetune_studio.training.data import format_for_sft
         if training_mode == "tool_sft" and any(
@@ -610,17 +611,17 @@ async def start_training(request: Request):
             for row in training_data
         ):
             return JSONResponse({
-                "error": "Every tool-calling SFT row needs messages and its tools function JSON-schema list.",
+                "detail": "Every tool-calling SFT row needs messages and its tools function JSON-schema list.",
             }, status_code=400)
         if training_mode == "tool_sft" and not any(
             isinstance(message, dict) and isinstance(message.get("tool_calls"), list) and message["tool_calls"]
             for row in training_data for message in row["messages"]
         ):
             return JSONResponse({
-                "error": "Tool-calling SFT needs at least one assistant tool_calls example; plain conversations belong in SFT.",
+                "detail": "Tool-calling SFT needs at least one assistant tool_calls example; plain conversations belong in SFT.",
             }, status_code=400)
         if not format_for_sft(training_data):
-            return JSONResponse({"error": f"Invalid {training_mode} dataset: no supported conversation rows"}, status_code=400)
+            return JSONResponse({"detail": f"Invalid {training_mode} dataset: no supported conversation rows"}, status_code=400)
     system_prompt = body.get("system_prompt", "")
     system_prompt_mode = body.get("system_prompt_mode", "bake")
     # The project training form sends only the mode; bake/runtime without a
@@ -629,7 +630,7 @@ async def start_training(request: Request):
         system_prompt = (db.get_project(project_id) or {}).get("system_prompt", "") or ""
 
     if training_engine.state.status in ("training", "loading", "saving"):
-        return JSONResponse({"error": "another training run is in progress"}, status_code=409)
+        return JSONResponse({"detail": "another training run is in progress"}, status_code=409)
 
     # Create a run record
     run = db.create_run(
@@ -673,9 +674,6 @@ async def start_training(request: Request):
         name=f"Run {run_id} · {Path(data_path).name}",
         output_path=config.output_dir,
     )
-    # One persister per run; the previous run's callback is detached so it can
-    # never rewrite its own row with this run's progress.
-    attach_run(training_engine, run_id, config.output_dir, project_id=project_id)
     # Training and any resident helper/test model share the same GPU. Unload
     # BOTH engines before the worker imports/loads the trainable base —
     # unloading only the global InferenceEngine used to leave a
@@ -695,11 +693,18 @@ async def start_training(request: Request):
             # routes use the standard TRL lifecycle so their data semantics are
             # not silently lost.
             config.unsloth = False
-        training_engine.start(config, training_data, system_prompt)
+        # The run is its own job process (it persists this run's row itself and outlives a web restart).
+        training_engine.start(config, training_data, system_prompt, run_id=run_id,
+                              output_dir=config.output_dir, project_id=project_id)
+    except (TrainingBusy, JobRejected) as e:
+        db.update_run(run_id, status="error")
+        code = getattr(e, "code", "") or "training_busy"
+        return JSONResponse({"detail": f"start refused: {e}", "code": code},
+                            status_code=getattr(e, "status", 409))
     except Exception as e:
         log.exception("training start failed")
         db.update_run(run_id, status="error")
-        return JSONResponse({"error": f"start failed: {e}"}, status_code=500)
+        return JSONResponse({"detail": f"start failed: {e}"}, status_code=500)
     warnings: list[str] = []
     if training_mode in PREFERENCE_MODES:
         steps = math.ceil(len(training_data) * 0.9 / max(1, config.batch_size * config.gradient_accumulation_steps))
@@ -719,7 +724,7 @@ async def training_start_points(pid: str):
     from finetune_studio import db
     from finetune_studio.training.start_points import list_start_points
     if not db.get_project(pid):
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
     return {"start_points": list_start_points(pid)}
 
 
@@ -767,22 +772,23 @@ async def trigger_auto_suite(run_id: str, request: Request):
         try:
             sample_size = int(body["sample_size"])
         except (TypeError, ValueError):
-            return JSONResponse({"error": "sample_size must be an integer"}, status_code=400)
+            return JSONResponse({"detail": "sample_size must be an integer"}, status_code=400)
         if sample_size <= 0:
-            return JSONResponse({"error": "sample_size must be > 0"}, status_code=400)
+            return JSONResponse({"detail": "sample_size must be > 0"}, status_code=400)
     run = db.get_run(run_id)
     if not run:
-        return JSONResponse({"error": "run not found"}, status_code=404)
+        return JSONResponse({"detail": "run not found"}, status_code=404)
     data_path = (run.get("data_path") or "").strip()
     if not data_path:
-        return JSONResponse({"error": "run has no data_path"}, status_code=409)
+        return JSONResponse({"detail": "run has no data_path"}, status_code=409)
     output_path = (run.get("output_path") or "").strip()
     if not output_path:
-        return JSONResponse({"error": "run has no output_path"}, status_code=409)
+        return JSONResponse({"detail": "run has no output_path"}, status_code=409)
     from finetune_studio.testing.generate_suite import generate_suite_from_training_data
     result = generate_suite_from_training_data(data_path, output_path, max_cases=sample_size)
     if result.get("error"):
-        return JSONResponse(result, status_code=422)
+        body = {k: v for k, v in result.items() if k != "error"}
+        return JSONResponse({"detail": result["error"], "code": "no_cases", **body}, status_code=422)
     # Record in DB
     from time import time as _time
 
@@ -828,25 +834,25 @@ async def quantize_run(run_id: str, request: Request):
     method = body.get("method", "imatrix")
     run = db.get_run(run_id)
     if not run:
-        return JSONResponse({"error": "run not found"}, status_code=404)
+        return JSONResponse({"detail": "run not found"}, status_code=404)
     output_path = (run.get("output_path") or "").strip()
     if not output_path:
-        return JSONResponse({"error": "run has no output_path"}, status_code=409)
+        return JSONResponse({"detail": "run has no output_path"}, status_code=409)
     merged_dir = os.path.join(output_path, "merged")
     if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
-        return JSONResponse({"error": "no merged model to quantize"}, status_code=409)
+        return JSONResponse({"detail": "no merged model to quantize"}, status_code=409)
     if method != "imatrix":
-        return JSONResponse({"error": f"unknown method: {method}"}, status_code=400)
+        return JSONResponse({"detail": f"unknown method: {method}"}, status_code=400)
     imatrix_path = body.get("imatrix_path", "")
     if not imatrix_path or not os.path.isfile(imatrix_path):
         return JSONResponse(
-            {"error": f"imatrix file not found: {imatrix_path or '(none given)'}"},
+            {"detail": f"imatrix file not found: {imatrix_path or '(none given)'}"},
             status_code=422,
         )
     if not find_gguf_convert_script():
-        return JSONResponse({"error": "llama.cpp convert script not found"}, status_code=422)
+        return JSONResponse({"detail": "llama.cpp convert script not found"}, status_code=422)
     if not find_llama_quantize():
-        return JSONResponse({"error": "llama-quantize not found"}, status_code=422)
+        return JSONResponse({"detail": "llama-quantize not found"}, status_code=422)
     quants = [str(q) for q in body.get("quants", ["q4_k_m", "q5_k_m", "q8_0"])]
     try:
         row = export_jobs.start_job(
@@ -862,7 +868,7 @@ async def quantize_run(run_id: str, request: Request):
         )
     except export_jobs.ExportBusy as busy:
         return JSONResponse(
-            {"ok": False, "status": "busy", "error": str(busy),
+            {"ok": False, "status": "busy", "detail": str(busy),
              "active_export_id": busy.active.get("id")},
             status_code=409,
         )
@@ -889,9 +895,9 @@ async def set_run_output(run_id: str, request: Request):
     body = await request.json()
     output_path = str(body.get("output_path") or "").strip()
     if not output_path:
-        return JSONResponse({"error": "no output_path"}, status_code=400)
+        return JSONResponse({"detail": "no output_path"}, status_code=400)
     if not db.get_run(run_id):
-        return JSONResponse({"error": "run not found"}, status_code=404)
+        return JSONResponse({"detail": "run not found"}, status_code=404)
     db.update_run(run_id, output_path=output_path)
     return {"ok": True, "run_id": run_id, "output_path": output_path}
 

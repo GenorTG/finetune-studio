@@ -235,7 +235,7 @@ def test_connection_test_reports_latency_and_models_list(client: Any, gateway: _
     assert ok.status_code == 200 and ok.json()["reply"] == "pong" and ok.json()["latency_ms"] >= 0
     assert client.post("/api/settings/helper/models", json=body).json()["models"] == ["model-a", "model-b"]
     bad = client.post("/api/settings/helper/test", json={**body, "api_key": "nope"})
-    assert bad.status_code == 502 and "HTTP 401" in bad.json()["error"] and "nope" not in bad.text
+    assert bad.status_code == 502 and "HTTP 401" in bad.json()["detail"] and "nope" not in bad.text
 
 
 def test_api_helper_is_seated_on_demand_after_a_restart(client: Any, gateway: _Gateway) -> None:

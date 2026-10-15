@@ -97,7 +97,7 @@ class TestUpdateRoute:
     def test_invalid_mode_returns_error(self, client, mock_settings):
         r = client.post("/api/system/update", json={"mode": "explode"})
         body = r.json()
-        assert "invalid mode" in body["error"]
+        assert "invalid mode" in body["detail"]
 
     def test_post_returns_update_id_and_queued_status(
         self, client, mock_settings, monkeypatch

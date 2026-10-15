@@ -13,6 +13,7 @@ KEY CONCEPTS
   temperature=0 for deterministic generation.
 """
 
+import logging
 import os
 import threading
 import time
@@ -29,6 +30,9 @@ _GGUF_META_CACHE_MAX = 32
 
 # Auto-unload after idle (FTS_IDLE_TIMEOUT env, default 5 min; 0 disables).
 DEFAULT_IDLE_TIMEOUT = 300
+
+
+_log = logging.getLogger(__name__)
 
 
 def idle_timeout() -> int:
@@ -524,10 +528,10 @@ class InferenceEngine:
                                         val = field.parts[field.data[0]]
                                         result[result_key] = int(val[0]) if len(val) else fallback
                             del reader
-                        except Exception:  # noqa: BLE001,S110
-                            pass
-            except Exception:  # noqa: BLE001,S110
-                pass
+                        except Exception as e:  # noqa: BLE001 — metadata is advisory; say so instead of hiding it
+                            _log.warning("GGUF metadata (full reader) unreadable for %s: %s", path, e)
+            except Exception as e:  # noqa: BLE001
+                _log.warning("GGUF metadata unreadable for %s: %s; layer/context estimates use defaults", path, e)
 
 
         elif path.is_dir() and (path / "config.json").exists():
@@ -538,8 +542,8 @@ class InferenceEngine:
                 result["num_kv_heads"] = cfg.get("num_key_value_heads", cfg.get("num_attention_heads", 0))
                 result["head_dim"] = cfg.get("hidden_size", 0) // max(cfg.get("num_attention_heads", 1), 1)
                 result["n_ctx_default"] = cfg.get("max_position_embeddings", 4096)
-            except Exception:  # noqa: BLE001,S110
-                pass
+            except Exception as e:  # noqa: BLE001
+                _log.warning("config.json unreadable for %s: %s; layer/context estimates use defaults", path, e)
         # Cache the result (even partial) so next call is O(1)
         _GGUF_META_CACHE[cache_key] = result
         while len(_GGUF_META_CACHE) > _GGUF_META_CACHE_MAX:

@@ -44,7 +44,7 @@ def _project_404(pid: str) -> JSONResponse | None:
     """
     from finetune_studio import db
     if not db.get_project(pid):
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
     return None
 
 
@@ -75,17 +75,17 @@ async def brain_bundle(pid: str, body: BundleRequest | None = None):
     req = body or BundleRequest()
     corpus = _corpus_dir(pid)
     if not (corpus / "manifest.json").is_file():
-        return JSONResponse({"error": "no corpus to bundle"}, status_code=404)
+        return JSONResponse({"detail": "no corpus to bundle"}, status_code=404)
     stem = re.sub(r"[^A-Za-z0-9._-]+", "-", req.name or "").strip(".-")[:48] or f"{pid}-corpus"
     out = _bundle_dir(pid) / f"{stem}{sb.BUNDLE_EXT}"
     try:
         path, generated = await asyncio.to_thread(
             sb.export_secure_bundle, corpus, out, req.passphrase or None)
     except ValueError as e:
-        return JSONResponse({"error": str(e)}, status_code=422)
+        return JSONResponse({"detail": str(e)}, status_code=422)
     except Exception as e:
         log.exception("bundle export failed")  # never includes the passphrase
-        return JSONResponse({"error": f"bundle export failed: {type(e).__name__}"}, status_code=500)
+        return JSONResponse({"detail": f"bundle export failed: {type(e).__name__}"}, status_code=500)
     return JSONResponse(
         {"filename": path.name, "size": path.stat().st_size, "encrypted": True,
          "passphrase": generated,
@@ -102,10 +102,10 @@ async def brain_bundle_download(pid: str, file: str):
     if missing is not None:
         return missing
     if not _SAFE_BUNDLE.match(file):
-        return JSONResponse({"error": "invalid bundle filename"}, status_code=400)
+        return JSONResponse({"detail": "invalid bundle filename"}, status_code=400)
     path = _bundle_dir(pid) / file
     if not path.is_file():
-        return JSONResponse({"error": "bundle not found — export again"}, status_code=404)
+        return JSONResponse({"detail": "bundle not found — export again"}, status_code=404)
     return FileResponse(path=str(path), media_type="application/octet-stream",
                         filename=file, headers={"Cache-Control": "no-store"})
 
@@ -142,7 +142,7 @@ async def brain_import(pid: str, file: UploadFile, overwrite: bool = False,
         suffix = ".zip"
     else:
         return JSONResponse(
-            {"error": f"unsupported archive format: {Path(filename).suffix.lower()}"},
+            {"detail": f"unsupported archive format: {Path(filename).suffix.lower()}"},
             status_code=400,
         )
 
@@ -160,7 +160,7 @@ async def brain_import(pid: str, file: UploadFile, overwrite: bool = False,
     try:
         if suffix == sb.BUNDLE_EXT:
             if not passphrase:
-                return JSONResponse({"error": "this bundle is encrypted; a passphrase is required"},
+                return JSONResponse({"detail": "this bundle is encrypted; a passphrase is required"},
                                     status_code=400)
             if index.exists() and not overwrite:
                 raise FileExistsError(
@@ -172,16 +172,16 @@ async def brain_import(pid: str, file: UploadFile, overwrite: bool = False,
         else:
             stats = index.import_bundle(tmp_path, overwrite=overwrite)
     except FileNotFoundError as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
     except FileExistsError as e:
-        return JSONResponse({"error": str(e)}, status_code=409)
+        return JSONResponse({"detail": str(e)}, status_code=409)
     except ContainerError as e:  # wrong passphrase / tampered / not a bundle
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
     except ValueError as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
     except Exception as e:
         log.exception("bundle import failed")
-        return JSONResponse({"error": f"bundle import failed: {type(e).__name__}"}, status_code=500)
+        return JSONResponse({"detail": f"bundle import failed: {type(e).__name__}"}, status_code=500)
     finally:
         tmp_path.unlink(missing_ok=True)
 

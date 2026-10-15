@@ -101,8 +101,8 @@ def test_missing_suite_returns_404_without_loading(
     )
     assert r.status_code == 404, r.text
     body = r.json()
-    assert "error" in body
-    assert "not found" in body["error"].lower() or "suite" in body["error"].lower()
+    assert "detail" in body
+    assert "not found" in body["detail"].lower() or "suite" in body["detail"].lower()
     assert all(not e.load_calls for e in _TrackingEngine.instances)  # nothing was loaded
     assert global_ie.unload_calls == 0
 
@@ -132,7 +132,7 @@ def test_failed_run_returns_409(
         },
     )
     assert r.status_code == 409, r.text
-    err = r.json()["error"]
+    err = r.json()["detail"]
     assert "no trained model" in err
     assert "failed" in err
     assert all(not e.load_calls for e in _TrackingEngine.instances)  # nothing was loaded
@@ -173,7 +173,7 @@ def test_done_run_loads_and_unloads_even_when_run_suite_raises(
         },
     )
     assert r.status_code == 500, r.text
-    assert "error" in r.json()
+    assert "detail" in r.json()
     assert len(_TrackingEngine.instances) == 1
     eng = _TrackingEngine.instances[0]
     assert eng.load_calls, "expected InferenceEngine.load to be called"

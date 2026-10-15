@@ -406,7 +406,7 @@
     });
     if (!r.ok) {
       var d = await r.json().catch(function () { return {}; });
-      throw new Error(d.error || ("HTTP " + r.status));
+      throw new Error(d.detail || ("HTTP " + r.status));
     }
     var reader = r.body.getReader(), dec = new TextDecoder(), buf = "";
     for (;;) {

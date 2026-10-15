@@ -49,7 +49,7 @@ def _project_404(pid: str) -> JSONResponse | None:
     before the export row is read and before any stream starts.
     """
     if not db.get_project(pid):
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
     return None
 
 # Quantization levels supported by llama.cpp's llama-quantize + convert's
@@ -156,7 +156,7 @@ async def export_run(pid: str, rid: str, request: Request):
     if not isinstance(body, dict):
         return JSONResponse(
             {"ok": False, "status": "failed",
-             "error": "request body must be a JSON object"},
+             "detail": "request body must be a JSON object"},
             status_code=400,
         )
     fmt = str(body.get("format") or "gguf").lower()
@@ -170,7 +170,7 @@ async def export_run(pid: str, rid: str, request: Request):
     run = db.get_run(rid)
     if not run:
         return JSONResponse(
-            {"ok": False, "status": "failed", "error": "run not found"},
+            {"ok": False, "status": "failed", "detail": "run not found"},
             status_code=404,
         )
     if run.get("project_id") and pid and run["project_id"] != pid:
@@ -178,13 +178,13 @@ async def export_run(pid: str, rid: str, request: Request):
             {
                 "ok": False,
                 "status": "failed",
-                "error": "run does not belong to this project",
+                "detail": "run does not belong to this project",
             },
             status_code=400,
         )
 
     def _err(msg: str, *, status_code: int = 400, **extra: object):
-        payload = {"ok": False, "status": "failed", "error": msg, **extra}
+        payload = {"ok": False, "status": "failed", "detail": msg, "code": "export_refused", **extra}
         return JSONResponse(payload, status_code=status_code)
 
     # AWQ and GPTQ are not supported formats; they are refused here with the
@@ -201,8 +201,9 @@ async def export_run(pid: str, rid: str, request: Request):
             run, fmt=fmt, quants=quants, force=bool(body.get("force", False)),
         )
         if refused is not None:
-            payload = ExportResult.from_raw(refused)
-            return JSONResponse(payload.model_dump(exclude_none=False), status_code=400)
+            payload = ExportResult.from_raw(refused).model_dump(exclude_none=False)
+            payload.pop("error", None)
+            return _err(str(refused.get("error") or "export refused"), **payload)
         label = (quants[0] if quants else None) or (
             DEFAULT_QUANT if fmt == "gguf" else "safetensors"
         )
@@ -264,7 +265,7 @@ def _start(
     except export_jobs.ExportBusy as busy:
         return JSONResponse(
             {
-                "ok": False, "status": "busy", "error": str(busy),
+                "ok": False, "status": "busy", "detail": str(busy),
                 "active_export_id": busy.active.get("id"),
                 "active_project_id": busy.active.get("project_id"),
             },
@@ -313,7 +314,7 @@ async def get_export(pid: str, eid: str):
         return missing
     row = db.get_export(eid)
     if not row or row.get("project_id") != pid:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse({"detail": "not found"}, status_code=404)
     return _row_view(row)
 
 
@@ -329,15 +330,15 @@ async def cancel_export(pid: str, eid: str):
         return missing
     row = db.get_export(eid)
     if not row or row.get("project_id") != pid:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse({"detail": "not found"}, status_code=404)
     if (row.get("status") or "") in export_jobs.TERMINAL_STATUSES:
         return JSONResponse(
-            {"ok": False, "error": f"export already {row['status']}"},
+            {"ok": False, "detail": f"export already {row['status']}"},
             status_code=409,
         )
     if not export_jobs.cancel_job(eid):
         return JSONResponse(
-            {"ok": False, "error": "export is not running in this server process"},
+            {"ok": False, "detail": "export is not running in this server process"},
             status_code=409,
         )
     return {"ok": True, "status": "cancelling", "export_id": eid}
@@ -351,7 +352,7 @@ async def export_events(pid: str, eid: str):
         return missing
     export = db.get_export(eid)
     if export and export.get("project_id") != pid:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse({"detail": "not found"}, status_code=404)
 
     async def gen():
         last: str | None = None

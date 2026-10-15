@@ -185,7 +185,7 @@ def test_run_rag_suite_validates_before_it_starts(client: TestClient, tmp_path: 
     assert post(f"{API}/run-brain-suite", json={"suite_path": suite}).status_code == 400
     assert post(f"{API}/run-brain-suite", json={"suite_path": suite, "project_id": "nope"}).status_code == 404
     r = post(f"{API}/run-brain-suite", json={"suite_path": suite, "project_id": pid, "top_k": "many"})
-    assert r.status_code == 400 and "integers" in r.json()["error"]
+    assert r.status_code == 400 and "integers" in r.json()["detail"]
     r = post(f"{API}/run-brain-suite", json={"suite_path": suite, "project_id": pid, "model_path": "/m/model",
                                            "auto_judge": "yes"})
     assert r.status_code == 400
@@ -299,13 +299,13 @@ def test_judge_route_refuses_what_cannot_be_judged(client: TestClient, tmp_path:
     ok = saved_run(rid, [("Q?", "k", "a")])
     judge = lambda bid, **body: client.post(_runs(pid, bid) + "/judge", json=body)
     r = judge(running)
-    assert r.status_code == 400 and "still running" in r.json()["error"]
+    assert r.status_code == 400 and "still running" in r.json()["detail"]
     r = judge(exact)
-    assert r.status_code == 400 and "exact-match" in r.json()["error"]
+    assert r.status_code == 400 and "exact-match" in r.json()["detail"]
     r = judge(empty)
-    assert r.status_code == 400 and "no saved cases" in r.json()["error"]
+    assert r.status_code == 400 and "no saved cases" in r.json()["detail"]
     r = judge(ok, provider_id="no-such-provider")
-    assert r.status_code == 400 and "unknown provider" in r.json()["error"]
+    assert r.status_code == 400 and "unknown provider" in r.json()["detail"]
     assert judge(ok, only_unjudged="yes").status_code == 400
     assert client.post(_runs(pid, ok) + "/judge", content="[1]", headers={"content-type": "application/json"}).status_code == 400
     assert client.post(_runs(pid, "nope") + "/judge", json={}).status_code == 404
@@ -328,7 +328,7 @@ def test_a_second_run_while_one_is_active_is_409_and_names_the_active_one(
         r = client.post(f"{API}/run-suite", json={"suite_path": _suite(tmp_path), "project_id": pid,
                                                   "model_path": "/m/model"})
         assert r.status_code == 409 and r.json()["active"] == {"kind": "run", "benchmark_id": bid}
-        assert bid in r.json()["error"]
+        assert bid in r.json()["detail"]
         local = client.post(_runs(pid, other) + "/judge", json={"provider_id": "local-default"})
         assert local.status_code == 409 and local.json()["active"]["benchmark_id"] == bid
         assert client.delete(_runs(pid, bid)).status_code == 409  # not while a job is writing to it
@@ -363,7 +363,7 @@ def test_cancel_route_stops_the_run_and_keeps_the_saved_cases(
     assert done["status"] == "cancelled" and done["progress_done"] == 2
     assert [c["question"] for c in client.get(_runs(pid, bid) + "/cases").json()] == ["Q0", "Q1"]
     again = client.post(_runs(pid, bid) + "/cancel")
-    assert again.status_code == 409 and "nothing is running" in again.json()["error"]
+    assert again.status_code == 409 and "nothing is running" in again.json()["detail"]
 
 
 def test_delete_removes_the_run_its_cases_and_its_judgements(client: TestClient, tmp_path: Path) -> None:
@@ -569,7 +569,7 @@ def test_benchmarks_route_refuses_a_project_quiz_and_still_scores_an_exact_suite
     monkeypatch.setattr("finetune_studio.webui.app.inference_engine", KeyEngine(model_path=None), raising=False)
 
     quiz = client.post(f"/api/benchmarks/projects/{pid}/runs/{run['id']}/run", json={"suite_path": _suite(tmp_path)})
-    assert quiz.status_code == 400 and "Testing page" in quiz.json()["error"]
+    assert quiz.status_code == 400 and "Testing page" in quiz.json()["detail"]
     assert db.list_benchmarks_for_project(pid) == []
 
     exact = client.post(f"/api/benchmarks/projects/{pid}/runs/{run['id']}/run", json={"suite_path": mcq.path})
@@ -578,7 +578,7 @@ def test_benchmarks_route_refuses_a_project_quiz_and_still_scores_an_exact_suite
     # an exact-scored run is not a judged one: the judge job refuses it, a person may still override a case
     bid = exact.json()["benchmark_id"]
     refused = client.post(_runs(pid, bid) + "/judge", json={})
-    assert refused.status_code == 400 and "exact-match" in refused.json()["error"]
+    assert refused.status_code == 400 and "exact-match" in refused.json()["detail"]
     assert client.get(f"{API}/projects/{pid}/runs").json()[0]["scoring"] == "exact"
 
 
@@ -651,7 +651,7 @@ def test_without_a_model_or_a_merged_export_a_run_is_400_and_never_uses_the_load
 
     r = client.post(f"{API}/{route}", json=_body(route, pid, tmp_path, corpus))
     assert r.status_code == 400, r.text
-    assert "no model to test" in r.json()["error"]
+    assert "no model to test" in r.json()["detail"]
     assert resident.asked == [] and resident.load_calls == []
     assert client.get(f"{API}/projects/{pid}/runs").json() == [] and testing_jobs.active_jobs() == []
 
@@ -722,7 +722,7 @@ def test_the_untrained_base_model_is_a_testing_target_of_its_own(client: TestCli
 def test_the_base_model_choice_is_400_when_the_project_has_none(client: TestClient, tmp_path: Path) -> None:
     pid = client.post("/api/projects", json={"name": "no-base"}).json()["id"]
     r = client.post(f"{API}/run-suite", json={"suite_path": _suite(tmp_path, 1), "project_id": pid, "model_path": "__base__"})
-    assert r.status_code == 400 and "no base model" in r.json()["error"]
+    assert r.status_code == 400 and "no base model" in r.json()["detail"]
 
 
 def test_the_testing_page_lists_the_base_model_choice(client: TestClient) -> None:

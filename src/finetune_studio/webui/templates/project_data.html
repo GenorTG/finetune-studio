@@ -687,20 +687,12 @@
         modal.querySelector('[data-action=save]').addEventListener('click', () => {
           const tags = document.getElementById('fb-tag-input').value;
           const notes = document.getElementById('fb-note-input').value;
-          fetch('/api/projects/' + PID + '/files/' + fid + '/tags', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tags, notes }),
-          }).then((r) => r.json()).then((d) => {
-            if (d.error) {
-              document.getElementById('fb-tag-status').textContent = 'Error: ' + d.error;
-            } else {
-              cleanup();
-              notify('Tags & notes saved', 'success');
-              loadFiles();
-            }
+          api.patch('/api/projects/' + PID + '/files/' + fid + '/tags', { tags, notes }).then(() => {
+            cleanup();
+            notify('Tags & notes saved', 'success');
+            loadFiles();
           }).catch((e) => {
-            document.getElementById('fb-tag-status').textContent = 'Failed: ' + e.message;
+            document.getElementById('fb-tag-status').textContent = 'Error: ' + e.message;
           });
         });
       })
@@ -1119,11 +1111,7 @@
     if (!body.question || !body.answer) { notify('Question and answer must not be empty', 'error'); return; }
     if (status) body.status = status;
     try {
-      const r = await fetch('/api/projects/' + PID + '/data-prep/qa/' + encodeURIComponent(id), {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.error || d.detail || ('HTTP ' + r.status));
+      const d = await api.patch('/api/projects/' + PID + '/data-prep/qa/' + encodeURIComponent(id), body);
       const pill = card.querySelector('[data-kn-status]');
       if (pill) {
         pill.textContent = d.status || 'pending';
@@ -1216,12 +1204,8 @@
     const btn = document.getElementById('wb-save-parsed');
     btn.disabled = true;
     try {
-      const r = await fetch('/api/projects/' + PID + '/files/' + encodeURIComponent(wbFid) + '/parsed', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: document.getElementById('wb-parsed-text').value }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.detail || d.error || ('HTTP ' + r.status));
+      const d = await api.put('/api/projects/' + PID + '/files/' + encodeURIComponent(wbFid) + '/parsed',
+        { text: document.getElementById('wb-parsed-text').value });
       info.textContent = 'Saved ' + d.chars + ' chars' +
         ' · ' + d.chunk_count + ' passages rebuilt (mining reads them)' +
         ' · the next Smart Brain build picks it up';
@@ -1239,9 +1223,7 @@
     });
     if (!ok) return;
     try {
-      const r = await fetch('/api/projects/' + PID + '/files/' + encodeURIComponent(fid) + '/reparse', { method: 'POST' });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(d.detail || d.error || ('HTTP ' + r.status));
+      const d = await api.post('/api/projects/' + PID + '/files/' + encodeURIComponent(fid) + '/reparse');
       notify(name + ': ' + (d.chunk_count != null ? d.chunk_count + ' chunks via ' + (d.parser || 'parser') : 'override discarded'), 'success');
       if (wbFid === fid) await wbLoadParsed();
       await loadFiles();
@@ -1252,12 +1234,7 @@
 
   window.wbPromote = async function (fid) {
     try {
-      const r = await fetch('/api/projects/' + PID + '/data-prep/sources', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ file_id: fid }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok || d.error) throw new Error(d.error || d.detail || ('HTTP ' + r.status));
+      const d = await api.post('/api/projects/' + PID + '/data-prep/sources', { file_id: fid });
       notify('Parsed — ' + ((d.source || {}).chunk_count || '?') + ' passages', 'success');
       await loadFiles();
     } catch (e) {

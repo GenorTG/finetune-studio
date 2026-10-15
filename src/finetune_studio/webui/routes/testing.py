@@ -68,7 +68,7 @@ async def load_model(request: Request):
     body = await _json_object(request)
     model_path = body.get("model_path") or body.get("path") or ""
     if not model_path:
-        return JSONResponse({"error": "No model_path"}, status_code=400)
+        return JSONResponse({"detail": "No model_path"}, status_code=400)
     try:
         from finetune_studio.models.llama_loader import resolve_loader_overrides
         kwargs = resolve_loader_overrides(body, caller="testing/load", model_path=model_path)
@@ -85,7 +85,7 @@ async def load_model(request: Request):
             await asyncio.to_thread(inference_engine.load, model_path, **kwargs)
         return {"status": "loaded", "model": model_path}
     except Exception as e:  # noqa: BLE001
-        return JSONResponse({"error": str(e)}, status_code=500)
+        return JSONResponse({"detail": str(e)}, status_code=500)
 
 
 def _job_progress() -> list[dict[str, Any]]:
@@ -145,7 +145,7 @@ def _started(row: dict[str, Any]) -> JSONResponse:
 
 
 def _busy(exc: testing_jobs.TestingBusy) -> JSONResponse:
-    return JSONResponse({"error": str(exc), "active": exc.active}, status_code=409)
+    return JSONResponse({"detail": str(exc), "active": exc.active}, status_code=409)
 
 
 def _sampling(body: dict) -> tuple[int, float]:
@@ -168,7 +168,7 @@ async def _start(spec: testing_jobs.RunSpec) -> JSONResponse:
     except testing_jobs.TestingBusy as exc:
         return _busy(exc)
     except ValueError as exc:
-        return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"detail": str(exc)}, status_code=400)
 
 
 @router.post("/run-suite")
@@ -178,24 +178,24 @@ async def run_test_suite(request: Request):
     suite_path = str(body.get("suite_path") or "").strip()
     project_id = str(body.get("project_id") or body.get("pid") or "").strip()
     if not suite_path:
-        return JSONResponse({"error": "suite_path required"}, status_code=400)
+        return JSONResponse({"detail": "suite_path required"}, status_code=400)
     if not project_id:
-        return JSONResponse({"error": "project_id required"}, status_code=400)
+        return JSONResponse({"detail": "project_id required"}, status_code=400)
     _project_or_404(project_id)
     try:
         cases = load_test_suite(suite_path)
     except FileNotFoundError as e:
-        return JSONResponse({"error": str(e)}, status_code=404)
+        return JSONResponse({"detail": str(e)}, status_code=404)
     except (TypeError, ValueError, OSError) as e:
-        return JSONResponse({"error": f"invalid suite: {e}"}, status_code=400)
+        return JSONResponse({"detail": f"invalid suite: {e}"}, status_code=400)
     if not cases:
-        return JSONResponse({"error": "suite has no usable cases"}, status_code=400)
+        return JSONResponse({"detail": "suite has no usable cases"}, status_code=400)
     max_tokens, temperature = _sampling(body)
     auto, judge_pid = _judge_opts(body)
     try:
         model = target_model(project_id, str(body.get("model_path") or body.get("path") or "").strip())
     except ValueError as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
     return await _start(testing_jobs.RunSpec(
         project_id=project_id, kind="suite", suite_name=suite_path.rsplit("/", 1)[-1], cases=cases,
         model_path=model, run_id=str(body.get("run_id") or "").strip(), max_tokens=max_tokens,
@@ -216,36 +216,36 @@ async def run_brain_test_suite(request: Request):
     suite_path = str(body.get("suite_path") or "").strip()
     project_id = str(body.get("project_id") or body.get("pid") or "").strip()
     if not suite_path:
-        return JSONResponse({"error": "suite_path required"}, status_code=400)
+        return JSONResponse({"detail": "suite_path required"}, status_code=400)
     if not project_id:
-        return JSONResponse({"error": "project_id required"}, status_code=400)
+        return JSONResponse({"detail": "project_id required"}, status_code=400)
     _project_or_404(project_id)
     try:
         top_k = int(body.get("top_k", 5))
         max_chars = int(body["max_context_chars"]) if body.get("max_context_chars") else None
     except (TypeError, ValueError):
-        return JSONResponse({"error": "top_k and max_context_chars must be integers"}, status_code=400)
+        return JSONResponse({"detail": "top_k and max_context_chars must be integers"}, status_code=400)
     max_tokens, temperature = _sampling(body)
     corpus_path = str(body.get("corpus_path") or "").strip()
     try:
         cases = load_test_suite(suite_path)
     except FileNotFoundError as e:
-        return JSONResponse({"error": str(e)}, status_code=404)
+        return JSONResponse({"detail": str(e)}, status_code=404)
     except (TypeError, ValueError, OSError) as e:
-        return JSONResponse({"error": f"invalid suite: {e}"}, status_code=400)
+        return JSONResponse({"detail": f"invalid suite: {e}"}, status_code=400)
     if not cases:
-        return JSONResponse({"error": "suite has no usable cases"}, status_code=400)
+        return JSONResponse({"detail": "suite has no usable cases"}, status_code=400)
     from finetune_studio.testing.brain_suite import resolve_corpus_path
 
     try:  # fail now, not minutes later inside the job
         resolve_corpus_path(project_id, corpus_path)
     except ValueError as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
     auto, judge_pid = _judge_opts(body)
     try:
         model = target_model(project_id, str(body.get("model_path") or body.get("path") or "").strip())
     except ValueError as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
     return await _start(testing_jobs.RunSpec(
         project_id=project_id, kind="brain", suite_name=f"Smart Brain · {suite_path.rsplit('/', 1)[-1]}", cases=cases,
         model_path=model, run_id=str(body.get("run_id") or "").strip(), max_tokens=max_tokens,
@@ -263,17 +263,17 @@ async def evaluate_training_dataset(request: Request):
     body = await _json_object(request)
     project_id = str(body.get("project_id") or body.get("pid") or "").strip()
     if not project_id:
-        return JSONResponse({"error": "project_id required"}, status_code=400)
+        return JSONResponse({"detail": "project_id required"}, status_code=400)
     _project_or_404(project_id)
     dataset_id = (body.get("dataset_id") or "").strip() or None
     try:
         max_cases = int(body.get("max_cases", 200))
     except (TypeError, ValueError):
-        return JSONResponse({"error": "max_cases and max_tokens must be integers"}, status_code=400)
+        return JSONResponse({"detail": "max_cases and max_tokens must be integers"}, status_code=400)
     try:
         max_tokens, temperature = _sampling(body)
     except HTTPException:
-        return JSONResponse({"error": "max_cases and max_tokens must be integers"}, status_code=400)
+        return JSONResponse({"detail": "max_cases and max_tokens must be integers"}, status_code=400)
 
     from finetune_studio.testing.training_eval import (
         build_heldout_eval,
@@ -286,14 +286,14 @@ async def evaluate_training_dataset(request: Request):
         builder = build_heldout_eval if eval_kind == "heldout" else build_training_eval
         cases, meta = await asyncio.to_thread(builder, project_id, dataset_id=dataset_id, max_cases=max_cases)
     except LookupError as e:
-        return JSONResponse({"error": str(e)}, status_code=404)
+        return JSONResponse({"detail": str(e)}, status_code=404)
     except (FileNotFoundError, ValueError) as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
     auto, judge_pid = _judge_opts(body)
     try:
         model = target_model(project_id, str(body.get("model_path") or body.get("path") or "").strip())
     except ValueError as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
     return await _start(testing_jobs.RunSpec(
         project_id=project_id, kind="heldout" if meta.eval_kind == "heldout" else "training_leakage",
         suite_name=suite_label_for_training_eval(meta), cases=cases, model_path=model,
@@ -424,7 +424,7 @@ async def delete_test_run(pid: str, bid: str):
     """Delete a saved run with its cases and judgements."""
     _run_for_project(pid, bid)
     if testing_jobs.is_active(bid):
-        return JSONResponse({"error": "stop the running job first"}, status_code=409)
+        return JSONResponse({"detail": "stop the running job first"}, status_code=409)
 
     def drop() -> None:
         with db.cursor() as c:
@@ -452,11 +452,11 @@ async def judge_test_run(pid: str, bid: str, request: Request):
     except testing_jobs.TestingBusy as exc:
         return _busy(exc)
     except JudgeUnavailable as exc:
-        return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"detail": str(exc)}, status_code=400)
     except LookupError as exc:
-        return JSONResponse({"error": str(exc)}, status_code=404)
+        return JSONResponse({"detail": str(exc)}, status_code=404)
     except ValueError as exc:
-        return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"detail": str(exc)}, status_code=400)
     return JSONResponse({"ok": True, "benchmark": _run_summary(row)}, status_code=202)
 
 
@@ -465,7 +465,7 @@ async def cancel_test_job(pid: str, bid: str):
     """Stop the running test or judge job of this run at the next case boundary (saved cases are kept)."""
     _run_for_project(pid, bid)
     if not testing_jobs.cancel(bid):
-        return JSONResponse({"error": "nothing is running for this test run"}, status_code=409)
+        return JSONResponse({"detail": "nothing is running for this test run"}, status_code=409)
     return {"ok": True}
 
 

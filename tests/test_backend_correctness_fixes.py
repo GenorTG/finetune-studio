@@ -44,9 +44,8 @@ def test_relative_path_and_output_both_resolve_in_project(env) -> None:
     assert r.status_code == 200, r.text
     body = r.json()
     assert Path(body["path"]) == (pdir / "in.jsonl").resolve()
-    if body["status"] == "ok":
-        assert body["result"]["input_count"] == 1
-        assert (pdir / "out.jsonl").is_file()
+    assert body["result"]["input_count"] == 1
+    assert (pdir / "out.jsonl").is_file()
     assert not (cwd / "out.jsonl").exists()
 
 

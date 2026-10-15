@@ -213,7 +213,7 @@ async def test_helper_api(request: Request):
         body = {}
     cfg = _probe_config(body if isinstance(body, dict) else {})
     if not cfg.model_id or not cfg.api_key:
-        return JSONResponse({"ok": False, "error": "enter the model name and API key first"}, status_code=400)
+        return JSONResponse({"ok": False, "detail": "enter the model name and API key first"}, status_code=400)
     provider = OpenAICompatProvider(cfg)
 
     def _ping() -> dict[str, Any]:
@@ -221,7 +221,7 @@ async def test_helper_api(request: Request):
         try:
             reply = provider.chat([{"role": "user", "content": "Reply with exactly: pong"}], max_tokens=512, temperature=0)
         except ProviderError as exc:
-            return {"ok": False, "error": str(exc), "latency_ms": int((time.perf_counter() - t0) * 1000)}
+            return {"ok": False, "detail": str(exc), "code": "provider_failed", "latency_ms": int((time.perf_counter() - t0) * 1000)}
         finally:
             provider.unload()
         return {"ok": True, "reply": reply[:80], "latency_ms": int((time.perf_counter() - t0) * 1000)}
@@ -239,21 +239,22 @@ async def list_helper_api_models(request: Request):
         body = {}
     cfg = _probe_config(body if isinstance(body, dict) else {})
     if not cfg.api_key:
-        return JSONResponse({"ok": False, "error": "enter the API key first"}, status_code=400)
+        return JSONResponse({"ok": False, "detail": "enter the API key first"}, status_code=400)
     headers = {"Authorization": f"Bearer {cfg.api_key}"}
 
     def _fetch() -> dict[str, Any]:
         try:
             r = requests.get(cfg.base_url + "/models", headers=headers, timeout=20)
         except requests.RequestException as exc:
-            return {"ok": False, "error": f"{type(exc).__name__} calling {cfg.base_url}/models"}
+            return {"ok": False, "detail": f"{type(exc).__name__} calling {cfg.base_url}/models", "code": "provider_unreachable"}
         if r.status_code >= 400:
-            return {"ok": False, "error": f"HTTP {r.status_code}: {' '.join(r.text.split())[:200]}"}
+            return {"ok": False, "detail": f"the provider answered HTTP {r.status_code}: {' '.join(r.text.split())[:200]}",
+                    "code": "provider_failed"}
         try:
             data = r.json().get("data") or []
             return {"ok": True, "models": sorted(str(m["id"]) for m in data if isinstance(m, dict) and m.get("id"))}
         except (ValueError, AttributeError):
-            return {"ok": False, "error": "the provider's /models answer was not the OpenAI list shape"}
+            return {"ok": False, "detail": "the provider's /models answer was not the OpenAI list shape", "code": "provider_failed"}
 
     result = await asyncio.to_thread(_fetch)
     return JSONResponse(result, status_code=200 if result["ok"] else 502)

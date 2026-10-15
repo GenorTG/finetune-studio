@@ -13,6 +13,7 @@ from starlette.responses import JSONResponse
 from starlette.routing import Route
 
 from finetune_studio.supervisor.core import Supervisor, UnknownComponent
+from finetune_studio.supervisor.jobs import JobBusy, UnknownJob
 
 ACTIONS = ("start", "stop", "restart")
 
@@ -26,7 +27,7 @@ def build_app(sup: Supervisor) -> Starlette:
             since = int(request.query_params.get("since", "0"))
             limit = max(1, min(int(request.query_params.get("limit", "200")), 500))
         except ValueError:
-            return JSONResponse({"error": "since and limit must be integers"}, status_code=400)
+            return JSONResponse({"detail": "since and limit must be integers"}, status_code=400)
         return JSONResponse({"events": sup.events.since(since, limit)})
 
     async def logs(request: Request) -> JSONResponse:
@@ -34,24 +35,66 @@ def build_app(sup: Supervisor) -> Starlette:
             lines = max(1, min(int(request.query_params.get("lines", "100")), 400))
             return JSONResponse({"lines": sup.logs(request.path_params["name"], lines)})
         except ValueError:
-            return JSONResponse({"error": "lines must be an integer"}, status_code=400)
+            return JSONResponse({"detail": "lines must be an integer"}, status_code=400)
         except UnknownComponent:
-            return JSONResponse({"error": f"unknown component {request.path_params['name']!r}"}, status_code=404)
+            return JSONResponse({"detail": f"unknown component {request.path_params['name']!r}"}, status_code=404)
 
     async def act(request: Request) -> JSONResponse:
         name, action = request.path_params["name"], request.path_params["action"]
         if action not in ACTIONS:
-            return JSONResponse({"error": f"unknown action {action!r}; use {', '.join(ACTIONS)}"}, status_code=404)
+            return JSONResponse({"detail": f"unknown action {action!r}; use {', '.join(ACTIONS)}"}, status_code=404)
         try:
             getattr(sup, action)(name)
         except UnknownComponent:
-            return JSONResponse({"error": f"unknown component {name!r}"}, status_code=404)
+            return JSONResponse({"detail": f"unknown component {name!r}"}, status_code=404)
         return JSONResponse({"component": name, "action": action, "accepted": True}, status_code=202)
 
     async def shutdown(_: Request) -> JSONResponse:
         sup.events.emit("supervisor", "shutdown_requested")
-        sup.shutdown()
+        asyncio.ensure_future(sup.shutdown_gracefully())
         return JSONResponse({"accepted": True}, status_code=202)
+
+    # ── jobs: one-shot processes (training, export, ...) that outlive web restarts ──
+    def _jobs():
+        if sup.jobs is None:
+            raise UnknownJob("jobs are not enabled in this supervisor")
+        return sup.jobs
+
+    async def jobs_list(_: Request) -> JSONResponse:
+        return JSONResponse({"jobs": sup.jobs.snapshot() if sup.jobs else []})
+
+    async def job_start(request: Request) -> JSONResponse:
+        try:
+            body = await request.json()
+            job = await _jobs().start(str(body["id"]))
+        except (ValueError, KeyError, TypeError) as e:
+            return JSONResponse({"detail": f"bad job start request: {e}"}, status_code=400)
+        except FileNotFoundError as e:
+            return JSONResponse({"detail": str(e)}, status_code=404)
+        except JobBusy as e:
+            return JSONResponse({"detail": str(e), "code": "gpu_busy"}, status_code=409)
+        return JSONResponse(job, status_code=202)
+
+    async def job_get(request: Request) -> JSONResponse:
+        try:
+            return JSONResponse(_jobs().describe(request.path_params["id"]))
+        except UnknownJob:
+            return JSONResponse({"detail": f"the supervisor runs no job {request.path_params['id']!r}"}, status_code=404)
+
+    async def job_stop(request: Request) -> JSONResponse:
+        try:
+            return JSONResponse(await _jobs().stop(request.path_params["id"]), status_code=202)
+        except UnknownJob:
+            return JSONResponse({"detail": f"the supervisor runs no job {request.path_params['id']!r}"}, status_code=404)
+
+    async def job_logs(request: Request) -> JSONResponse:
+        try:
+            lines = max(1, min(int(request.query_params.get("lines", "100")), 300))
+            return JSONResponse({"lines": _jobs().logs(request.path_params["id"], lines)})
+        except ValueError:
+            return JSONResponse({"detail": "lines must be an integer"}, status_code=400)
+        except UnknownJob:
+            return JSONResponse({"detail": f"the supervisor runs no job {request.path_params['id']!r}"}, status_code=404)
 
     return Starlette(routes=[
         Route("/v1/status", status),
@@ -59,6 +102,11 @@ def build_app(sup: Supervisor) -> Starlette:
         Route("/v1/events", events),
         Route("/v1/components/{name}/logs", logs),
         Route("/v1/components/{name}/{action}", act, methods=["POST"]),
+        Route("/v1/jobs", jobs_list),
+        Route("/v1/jobs", job_start, methods=["POST"]),
+        Route("/v1/jobs/{id}", job_get),
+        Route("/v1/jobs/{id}/stop", job_stop, methods=["POST"]),
+        Route("/v1/jobs/{id}/logs", job_logs),
     ])
 
 

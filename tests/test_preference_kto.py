@@ -190,12 +190,12 @@ def test_kto_route_rejects_batch_size_one_and_single_label(
     pid = _project(client)
     one = _start(client, pid, _write(tmp_path, _pairs()), _model(tmp_path),
                  training_mode="kto", batch_size=1)
-    assert one.status_code == 400 and "batch_size >= 2" in one.json()["error"]
+    assert one.status_code == 400 and "batch_size >= 2" in one.json()["detail"]
 
     only_good = [{"prompt": "q", "completion": f"a{i}", "label": True} for i in range(6)]
     single = _start(client, pid, _write(tmp_path, only_good, "good.jsonl"), _model(tmp_path),
                     training_mode="kto")
-    assert single.status_code == 400 and "both good" in single.json()["error"]
+    assert single.status_code == 400 and "both good" in single.json()["detail"]
     assert not fake_engine.started
 
 
@@ -211,7 +211,7 @@ def test_explicit_learning_rate_and_beta_win_over_preference_defaults(
 
     bad = _start(client, pid, _write(tmp_path, _pairs()), _model(tmp_path),
                  training_mode="dpo", preference_beta="7")
-    assert bad.status_code == 400 and "preference_beta" in bad.json()["error"]
+    assert bad.status_code == 400 and "preference_beta" in bad.json()["detail"]
 
 
 def _finished_run(pid: str, tmp_path: Path, *, merged: bool, status: str = "done") -> str:
@@ -262,10 +262,10 @@ def test_unusable_start_run_is_an_honest_400(
     run_id = _finished_run(pid, tmp_path, merged=merged, status=status)
     response = _start(client, pid, _write(tmp_path, _pairs()), _model(tmp_path),
                       training_mode="dpo", start_run_id=run_id)
-    assert response.status_code == 400 and needle in response.json()["error"]
+    assert response.status_code == 400 and needle in response.json()["detail"]
     missing = _start(client, pid, _write(tmp_path, _pairs()), _model(tmp_path),
                      training_mode="dpo", start_run_id="deadbeef")
-    assert missing.status_code == 400 and "not found" in missing.json()["error"]
+    assert missing.status_code == 400 and "not found" in missing.json()["detail"]
     assert not fake_engine.started
 
 

@@ -192,7 +192,8 @@ ExecStart=$VENV_PY -m finetune_studio.supervisor
 KillMode=control-group
 Restart=on-failure
 RestartSec=5
-TimeoutStopSec=30
+# Running jobs get their stop grace (a training run saves its adapter) before the supervisor exits.
+TimeoutStopSec=240
 StandardOutput=journal
 StandardError=journal
 Environment=PYTHONUNBUFFERED=1

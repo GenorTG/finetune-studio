@@ -134,7 +134,8 @@ def test_save_settings_defined_on_rag_page() -> None:
 
 def test_inference_ui_requires_loaded_confirmation() -> None:
     src = _INFERENCE.read_text(encoding="utf-8")
-    assert "r.loaded === false" in src or "r.status === 'error'" in src
+    # api.post throws on the 4xx/5xx a failed load returns; success is still confirmed via status.
+    assert "await api.post('/api/models/load'" in src
     assert "/api/inference/status" in src
     assert "still unloaded" in src or "still shows unloaded" in src
 
@@ -145,7 +146,7 @@ def test_load_missing_path_returns_explicit_failure(client: TestClient) -> None:
     data = r.json()
     assert data.get("status") == "error"
     assert data.get("loaded") is False
-    assert "error" in data
+    assert data.get("detail")
     assert data.get("model") is None
 
 
@@ -169,7 +170,7 @@ def test_load_exception_returns_failure_not_loaded(
     data = r.json()
     assert data["status"] == "error"
     assert data["loaded"] is False
-    assert "CUDA OOM" in data["error"]
+    assert "CUDA OOM" in data["detail"]
     assert data.get("model") is None
 
 
@@ -188,7 +189,7 @@ def test_load_success_requires_model_object(
     data = r.json()
     assert data["status"] == "error"
     assert data["loaded"] is False
-    assert "no model is held" in data["error"]
+    assert "no model is held" in data["detail"]
 
 
 def test_load_success_payload_when_model_held(

@@ -106,7 +106,7 @@ def test_compare_load_missing_run_ids_returns_400(client) -> None:
     pid = _project(client)
     r = client.get(f"/api/benchmarks/projects/{pid}/compare")
     assert r.status_code == 400
-    assert "run_a" in r.json().get("error", "")
+    assert "run_a" in r.json().get("detail", "")
 
     r2 = client.get(
         f"/api/benchmarks/projects/{pid}/compare",
@@ -123,7 +123,7 @@ def test_compare_load_unknown_run_returns_404(client) -> None:
         params={"run_a": run["id"], "run_b": "missing-run-id"},
     )
     assert r.status_code == 404
-    assert "not found" in r.json().get("error", "").lower()
+    assert "not found" in r.json().get("detail", "").lower()
 
 
 def test_compare_defaults_prefer_done_runs(client) -> None:

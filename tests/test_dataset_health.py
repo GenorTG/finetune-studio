@@ -171,7 +171,7 @@ def test_dedup_route_registers_new_dataset_and_keeps_original(client, fake_home)
 def test_dedup_route_with_nothing_to_remove_is_400(client, fake_home):
     pid, ds = _dataset(client, _clean(5))
     r = client.post(f"/api/projects/{pid}/datasets/{ds['id']}/dedup")
-    assert r.status_code == 400 and "no duplicates" in r.json()["error"]
+    assert r.status_code == 400 and "no duplicates" in r.json()["detail"]
 
 
 def test_training_page_renders_health_panel() -> None:

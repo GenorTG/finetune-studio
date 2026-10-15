@@ -83,9 +83,9 @@ class RemoteEngine:
         try:
             data = json.loads(raw or b"{}")
         except ValueError:
-            data = {"error": raw.decode("utf-8", "replace")[:300]}
+            data = {"detail": raw.decode("utf-8", "replace")[:300]}
         if resp.status >= 400:
-            raise RuntimeError(str(data.get("error") or f"HTTP {resp.status}"))
+            raise RuntimeError(str(data.get("detail") or f"HTTP {resp.status}"))
         return data
 
     def _crash_message(self, what: str) -> str:

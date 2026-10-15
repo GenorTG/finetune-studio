@@ -16,6 +16,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+# Tests never write into a live $FTS_ROOT/logs (logsetup.setup is a no-op; tests/test_logsetup.py opts back in).
+os.environ["FTS_LOG_TO_FILES"] = "0"
+
 # Ensure src/ is on path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))

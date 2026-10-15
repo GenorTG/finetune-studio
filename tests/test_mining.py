@@ -220,10 +220,10 @@ def test_requests_the_state_refuses_are_409_and_nothing_is_queued(env, monkeypat
     client, _ = env
     pid, sid = _project_with_file(client)
     r = client.post(f"/api/projects/{pid}/mining/jobs", json={"source_ids": [sid], "kind": "fill"})
-    assert r.status_code == 409 and "not mined yet" in r.json()["error"]
+    assert r.status_code == 409 and "not mined yet" in r.json()["detail"]
     _mine(client, pid, sid)
     r = client.post(f"/api/projects/{pid}/mining/jobs", json={"source_ids": [sid], "kind": "mine"})
-    assert r.status_code == 409 and "already mined" in r.json()["error"]
+    assert r.status_code == 409 and "already mined" in r.json()["detail"]
     assert client.post(f"/api/projects/{pid}/mining/jobs", json={"source_ids": ["nope"]}).status_code == 404
     assert client.post(f"/api/projects/{pid}/mining/jobs", json={"source_ids": [sid], "kind": "x"}).status_code == 400
     monkeypatch.setattr("finetune_studio.data.prep.generator.resolve_generator", lambda: None)

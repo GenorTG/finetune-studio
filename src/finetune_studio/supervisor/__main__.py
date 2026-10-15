@@ -38,12 +38,15 @@ def take_lock(path: Path):
 
 
 async def run(host: str, port: int) -> None:
-    sup = Supervisor([web_spec(host, port, cwd=os.getcwd()), inference_spec(inference_socket_path(), cwd=os.getcwd())], EventLog(events_path()),
-                     meta={"launcher": detect_launcher(), "listen": f"{host}:{port}"})
+    from finetune_studio.supervisor.jobs import JobTable
+    events = EventLog(events_path())
+    sup = Supervisor([web_spec(host, port, cwd=os.getcwd()), inference_spec(inference_socket_path(), cwd=os.getcwd())], events,
+                     meta={"launcher": detect_launcher(), "listen": f"{host}:{port}"},
+                     jobs=JobTable(events, cwd=os.getcwd(), inference_socket=inference_socket_path()))
     server = await control.serve(sup, socket_path())
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
-        loop.add_signal_handler(sig, sup.shutdown)
+        loop.add_signal_handler(sig, lambda: asyncio.ensure_future(sup.shutdown_gracefully()))
     print(f"[supervisor] pid {os.getpid()} serving {host}:{port}, control socket {socket_path()}", flush=True)
     try:
         await sup.run()
@@ -57,6 +60,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--host", default=None, help="default: $FTS_ROOT/server.json (127.0.0.1 = this computer only)")
     parser.add_argument("--port", type=int, default=None, help="default: $FTS_ROOT/server.json, else 7860")
     args = parser.parse_args(argv)
+    from finetune_studio import logsetup
+    logsetup.setup("supervisor")
     from finetune_studio.access import server
     try:
         addr = server.resolve(args.host, args.port)

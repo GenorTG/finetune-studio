@@ -355,8 +355,8 @@ class TestExportRoute:
         assert body.get("ok") is False
         assert body.get("status") == "failed"
         # AWQ is explicitly removed; message must steer to gguf/merged.
-        assert "AWQ" in body["error"]
-        assert "gguf" in body["error"].lower()
+        assert "AWQ" in body["detail"]
+        assert "gguf" in body["detail"].lower()
 
     def test_unknown_quant_returns_400(self, client, mock_settings):
         from finetune_studio import db
@@ -369,7 +369,7 @@ class TestExportRoute:
         assert r.status_code == 400
         body = r.json()
         assert body.get("ok") is False
-        assert "unsupported quant" in body["error"]
+        assert "unsupported quant" in body["detail"]
         assert "Q4_K_M" in body["supported"]
 
     def test_missing_run_returns_error(self, client, mock_settings):
@@ -377,7 +377,7 @@ class TestExportRoute:
                         json={"format": "gguf", "quant": "Q4_K_M"})
         assert r.status_code == 404
         body = r.json()
-        assert "run not found" in body["error"]
+        assert "run not found" in body["detail"]
         assert body.get("ok") is False
 
     def test_run_with_no_output_path_returns_error(self, client, mock_settings):
@@ -389,7 +389,7 @@ class TestExportRoute:
                         json={"format": "gguf", "quant": "Q4_K_M"})
         assert r.status_code == 400
         body = r.json()
-        assert "no output_path" in body["error"]
+        assert "no output_path" in body["detail"]
         assert body.get("status") == "failed"
 
     def test_no_merged_dir_and_no_auto_merge_returns_error(
@@ -406,7 +406,7 @@ class TestExportRoute:
                                   "auto_merge": False})
             assert r.status_code == 400
             body = r.json()
-            assert "/merge first" in body["error"]
+            assert "/merge first" in body["detail"]
             assert body.get("ok") is False
 
     def test_get_export_unknown_returns_404(self, client, mock_settings):

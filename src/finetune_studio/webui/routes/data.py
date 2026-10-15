@@ -45,6 +45,6 @@ async def dedup(path: str):
     try:
         data = await asyncio.to_thread(load_jsonl, path)
     except Exception as e:  # noqa: BLE001
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
     unique, dupes = await asyncio.to_thread(dedup_data, data)
     return {"original": len(data), "unique": len(unique), "removed": dupes}

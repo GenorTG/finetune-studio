@@ -73,11 +73,10 @@ class TestProjectsAPI:
         pid = create.json()["id"]
         r = client.delete(f"/api/projects/{pid}")
         assert r.status_code == 200
-        # Verify it's gone (route returns 200 with {"error": "not found"})
+        # Verify it's gone: a missing project is a real 404 with a reason
         r2 = client.get(f"/api/projects/{pid}")
-        assert r2.status_code in (200, 404)
-        if r2.status_code == 200:
-            assert r2.json() is None or "error" in r2.json()
+        assert r2.status_code == 404
+        assert r2.json()["detail"]
 
     def test_update_project(self, client):
         create = client.post("/api/projects", json={"name": "Before"})
@@ -153,7 +152,7 @@ class TestHFModelsAPI:
         monkeypatch.setattr(huggingface_hub, "HfApi", _Down)
         r = client.get("/api/hf/search?q=qwen&limit=5")
         assert r.status_code == 502
-        assert "unreachable" in r.json()["error"]
+        assert "unreachable" in r.json()["detail"]
         assert r.json()["results"] == []
 
     def test_hf_info_endpoint(self, client):
@@ -184,11 +183,8 @@ class TestInputValidation:
 
     def test_get_nonexistent_project(self, client):
         r = client.get("/api/projects/this_does_not_exist")
-        # Route returns 200 with {"error": "not found"} for missing
-        assert r.status_code in (200, 404)
-        if r.status_code == 200:
-            data = r.json()
-            assert data is None or "error" in data
+        assert r.status_code == 404
+        assert r.json()["detail"]
 
     def test_delete_nonexistent_project(self, client):
         r = client.delete("/api/projects/this_does_not_exist")

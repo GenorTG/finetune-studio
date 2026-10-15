@@ -437,7 +437,7 @@ def test_run_rag_suite_route_requires_suite_path(
     )
     resp = client.post("/api/testing/run-brain-suite", json={})
     assert resp.status_code == 400
-    assert "suite_path" in resp.json()["error"]
+    assert "suite_path" in resp.json()["detail"]
 
 
 def test_run_rag_suite_route_missing_corpus_fails_the_run_with_the_reason(
@@ -472,4 +472,4 @@ def test_run_rag_suite_route_needs_a_project(client_and_db: tuple[TestClient, Pa
     suite_path = tmp_path / "suite.json"
     suite_path.write_text(json.dumps([{"name": "q1", "question": "Q?", "correct_answer": "A"}]), encoding="utf-8")
     resp = client.post("/api/testing/run-brain-suite", json={"suite_path": str(suite_path)})
-    assert resp.status_code == 400 and "project_id" in resp.json()["error"]
+    assert resp.status_code == 400 and "project_id" in resp.json()["detail"]

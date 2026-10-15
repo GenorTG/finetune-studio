@@ -138,39 +138,10 @@
     return window.fts.confirm(msg, opts || {});
   }
 
-  function apiGet(url) {
-    if (window.fts && window.fts.api) return window.fts.api.get(url);
-    return fetch(url).then(async (r) => {
-      const b = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(b.detail || ('HTTP ' + r.status));
-      return b;
-    });
-  }
-
-  function apiPost(url, body) {
-    if (window.fts && window.fts.api) return window.fts.api.post(url, body);
-    return fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body || {}),
-    }).then(async (r) => {
-      const b = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(b.detail || ('HTTP ' + r.status));
-      return b;
-    });
-  }
-
-  function apiPatch(url, body) {
-    return fetch(url, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body || {}),
-    }).then(async (r) => {
-      const b = await r.json().catch(() => ({}));
-      if (!r.ok) throw new Error(b.detail || ('HTTP ' + r.status));
-      return b;
-    });
-  }
+  // Shared api.js client: a failed call throws with the server's `detail` as the message.
+  function apiGet(url) { return api.get(url); }
+  function apiPost(url, body) { return api.post(url, body || {}); }
+  function apiPatch(url, body) { return api.patch(url, body || {}); }
 
   function extractQA(row) {
     if (!row || typeof row !== 'object') return { question: '', answer: '' };

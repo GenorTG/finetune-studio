@@ -139,4 +139,4 @@ def test_open_in_inference_handler_posts_load(
         r = client.post("/api/models/load", json={"path": str(merged)})
     assert r.status_code == 200
     data = r.json()
-    assert data.get("status") == "loaded" or "error" in data
+    assert data.get("status") == "loaded" or "detail" in data

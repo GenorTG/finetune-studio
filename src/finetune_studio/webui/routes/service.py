@@ -81,7 +81,7 @@ async def status() -> JSONResponse:
     try:
         snap = await _call(SupervisorClient(timeout=2.0).status)
     except SupervisorUnavailable as exc:
-        return JSONResponse({"managed": True, "reachable": False, "components": {}, "error": str(exc),
+        return JSONResponse({"managed": True, "reachable": False, "components": {}, "detail": str(exc),
                              "problems": [{"id": "supervisor:unreachable", "severity": "error", "component": "supervisor",
                                            "title": "The supervisor does not answer", "detail": str(exc)}]}, status_code=503)
     return JSONResponse({"managed": True, "reachable": True, **snap, "problems": find_problems(snap["components"])})
@@ -90,34 +90,34 @@ async def status() -> JSONResponse:
 @router.get("/events")
 async def events(since: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=500)) -> JSONResponse:
     if not socket_path().exists():
-        return JSONResponse({"error": "no supervisor"}, status_code=409)
+        return JSONResponse({"detail": "no supervisor"}, status_code=409)
     try:
         return JSONResponse({"events": await _call(SupervisorClient(timeout=2.0).events, since, limit)})
     except SupervisorUnavailable as exc:
-        return JSONResponse({"error": str(exc)}, status_code=503)
+        return JSONResponse({"detail": str(exc)}, status_code=503)
 
 
 @router.get("/logs/{name}")
 async def logs(name: str, lines: int = Query(100, ge=1, le=400)) -> JSONResponse:
     if not socket_path().exists():
-        return JSONResponse({"error": "no supervisor"}, status_code=409)
+        return JSONResponse({"detail": "no supervisor"}, status_code=409)
     try:
         return JSONResponse({"lines": await _call(SupervisorClient(timeout=2.0).logs, name, lines)})
     except SupervisorUnavailable as exc:
-        return JSONResponse({"error": str(exc)}, status_code=503)
+        return JSONResponse({"detail": str(exc)}, status_code=503)
     except SupervisorError as exc:
-        return JSONResponse({"error": str(exc)}, status_code=exc.status)
+        return JSONResponse({"detail": str(exc)}, status_code=exc.status)
 
 
 @router.post("/components/{name}/{action}")
 async def act(name: str, action: str) -> JSONResponse:
     if action not in ACTIONS:
-        return JSONResponse({"error": f"unknown action {action!r}; use {', '.join(ACTIONS)}"}, status_code=404)
+        return JSONResponse({"detail": f"unknown action {action!r}; use {', '.join(ACTIONS)}"}, status_code=404)
     if not socket_path().exists():
-        return JSONResponse({"error": "This server runs without a supervisor, so it cannot restart itself. Start it with `fts up`."}, status_code=409)
+        return JSONResponse({"detail": "This server runs without a supervisor, so it cannot restart itself. Start it with `fts up`."}, status_code=409)
     try:
         return JSONResponse(await _call(SupervisorClient(timeout=3.0).act, name, action), status_code=202)
     except SupervisorUnavailable as exc:
-        return JSONResponse({"error": str(exc)}, status_code=503)
+        return JSONResponse({"detail": str(exc)}, status_code=503)
     except SupervisorError as exc:
-        return JSONResponse({"error": str(exc)}, status_code=exc.status)
+        return JSONResponse({"detail": str(exc)}, status_code=exc.status)

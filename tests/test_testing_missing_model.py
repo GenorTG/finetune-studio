@@ -21,7 +21,7 @@ def test_run_suite_refuses_a_missing_model_file(client: TestClient, tmp_path: Pa
     pid = client.post("/api/projects", json={"name": "gone", "base_model": "x/test"}).json()["id"]
     gone = str(tmp_path / "deleted-base.gguf")
     r = client.post(f"{API}/run-suite", json={"suite_path": _quiz(tmp_path), "project_id": pid, "model_path": gone})
-    assert r.status_code == 400 and "not found on disk" in r.json()["error"] and gone in r.json()["error"]
+    assert r.status_code == 400 and "not found on disk" in r.json()["detail"] and gone in r.json()["detail"]
     assert client.get(f"{API}/runs", params={"project_id": pid}).json() in ([], {"runs": []}) or True
 
 
@@ -29,7 +29,7 @@ def test_base_model_choice_with_a_deleted_base_file_is_refused(client: TestClien
     pid = client.post("/api/projects", json={"name": "gone2", "base_model": str(tmp_path / "base.gguf")}).json()["id"]
     assert db.get_project(pid)["base_model"].endswith("base.gguf")
     r = client.post(f"{API}/run-suite", json={"suite_path": _quiz(tmp_path), "project_id": pid, "model_path": "__base__"})
-    assert r.status_code == 400 and "not found on disk" in r.json()["error"]
+    assert r.status_code == 400 and "not found on disk" in r.json()["detail"]
 
 
 def test_testing_page_disables_a_missing_base_model(client: TestClient, tmp_path: Path) -> None:

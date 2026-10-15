@@ -91,9 +91,9 @@ def test_export_result_panel_is_field_grid() -> None:
     assert "export failed" in html
     assert "Missing" in html
     assert "non-empty GGUF" in html or "without artifacts" in html
-    # Readable handling when the API returns HTML/500 instead of JSON.
-    assert "non-JSON response" in html
-    assert "d.detail" in html
+    # Readable handling of any non-2xx (HTML/500 included) goes through api.js: e.message = detail.
+    assert "await api.post(API + '/runs/'" in html
+    assert "e.message" in html
     # Unavailable converters are disabled in the UI (not advertised as ready).
     assert 'id="export-caps"' in html
     assert "export-gguf-unavailable" in html

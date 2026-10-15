@@ -78,7 +78,7 @@ def test_promote_unknown_run_errors(client) -> None:
     pid = _project(client)
     r = client.post(f"/api/projects/{pid}/promote", json={"run_id": "nope"})
     assert r.status_code == 404
-    assert r.json().get("error") == "run not found"
+    assert r.json().get("detail") == "run not found"
 
 
 def test_training_page_shows_production_pill_after_promote(client) -> None:

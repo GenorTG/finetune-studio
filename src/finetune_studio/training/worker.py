@@ -77,6 +77,8 @@ def training_worker(
     os.environ.setdefault("UNSLOTH_DATASET_NUM_PROC", "0")
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     os.environ.update(device_env or {})
+    from finetune_studio import logsetup
+    logsetup.setup("training")
 
     from finetune_studio.training.engine import TrainingEngine, _format_exc
 
@@ -123,8 +125,8 @@ def training_worker(
     finally:
         try:
             out_queue.put({"op": "done"})
-        except Exception:  # noqa: BLE001, S110
-            pass
+        except Exception as e:  # noqa: BLE001 — the parent then sees the process exit instead
+            log.warning("could not report 'done' to the parent: %s", e)
 
 
 def config_to_dict(config: Any) -> dict[str, Any]:

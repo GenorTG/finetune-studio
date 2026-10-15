@@ -90,7 +90,7 @@
       return;
     }
     $('service-table').hidden = false; $('service-actions').hidden = false;
-    if (!body.reachable) { mode.innerHTML = `<span class="pill solid-rose">supervisor not answering</span> ${esc(body.error || '')}`; return; }
+    if (!body.reachable) { mode.innerHTML = `<span class="pill solid-rose">supervisor not answering</span> ${esc(body.detail || '')}`; return; }
     const s = body.supervisor;
     mode.innerHTML = `<span class="pill solid-green">supervised</span> started by <strong>${esc(s.launcher || '?')}</strong>`
       + ` · listening on <span class="mono">${esc(s.listen || '?')}</span> · supervisor pid ${s.pid} · up ${age(s.uptime_s)}`;
@@ -104,9 +104,7 @@
     out.hidden = false;
     out.textContent = 'Loading…';
     try {
-      const r = await fetch(kind === 'log' ? `/api/service/logs/${kind === 'log' && last && last.components && last.components.inference && $('service-log-which') && $('service-log-which').value === 'inference' ? 'inference' : 'web'}?lines=150` : '/api/service/events?limit=60', { cache: 'no-store' });
-      const d = await r.json();
-      if (!r.ok) { out.textContent = d.error || `HTTP ${r.status}`; return; }
+      const d = await api.get(kind === 'log' ? `/api/service/logs/${kind === 'log' && last && last.components && last.components.inference && $('service-log-which') && $('service-log-which').value === 'inference' ? 'inference' : 'web'}?lines=150` : '/api/service/events?limit=60');
       out.textContent = kind === 'log' ? (d.lines.join('\n') || '(no output captured since the last start)')
         : d.events.map((e) => { const { seq, at, component, kind: k, ...rest } = e; delete rest.tail;
           return `${new Date(at * 1000).toLocaleTimeString()}  ${component.padEnd(10)} ${k.padEnd(18)} ${Object.keys(rest).length ? JSON.stringify(rest) : ''}`; }).join('\n') || '(no events)';
@@ -122,12 +120,10 @@
     const ok = await window.fts.confirm(RESTART_TEXT[name] || `Restart ${name}?`, { danger: true, okText: 'Restart' });
     if (!ok) return;
     try {
-      const r = await fetch(`/api/service/components/${encodeURIComponent(name)}/restart`, { method: 'POST' });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) { window.fts.notify(d.error || `Restart failed (HTTP ${r.status})`, 'error'); return; }
+      await api.post(`/api/service/components/${encodeURIComponent(name)}/restart`);
       window.fts.notify('Restart requested. Reconnecting…', 'warn');
       clearTimeout(timer); timer = setTimeout(tick, 1500);
-    } catch (e) { window.fts.notify('Restart request failed: ' + e.message, 'error'); }
+    } catch (e) { window.fts.notify('Restart failed: ' + e.message, 'error'); }
   }
 
   function initCard() {

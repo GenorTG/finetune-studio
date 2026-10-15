@@ -25,9 +25,7 @@
     const el = $("debug-info");
     const pathsEl = $("paths-table");
     try {
-      const r = await fetch("/api/debug/info");
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      const d = await r.json();
+      const d = await api.get("/api/debug/info");
 
       let gpuHtml = "";
       if (d.gpus && d.gpus.length > 0) {
@@ -190,12 +188,7 @@
         ? 'Repairing — recreates the venv, several minutes…'
         : 'Updating — the service will restart shortly…';
     try {
-      const r = await fetch('/api/system/update', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode, triggered_by: 'settings-ui' }),
-      });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok || d.error) throw new Error(d.error || d.detail || 'HTTP ' + r.status);
+      await api.post('/api/system/update', { mode, triggered_by: 'settings-ui' });
       updStartLive();
     } catch (e) {
       updStatus().textContent = 'Failed to start: ' + e.message;
@@ -247,22 +240,13 @@ function wireJudge() {
 
   async function load() {
     try {
-      const r = await fetch('/api/settings/testing');
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      apply(await r.json());
+      apply(await api.get('/api/settings/testing'));
     } catch (e) { setStatus('Failed to load: ' + e.message); }
   }
 
   async function save() {
     try {
-      const r = await fetch('/api/settings/testing', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ judge_provider_id: $('judge-provider').value, auto_judge: $('judge-auto').checked }),
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(typeof d.detail === 'string' ? d.detail : 'HTTP ' + r.status);
-      apply(d);
+      apply(await api.put('/api/settings/testing', { judge_provider_id: $('judge-provider').value, auto_judge: $('judge-auto').checked }));
       setStatus('Saved.');
     } catch (e) { setStatus('Failed: ' + e.message); }
   }
@@ -316,13 +300,7 @@ function wireHelper() {
   }
 
   async function call(url, method, payload) {
-    const r = await fetch(url, {
-      method, headers: { 'Content-Type': 'application/json' },
-      body: payload ? JSON.stringify(payload) : undefined,
-    });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d.error || (typeof d.detail === 'string' ? d.detail : 'HTTP ' + r.status));
-    return d;
+    return api.request(method, url, payload);
   }
 
   async function save(extra) {
@@ -370,13 +348,7 @@ function wireVision() {
   const setStatus = (m) => { $('vision-status').textContent = m; };
   const mode = () => (document.querySelector('input[name="vision-mode"]:checked') || {}).value || 'off';
   async function call(url, method, payload) {
-    const r = await fetch(url, {
-      method, headers: { 'Content-Type': 'application/json' },
-      body: payload ? JSON.stringify(payload) : undefined,
-    });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d.error || (typeof d.detail === 'string' ? d.detail : 'HTTP ' + r.status));
-    return d;
+    return api.request(method, url, payload);
   }
 
   function showFields() {
@@ -499,9 +471,7 @@ function wireCompute() {
 
   async function load() {
     try {
-      const r = await fetch('/api/system/compute-device', { cache: 'no-store' });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      render(await r.json());
+      render(await api.get('/api/system/compute-device'));
     } catch (e) {
       setStatus('Failed to load: ' + e.message);
       $('compute-effective').textContent = 'Could not read the compute devices.';
@@ -516,11 +486,7 @@ function wireCompute() {
       return;
     }
     try {
-      const r = await fetch('/api/system/compute-device', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(typeof d.detail === 'string' ? d.detail : 'HTTP ' + r.status);
+      const d = await api.put('/api/system/compute-device', body);
       render(d);
       setStatus(d.restart_required ? 'Saved — restart required.' : 'Saved.');
     } catch (e) { setStatus('Failed: ' + e.message); }

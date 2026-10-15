@@ -216,6 +216,15 @@ if systemctl --user is-active finetune-studio >/dev/null 2>&1; then
     unit_active=1
     unit_dir="$(systemctl --user show -p WorkingDirectory --value finetune-studio 2>/dev/null)"
 fi
+# A restart stops running jobs (training, exports): never do it under them. The code is updated on disk; the new
+# version starts when the service restarts after the job (or run: systemctl --user restart finetune-studio).
+running_jobs="$("$VENV_PY" -m finetune_studio.cli status --json 2>/dev/null \
+    | "$VENV_PY" -c 'import json,sys; print(" ".join(j["id"] for j in json.load(sys.stdin).get("jobs", []) if j.get("running")))' \
+    2>/dev/null || true)"
+if [ -n "$running_jobs" ] && [ "$NO_RESTART" = "0" ] && [ "$CHECK_MODE" = "0" ]; then
+    warn "not restarting: job(s) running ($running_jobs). The update applies at the next restart after they end."
+    NO_RESTART=1
+fi
 if [ "$NO_RESTART" = "0" ] && [ "$CHECK_MODE" = "0" ]; then
     if [ "$unit_active" = "1" ] && [ "$(readlink -f "$unit_dir" 2>/dev/null)" != "$(readlink -f "$PWD")" ]; then
         warn "finetune-studio.service runs ${unit_dir:-another checkout}, not $PWD: not restarting it"

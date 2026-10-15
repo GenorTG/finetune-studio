@@ -196,13 +196,7 @@
     const path = list.dataset.path || detailTr.dataset.modelPath || "";
     list.innerHTML = '<li class="dim">Loading…</li>';
     try {
-      const r = await fetch(contentsUrl(path));
-      const data = await r.json().catch(function () { return {}; });
-      if (!r.ok) {
-        list.innerHTML = '<li class="dim"></li>';
-        list.firstChild.textContent = String(data.detail || data.error || ("HTTP " + r.status));
-        return;
-      }
+      const data = await api.get(contentsUrl(path));
       const files = data.files || [];
       if (!files.length) {
         list.innerHTML = '<li class="dim">Empty directory</li>';
@@ -250,18 +244,7 @@
   window.flOpenInInference = async function (modelPath) {
     if (!modelPath) { notify("No model path", "error"); return; }
     try {
-      const api = window.fts && window.fts.api;
-      const r = api
-        ? await api.post("/api/models/load", { path: modelPath })
-        : await fetch("/api/models/load", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ path: modelPath }),
-          }).then(function (x) { return x.json(); });
-      if (r && (r.error || r.status === "error" || r.loaded === false)) {
-        notify(r.error || "Model failed to load (still unloaded)", "error");
-        return;
-      }
+      await api.post("/api/models/load", { path: modelPath });
       notify("Model loaded", "success");
       location.href = "/inference";
     } catch (e) {

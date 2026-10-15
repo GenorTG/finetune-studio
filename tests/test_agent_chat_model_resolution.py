@@ -158,7 +158,7 @@ def test_omitted_provider_id_rejects_non_helper_inference(
         json={"messages": [{"role": "user", "content": "hi"}]},
     )
     assert r.status_code == 409, r.text
-    err = r.json().get("error") or ""
+    err = r.json().get("detail") or ""
     assert err == wrong_model_message("/models/Qwen3-4B")
     mgr.load.assert_not_called()
 
@@ -188,7 +188,7 @@ def test_omitted_provider_id_409_when_nothing_loaded(
         json={"messages": [{"role": "user", "content": "hi"}]},
     )
     assert r.status_code == 409, r.text
-    assert r.json().get("error") == no_helper_message()
+    assert r.json().get("detail") == no_helper_message()
     mgr.load.assert_not_called()
 
 

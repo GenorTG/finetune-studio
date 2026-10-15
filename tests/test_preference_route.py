@@ -69,7 +69,7 @@ def test_no_loaded_model_is_409_not_a_fabricated_dataset(api, monkeypatch) -> No
     proj = seed_project()
     monkeypatch.setattr("finetune_studio.data.prep.generator.resolve_generator", lambda: None)
     r = api.post(_url(proj["id"]), json={})
-    assert r.status_code == 409 and r.json()["code"] == "no_model" and r.json()["error"]
+    assert r.status_code == 409 and r.json()["code"] == "no_model" and r.json()["detail"]
     assert list_datasets(proj["id"]) == []
 
 
@@ -89,7 +89,7 @@ def test_model_failure_is_a_502(api, monkeypatch) -> None:
 
     _use_model(monkeypatch, boom)
     r = api.post(_url(proj["id"]), json={"kinds": ["hallucination"]})
-    assert r.status_code == 502 and "helper crashed" in r.json()["error"]
+    assert r.status_code == 502 and "helper crashed" in r.json()["detail"]
 
 
 @pytest.mark.parametrize("payload", [{"kinds": []}, {"kinds": ["style"]}, {"max_pairs": 1},

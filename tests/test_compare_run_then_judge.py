@@ -208,7 +208,7 @@ def test_judging_is_refused_while_the_models_are_still_answering_and_for_unknown
     install_judge(monkeypatch)
     gid = _start(client, pid, _suite(tmp_path, 1))["group_id"]
     r = client.post(f"{API}/{pid}/groups/{gid}/judge", json={"provider_id": _api_provider()})
-    assert r.status_code == 400 and "still answering" in r.json()["error"]
+    assert r.status_code == 400 and "still answering" in r.json()["detail"]
     assert client.post(f"{API}/{pid}/groups/nope/judge", json={}).status_code == 404
     gate_open.append(1)
     _finished(client, pid, gid)

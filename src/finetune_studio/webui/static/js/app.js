@@ -103,7 +103,7 @@
   // ── API: fetch helpers throw on non-2xx so callers can handle errors ──
   function _errorMessage(body, status) {
     if (body && typeof body === "object") {
-      let detail = body.error || body.detail || "";
+      let detail = body.detail || "";
       if (Array.isArray(detail)) {
         detail = detail.map((d) => (d && d.msg) || JSON.stringify(d)).join("; ");
       } else if (detail && typeof detail === "object") {
@@ -265,8 +265,7 @@
         if (hasFiles && form.enctype === "multipart/form-data") {
           const fd = new FormData(form);
           fetch(url, { method: "POST", body: fd }).then(_ok).then((d) => {
-            if (d && d.error) notify(d.error, "error");
-            else if (d && d.counts) {
+            if (d && d.counts) {
               // File upload: name the count, flag duplicates explicitly.
               const c = d.counts;
               const dup = c.duplicates_skipped ? " · " + c.duplicates_skipped + " dup skipped" : "";
@@ -279,8 +278,7 @@
         } else {
           const data = Object.fromEntries(new FormData(form));
           api.post(url, data).then((d) => {
-            if (d && d.error) notify(d.error, "error");
-            else if (d && d.run_id) { notify("Training started · run " + d.run_id.slice(0, 8), "success"); window.ftsActivity?.open(); }
+            if (d && d.run_id) { notify("Training started · run " + d.run_id.slice(0, 8), "success"); window.ftsActivity?.open(); }
             else notify("Done", "success");
             if (form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
           })
@@ -312,8 +310,7 @@
         fetch(url, opts)
           .then(_ok)
           .then((d) => {
-            if (d && d.error) notify(d.error, "error");
-            else if (d && d.job_id) {
+            if (d && d.job_id) {
               // HF Pull / background jobs — surface in the activity drawer.
               notify("Download queued · job " + String(d.job_id).slice(0, 8), "success");
               if (window.ftsActivity && typeof window.ftsActivity.open === "function") {
@@ -357,8 +354,7 @@
         fetch(url, opts)
           .then(_ok)
           .then((d) => {
-            if (d && d.error) notify(d.error, "error");
-            else if (d && d.job_id) {
+            if (d && d.job_id) {
               notify(
                 (btn.dataset.done || "Download queued") + " · job " + String(d.job_id).slice(0, 8),
                 "success"

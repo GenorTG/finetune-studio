@@ -200,8 +200,8 @@ def free_and_consumers() -> tuple[int | None, list[dict[str, Any]]]:
         acc = get_accelerator()
         if acc.is_gpu:
             pick = next((d for d in devs if d["index"] == acc.index), devs[0])
-    except Exception:  # noqa: BLE001, S110
-        pass
+    except Exception as e:  # noqa: BLE001 — the panel still shows the first card
+        log.warning("could not match the active accelerator to a probed GPU: %s", e)
     free_mib = int((pick["total_gb"] - pick["used_gb"]) * 1024)
     return free_mib, _consumers()[:5]
 

@@ -315,8 +315,7 @@ function updateMemEstimate() {
     if (!path) { $('mem-bar-wrap').hidden = true; return; }
     const params = readLoaderParams();
     try {
-      const r = await fts.api.post('/api/inference/memory-estimate', { path, ...params });
-      if (r.error) { $('mem-bar-wrap').hidden = true; return; }
+      const r = await api.post('/api/inference/memory-estimate', { path, ...params });
       const total = (r.total_vram_gb || r.vram_gb || 0);
       const weights = (r.weights_gb || 0);
       const ctx = (r.kv_cache_gb || 0);
@@ -347,16 +346,11 @@ async function loadModel() {
   btn.parentElement.appendChild(wt);
   try {
     const params = readLoaderParams();
-    const r = await fts.api.post('/api/models/load', { path, ...params });
-    const failed = !r || r.error || r.status === 'error' || r.loaded === false;
-    if (failed) {
-      throw new Error((r && r.error) || 'Model failed to load (still unloaded)');
-    }
+    const r = await api.post('/api/models/load', { path, ...params });
     // Never claim loaded from HTTP 200 alone — confirm status endpoint.
     const st = await fts.api.get('/api/inference/status').catch(() => null);
     if (!st || !st.loaded) {
       throw new Error(
-        (r && r.error) ||
         'Load reported success but inference status still shows unloaded. Check VRAM/RAM and GPU processes.'
       );
     }

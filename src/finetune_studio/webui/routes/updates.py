@@ -79,12 +79,12 @@ async def trigger_update(request: Request, background: BackgroundTasks):
         try:
             body = await request.json()
         except ValueError:
-            return JSONResponse({"error": "invalid JSON"}, status_code=400)
+            return JSONResponse({"detail": "invalid JSON"}, status_code=400)
     if not isinstance(body, dict):
-        return JSONResponse({"error": "expected JSON object"}, status_code=400)
+        return JSONResponse({"detail": "expected JSON object"}, status_code=400)
     mode = str(body.get("mode") or "update").lower()
     if mode not in ("update", "check", "repair"):
-        return JSONResponse({"error": f"invalid mode: {mode}"}, status_code=400)
+        return JSONResponse({"detail": f"invalid mode: {mode}"}, status_code=400)
     options = {
         "no_pull": bool(body.get("no_pull", False)),
         "no_llama": bool(body.get("no_llama", False)),
@@ -173,7 +173,7 @@ async def get_update_status(uid: str, full: bool = False):
     """Status + log tail for one update attempt."""
     row = db.get_update(uid)
     if not row:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse({"detail": "not found"}, status_code=404)
     # Compact the log_text in the response by default \u2014 a full 256KB
     # blob is too big for a poll request. The UI can ask for the full
     # text via ?full=1 if needed.

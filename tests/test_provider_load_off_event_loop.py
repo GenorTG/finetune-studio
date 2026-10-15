@@ -63,4 +63,4 @@ def test_the_route_still_reports_a_failed_load() -> None:
     with patch.object(mgr_mod, "get_manager", lambda: BadMgr()), \
          patch("finetune_studio.models.helper.missing_gguf_for_provider", lambda pid: ""):
         r = TestClient(app).post("/providers/p1/load", json={})
-    assert r.status_code == 400 and "no memory" in r.json()["error"]
+    assert r.status_code == 400 and "no memory" in r.json()["detail"]

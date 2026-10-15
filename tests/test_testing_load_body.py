@@ -72,7 +72,7 @@ def test_testing_load_rejects_empty_body(
     client, fake = client_and_engine
     resp = client.post("/api/testing/load", json={})
     assert resp.status_code == 400, resp.text
-    assert resp.json()["error"] == "No model_path"
+    assert resp.json()["detail"] == "No model_path"
     fake.load.assert_not_called()
 
 
@@ -86,6 +86,6 @@ def test_chat_v2_load_accepts_path_alias(
     resp = client.post("/api/chat-v2/load", json={"path": "/models/c"})
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body.get("error") is None, body
+    assert "detail" not in body, body
     assert body["model"] == "/models/c"
     assert fake.load.call_args.args[0] == "/models/c"

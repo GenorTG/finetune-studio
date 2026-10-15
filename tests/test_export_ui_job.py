@@ -39,7 +39,7 @@ def test_script_does_not_hold_the_post_open_for_the_whole_export(client) -> None
     script = html[html.index("// ── Export job UI"):]
     # The only fetch of the export URL is the queueing POST; completion is observed through
     # the job stream, never by awaiting that response.
-    posts = re.findall(r"fetch\(API \+ '/runs/'[^)]*\)", script)
+    posts = re.findall(r"api\.post\(API \+ '/runs/'", script)
     assert len(posts) == 1
     assert "follow(d.export_id)" in script
 

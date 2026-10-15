@@ -126,7 +126,7 @@ def test_early_stopping_without_eval_is_400(client, fake_engine, fake_home, tmp_
     r = _start(client, pid, _jsonl(tmp_path), _model(tmp_path),
                early_stopping="1", eval_steps="0")
     assert r.status_code == 400, r.text
-    assert "Eval every N steps" in r.json()["error"]
+    assert "Eval every N steps" in r.json()["detail"]
     assert not fake_engine.started
 
 

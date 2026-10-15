@@ -70,6 +70,7 @@
   <link rel="stylesheet" href="/static/css/app.css?v=88">
   <link rel="stylesheet" href="/static/css/access.css?v=1">
   <script src="/static/js/access.js?v=1"></script>
+  <script src="/static/js/api.js?v=1"></script>
 </head>
 <body>
   <div id="toasts" class="toasts" aria-live="polite"></div>
@@ -336,11 +337,11 @@
   <script src="/static/js/sprites.js?v=19"></script>
   <script src="/static/js/nav_overflow.js?v=2"></script>
   <script src="/static/js/spa.js?v=19"></script>
-  <script src="/static/js/palette.js?v=15"></script>
+  <script src="/static/js/palette.js?v=16"></script>
   <script src="/static/js/tutorial.js?v=16"></script>
   <script src="/static/js/activity.js?v=16"></script>
-  <script src="/static/js/service.js?v=3"></script>
-  <script src="/static/js/guide.js?v=1"></script>
+  <script src="/static/js/service.js?v=4"></script>
+  <script src="/static/js/guide.js?v=2"></script>
   <script>
     window.ftsCopyText = async function (text) {
       try {
@@ -429,16 +430,11 @@
           unloadBtn.dataset.busy = '1';
           unloadBtn.textContent = '…';
           try {
-            const r = await fetch('/api/models/unload', { method: 'POST' });
-            const d = await r.json().catch(() => ({}));
-            if (r.ok && !d.error) {
-              lbl.textContent = '○ no model';
-              dot.className = 'status-dot';
-              unloadBtn.style.display = 'none';
-              lastState = null; // force re-render on next tick
-            } else {
-              if (window.fts) window.fts.notify('Unload failed: ' + (d.error || ('HTTP ' + r.status)), 'error');
-            }
+            await api.post('/api/models/unload');
+            lbl.textContent = '○ no model';
+            dot.className = 'status-dot';
+            unloadBtn.style.display = 'none';
+            lastState = null; // force re-render on next tick
           } catch (e) {
             if (window.fts) window.fts.notify('Unload failed: ' + e.message, 'error');
           } finally {

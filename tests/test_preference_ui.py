@@ -61,7 +61,7 @@ def test_training_page_preselects_dataset_id_and_dpo_mode() -> None:
 
 def test_route_is_mounted_in_the_real_app(client) -> None:
     r = client.post("/api/projects/nope/data-prep/preference", json={})
-    assert r.status_code == 404 and r.json() == {"error": "project not found"}
+    assert r.status_code == 404 and r.json()["detail"] == "project not found"
     assert client.get("/api/projects/nope/data-prep/preference/progress").status_code == 404
 
 

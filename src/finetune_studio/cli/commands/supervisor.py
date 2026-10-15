@@ -53,6 +53,11 @@ def format_status(snap: dict[str, Any]) -> list[str]:
         if c["state"] == "backoff":
             note = f"retry in {c['retry_in_s']}s ({why})"
         lines.append(f"{name:<12}{c['state']:<11}{c['pid'] or '-':<9}{_fmt_age(c['uptime_s']):<9}{c['restarts']:<9}{note}")
+    running = [j for j in snap.get("jobs", []) if j.get("running")]
+    if running:
+        lines += ["", f"{'JOB':<38}{'KIND':<11}{'PID':<9}{'UP':<9}TITLE"]
+        for j in running:
+            lines.append(f"{j['id']:<38}{j['kind']:<11}{j['pid']:<9}{_fmt_age(j['uptime_s']):<9}{j.get('title') or ''}")
     return lines
 
 

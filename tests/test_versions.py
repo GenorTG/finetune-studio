@@ -151,7 +151,7 @@ def test_subset_build_blocks_incomplete_files_unless_forced(client, project, mon
     r = client.post(f"/api/projects/{project}/datasets/subset", json={"source_ids": ["src-gap"]})
     assert r.status_code == 409
     body = r.json()
-    assert "blocked" in body["error"] and body["incomplete_files"][0]["status"] == "gaps"
+    assert "blocked" in body["detail"] and body["incomplete_files"][0]["status"] == "gaps"
     assert body["incomplete_files"][0]["counts"]["open"] == 1
     r = client.post(f"/api/projects/{project}/datasets/subset", json={"source_ids": ["src-gap"], "force": True})
     assert r.status_code == 400  # forced past the gate; then no approved pairs to build from

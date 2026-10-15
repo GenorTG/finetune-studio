@@ -64,8 +64,10 @@ class UnknownComponent(KeyError):
 
 
 class Supervisor:
-    def __init__(self, specs: list[ComponentSpec], events: EventLog | None = None, meta: dict[str, Any] | None = None) -> None:
+    def __init__(self, specs: list[ComponentSpec], events: EventLog | None = None, meta: dict[str, Any] | None = None,
+                 jobs: Any = None) -> None:
         self.events = events or EventLog()
+        self.jobs = jobs  # supervisor.jobs.JobTable: one-shot job processes (training, export, ...)
         self.meta = dict(meta or {})  # launcher (systemd|manual), listen address: shown in the status
         self.started_at = time.time()
         self._components = {s.name: _Component(spec=s) for s in specs}
@@ -78,6 +80,12 @@ class Supervisor:
         for c in self._components.values():
             c.task = asyncio.create_task(self._loop(c), name=f"supervise-{c.spec.name}")
         await asyncio.gather(*(c.task for c in self._components.values() if c.task))
+
+    async def shutdown_gracefully(self) -> None:
+        """Jobs first (each gets its stop grace: training saves), then the components."""
+        if self.jobs is not None:
+            await self.jobs.shutdown()
+        self.shutdown()
 
     def shutdown(self) -> None:
         self._stopping = True
@@ -129,7 +137,8 @@ class Supervisor:
             }
         return {"supervisor": {"pid": os.getpid(), "started_at": self.started_at, "uptime_s": round(now - self.started_at, 1),
                                **self.meta},
-                "components": comps}
+                "components": comps,
+                "jobs": self.jobs.snapshot() if self.jobs is not None else []}
 
     def _get(self, name: str) -> _Component:
         try:

@@ -6,17 +6,7 @@
   if (!$('access-card')) return;
   const status = (msg, bad) => { const el = $('access-status'); el.textContent = msg; el.classList.toggle('err', !!bad); };
 
-  async function api(method, url, body) {
-    const r = await fetch(url, {
-      method, credentials: 'same-origin',
-      headers: body ? { 'Content-Type': 'application/json' } : {},
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    if (r.status === 204) return null;
-    const data = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(typeof data.detail === 'string' ? data.detail : `HTTP ${r.status}`);
-    return data;
-  }
+  const call = (method, url, body) => window.api.request(method, url, body);
 
   const when = (ts) => ts ? new Date(ts * 1000).toLocaleString() : 'never';
 
@@ -51,7 +41,7 @@
       const b = document.createElement('button');
       b.className = 'btn sm'; b.type = 'button'; b.textContent = 'Revoke';
       b.addEventListener('click', () => run(async () => {
-        await api('DELETE', `/api/settings/security/tokens/${encodeURIComponent(t.id)}`);
+        await call('DELETE', `/api/settings/security/tokens/${encodeURIComponent(t.id)}`);
         return 'Token revoked.';
       }));
       li.append(b);
@@ -61,7 +51,7 @@
     $('access-sessions').textContent = `${s.sessions} signed-in browser(s)`;
   }
 
-  async function load() { render(await api('GET', '/api/settings/security')); }
+  async function load() { render(await call('GET', '/api/settings/security')); }
 
   async function run(fn) {
     try { const msg = await fn(); await load(); status(msg || 'Saved.'); }
@@ -71,7 +61,7 @@
   $('access-pw-form').addEventListener('submit', (ev) => {
     ev.preventDefault();
     run(async () => {
-      await api('PUT', '/api/settings/security/password', {
+      await call('PUT', '/api/settings/security/password', {
         new_password: $('access-pw-new').value,
         current_password: $('access-pw-current').value || null,
       });
@@ -82,7 +72,7 @@
   $('access-pw-off').addEventListener('click', () => run(async () => {
     const current = $('access-pw-current').value;
     if (!current) throw new Error('Type the current password first.');
-    await api('POST', '/api/settings/security/disable', { current_password: current });
+    await call('POST', '/api/settings/security/disable', { current_password: current });
     $('access-pw-current').value = '';
     return 'Password removed.';
   }));
@@ -94,10 +84,10 @@
         host: $('access-host').value, port: parseInt($('access-port').value, 10),
         allowed_hosts: $('access-allowed').value.split(',').map(x => x.trim()).filter(Boolean),
       };
-      try { await api('PUT', '/api/settings/security/server', body); }
+      try { await call('PUT', '/api/settings/security/server', body); }
       catch (e) {
         if (!/password/.test(e.message) || !window.confirm(e.message + '\n\nSave anyway?')) throw e;
-        await api('PUT', '/api/settings/security/server', { ...body, confirm_no_password: true });
+        await call('PUT', '/api/settings/security/server', { ...body, confirm_no_password: true });
       }
       return 'Address saved: restart the service to apply it.';
     });
@@ -106,7 +96,7 @@
   $('access-token-form').addEventListener('submit', (ev) => {
     ev.preventDefault();
     run(async () => {
-      const t = await api('POST', '/api/settings/security/tokens', { name: $('access-token-name').value });
+      const t = await call('POST', '/api/settings/security/tokens', { name: $('access-token-name').value });
       $('access-token-name').value = '';
       const out = $('access-token-new');
       out.textContent = `New token "${t.name}" (shown once, copy it now): ${t.token}`;
@@ -116,23 +106,23 @@
   });
 
   $('access-signout-others').addEventListener('click', () => run(async () => {
-    const r = await api('DELETE', '/api/settings/security/sessions');
+    const r = await call('DELETE', '/api/settings/security/sessions');
     return `Signed out ${r.signed_out_elsewhere} other browser(s).`;
   }));
   $('access-signout').addEventListener('click', async () => {
-    await api('POST', '/api/auth/logout').catch(() => null);
+    await call('POST', '/api/auth/logout').catch(() => null);
     window.location.assign('/login');
   });
 
   // CORS / proxy headers: still stored in settings.json and applied at app start.
   async function loadHosting() {
-    const s = await api('GET', '/api/settings');
+    const s = await call('GET', '/api/settings');
     $('hosting-cors').value = (s.cors_origins || []).join('\n');
     $('hosting-cors-creds').checked = !!s.cors_allow_credentials;
     $('hosting-proxy').checked = !!s.proxy_headers;
   }
   $('btn-hosting-save').addEventListener('click', () => run(async () => {
-    await api('PATCH', '/api/settings', {
+    await call('PATCH', '/api/settings', {
       cors_origins: $('hosting-cors').value.split('\n').map(x => x.trim()).filter(Boolean),
       cors_allow_credentials: $('hosting-cors-creds').checked,
       proxy_headers: $('hosting-proxy').checked,

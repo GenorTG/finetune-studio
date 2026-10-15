@@ -55,7 +55,7 @@ class TestQualityRoutes:
         )
         assert r.status_code == 200
         body = r.json()
-        assert body["status"] == "ok", body.get("error")
+        assert body["status"] == "ok", body
         assert body["result"]["output_count"] >= body["result"]["input_count"]
         assert out.exists()
 
@@ -89,7 +89,19 @@ class TestQualityRoutes:
             "/api/data/convert",
             json={"path": str(p), "target_format": "jsonl"},
         )
-        assert r.status_code == 200
+        assert r.status_code == 400
         body = r.json()
-        assert body["status"] == "error"
-        assert "Cannot convert" in body["error"]
+        assert body["code"] == "unsupported_conversion"
+        assert "Cannot convert" in body["detail"]
+
+    def test_crashed_command_is_a_500_not_a_200(self, client, mock_settings, tmp_path, monkeypatch):
+        from finetune_studio.training import config_optimizer
+
+        def boom(self, data, cfg):
+            raise RuntimeError("optimizer exploded")
+
+        monkeypatch.setattr(config_optimizer.TrainingConfigOptimizer, "analyze_and_recommend", boom)
+        r = client.post("/api/data/optimize", json={"path": str(_write_jsonl(tmp_path))})
+        assert r.status_code == 500
+        assert r.json()["code"] == "optimize_failed"
+        assert "optimizer exploded" in r.json()["detail"]

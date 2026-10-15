@@ -477,7 +477,7 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
         { pollUrl: API + '/exports/' + eid, fallbackMs: 5000 });
     } else {
       // No EventSource wrapper: slow poll is still correct, just less live.
-      const poll = () => fetch(API + '/exports/' + eid).then((r) => r.json()).then(onRow).catch(() => {});
+      const poll = () => api.get(API + '/exports/' + eid).then(onRow).catch(() => {});
       poll();
       const t = setInterval(poll, 3000);
       unsub = () => clearInterval(t);
@@ -533,31 +533,20 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
     const fmt = entry.format;
     $('export-status').textContent = 'Queueing ' + fmt + '…';
     $('export-status').classList.remove('err');
-    let r, d = {};
+    let d;
     try {
-      r = await fetch(API + '/runs/' + encodeURIComponent(runId) + '/export', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry.body),
-      });
-      try { d = await r.json(); } catch (_parseErr) {
-        throw new Error('Export returned a non-JSON response (HTTP ' + r.status + ')');
-      }
+      d = await api.post(API + '/runs/' + encodeURIComponent(runId) + '/export', entry.body);
     } catch (e) {
-      savePlan(null); setLocked(false);
-      showError(fmt, e.message || String(e));
-      return;
-    }
-    const failed = !r.ok || d.ok === false || d.status === 'failed' || !!d.error;
-    if (failed) {
       savePlan(null);
-      const text = d.error || d.reason || d.message || d.detail || ('HTTP ' + r.status);
-      if (r.status === 409 && d.active_export_id) {
+      const ed = e.data || {};
+      if (e.status === 409 && ed.active_export_id) {
         // Another export (maybe from another tab) owns the GPU: show it live instead of failing.
-        notify(text, 'info');
-        follow(d.active_export_id);
+        notify(e.message, 'info');
+        follow(ed.active_export_id);
         return;
       }
       setLocked(false);
-      showError(fmt, text, [['Missing', Array.isArray(d.missing) ? d.missing.join(', ') : '—']]);
+      showError(fmt, e.message || String(e), [['Missing', Array.isArray(ed.missing) && ed.missing.length ? ed.missing.join(', ') : '—']]);
       return;
     }
     plan.current = d.export_id;
@@ -611,9 +600,7 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
     if (plan) { plan.queue = []; savePlan(plan); }     // cancel = stop the whole selection
     $('export-cancel-btn').disabled = true;
     try {
-      const r = await fetch(API + '/exports/' + current.id + '/cancel', { method: 'POST' });
-      const d = await r.json().catch(() => ({}));
-      if (!r.ok) { notify(d.error || ('Cancel failed (HTTP ' + r.status + ')'), 'error'); }
+      await api.post(API + '/exports/' + current.id + '/cancel');
     } catch (e) { notify('Cancel failed: ' + (e.message || e), 'error'); }
   });
 
@@ -703,13 +690,7 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
     const path = list.dataset.path || detailTr.dataset.modelPath || "";
     list.innerHTML = '<li class="dim">Loading…</li>';
     try {
-      const r = await fetch(contentsUrl(path));
-      const data = await r.json().catch(function () { return {}; });
-      if (!r.ok) {
-        list.innerHTML = '<li class="dim"></li>';
-        list.firstChild.textContent = String(data.detail || data.error || ("HTTP " + r.status));
-        return;
-      }
+      const data = await api.get(contentsUrl(path));
       const files = data.files || [];
       if (!files.length) {
         list.innerHTML = '<li class="dim">Empty directory</li>';
@@ -757,18 +738,7 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
   window.flOpenInInference = async function (modelPath) {
     if (!modelPath) { notify("No model path", "error"); return; }
     try {
-      const api = window.fts && window.fts.api;
-      const r = api
-        ? await api.post("/api/models/load", { path: modelPath })
-        : await fetch("/api/models/load", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ path: modelPath }),
-          }).then(function (x) { return x.json(); });
-      if (r && (r.error || r.status === "error" || r.loaded === false)) {
-        notify(r.error || "Model failed to load (still unloaded)", "error");
-        return;
-      }
+      await api.post("/api/models/load", { path: modelPath });
       notify("Model loaded", "success");
       location.href = "/inference";
     } catch (e) {

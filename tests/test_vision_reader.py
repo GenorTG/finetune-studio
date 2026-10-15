@@ -188,7 +188,7 @@ def test_vision_test_route_sends_the_picture_and_checks_the_code(client: Any, vg
     assert content[0]["image_url"]["url"].startswith("data:image/png;base64,") and vgateway["seen"][-1]["body"]["model"] == "vl-1"
     vgateway["reply"]["text"] = "I see a white rectangle."
     r = client.post("/api/settings/vision/test")
-    assert r.status_code == 502 and "did not read the code" in r.json()["error"]
+    assert r.status_code == 502 and "did not read the code" in r.json()["detail"]
     client.put("/api/settings/vision", json={"mode": "off"})
     assert client.post("/api/settings/vision/test").status_code == 400
 

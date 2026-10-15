@@ -305,9 +305,9 @@ async function doDelete(ids) {
   let ok = 0, fail = 0, lastErr = '';
   for (const id of ids) {
     try {
-      const r = await fetch(`/api/projects/${id}`, { method: 'DELETE' });
-      if (r.ok) ok++; else { fail++; lastErr = `${r.status} ${await r.text().catch(()=>'')}`; }
-    } catch (e) { fail++; lastErr = String(e); }
+      await api.del(`/api/projects/${id}`);
+      ok++;
+    } catch (e) { fail++; lastErr = e.message || String(e); }
   }
   btn.disabled = false;
   btn.textContent = origText;
@@ -376,11 +376,9 @@ async function submitImport() {
   const fd = new FormData();
   fd.append('file', file);
   try {
-    const r = await fetch('/api/projects/import', { method: 'POST', body: fd });
-    const d = await r.json();
-    if (d.error) { status.textContent = 'Error: ' + d.error; }
-    else { status.textContent = 'Imported ' + d.count + ' project(s). Reloading…'; setTimeout(() => location.reload(), 1000); }
-  } catch (e) { status.textContent = 'Failed: ' + e.message; }
+    const d = await api.post('/api/projects/import', fd);
+    status.textContent = 'Imported ' + d.count + ' project(s). Reloading…'; setTimeout(() => location.reload(), 1000);
+  } catch (e) { status.textContent = 'Import failed: ' + e.message; }
 }
 
 // ESC closes the modal.

@@ -329,7 +329,6 @@
     var suite = (Array.isArray(SUITES) && SUITES[0]) ? SUITES[0] : null;
     var suitePath = suite && (suite.path || suite);
     if (!suitePath) return;
-    var api = (window.fts && window.fts.api) || null;
     var notify = (window.fts && window.fts.notify) || function (m) { console.log(m); };
     try {
       var body = {
@@ -340,21 +339,8 @@
       if (suite && suite.suite_type === "real") {
         body.num_samples = suite.default_sample_limit || 50;
       }
-      var data;
-      if (api && api.post) {
-        data = await api.post("/api/benchmarks/projects/" + encodeURIComponent(PID)
-          + "/runs/" + encodeURIComponent(LATEST_RID) + "/run", body);
-      } else {
-        var r = await fetch("/api/benchmarks/projects/" + encodeURIComponent(PID)
-          + "/runs/" + encodeURIComponent(LATEST_RID) + "/run", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        data = await r.json();
-        if (!r.ok) throw new Error((data && data.error) || ("HTTP " + r.status));
-      }
-      if (data && data.error) throw new Error(data.error);
+      await api.post("/api/benchmarks/projects/" + encodeURIComponent(PID)
+        + "/runs/" + encodeURIComponent(LATEST_RID) + "/run", body);
       notify("Benchmark finished", "success");
       location.reload();
     } catch (e) {
@@ -398,11 +384,7 @@
       var url = "/api/benchmarks/projects/" + encodeURIComponent(PID)
         + "/compare?run_a=" + encodeURIComponent(a)
         + "&run_b=" + encodeURIComponent(b);
-      var r = await fetch(url, { cache: "no-store" });
-      var data = await r.json().catch(function () { return {}; });
-      if (!r.ok || data.error) {
-        throw new Error(data.error || ("HTTP " + r.status));
-      }
+      var data = await api.get(url);
       var rows = Array.isArray(data.suites) ? data.suites
         : Object.keys(data.deltas || {}).map(function (k) {
             return {
@@ -461,12 +443,8 @@
       if (!verdict) return;
       sel.disabled = true;
       try {
-        var r = await fetch(BASE + "/cases/" + encodeURIComponent(sel.dataset.cid) + "/verdict", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ verdict: verdict, reasoning: "human override" }),
-        });
-        var d = await r.json();
-        if (!r.ok || d.error) throw new Error(d.error || ("HTTP " + r.status));
+        var d = await api.post(BASE + "/cases/" + encodeURIComponent(sel.dataset.cid) + "/verdict",
+                               { verdict: verdict, reasoning: "human override" });
         notify("Verdict set to " + verdict + " · score now " + d.scores.pass_rate + "%", "success");
         reloadSelected();
       } catch (e) {
@@ -483,9 +461,7 @@
     auditOut.hidden = false;
     auditOut.textContent = "Checking every stored verdict…";
     try {
-      var r = await fetch(BASE + "/audit");
-      var d = await r.json();
-      if (!r.ok || d.error) throw new Error(d.error || ("HTTP " + r.status));
+      var d = await api.get(BASE + "/audit");
       var a = d.audit || {};
       var stored = (d.benchmark && d.benchmark.scores) || {};
       var src = a.verdict_sources || {};
@@ -513,9 +489,7 @@
                  : window.confirm("Delete this benchmark result?");
     if (!ok) return;
     try {
-      var r = await fetch(BASE, { method: "DELETE" });
-      var d = await r.json();
-      if (!r.ok || d.error) throw new Error(d.error || ("HTTP " + r.status));
+      await api.del(BASE);
       notify("Benchmark result deleted", "success");
       location.href = PAGE;
     } catch (e) {

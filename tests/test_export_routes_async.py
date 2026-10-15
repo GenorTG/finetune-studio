@@ -72,7 +72,7 @@ def test_second_export_gets_409_naming_the_active_one(setup, monkeypatch) -> Non
     body = second.json()
     assert body["ok"] is False and body["status"] == "busy"
     assert body["active_export_id"] == first["export_id"]
-    assert first["export_id"] in body["error"]
+    assert first["export_id"] in body["detail"]
     wait_export(client, pid, first["export_id"])
     assert _post(client, pid, run, format="gguf", quants=["q8_0"]).status_code == 202
 
@@ -138,7 +138,7 @@ def test_imatrix_quantize_is_a_tracked_job_too(setup, monkeypatch) -> None:
     # synchronous refusals keep their codes
     bad = client.post(f"/api/training/runs/{run['id']}/quantize",
                       json={"method": "imatrix", "imatrix_path": "/nope"})
-    assert bad.status_code == 422 and "imatrix file not found" in bad.json()["error"]
+    assert bad.status_code == 422 and "imatrix file not found" in bad.json()["detail"]
 
 
 def test_imatrix_all_quants_failing_marks_the_job_failed(setup, monkeypatch) -> None:

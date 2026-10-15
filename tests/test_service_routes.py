@@ -51,7 +51,7 @@ def test_status_without_a_supervisor_is_200_unmanaged_with_a_hint(client):
 
 def test_actions_without_a_supervisor_are_409_not_a_silent_ok(client):
     r = client.post("/api/service/components/web/restart")
-    assert r.status_code == 409 and "supervisor" in r.json()["error"]
+    assert r.status_code == 409 and "supervisor" in r.json()["detail"]
     assert client.get("/api/service/events").status_code == 409
     assert client.get("/api/service/logs/web").status_code == 409
 

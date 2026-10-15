@@ -219,9 +219,8 @@ class TestChatRouteSmoke:
     def test_missing_messages_returns_error(self, client, monkeypatch):
         monkeypatch.setenv("FTS_SKIP_CHAT", "1")
         r = client.post("/api/projects/test/data-prep/chat", json={})
-        body = r.json()
-        # Either 422 (validation) or 200-with-error; both are acceptable
-        assert "error" in body or r.status_code in (200, 422)
+        assert r.status_code == 400
+        assert r.json()["detail"] == "messages required"
 
     def test_missing_backend_returns_409(self, client, monkeypatch):
         """No provider_id / external_api and nothing loaded → 409."""
@@ -247,7 +246,7 @@ class TestChatRouteSmoke:
         )
         assert r.status_code == 409
         body = r.json()
-        assert body.get("error") == HELPER_NO_MODEL_MSG
+        assert body.get("detail") == HELPER_NO_MODEL_MSG
 
     def test_external_api_skips_to_canned_reply(self, client, monkeypatch):
         """With FTS_SKIP_CHAT=1, external_api still goes through the loop
@@ -266,7 +265,7 @@ class TestChatRouteSmoke:
         )
         assert r.status_code in (200, 502)  # 502 = upstream chat call failed (honest error)
         body = r.json()
-        assert "ok" in body or "error" in body  # may fail because project doesn't exist
+        assert "ok" in body or "detail" in body  # may fail because project doesn't exist
 
     def test_tools_catalog_endpoint(self, client):
         """The catalog is a static listing, but the route is still scoped to a

@@ -419,13 +419,8 @@
 
 <script>
 (function() {
-  // Look up fts lazily — base.html loads app.js AFTER the content
-  // script runs, so window.fts may not exist yet at first render.
-  const api = () => {
-    const a = window.fts && window.fts.api;
-    if (!a) throw new Error('fts.api not loaded yet — wait a moment and retry');
-    return a;
-  };
+  // api.js (base.html <head>) throws on any non-2xx with the server's `detail` as the message.
+  const api = () => window.api;
   const notify = (msg, type) => {
     const n = window.fts && window.fts.notify;
     if (n) n(msg, type); else console.log(msg);
@@ -491,11 +486,7 @@
       hybrid_enabled: !!(hybridOn && hybridOn.checked),
     };
     try {
-      const d = await api().post('/api/projects/' + PID + '/brain/settings', body);
-      if (d && d.error) {
-        notify(d.error, 'error');
-        return;
-      }
+      await api().post('/api/projects/' + PID + '/brain/settings', body);
       notify('Retrieval settings saved', 'success');
     } catch (e) {
       notify('Save failed: ' + (e.message || e), 'error');
@@ -506,12 +497,7 @@
     const body = document.getElementById('brain-docs-body');
     if (!body) return;
     try {
-      const r = await fetch('/api/projects/' + PID + '/brain/documents');
-      const d = await r.json();
-      if (!r.ok) {
-        body.innerHTML = '<span class="dim">' + esc(d.detail || d.error || 'Failed to load') + '</span>';
-        return;
-      }
+      const d = await api().get('/api/projects/' + PID + '/brain/documents');
       renderDocsTable(d.docs || []);
     } catch (e) {
       body.innerHTML = '<span class="dim">Failed: ' + esc(e.message) + '</span>';
@@ -527,12 +513,7 @@
     body.innerHTML = '<span class="dim">Loading…</span>';
     modal.hidden = false;
     try {
-      const r = await fetch('/api/projects/' + PID + '/brain/documents/' + encodeURIComponent(docId) + '/chunks');
-      const d = await r.json();
-      if (!r.ok) {
-        body.innerHTML = '<span class="dim">' + esc(d.detail || d.error || 'Failed') + '</span>';
-        return;
-      }
+      const d = await api().get('/api/projects/' + PID + '/brain/documents/' + encodeURIComponent(docId) + '/chunks');
       const chunks = d.chunks || [];
       if (!chunks.length) {
         body.innerHTML = '<p class="text-sm muted">No chunks for this document.</p>';
@@ -552,10 +533,8 @@
   window.clearAllDocuments = async function() {
     if (!await fts.confirm('Remove ALL sources? You will need to rebuild the index.', {danger: true, okText: 'Remove all'})) return;
     try {
-      const r = await fetch('/api/projects/' + PID + '/brain/documents', { method: 'DELETE' });
-      const d = await r.json();
-      if (d.error) { notify(d.error, 'error'); }
-      else { loadIndexedDocs(); notify('All sources cleared', 'success'); }
+      await api().del('/api/projects/' + PID + '/brain/documents');
+      loadIndexedDocs(); notify('All sources cleared', 'success');
     } catch (e) { notify('Failed: ' + e.message, 'error'); }
   };
 
@@ -566,10 +545,6 @@
     if (!el) return;
     try {
       const d = await api().get('/api/projects/' + PID + '/brain');
-      if (!d || d.error) {
-        el.innerHTML = '<span class="dim">' + esc((d && (d.detail || d.error)) || 'Failed') + '</span>';
-        return;
-      }
       if (!d.exists) {
         el.innerHTML = '<p class="text-sm muted">No index yet. Configure chunking below and click Build.</p>'
           + '<div class="text-xs dim mono mt-1">' + esc(d.corpus_dir || '') + '</div>';
@@ -619,12 +594,6 @@
     if (results) { results.hidden = false; results.innerHTML = '<span class="muted">Searching…</span>'; }
     try {
       const d = await api().post('/api/projects/' + PID + '/brain/search', { query: q, top_k: 10 });
-      if (d.error) {
-        if (status) status.textContent = 'Error: ' + d.error;
-        if (results) results.innerHTML = '<span class="err">' + esc(d.error) + '</span>';
-        notify(d.error, 'error');
-        return;
-      }
       const hits = d.hits || [];
       if (status) status.textContent = hits.length + ' hit' + (hits.length === 1 ? '' : 's');
       if (!hits.length) {
@@ -674,12 +643,6 @@
         messages: [{ role: 'user', content: text }],
         top_k: 10,
       });
-      if (d.error) {
-        box.insertAdjacentHTML('beforeend',
-          '<div class="text-xs err">' + esc(d.error) + '</div>');
-        notify(d.error, 'error');
-        return;
-      }
       const reply = d.reply || d.response || '';
       box.insertAdjacentHTML('beforeend',
         '<div class="text-xs"><b>Assistant</b>: ' + esc(reply) + '</div>');
@@ -718,12 +681,7 @@
     if (status) status.textContent = 'Encrypting the index…';
     if (btn) btn.disabled = true;
     try {
-      const r = await fetch('/api/projects/' + PID + '/brain/bundle', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || r.statusText);
+      const d = await api().post('/api/projects/' + PID + '/brain/bundle', body);
       passEl.value = '';
       showPassphrase(d.passphrase);
       if (status) status.textContent = 'Encrypted bundle ' + d.filename + ' (' + humanBytes(d.size) + ') ready — downloading.';
@@ -746,9 +704,7 @@
     fd.append('passphrase', document.getElementById('bundle-import-pass').value);
     if (status) status.textContent = 'Importing…';
     try {
-      const r = await fetch('/api/projects/' + PID + '/brain/import?overwrite=true', { method: 'POST', body: fd });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || r.statusText);
+      const d = await api().post('/api/projects/' + PID + '/brain/import?overwrite=true', fd);
       document.getElementById('bundle-import-pass').value = '';
       if (status) status.textContent = 'Imported ' + (d.documents || 0) + ' documents, ' + (d.chunks || 0) + ' chunks.';
       setTimeout(() => window.location.reload(), 800);
@@ -791,12 +747,7 @@
   window.saveMcpDefaults = async function (scope) {
     var note = document.getElementById('mcp-pkg-note');
     try {
-      var r = await fetch('/api/projects/' + PID + '/brain/export-config', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scope: scope, values: mcpVals() }),
-      });
-      var d = await r.json();
-      if (!r.ok) throw new Error(d.detail || r.statusText);
+      await api().put('/api/projects/' + PID + '/brain/export-config', { scope: scope, values: mcpVals() });
       if (note) note.textContent = scope === 'studio'
         ? 'Saved as studio-wide export defaults (the passphrase is never saved).'
         : 'Saved as this project\u2019s export override (the passphrase is never saved).';
@@ -825,12 +776,7 @@
       : 'Building the package \u2014 the download starts when it is ready.';
     if (btn) btn.disabled = true;
     try {
-      var r = await fetch('/api/projects/' + PID + '/brain/standalone', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      var d = await r.json();
-      if (!r.ok) throw new Error(d.detail || r.statusText);
+      var d = await api().post('/api/projects/' + PID + '/brain/standalone', body);
       passEl.value = '';
       showPassphrase(d.passphrase);
       if (note) note.textContent = (d.encrypted ? 'Encrypted package ' : 'PLAINTEXT package ')
@@ -868,12 +814,7 @@
     const el = document.getElementById('shared-models-list');
     if (!el) return;
     try {
-      const r = await fetch('/api/shared-models/stats');
-      const d = await r.json().catch(function() { return {}; });
-      if (!r.ok || d.error) {
-        el.innerHTML = '<span class="dim">' + esc(d.detail || d.error || ('HTTP ' + r.status)) + '</span>';
-        return;
-      }
+      const d = await api().get('/api/shared-models/stats');
       const models = normalizeSharedModelList(d);
       if (!models.length) {
         el.innerHTML = '<span class="dim">No shared models cached yet.</span>';
@@ -903,12 +844,7 @@
     try {
       // rebuild with reset=true wipes the index dir; we only need the wipe
       // when there are no files — fall back to clearing sources.
-      const r = await fetch('/api/projects/' + PID + '/brain/documents', { method: 'DELETE' });
-      const d = await r.json().catch(function() { return {}; });
-      if (!r.ok || d.error) {
-        notify(d.error || d.detail || ('HTTP ' + r.status), 'error');
-        return;
-      }
+      await api().del('/api/projects/' + PID + '/brain/documents');
       notify('Index sources cleared — rebuild to re-index', 'success');
       loadBrainStatus();
       loadIndexedDocs();
@@ -950,14 +886,9 @@
     btn.disabled = true; if (buildBtn) buildBtn.disabled = true; if (rebuildBtn) rebuildBtn.disabled = true;
     status.textContent = 'Quick index: converting unparsed files to text, then embedding… (first build downloads the embedder ~2.2 GB)';
     try {
+      // A failed build is a 4xx/5xx whose detail says how many files were converted first.
       const r = await api().post('/api/projects/' + PID + '/brain/quick', {});
-      if (r.error) { status.textContent = 'Error: ' + r.error; notify(r.error, 'error'); return; }
       const b = r.build || {};
-      if (b.ok === false) {
-        status.textContent = 'Converted ' + (r.promoted || 0) + ' file(s) — build failed: ' + (b.error || '?');
-        notify('Build failed: ' + (b.error || '?'), 'error');
-        return;
-      }
       const failed = (r.failed || []).length;
       status.textContent = '⚡ Converted ' + (r.promoted || 0) + ' new file(s)' +
         (failed ? ' (' + failed + ' failed to parse)' : '') + ' · index: ' +
@@ -989,11 +920,6 @@
         fact_cards: !!(document.getElementById('b-fact-cards') || {}).checked,
       };
       const r = await api().post('/api/projects/' + PID + '/brain/build', body);
-      if (r.error) {
-        status.textContent = 'Error: ' + r.error;
-        notify(r.error, 'error');
-        return;
-      }
       // Sync build: POST returns only after the index is written.
       if (!r.building) {
         const docs = r.documents != null ? r.documents : '?';

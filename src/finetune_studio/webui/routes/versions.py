@@ -41,14 +41,14 @@ async def _save_version(pid: str, body: dict[str, Any]) -> dict | JSONResponse:
     """Shared save logic for both the JSON route and the multipart-free CLI path."""
     proj = db.get_project(pid)
     if not proj:
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
     parent_vid = body.get("parent_version_id")
     parent = db.get_version(str(parent_vid)) if parent_vid else None
     if parent_vid and (not parent or parent.get("project_id") != pid):
-        return JSONResponse({"error": f"parent version {parent_vid!r} not found"}, status_code=404)
+        return JSONResponse({"detail": f"parent version {parent_vid!r} not found"}, status_code=404)
     manifest = body.get("manifest") or {}
     if not isinstance(manifest, dict):
-        return JSONResponse({"error": "manifest must be an object"}, status_code=400)
+        return JSONResponse({"detail": "manifest must be an object"}, status_code=400)
 
     # Auto-fill runnable inputs when the caller doesn't pin them explicitly:
     # current datasets, latest Smart Brain index build, recent training runs.
@@ -87,7 +87,7 @@ async def _save_version(pid: str, body: dict[str, Any]) -> dict | JSONResponse:
 @router.get("/projects/{pid}/versions")
 async def list_versions(pid: str):
     if not db.get_project(pid):
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
     return {"versions": db.list_versions(pid)}
 
 
@@ -96,9 +96,9 @@ async def save_version(pid: str, request: Request):
     try:
         body = await request.json()
     except ValueError:
-        return JSONResponse({"error": "invalid JSON"}, status_code=400)
+        return JSONResponse({"detail": "invalid JSON"}, status_code=400)
     if not isinstance(body, dict):
-        return JSONResponse({"error": "expected JSON object"}, status_code=400)
+        return JSONResponse({"detail": "expected JSON object"}, status_code=400)
     return await _save_version(pid, body)
 
 
@@ -106,7 +106,7 @@ async def save_version(pid: str, request: Request):
 async def get_version(vid: str, pid: str):
     v = db.get_version(vid)
     if not v or v.get("project_id") != pid:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse({"detail": "not found"}, status_code=404)
     out = dict(v)
     out["manifest"] = _manifest_of(out)
     return out
@@ -115,10 +115,10 @@ async def get_version(vid: str, pid: str):
 @router.get("/projects/{pid}/versions/{vid}/lineage")
 async def get_lineage(vid: str, pid: str):
     if not db.get_project(pid):
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
     chain = db.version_lineage(pid, vid)
     if not chain:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse({"detail": "not found"}, status_code=404)
     return {"lineage": [{"id": v["id"], "version_number": v["version_number"],
                          "label": v["label"], "created_at": v["created_at"]} for v in chain]}
 
@@ -127,7 +127,7 @@ async def get_lineage(vid: str, pid: str):
 async def delete_version(vid: str, pid: str):
     v = db.get_version(vid)
     if not v or v.get("project_id") != pid:
-        return JSONResponse({"error": "not found"}, status_code=404)
+        return JSONResponse({"detail": "not found"}, status_code=404)
     return {"ok": db.delete_version(vid)}
 
 
@@ -147,24 +147,24 @@ async def build_subset_dataset(pid: str, request: Request):
 
     proj = db.get_project(pid)
     if not proj:
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
     body = await request.json()
     source_ids = [s for s in (body.get("source_ids") or []) if s]
     if not source_ids:
-        return JSONResponse({"error": "source_ids required"}, status_code=400)
+        return JSONResponse({"detail": "source_ids required"}, status_code=400)
 
     names = source_names(pid)
     known = set(names)
     missing = [s for s in source_ids if s not in known]
     if missing:
         return JSONResponse(
-            {"error": f"unknown source ids ({len(missing)}): {missing[:10]}"}, status_code=400)
+            {"detail": f"unknown source ids ({len(missing)}): {missing[:10]}"}, status_code=400)
 
     # Completeness gate BEFORE export, scoped to the picked files (mirror of the full-export gate).
     incomplete = [{"source_id": c.source_id, "filename": names.get(c.source_id), "status": c.status, "counts": c.counts}
                   for c in project_coverage(pid, source_ids) if c.status != "complete"]
     if incomplete and body.get("force") is not True:
-        return JSONResponse({"error": "dataset build blocked: not every data point of the selected files is approved yet",
+        return JSONResponse({"detail": "dataset build blocked: not every data point of the selected files is approved yet",
                              "incomplete_files": incomplete, "hint": "send force: true to build anyway"}, status_code=409)
 
     fmt = body.get("fmt", "sharegpt")
@@ -174,9 +174,9 @@ async def build_subset_dataset(pid: str, request: Request):
         payload = export_qa_jsonl_from_sources(pid, source_ids, fmt=fmt, only="approved",
                                                grounding=grounding)
     except (ValueError, TypeError) as e:
-        return JSONResponse({"error": str(e)}, status_code=400)
+        return JSONResponse({"detail": str(e)}, status_code=400)
     if not payload.strip():
-        return JSONResponse({"error": "no approved pairs for the selected sources"}, status_code=400)
+        return JSONResponse({"detail": "no approved pairs for the selected sources"}, status_code=400)
 
     ds_dir = datasets_dir(pid)
     ts = time.strftime("%Y%m%d-%H%M%S")

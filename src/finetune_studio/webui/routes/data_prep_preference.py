@@ -44,10 +44,10 @@ def _response_body(pid: str, built: pref.BuiltPreference) -> dict[str, Any]:
 async def build_preference(pid: str, body: PreferenceBody):
     """Author preference pairs from the project's approved Q&A, write + register the DPO dataset."""
     if not db.get_project(pid):
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
     with _JOBS_LOCK:
         if pid in _JOBS and _JOBS[pid]["running"]:
-            return JSONResponse({"error": "a preference build is already running for this project"},
+            return JSONResponse({"detail": "a preference build is already running for this project"},
                                 status_code=409)
         _JOBS[pid] = {"running": True, "attempted": 0, "planned": 0,
                       "kept": {k: 0 for k in body.kinds}, "kind": body.kinds[0]}
@@ -61,16 +61,16 @@ async def build_preference(pid: str, body: PreferenceBody):
             pref.build_preference_dataset, pid, tuple(body.kinds), body.max_pairs, body.seed,
             None, on_progress)
     except pref.NoApprovedPairs as exc:
-        return JSONResponse({"error": str(exc), "code": "no_approved_pairs"}, status_code=409)
+        return JSONResponse({"detail": str(exc), "code": "no_approved_pairs"}, status_code=409)
     except pref.NoGenerator as exc:
-        return JSONResponse({"error": str(exc), "code": "no_model"}, status_code=409)
+        return JSONResponse({"detail": str(exc), "code": "no_model"}, status_code=409)
     except pref.NoUsablePairs as exc:
-        return JSONResponse({"error": str(exc), "code": "no_usable_pairs", **exc.report.as_dict()},
+        return JSONResponse({"detail": str(exc), "code": "no_usable_pairs", **exc.report.as_dict()},
                             status_code=422)
     except pref.GenerationFailed as exc:
-        return JSONResponse({"error": str(exc), "code": "generation_failed"}, status_code=502)
+        return JSONResponse({"detail": str(exc), "code": "generation_failed"}, status_code=502)
     except ValueError as exc:
-        return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"detail": str(exc)}, status_code=400)
     finally:
         with _JOBS_LOCK:
             _JOBS[pid]["running"] = False
@@ -81,7 +81,7 @@ async def build_preference(pid: str, body: PreferenceBody):
 async def preference_progress(pid: str):
     """Live progress of the running build (``running: false`` when none)."""
     if not db.get_project(pid):
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
     with _JOBS_LOCK:
         job = _JOBS.get(pid)
         return dict(job, kept=dict(job["kept"])) if job else {"running": False}

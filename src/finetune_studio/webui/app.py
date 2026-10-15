@@ -16,23 +16,22 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.exception_handlers import (
-    http_exception_handler as fastapi_http_exception_handler,
-)
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from finetune_studio import db
+from finetune_studio import (
+    db,
+    logsetup,
+)
 from finetune_studio.config import settings
-from finetune_studio.knowledge.errors import KnowledgeError
 from finetune_studio.models.manager import get_manager
 from finetune_studio.models.registry import ModelInfo, scan_models
-from finetune_studio.training.engine import TrainingEngine
+from finetune_studio.training.remote import RemoteTrainingEngine
 
+logsetup.setup("web")          # $FTS_ROOT/logs/web.log (+ web-access.log), secrets redacted
 _log = logging.getLogger(__name__)
-training_engine = TrainingEngine()
+# Training runs as a supervised job process (jobs.kinds.training); this is the web app's view of it.
+training_engine = RemoteTrainingEngine()
 # The ONE *persistent* InferenceEngine instance in this process. ModelManager
 # owns it (via the .engine property) — every named-provider load (data-prep's
 # helper, /api/providers/*) delegates to this exact object, so this name
@@ -91,8 +90,7 @@ async def lifespan(app: FastAPI):
     for m in discovered_models:
         vision = " 👁 vision" if getattr(m, "vision", False) else ""
         print(f"  {m.name} ({m.format}, {m.size_gb}GB{vision})")
-    # Init DB. Training runs bind their own DB persister when started
-    # (training.run_persistence.attach_run).
+    # Init DB. A training job persists its own run row (jobs.kinds.training).
     db.init_db()
     # Re-attach to in-flight HF downloads from the previous session so
     # the UI shows them (and we can mark the dead ones as cancelled).
@@ -108,10 +106,16 @@ async def lifespan(app: FastAPI):
 
     cause = restart_cause()
     try:
+        from finetune_studio.jobs import store as job_store
+        job_store.prune()                       # finished job folders older than a week (results are in the DB)
+    except Exception:  # noqa: BLE001 — housekeeping must not block startup
+        _log.exception("Failed to prune old job folders")
+    try:
         n = db.reconcile_stale_updates()
         if n:
             print(f"Reconciled {n} stale system_updates row(s)")
-        n_runs = db.reconcile_stale_runs(cause)
+        # A run whose job process is still alive (the web restarted, training did not) is left alone.
+        n_runs = db.reconcile_stale_runs(cause, keep=training_engine.running_run_ids())
         if n_runs:
             print(f"Reconciled {n_runs} stale training_runs row(s)")
     except Exception:  # noqa: BLE001
@@ -164,33 +168,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Finetune Studio", version="0.1.0", lifespan=lifespan)
 
-_NOT_FOUND_HTML = (
-    "<!DOCTYPE html><html lang=en><head><meta charset=utf-8>"
-    "<meta name=viewport content='width=device-width,initial-scale=1'>"
-    "<title>Not found</title><style>"
-    "body{font-family:system-ui,sans-serif;background:#12161a;color:#dde;"
-    "display:grid;place-items:center;min-height:100vh;margin:0}"
-    "main{text-align:center;padding:24px}a{color:#7fd48a}</style></head>"
-    "<body><main><h1>Page not found</h1>"
-    "<p>That address does not exist in Finetune Studio.</p>"
-    "<p><a href='/'>Back to the dashboard</a></p></main></body></html>"
-)
+from finetune_studio.webui import errors as _errors
 
-
-@app.exception_handler(KnowledgeError)
-async def _knowledge_error_handler(request: Request, exc: KnowledgeError):
-    """A source or index request that cannot be served (unknown, not parsed yet, parse failed, nothing to index) is a
-    real 4xx with the reason."""
-    return JSONResponse({"detail": str(exc)}, status_code=exc.status)
-
-
-@app.exception_handler(StarletteHTTPException)
-async def _http_exception_handler(request: Request, exc: StarletteHTTPException):
-    """Styled 404 for browser page loads; API/JSON callers keep the JSON body."""
-    wants_html = "text/html" in request.headers.get("accept", "")
-    if exc.status_code == 404 and wants_html and not request.url.path.startswith("/api/"):
-        return HTMLResponse(_NOT_FOUND_HTML, status_code=404)
-    return await fastapi_http_exception_handler(request, exc)
+_errors.install(app)   # one error contract: real status + {"detail", "code"}; styled 404 pages
 
 
 def _activity_kind(path: str) -> str:
@@ -357,6 +337,10 @@ _cors_origins = _apply_hosting_middleware()
 from finetune_studio.access.middleware import AccessMiddleware
 
 app.add_middleware(AccessMiddleware, trusted_origins=_cors_origins)
+# Outermost of all: every request is logged, also the ones the access check refuses.
+from finetune_studio.webui.access_log import AccessLogMiddleware
+
+app.add_middleware(AccessLogMiddleware)
 
 static_dir = Path(__file__).parent / "static"
 templates_dir = Path(__file__).parent / "templates"

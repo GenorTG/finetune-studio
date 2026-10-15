@@ -37,7 +37,7 @@ def _project_404(pid: str) -> JSONResponse | None:
     before any DB read or filesystem scan so a bad pid starts no work.
     """
     if not db.get_project(pid):
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
     return None
 
 
@@ -50,7 +50,7 @@ def _get_owned_run(pid: str, rid: str) -> tuple[dict | None, JSONResponse | None
     """
     run = db.get_run(rid)
     if not run or (run.get("project_id") and run.get("project_id") != pid):
-        return None, JSONResponse({"error": "run not found"}, status_code=404)
+        return None, JSONResponse({"detail": "run not found"}, status_code=404)
     return run, None
 
 
@@ -68,7 +68,7 @@ async def create_project(request: Request):
     if not body.get("allow_duplicate") and any(
             (x.get("name") or "").strip().lower() == name.lower() for x in db.list_projects()):
         return JSONResponse(
-            {"error": f'A project named "{name}" already exists. Pick a different name.',
+            {"detail": f'A project named "{name}" already exists. Pick a different name.',
              "code": "duplicate_name"}, status_code=409)
     p = db.create_project(
         name=name,
@@ -200,11 +200,11 @@ async def export_project(pid: str, name: str | None = None, fmt: str = "tar.gz")
 
     project = db.get_project(pid)
     if not project:
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
     if fmt not in ("tar.gz", "tar"):
-        return JSONResponse({"error": "fmt must be tar.gz or tar"}, status_code=400)
+        return JSONResponse({"detail": "fmt must be tar.gz or tar"}, status_code=400)
     if _safe_member_parts(pid) is None or len(_safe_member_parts(pid) or ()) != 1:
-        return JSONResponse({"error": "invalid project id"}, status_code=400)
+        return JSONResponse({"detail": "invalid project id"}, status_code=400)
 
     def stream():
         buf = io.BytesIO()
@@ -263,7 +263,7 @@ async def import_project(request: Request):
     form = await request.form()
     file = form.get("file")
     if not file:
-        return JSONResponse({"error": "no file"}, status_code=400)
+        return JSONResponse({"detail": "no file"}, status_code=400)
 
     buf = io.BytesIO(await file.read())
 
@@ -271,7 +271,7 @@ async def import_project(request: Request):
         """Validate + extract the archive (tar + file copies: seconds to minutes)."""
 
         def bad(msg: str):
-            return JSONResponse({"error": f"invalid archive: {msg}"}, status_code=400)
+            return JSONResponse({"detail": f"invalid archive: {msg}"}, status_code=400)
 
         try:
             with tarfile.open(fileobj=buf, mode="r:*") as tar:

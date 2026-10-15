@@ -41,29 +41,29 @@ async def guide_chat(request: Request):
     ``provider_id``, ``external_api``, ``max_rounds`` and generation kwargs."""
     body = await request.json()
     if not isinstance(body, dict):
-        return JSONResponse({"error": "JSON object body required"}, status_code=400)
+        return JSONResponse({"detail": "JSON object body required"}, status_code=400)
     messages = body.get("messages")
     if not isinstance(messages, list) or not messages:
-        return JSONResponse({"error": "messages required"}, status_code=400)
+        return JSONResponse({"detail": "messages required"}, status_code=400)
     clean = [
         {"role": m["role"], "content": str(m.get("content") or "")}
         for m in messages
         if isinstance(m, dict) and m.get("role") in ("user", "assistant") and m.get("content")
     ][-MAX_HISTORY:]
     if not clean or clean[-1]["role"] != "user":
-        return JSONResponse({"error": "the last message must be a user message"}, status_code=400)
+        return JSONResponse({"detail": "the last message must be a user message"}, status_code=400)
     external = body.get("external_api")
     if external is not None and not isinstance(external, dict):
-        return JSONResponse({"error": "external_api must be an object"}, status_code=400)
+        return JSONResponse({"detail": "external_api must be an object"}, status_code=400)
     try:
         max_rounds = max(1, min(int(body.get("max_rounds") or MAX_TOOL_ROUNDS), 12))
     except (TypeError, ValueError):
-        return JSONResponse({"error": "max_rounds must be an integer"}, status_code=400)
+        return JSONResponse({"detail": "max_rounds must be an integer"}, status_code=400)
 
     ctx = ToolContext.from_path(str(body.get("page_path") or ""), pid=str(body.get("project_id") or "") or None)
     project = db.get_project(ctx.pid) if ctx.pid else None
     if ctx.pid and not project:
-        return JSONResponse({"error": f"project {ctx.pid} not found"}, status_code=404)
+        return JSONResponse({"detail": f"project {ctx.pid} not found"}, status_code=404)
 
     gen = parse_gen(body)
     provider_id = body.get("provider_id")
@@ -86,7 +86,7 @@ async def guide_chat(request: Request):
             yield sse_data({"type": "status", "message": "Loading the helper model (about a minute the first time)…"})
             backend, error = await resolve_chat_backend(provider_id, external)
             if error is not None or backend is None:
-                detail = (json.loads(bytes(error.body)).get("error") if error is not None else None) or "no backend"
+                detail = (json.loads(bytes(error.body)).get("detail") if error is not None else None) or "no backend"
                 yield sse_data({"type": "error", "status": getattr(error, "status_code", 409), "error": detail})
                 yield sse_data({"type": "done"})
                 return
@@ -114,7 +114,7 @@ async def guide_kb():
 async def guide_kb_entry(entry_id: str):
     entry = load_kb().get(entry_id)
     if entry is None:
-        return JSONResponse({"error": f"unknown KB entry {entry_id!r}"}, status_code=404)
+        return JSONResponse({"detail": f"unknown KB entry {entry_id!r}"}, status_code=404)
     return {"id": entry.id, "title": entry.title, "page": entry.route, "sections": entry.sections}
 
 
@@ -122,5 +122,5 @@ async def guide_kb_entry(entry_id: str):
 async def guide_help(q: str, limit: int = 3):
     """Same retrieval as the ``app_help`` tool (debugging / docs links)."""
     if not q.strip():
-        return JSONResponse({"error": "q required"}, status_code=400)
+        return JSONResponse({"detail": "q required"}, status_code=400)
     return {"query": q, "results": await asyncio.to_thread(search_kb, q, limit)}

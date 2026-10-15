@@ -46,7 +46,7 @@ def _project_or_404(pid: str) -> None:
 
 
 def _busy(exc: testing_jobs.TestingBusy) -> JSONResponse:
-    return JSONResponse({"error": str(exc), "active": exc.active}, status_code=409)
+    return JSONResponse({"detail": str(exc), "active": exc.active}, status_code=409)
 
 
 def _resolve_models(pid: str, raw: Any) -> list[compare_jobs.CompareModel]:
@@ -80,15 +80,15 @@ async def start_compare(pid: str, request: Request):
     body = await _json_object(request)
     suite_path = str(body.get("suite_path") or "").strip()
     if not suite_path:
-        return JSONResponse({"error": "suite_path required"}, status_code=400)
+        return JSONResponse({"detail": "suite_path required"}, status_code=400)
     try:
         cases = await asyncio.to_thread(load_test_suite, suite_path)
     except FileNotFoundError as exc:
-        return JSONResponse({"error": str(exc)}, status_code=404)
+        return JSONResponse({"detail": str(exc)}, status_code=404)
     except (TypeError, ValueError, OSError) as exc:
-        return JSONResponse({"error": f"invalid suite: {exc}"}, status_code=400)
+        return JSONResponse({"detail": f"invalid suite: {exc}"}, status_code=400)
     if not cases:
-        return JSONResponse({"error": "suite has no usable cases"}, status_code=400)
+        return JSONResponse({"detail": "suite has no usable cases"}, status_code=400)
     try:
         max_tokens, temperature = int(body.get("max_tokens", 512)), float(body.get("temperature", 0.3))
     except (TypeError, ValueError):
@@ -141,7 +141,7 @@ async def judge_group(pid: str, gid: str, request: Request):
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from None
     except (ValueError, JudgeUnavailable) as exc:
-        return JSONResponse({"error": str(exc)}, status_code=400)
+        return JSONResponse({"detail": str(exc)}, status_code=400)
     except testing_jobs.TestingBusy as exc:
         return _busy(exc)
     return JSONResponse({"ok": True, "group_id": gid, "benchmarks": rows}, status_code=202)
@@ -155,7 +155,7 @@ async def cancel_group(pid: str, gid: str):
     if not rows:
         raise HTTPException(status_code=404, detail="comparison not found")
     if not any(testing_jobs.cancel(r["id"]) for r in rows):
-        return JSONResponse({"error": "nothing is running for this comparison"}, status_code=409)
+        return JSONResponse({"detail": "nothing is running for this comparison"}, status_code=409)
     return {"ok": True}
 
 

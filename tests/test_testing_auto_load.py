@@ -178,7 +178,7 @@ def test_testing_skips_done_run_without_merged_weights(
         json={"suite_path": str(suite_path), "project_id": pid},
     )
     assert resp.status_code == 400, resp.text
-    assert "no model to test" in resp.json()["error"]
+    assert "no model to test" in resp.json()["detail"]
     fake.load.assert_not_called()
     assert db.list_benchmarks_for_project(pid) == []  # a refused run leaves no row behind
 
@@ -212,7 +212,7 @@ def test_testing_returns_400_when_no_completed_run(
         json={"suite_path": str(suite_path), "project_id": pid},
     )
     assert resp.status_code == 400, resp.text
-    assert "no model to test" in resp.json()["error"]
+    assert "no model to test" in resp.json()["detail"]
     fake.load.assert_not_called()
 
 

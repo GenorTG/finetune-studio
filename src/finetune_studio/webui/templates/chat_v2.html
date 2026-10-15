@@ -573,14 +573,7 @@ async function chatSend() {
       rounds: b.chunks_retrieved,
     });
 
-    const r = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: requestAbort.signal,
-    });
-    const raw = await r.json();
-    if (raw.error) throw new Error(raw.error);
+    const raw = await api.post(url, body, { signal: requestAbort.signal });
     const parsed = parseFn(raw);
 
     if (parsed.reply) {
@@ -619,17 +612,8 @@ async function chatInlineLoad() {
   btn.textContent = 'Loading…';
   try {
     const nCtx = ctxEl ? (parseInt(ctxEl.value, 10) || 0) : 0;   // 0 = auto (native window)
-    const r = await fetch('/api/chat-v2/load', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model_path: sel.value, n_ctx: nCtx }),
-    });
-    const d = await r.json().catch(() => ({}));
-    if (r.ok && !d.error) {
-      location.reload();
-    } else {
-      fts.notify('Failed to load model: ' + (d.error || d.detail || ('HTTP ' + r.status)), 'error');
-    }
+    await api.post('/api/chat-v2/load', { model_path: sel.value, n_ctx: nCtx });
+    location.reload();
   } catch (e) {
     fts.notify('Failed to load model: ' + ((e && e.message) || e), 'error');
   } finally {

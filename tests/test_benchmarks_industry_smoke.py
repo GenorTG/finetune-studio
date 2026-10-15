@@ -154,7 +154,7 @@ def test_selection_validation_accepts_synthetic_rejects_unknown(
     )
     assert err2 is not None
     assert err2.status_code == 400
-    assert "not selectable" in json.loads(err2.body.decode())["error"]
+    assert "not selectable" in json.loads(err2.body.decode())["detail"]
 
 
 def test_api_suites_lists_synthetic_labels(

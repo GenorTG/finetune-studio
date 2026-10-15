@@ -207,7 +207,7 @@ def test_omitted_provider_id_409_when_non_helper_loaded(
         json={"messages": [{"role": "user", "content": "hi"}]},
     )
     assert r.status_code == 409, r.text
-    err = r.json().get("error") or ""
+    err = r.json().get("detail") or ""
     assert "helper" in err.lower()
     assert wrong_model_message("/models/other.gguf").split(",")[0] in err or "other" in err
 

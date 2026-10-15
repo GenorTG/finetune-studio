@@ -120,7 +120,7 @@ def test_training_route_rejects_invalid_dpo_before_worker_start(
     )
 
     assert response.status_code == 400
-    assert "Invalid preference dataset" in response.json()["error"]
+    assert "Invalid preference dataset" in response.json()["detail"]
     assert not fake_engine.started
 
 
@@ -153,7 +153,7 @@ def test_training_route_requires_tool_schema_for_tool_sft(
     response = _start(client, pid, str(data_path), str(model_path), training_mode="tool_sft")
 
     assert response.status_code == 400
-    assert "function JSON-schema" in response.json()["error"]
+    assert "function JSON-schema" in response.json()["detail"]
 
 
 def test_training_route_accepts_cpt_and_passes_mode_to_engine(

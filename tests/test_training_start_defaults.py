@@ -31,8 +31,11 @@ class _FakeEngine:
     def on_update(self, cb: object) -> None:
         self.cb = cb
 
-    def start(self, config: object, data: list, system_prompt: str) -> None:
-        self.started = {"config": config, "data": data, "system_prompt": system_prompt}
+    def start(self, config: object, data: list, system_prompt: str, *, run_id: str, output_dir: str,
+              project_id: str | None) -> str:
+        self.started = {"config": config, "data": data, "system_prompt": system_prompt, "run_id": run_id,
+                        "output_dir": output_dir, "project_id": project_id}
+        return "training-job"
 
 
 @pytest.fixture

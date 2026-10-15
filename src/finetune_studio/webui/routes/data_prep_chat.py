@@ -128,7 +128,7 @@ async def resolve_chat_backend(
         try:
             import httpx  # noqa: F401
         except ImportError:
-            return None, JSONResponse({"error": "external_api requires httpx (install httpx)"}, status_code=500)
+            return None, JSONResponse({"detail": "external_api requires httpx (install httpx)"}, status_code=500)
         backend = {
             "kind": "external",
             "base_url": (external.get("base_url") or "").rstrip("/"),
@@ -136,7 +136,7 @@ async def resolve_chat_backend(
             "model_id": external.get("model_id") or "",
         }
         if not backend["base_url"] or not backend["model_id"]:
-            return None, JSONResponse({"error": "external_api.base_url and model_id required"}, status_code=400)
+            return None, JSONResponse({"detail": "external_api.base_url and model_id required"}, status_code=400)
     elif provider_id:
         # Explicit provider_id — only path that may call manager.load().
         # Lazy imports: data_prep_chat.py is imported by app.py during
@@ -149,7 +149,7 @@ async def resolve_chat_backend(
         mgr = get_manager()
         cfg = mgr.get_provider(provider_id)
         if not cfg:
-            return None, JSONResponse({"error": f"unknown provider {provider_id}"}, status_code=404)
+            return None, JSONResponse({"detail": f"unknown provider {provider_id}"}, status_code=404)
 
         # Fast path: the global inference engine already holds THIS model.
         # Use it directly to avoid a duplicate Llama() instance racing with
@@ -203,7 +203,7 @@ async def resolve_chat_backend(
                 await asyncio.to_thread(mgr.load, provider_id)
             except Exception as e:
                 log.exception("failed to load provider %s", provider_id)
-                return None, JSONResponse({"error": f"failed to load provider: {e}"}, status_code=500)
+                return None, JSONResponse({"detail": f"failed to load provider: {e}"}, status_code=500)
             backend = {"kind": "provider", "manager": mgr, "provider_id": provider_id}
     else:
         # No provider_id: require the configured GGUF helper — never
@@ -216,7 +216,7 @@ async def resolve_chat_backend(
 
         loaded = resolve_helper_backend()
         if loaded is None:
-            return None, JSONResponse({"error": helper_resolution_error()}, status_code=409)
+            return None, JSONResponse({"detail": helper_resolution_error()}, status_code=409)
         backend = dict(loaded)
         log.info(
             "data-prep chat: provider_id omitted; using helper %s backend (%s)",
@@ -254,18 +254,18 @@ async def data_prep_chat(pid: str, request: Request):
     """
     body = await request.json()
     if not isinstance(body, dict):
-        return JSONResponse({"error": "JSON object body required"}, status_code=400)
+        return JSONResponse({"detail": "JSON object body required"}, status_code=400)
     messages: list[dict] = body.get("messages") or []
     if not messages or not isinstance(messages, list):
-        return JSONResponse({"error": "messages required"}, status_code=400)
+        return JSONResponse({"detail": "messages required"}, status_code=400)
     provider_id: str | None = body.get("provider_id")
     external: dict | None = body.get("external_api")
     if external is not None and not isinstance(external, dict):
-        return JSONResponse({"error": "external_api must be an object"}, status_code=400)
+        return JSONResponse({"detail": "external_api must be an object"}, status_code=400)
     try:
         max_rounds = max(1, min(int(body.get("max_rounds") or MAX_TOOL_ROUNDS), 12))
     except (TypeError, ValueError):
-        return JSONResponse({"error": "max_rounds must be an integer"}, status_code=400)
+        return JSONResponse({"detail": "max_rounds must be an integer"}, status_code=400)
     gen = parse_gen(body)
 
     # Validate the backend before touching the filesystem so a missing project doesn't mask a
@@ -274,7 +274,7 @@ async def data_prep_chat(pid: str, request: Request):
     if error is not None or backend is None:
         return error
     if not project_dir(pid).exists():
-        return JSONResponse({"error": f"project {pid} not found"}, status_code=404)
+        return JSONResponse({"detail": f"project {pid} not found"}, status_code=404)
 
     from finetune_studio import db
     project = db.get_project(pid) or {}
@@ -289,11 +289,13 @@ async def data_prep_chat(pid: str, request: Request):
     last = events[-1]
     if last["type"] == "error":
         if last.get("truncated"):
-            return {"ok": False, "error": last["error"], "reply": last["error"], "tool_calls": tool_calls,
+            # A partial answer, not a failure: the agent used every round; the user sees what it did so far.
+            return {"ok": True, "complete": False, "reply": last["error"], "tool_calls": tool_calls,
                     "rounds": last["rounds"], "backend": backend_name}
-        return JSONResponse({"error": last["error"]}, status_code=last.get("status", 502))
+        return JSONResponse({"detail": last["error"]}, status_code=last.get("status", 502))
     return {
         "ok": True,
+        "complete": True,
         "reply": last["reply"],
         "tool_calls": tool_calls,
         "rounds": last["rounds"],
@@ -496,5 +498,5 @@ async def list_tools(pid: str):
     + for UI to show a help panel)."""
     from finetune_studio import db
     if not db.get_project(pid):
-        return JSONResponse({"error": "project not found"}, status_code=404)
+        return JSONResponse({"detail": "project not found"}, status_code=404)
     return {"tools": TOOLS_CATALOG}

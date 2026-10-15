@@ -148,7 +148,7 @@ def test_promote_empty_body_is_400(client_and_db):
     pid = _create_project(client, db_path)
     r = client.post(f"/api/projects/{pid}/data-prep/sources", json={})
     assert r.status_code == 400, r.text
-    assert "required" in r.json()["error"]
+    assert "required" in r.json()["detail"]
 
 
 def test_promote_is_idempotent(client_and_db):

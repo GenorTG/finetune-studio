@@ -51,7 +51,7 @@ def build_app(engine: Any) -> Starlette:
     lock = threading.Lock()
 
     def _error(exc: BaseException, status: int = 500) -> JSONResponse:
-        return JSONResponse({"error": f"{type(exc).__name__}: {exc}"}, status_code=status)
+        return JSONResponse({"detail": f"{type(exc).__name__}: {exc}"}, status_code=status)
 
     async def health(_: Request) -> JSONResponse:
         return JSONResponse({"status": "ok", "pid": os.getpid()})
@@ -63,7 +63,7 @@ def build_app(engine: Any) -> Starlette:
         body = await request.json()
         path = body.pop("model_path", None)
         if not path:
-            return JSONResponse({"error": "model_path is required"}, status_code=400)
+            return JSONResponse({"detail": "model_path is required"}, status_code=400)
 
         def _do() -> None:
             with lock:
@@ -90,9 +90,9 @@ def build_app(engine: Any) -> Starlette:
         body = await request.json()
         messages = body.pop("messages", None)
         if messages is None:
-            return JSONResponse({"error": "messages is required"}, status_code=400)
+            return JSONResponse({"detail": "messages is required"}, status_code=400)
         if engine.model is None:
-            return JSONResponse({"error": "No model loaded"}, status_code=409)
+            return JSONResponse({"detail": "No model loaded"}, status_code=409)
 
         def _do() -> str:
             with lock:
@@ -108,9 +108,9 @@ def build_app(engine: Any) -> Starlette:
         body = await request.json()
         model = engine.model
         if model is None:
-            return JSONResponse({"error": "No model loaded"}, status_code=409)
+            return JSONResponse({"detail": "No model loaded"}, status_code=409)
         if not hasattr(model, "create_chat_completion"):
-            return JSONResponse({"error": "the loaded model is not a llama.cpp model (no create_chat_completion)"}, status_code=409)
+            return JSONResponse({"detail": "the loaded model is not a llama.cpp model (no create_chat_completion)"}, status_code=409)
 
         def _do() -> Any:
             with lock:
@@ -159,6 +159,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--socket", required=True)
     parser.add_argument("--engine", choices=["real", "fake"], default="real", help="fake: test seam, no GPU, no model file")
     args = parser.parse_args(argv)
+    from finetune_studio import logsetup
+    logsetup.setup("inference")
     sock = Path(args.socket)
     sock.parent.mkdir(parents=True, exist_ok=True)
     with contextlib.suppress(OSError):

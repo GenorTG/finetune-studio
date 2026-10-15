@@ -118,9 +118,9 @@ def test_route_sample_size_opt_in(client, run_with_data) -> None:
 
 def test_route_rejects_bad_sample_size(client, run_with_data) -> None:
     _, rid, _ = run_with_data
-    assert "error" in client.post(f"/api/training/runs/{rid}/auto-suites/generate",
+    assert "detail" in client.post(f"/api/training/runs/{rid}/auto-suites/generate",
                                   json={"sample_size": 0}).json()
-    assert "error" in client.post(f"/api/training/runs/{rid}/auto-suites/generate",
+    assert "detail" in client.post(f"/api/training/runs/{rid}/auto-suites/generate",
                                   json={"sample_size": "many"}).json()
 
 

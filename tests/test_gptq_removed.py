@@ -71,7 +71,7 @@ def test_export_api_rejects_gptq(client, tmp_path: Path) -> None:
     assert r.status_code == 400, r.text
     body = r.json()
     assert body.get("ok") is False
-    assert "GPTQ" in body["error"]
+    assert "GPTQ" in body["detail"]
 
 
 @pytest.mark.parametrize("fmt", sorted(SUPPORTED_EXPORT_FORMATS))

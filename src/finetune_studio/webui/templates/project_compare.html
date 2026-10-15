@@ -141,14 +141,7 @@
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   const S = { gid: new URLSearchParams(location.search).get('group') || '', view: null, filter: 'all', timer: null, sig: '' };
 
-  async function jreq(method, url, body) {
-    const opt = { method: method, headers: {} };
-    if (body !== undefined) { opt.headers['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
-    const r = await fetch(url, opt);
-    const data = await r.json().catch(function() { return {}; });
-    if (!r.ok) throw new Error(data.error || data.detail || ('HTTP ' + r.status));
-    return data;
-  }
+  function jreq(method, url, body) { return api.request(method, url, body); }
   function verdictBadge(v) {
     const cls = v === 'pass' ? 'verdict-pass' : v === 'partial' ? 'verdict-partial' : v === 'fail' ? 'verdict-fail' : 'verdict-none';
     return '<span class="verdict-badge ' + cls + '">' + esc(v || 'awaiting') + '</span>';

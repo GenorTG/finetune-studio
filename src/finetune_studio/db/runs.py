@@ -137,13 +137,12 @@ _STALE_RUN_STATUSES: tuple[str, ...] = (
 _STALE_RUN_ERROR = "Interrupted: server restarted during this run"
 
 
-def reconcile_stale_runs(cause: str = "") -> int:
-    """Mark in-flight training_runs as failed after a process restart.
+def reconcile_stale_runs(cause: str = "", keep: set[str] | frozenset[str] = frozenset()) -> int:
+    """Mark in-flight training_runs as failed after a web restart, except the ones in ``keep``.
 
-    Any row still in queued/loading/training/saving/running cannot still be
-    running after the server process died — mark them failed so the UI does
-    not show forever-spinning orphans. ``cause`` (e.g. the signal that killed the
-    server) is appended to the stored error. Returns the number of rows updated.
+    Training is a job process that outlives the web app, so a row still in queued/loading/training/saving/running
+    is only an orphan when its job is gone (``keep`` = run ids whose job is alive). ``cause`` (e.g. the signal that
+    killed the server) is appended to the stored error. Returns the number of rows updated.
     """
     placeholders = ", ".join("?" for _ in _STALE_RUN_STATUSES)
     now = time.time()
@@ -153,9 +152,11 @@ def reconcile_stale_runs(cause: str = "") -> int:
             _STALE_RUN_STATUSES,
         ).fetchall()
         for r in rows:
+            if r["id"] in keep:
+                continue
             c.execute(
                 "UPDATE training_runs SET status = ?, error = ?, finished_at = ? "
                 "WHERE id = ?",
                 ("failed", _STALE_RUN_ERROR + cause, now, r["id"]),
             )
-    return len(rows)
+    return sum(1 for r in rows if r["id"] not in keep)

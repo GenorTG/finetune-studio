@@ -801,17 +801,7 @@ async function flPromoteToDataPrep(fileId) {
   // A library file whose parse is missing or failed: parse it now (POST data-prep/sources {file_id}).
   // Promote so the Source file picker sees them without a second upload.
   try {
-    const r = await fetch('/api/projects/' + _flPid + '/data-prep/sources', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file_id: fileId }),
-    });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) {
-      const msg = (d && typeof d.error === 'string') ? d.error : ('HTTP ' + r.status);
-      console.warn('promote source failed', msg);
-      return { ok: false, error: msg };
-    }
+    const d = await api.post('/api/projects/' + _flPid + '/data-prep/sources', { file_id: fileId });
     return { ok: true, source: d.source || null };
   } catch (e) {
     console.warn('promote source failed', e);
@@ -991,14 +981,9 @@ function flEditTags(fid, name) {
       modal.querySelector('[data-action=save]').addEventListener('click', () => {
         const tags = document.getElementById('fl-tag-input').value;
         const notes = document.getElementById('fl-note-input').value;
-        fetch('/api/projects/' + _flPid + '/files/' + fid + '/tags', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tags, notes })
-        }).then(r => r.json()).then(d => {
-          if (d.error) document.getElementById('fl-tag-status').textContent = 'Error: ' + d.error;
-          else { cleanup(); flInit(); fts.notify('Tags & notes saved', 'success'); }
-        }).catch(e => { document.getElementById('fl-tag-status').textContent = 'Failed: ' + e.message; });
+        api.patch('/api/projects/' + _flPid + '/files/' + fid + '/tags', { tags, notes })
+          .then(() => { cleanup(); flInit(); fts.notify('Tags & notes saved', 'success'); })
+          .catch(e => { document.getElementById('fl-tag-status').textContent = 'Error: ' + e.message; });
       });
     });
 }
@@ -1935,18 +1920,16 @@ async function rqAddPair() {
   rqIndicator();
   try {
     await _rq.chain;
-    var res = await fetch(rqBase() + '/qa', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source_id: it.source_id, chunk_idx: it.chunk_idx, question: q.value, answer: a.value }),
-    });
-    var data = await res.json().catch(function () { return {}; });
-    if (!res.ok) { dpBridgeStatus(String(data.error || ('HTTP ' + res.status)), 'error'); return; }
+    var data = await api.post(rqBase() + '/qa',
+      { source_id: it.source_id, chunk_idx: it.chunk_idx, question: q.value, answer: a.value });
     _rq.counts.approved++;
     q.value = ''; a.value = '';
     rqShowAdd(false);
     dpBridgeStatus('Added and approved: ' + data.question.slice(0, 80), 'success');
     await rqLoad({ keepId: it.id });
     dpCoverageChanged();
+  } catch (e) {
+    dpBridgeStatus(String((e && e.message) || e), 'error');
   } finally {
     _rq.inflight--;
     rqIndicator();
@@ -2035,15 +2018,8 @@ async function dpBulkAction(ids, action, note) {
   }
   try {
     await _rq.chain;
-    var r = await fetch('/api/projects/' + encodeURIComponent(_prepPid) + '/data-prep/qa/bulk', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids: ids, action: action, note: note }),
-    });
-    var data = await r.json().catch(function () { return {}; });
-    if (!r.ok) {
-      dpBridgeStatus(String((data && (data.error || data.detail)) || ('HTTP ' + r.status)), 'error');
-      return;
-    }
+    var data = await api.post('/api/projects/' + encodeURIComponent(_prepPid) + '/data-prep/qa/bulk',
+      { ids: ids, action: action, note: note });
     var n = (data && data.updated != null) ? data.updated : ids.length;
     dpBridgeStatus((action === 'approve' ? 'Approved ' : 'Rejected ') + n + ' pair(s).', 'success');
     await rqLoad({});
@@ -2134,7 +2110,7 @@ async function dpExportApproved() {
     if (!r.ok) {
       var err = {};
       try { err = await r.json(); } catch (e2) { /* ignore */ }
-      dpBridgeStatus(String((err && (err.error || err.detail)) || ('Export failed (HTTP ' + r.status + ')')), 'error');
+      dpBridgeStatus(String((err && err.detail) || ('Export failed (HTTP ' + r.status + ')')), 'error');
       return;
     }
     // Side effect on the server registers project_datasets; also offer a local download.
@@ -2277,7 +2253,7 @@ async function dpPrefBuild() {
           return k + ': ' + Object.keys(d.dropped[k]).map(function (x) { return (DP_PREF_DROP_LABELS[x] || x) + ' ×' + d.dropped[k][x]; }).join(', ');
         }).join('\n');
       }
-      dpPrefStatus(String(d.error || (d.detail && JSON.stringify(d.detail)) || ('Build failed (HTTP ' + r.status + ')')) + extra, 'error');
+      dpPrefStatus(String(d.detail || ('Build failed (HTTP ' + r.status + ')')) + extra, 'error');
       return;
     }
     dpPrefRenderProgress({ planned: 1, attempted: 1, kept: d.by_kind });
@@ -2454,19 +2430,17 @@ function dpSelectedSourceIds() {
 // The local GGUF is loaded on request (never implicitly by the server); an API helper needs nothing.
 async function dpEnsureHelperLoaded() {
   if (_dpHelper && _dpHelper.kind === 'openai_compat') return;
-  var providers = await fetch('/api/providers', { cache: 'no-store' }).then(function (r) { return r.json(); });
+  var providers = await api.get('/api/providers');
   var helperId = providers.helper_provider_id || _dpHelperProviderId || 'local-default';
   var active = providers.active || null;
   if (active && active.loaded && active.id === helperId) return;
   if (providers.helper && providers.helper.kind === 'openai_compat') return;
   dpMiningStatus('Loading the helper model…', 'info');
-  var r = await fetch('/api/providers/' + encodeURIComponent(helperId) + '/load', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
-  });
-  var data = await r.json().catch(function () { return {}; });
-  if (!r.ok || data.ok === false) {
-    if (data.code === 'helper_missing') dpShowHelperPicker();
-    throw new Error(data.error || ('helper load HTTP ' + r.status));
+  try {
+    await api.post('/api/providers/' + encodeURIComponent(helperId) + '/load', {});
+  } catch (e) {
+    if (e.code === 'helper_missing') dpShowHelperPicker();
+    throw e;
   }
 }
 
@@ -2485,11 +2459,9 @@ async function dpShowHelperPicker() {
   box.hidden = false;
   box.querySelectorAll('button[data-path]').forEach(function (b) {
     b.addEventListener('click', async function () {
-      var r = await fetch('/api/providers/helper/use', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: b.dataset.path }),
-      });
-      var d = await r.json().catch(function () { return {}; });
-      if (!r.ok) { dpMiningStatus(d.error || 'Could not use that file.', 'error'); return; }
+      var d;
+      try { d = await api.post('/api/providers/helper/use', { path: b.dataset.path }); }
+      catch (e) { dpMiningStatus(e.message || 'Could not use that file.', 'error'); return; }
       box.hidden = true;
       dpMiningStatus('Helper set to ' + d.path + '. Run again.', 'success');
     });
@@ -2501,11 +2473,7 @@ async function dpSubmit(kind, ids) {
   dpMiningStatus((kind === 'mine' ? 'Queueing mining for ' : 'Queueing gap filling for ') + ids.length + ' file(s)…', 'info');
   try {
     await dpEnsureHelperLoaded();
-    var r = await fetch(dpMiningBase() + '/jobs', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source_ids: ids, kind: kind }),
-    });
-    var data = await r.json().catch(function () { return {}; });
-    if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+    var data = await api.post(dpMiningBase() + '/jobs', { source_ids: ids, kind: kind });
     dpMiningStatus('Queued ' + data.jobs.length + ' file job(s). The table updates as they run.', 'success');
   } catch (e) {
     dpMiningStatus((kind === 'mine' ? 'Mining' : 'Gap filling') + ' not started: ' + ((e && e.message) || e), 'error');
@@ -2518,15 +2486,17 @@ async function dpFilesAction(act, sid, jobId) {
   if (act === 'items') { dpOpenFile(sid); return; }
   if (act === 'mine' || act === 'fill') { await dpSubmit(act, [sid]); return; }
   if (act === 'cancel') {
-    var c = await fetch(dpMiningBase() + '/jobs/' + encodeURIComponent(jobId) + '/cancel', { method: 'POST' });
-    var cd = await c.json().catch(function () { return {}; });
-    dpMiningStatus(c.ok ? 'Cancelling the job on ' + name + '…' : (cd.error || ('HTTP ' + c.status)), c.ok ? 'info' : 'error');
+    try {
+      await api.post(dpMiningBase() + '/jobs/' + encodeURIComponent(jobId) + '/cancel');
+      dpMiningStatus('Cancelling the job on ' + name + '…', 'info');
+    } catch (e) { dpMiningStatus(e.message, 'error'); }
   } else if (act === 'reset') {
     var ok = await fts.confirm('Reset ' + name + '? Its checklist, rounds and unreviewed pairs are deleted; approved and rejected pairs stay. Mine it again afterwards.', { danger: true, okText: 'Reset' });
     if (!ok) return;
-    var r = await fetch(dpMiningBase() + '/files/' + encodeURIComponent(sid) + '/reset', { method: 'POST' });
-    var d = await r.json().catch(function () { return {}; });
-    dpMiningStatus(r.ok ? 'Reset ' + name + ': ' + d.items_removed + ' data points and ' + d.pending_pairs_removed + ' unreviewed pairs removed.' : (d.error || ('HTTP ' + r.status)), r.ok ? 'success' : 'error');
+    try {
+      var d = await api.post(dpMiningBase() + '/files/' + encodeURIComponent(sid) + '/reset');
+      dpMiningStatus('Reset ' + name + ': ' + d.items_removed + ' data points and ' + d.pending_pairs_removed + ' unreviewed pairs removed.', 'success');
+    } catch (e) { dpMiningStatus(e.message, 'error'); }
     if (_dpPanel.sid === sid) dpClosePanel();
     prepRefreshResults();
   }
@@ -2556,9 +2526,7 @@ async function dpLoadPanel(scroll) {
   if (!box) return;
   if (!_dpPanel.data) { box.hidden = false; box.innerHTML = '<div class="dim">Loading the checklist…</div>'; }
   try {
-    var r = await fetch(dpMiningBase() + '/files/' + encodeURIComponent(sid) + '/items', { cache: 'no-store' });
-    var d = await r.json();
-    if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+    var d = await api.get(dpMiningBase() + '/files/' + encodeURIComponent(sid) + '/items');
     if (_dpPanel.sid !== sid) return;
     _dpPanel.data = d;
     if (_dpPanel.tab === 'rounds') {
@@ -2647,12 +2615,11 @@ function dpRoundsHtml() {
 async function dpItemAction(act, itemId) {
   if (act === 'confirm' || act === 'confirm-all') {
     // The helper's skip proposals become exclusions (reason "helper: …"); "Include again" undoes one.
-    var cr = await fetch(dpMiningBase() + '/files/' + encodeURIComponent(_dpPanel.sid) + '/proposals/confirm', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(act === 'confirm' ? { item_ids: [itemId] } : {}),
-    });
-    var cd = await cr.json().catch(function () { return {}; });
-    if (!cr.ok) { dpMiningStatus(cd.error || ('HTTP ' + cr.status), 'error'); return; }
+    var cd;
+    try {
+      cd = await api.post(dpMiningBase() + '/files/' + encodeURIComponent(_dpPanel.sid) + '/proposals/confirm',
+        act === 'confirm' ? { item_ids: [itemId] } : {});
+    } catch (e) { dpMiningStatus(e.message, 'error'); return; }
     dpMiningStatus('Excluded ' + cd.confirmed + ' data point(s) the helper proposed to skip.', 'success');
     await dpLoadFiles();
     return;
@@ -2673,12 +2640,9 @@ async function dpItemAction(act, itemId) {
     var box = document.querySelector('[data-write-for="' + itemId + '"]');
     var q = box.querySelector('.dp-write-q').value.trim(), a = box.querySelector('.dp-write-a').value.trim();
     if (!q || !a) { dpMiningStatus('Write both a question and an answer.', 'error'); return; }
-    var r = await fetch(rqBase() + '/qa', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ source_id: _dpPanel.sid, chunk_idx: it.chunk_idx, question: q, answer: a }),
-    });
-    var d = await r.json().catch(function () { return {}; });
-    if (!r.ok) { dpMiningStatus(d.error || ('HTTP ' + r.status), 'error'); return; }
+    try {
+      await api.post(rqBase() + '/qa', { source_id: _dpPanel.sid, chunk_idx: it.chunk_idx, question: q, answer: a });
+    } catch (e) { dpMiningStatus(e.message, 'error'); return; }
     dpMiningStatus('Pair added and approved.', 'success');
     prepRefreshResults();
   } else {
@@ -2688,10 +2652,9 @@ async function dpItemAction(act, itemId) {
       if (reason == null) return;
       reason = reason.trim() || 'not a fact';
     }
-    var x = await fetch(dpMiningBase() + '/items/' + encodeURIComponent(itemId) + '/exclude', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: reason }),
-    });
-    if (!x.ok) { var xd = await x.json().catch(function () { return {}; }); dpMiningStatus(xd.error || ('HTTP ' + x.status), 'error'); return; }
+    try {
+      await api.post(dpMiningBase() + '/items/' + encodeURIComponent(itemId) + '/exclude', { reason: reason });
+    } catch (e) { dpMiningStatus(e.message, 'error'); return; }
   }
   await dpLoadFiles();
 }
@@ -2741,23 +2704,20 @@ async function dpBuildSelectedDataset() {
   dpMiningStatus('Building a dataset from ' + sourceIds.length + ' file(s)…', 'info');
   try {
     var body = { source_ids: sourceIds, fmt: 'sharegpt' };
-    var r = await fetch('/api/projects/' + encodeURIComponent(_prepPid) + '/datasets/subset', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-    });
-    var data = await r.json().catch(function () { return {}; });
-    if (r.status === 409 && data.incomplete_files) {
-      var names = data.incomplete_files.map(function (f) { return f.filename + ' (' + f.status + ')'; }).join(', ');
+    var url = '/api/projects/' + encodeURIComponent(_prepPid) + '/datasets/subset';
+    var data;
+    try {
+      data = await api.post(url, body);
+    } catch (e) {
+      if (e.status !== 409 || !e.data.incomplete_files) throw e;
+      var names = e.data.incomplete_files.map(function (f) { return f.filename + ' (' + f.status + ')'; }).join(', ');
       if (!(await fts.confirm('Not complete yet: ' + names + '. Build from the approved pairs anyway?', { okText: 'Build anyway' }))) {
         dpMiningStatus('Dataset not built: ' + names + ' not complete.', 'info');
         return;
       }
       body.force = true;
-      r = await fetch('/api/projects/' + encodeURIComponent(_prepPid) + '/datasets/subset', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-      });
-      data = await r.json().catch(function () { return {}; });
+      data = await api.post(url, body);
     }
-    if (!r.ok) throw new Error(data.error || data.detail || ('HTTP ' + r.status));
     dpMiningStatus('Built ' + data.rows + ' training rows from ' + sourceIds.length + ' file(s).', 'success');
     await dpRefreshExportedDatasets();
   } catch (e) {

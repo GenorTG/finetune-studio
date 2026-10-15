@@ -1,0 +1,27 @@
+"""A job that needs nothing: counts to ``params.steps`` publishing progress, honours stop, can fail or crash on
+request. Used by the tests (crash injection without a GPU) and by ``fts doctor --jobs``."""
+from __future__ import annotations
+
+import os
+import signal
+import time
+from typing import Any
+
+from finetune_studio.jobs.runner import JobContext
+
+
+def run(ctx: JobContext) -> dict[str, Any]:
+    steps = int(ctx.params.get("steps", 5))
+    delay = float(ctx.params.get("delay_s", 0.2))
+    for i in range(1, steps + 1):
+        if ctx.stop.is_set():
+            ctx.publish({"status": "stopped", "step": i - 1, "total": steps}, force=True)
+            return {"status": "stopped", "step": i - 1}
+        if ctx.params.get("fail_at") == i:
+            raise RuntimeError(f"selftest failure at step {i}")
+        if ctx.params.get("crash_at") == i:
+            os.kill(os.getpid(), signal.SIGKILL)        # a hard death: no exit.json from the runner
+        ctx.publish({"status": "running", "step": i, "total": steps}, force=True)
+        time.sleep(delay)
+    ctx.publish({"status": "done", "step": steps, "total": steps}, force=True)
+    return {"status": "done", "steps": steps}

@@ -235,4 +235,4 @@ def test_brain_build_status_snapshot(client) -> None:
 def test_mining_job_cancel_unknown_is_404(client) -> None:
     pid = client.post("/api/projects", json={"name": "Prep status"}).json()["id"]
     r = client.post(f"/api/projects/{pid}/mining/jobs/does-not-exist/cancel")
-    assert r.status_code == 404 and r.json()["error"] == "unknown job"
+    assert r.status_code == 404 and r.json()["detail"] == "unknown job"

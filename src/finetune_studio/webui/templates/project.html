@@ -364,15 +364,7 @@
 
   window.dashPromote = async function (runId) {
     try {
-      const api = window.fts && window.fts.api;
-      const r = api
-        ? await api.post('/api/projects/' + PID + '/promote', { run_id: runId })
-        : await fetch('/api/projects/' + PID + '/promote', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ run_id: runId }),
-          }).then((x) => x.json());
-      if (r && r.error) { notify(r.error, 'error'); return; }
+      const r = await api.post('/api/projects/' + PID + '/promote', { run_id: runId });
       const run = r && r.run ? r.run : null;
       const name = run ? (run.name || run.id || runId) : runId;
       const pill = document.getElementById('production-run-pill');
@@ -392,18 +384,7 @@
 
   window.dashOpenInference = async function (path) {
     try {
-      const api = window.fts && window.fts.api;
-      const r = api
-        ? await api.post('/api/models/load', { path })
-        : await fetch('/api/models/load', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ path }),
-          }).then((x) => x.json());
-      if (r && (r.error || r.status === 'error' || r.loaded === false)) {
-        notify(r.error || 'Model failed to load (still unloaded)', 'error');
-        return;
-      }
+      await api.post('/api/models/load', { path });   // a failed load is a 4xx/5xx with the reason
       notify('Model loaded', 'success');
       location.href = '/inference';
     } catch (e) {
@@ -445,8 +426,7 @@
   };
 
   window.dashEditTags = function (fid, name) {
-    fetch('/api/projects/' + PID + '/files/' + fid)
-      .then((r) => r.json())
+    api.get('/api/projects/' + PID + '/files/' + fid)
       .then((f) => {
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
@@ -468,18 +448,10 @@
         modal.querySelector('[data-action=save]').addEventListener('click', () => {
           const tags = document.getElementById('dash-tag-input').value;
           const notes = document.getElementById('dash-note-input').value;
-          fetch('/api/projects/' + PID + '/files/' + fid + '/tags', {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ tags, notes }),
-          }).then((r) => r.json()).then((d) => {
-            if (d.error) {
-              document.getElementById('dash-tag-status').textContent = 'Error: ' + d.error;
-            } else {
-              cleanup();
-              notify('Tags & notes saved', 'success');
-              loadFiles();
-            }
+          api.patch('/api/projects/' + PID + '/files/' + fid + '/tags', { tags, notes }).then(() => {
+            cleanup();
+            notify('Tags & notes saved', 'success');
+            loadFiles();
           }).catch((e) => {
             document.getElementById('dash-tag-status').textContent = 'Failed: ' + e.message;
           });
@@ -494,8 +466,7 @@
     });
     if (!ok) return;
     try {
-      const r = await fetch('/api/projects/' + PID + '/files/' + fid, { method: 'DELETE' });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+      await api.del('/api/projects/' + PID + '/files/' + fid);
       notify(name + ' moved to trash', 'success');
       location.reload();
     } catch (e) {
