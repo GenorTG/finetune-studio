@@ -136,6 +136,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_srv_set.add_argument("--host", help="127.0.0.1 = this computer only, 0.0.0.0 = every network interface")
     p_srv_set.add_argument("--port", type=int)
     p_srv_set.add_argument("--allowed-hosts", help="Comma list of extra host names browsers may use (reverse proxy)")
+    p_srv_set.add_argument("--tailscale", choices=("on", "off"),
+                           help="Also listen on this computer's Tailscale address (needs a password)")
     p_srv_set.add_argument("--yes", action="store_true", help="Allow a network address without a password")
 
     p_doc = sub.add_parser("doctor", help="Diagnose the install with the app down (supervisor, port, unit, GPU choice)")

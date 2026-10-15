@@ -4,6 +4,7 @@ The middleware (``access.middleware``) decides who gets in; these routes change 
 """
 from __future__ import annotations
 
+import asyncio
 import math
 import os
 import time
@@ -15,9 +16,10 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from finetune_studio.access import server, sessions, store, throttle
+from finetune_studio.access import server, sessions, store, tailscale, throttle
 from finetune_studio.access.middleware import (
     exposed_without_password,
+    listen_extra,
     listen_host,
     session_token,
 )
@@ -101,11 +103,13 @@ async def auth_state(request: Request) -> dict[str, Any]:
 
 # ── Settings -> Security ────────────────────────────────────────────────
 
-def _security_state() -> dict[str, Any]:
+async def _security_state() -> dict[str, Any]:
     cfg = store.load()
     addr = server.load()
     listening = listen_host()
     listening_port = int(os.environ.get("FTS_LISTEN_PORT") or addr.port)
+    extra = listen_extra()
+    tailnet = await asyncio.to_thread(tailscale.detect_cached)
     return {
         "mode": cfg.mode,
         "password_set": cfg.enabled,
@@ -116,15 +120,25 @@ def _security_state() -> dict[str, Any]:
         "server": {"host": addr.host, "port": addr.port, "allowed_hosts": list(addr.allowed_hosts),
                    "listening_on": listening, "loopback_only": server.is_loopback(listening),
                    "listening_port": listening_port,
-                   # Saved but not in use yet: the listen socket is opened at service start.
-                   "restart_needed": (listening, listening_port) != (addr.host, addr.port)},
+                   "listening_also": list(extra),
+                   # Saved but not in use yet: the listen sockets are opened at service start.
+                   "restart_needed": (listening, listening_port, extra) != (addr.host, addr.port, addr.extra_hosts())},
+        "tailscale": {
+            "detected": tailnet.public() if tailnet else None,
+            "enabled": addr.tailscale,
+            "ip": addr.tailscale_ip,
+            "names": list(addr.tailscale_names),
+            # Listening on every address already includes the Tailscale one.
+            "covered_by_host": server.is_wildcard(addr.host),
+            "listening": addr.tailscale_ip in extra or (server.is_wildcard(listening) and bool(tailnet)),
+        },
         "exposed_without_password": exposed_without_password(),
     }
 
 
 @router.get("/api/settings/security")
 async def security_state(request: Request) -> dict[str, Any]:
-    return _security_state()
+    return await _security_state()
 
 
 class PasswordBody(BaseModel):
@@ -143,7 +157,7 @@ async def set_password(body: PasswordBody, request: Request):
     # Everyone else signs in again with the new password; this browser stays in with a fresh session.
     sessions.revoke_all()
     token = sessions.create(user_agent=request.headers.get("user-agent", ""), client=_client(request))
-    resp = JSONResponse(_security_state())
+    resp = JSONResponse(await _security_state())
     _set_cookie(resp, request, token)
     return resp
 
@@ -160,7 +174,7 @@ async def disable_password(body: ConfirmBody, request: Request):
     _require_password(cfg, body.current_password)
     store.disable()
     sessions.revoke_all()
-    resp = JSONResponse(_security_state())
+    resp = JSONResponse(await _security_state())
     resp.delete_cookie(sessions.COOKIE, path="/")
     return resp
 
@@ -192,20 +206,31 @@ class ServerBody(BaseModel):
     host: str
     port: int
     allowed_hosts: list[str] = []
+    tailscale: bool | None = None          # also listen on this computer's Tailscale address; None = keep as saved
     confirm_no_password: bool = False
 
 
 @router.put("/api/settings/security/server")
 async def set_server(body: ServerBody, request: Request) -> dict[str, Any]:
+    saved = server.load()
+    want_tailscale = saved.tailscale if body.tailscale is None else body.tailscale
+    tailnet = await asyncio.to_thread(tailscale.detect) if body.tailscale else None
+    if body.tailscale and tailnet is None:
+        raise HTTPException(status_code=409, detail=(
+            "Tailscale is not detected on this computer (not installed, logged out or down): "
+            "start it (tailscale up) and try again"))
     try:
-        addr = server.validate(body.host, body.port, body.allowed_hosts)
+        base = server.validate(body.host, body.port, body.allowed_hosts, tailscale_ip=saved.tailscale_ip,
+                               tailscale_names=saved.tailscale_names)
+        addr = server.with_tailscale(base, want_tailscale, tailnet)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     if not addr.loopback_only and not store.load().enabled and not body.confirm_no_password:
+        who = "your Tailscale devices" if server.is_loopback(addr.host) else "other machines"
         raise HTTPException(status_code=409, detail=(
-            f"{addr.host} lets other machines reach this instance, and no password is set: anyone on the network "
-            "could run training, delete projects or start an update. Set a password first, or confirm."))
+            f"this lets {who} reach this instance, and no password is set: anyone there could run training, "
+            "delete projects or start an update. Set a password first, or confirm."))
     server.save(addr)
-    state = _security_state()
+    state = await _security_state()
     state["saved_at"] = time.time()
     return state

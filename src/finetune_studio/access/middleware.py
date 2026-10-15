@@ -3,8 +3,8 @@
 Always:
 - a state-changing request (POST/PUT/PATCH/DELETE) whose ``Origin`` is another site is refused (403): otherwise any
   web page you visit could POST to ``localhost:7860`` (start an update, delete a project);
-- while listening on loopback only, the ``Host`` must be a loopback name (or in ``server.json`` ``allowed_hosts``):
-  blocks DNS-rebinding pages that pose as a local site.
+- while listening on loopback (plus Tailscale), the ``Host`` must be a loopback name, in ``server.json``
+  ``allowed_hosts``, or this machine's Tailscale IP / MagicDNS name: blocks DNS-rebinding pages posing as a local site.
 With a password (``auth.json`` mode ``password``): every route except the sign-in page, static files and
 ``/api/health`` needs a session cookie or ``Authorization: Bearer fts_...``. Pages redirect to ``/login``, API calls
 answer 401 JSON. Cookie-authenticated writes must carry a same-origin ``Origin`` or ``Referer`` (CSRF).
@@ -33,10 +33,16 @@ def listen_host() -> str:
     return os.environ.get("FTS_LISTEN_HOST") or _address().host
 
 
+def listen_extra() -> tuple[str, ...]:
+    """Extra addresses the supervisor bound (the Tailscale IP); empty for a standalone run."""
+    return tuple(h for h in os.environ.get("FTS_LISTEN_EXTRA", "").split(",") if h)
+
+
 def exposed_without_password() -> bool:
     """True when other machines can reach this instance and nothing asks them for a password."""
     try:
-        return not server.is_loopback(listen_host()) and not _config().enabled
+        reachable = not server.is_loopback(listen_host()) or bool(listen_extra())
+        return reachable and not _config().enabled
     except RuntimeError:
         return False
 
@@ -162,7 +168,8 @@ class AccessMiddleware:
             return None
         if server.is_loopback(bind) and host:
             name = _host_only(host)
-            if name not in LOOPBACK_NAMES and name not in addr.allowed_hosts:
+            tailnet = (addr.tailscale_ip, *addr.tailscale_names) if addr.tailscale else ()
+            if name not in LOOPBACK_NAMES and name not in addr.allowed_hosts and name not in tailnet:
                 return (f"host name {name!r} is not allowed while Finetune Studio listens on this computer only "
                         f"(add it under Settings -> Security -> allowed host names)")
         return None

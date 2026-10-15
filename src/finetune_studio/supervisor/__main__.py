@@ -37,17 +37,19 @@ def take_lock(path: Path):
     return fh
 
 
-async def run(host: str, port: int) -> None:
+async def run(host: str, port: int, extra_hosts: tuple[str, ...] = ()) -> None:
     from finetune_studio.supervisor.jobs import JobTable
     events = EventLog(events_path())
-    sup = Supervisor([web_spec(host, port, cwd=os.getcwd()), inference_spec(inference_socket_path(), cwd=os.getcwd())], events,
-                     meta={"launcher": detect_launcher(), "listen": f"{host}:{port}"},
+    listen = ", ".join(f"{h}:{port}" for h in (host, *extra_hosts))
+    sup = Supervisor([web_spec(host, port, cwd=os.getcwd(), extra_hosts=extra_hosts),
+                      inference_spec(inference_socket_path(), cwd=os.getcwd())], events,
+                     meta={"launcher": detect_launcher(), "listen": listen},
                      jobs=JobTable(events, cwd=os.getcwd(), inference_socket=inference_socket_path()))
     server = await control.serve(sup, socket_path())
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(sig, lambda: asyncio.ensure_future(sup.shutdown_gracefully()))
-    print(f"[supervisor] pid {os.getpid()} serving {host}:{port}, control socket {socket_path()}", flush=True)
+    print(f"[supervisor] pid {os.getpid()} serving {listen}, control socket {socket_path()}", flush=True)
     try:
         await sup.run()
     finally:
@@ -64,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     logsetup.setup("supervisor")
     from finetune_studio.access import server
     try:
-        addr = server.resolve(args.host, args.port)
+        addr = server.refresh_tailscale(server.resolve(args.host, args.port))
     except ValueError as e:
         print(f"[supervisor] {e}", file=sys.stderr)
         return 2
@@ -72,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     if lock is None:
         print(f"[supervisor] another supervisor already runs for this FTS_ROOT ({lock_path()})", file=sys.stderr)
         return 1
-    asyncio.run(run(addr.host, addr.port))
+    asyncio.run(run(addr.host, addr.port, addr.extra_hosts()))
     return 0
 
 

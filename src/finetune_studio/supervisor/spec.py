@@ -25,7 +25,8 @@ class ComponentSpec:
     name: str
     argv: Callable[[], list[str]]
     probe: Probe | None = None
-    env: dict[str, str] = field(default_factory=dict)
+    # A callable is evaluated after ``prepare`` (the web child learns which extra addresses were bound).
+    env: dict[str, str] | Callable[[], dict[str, str]] = field(default_factory=dict)
     cwd: str | None = None
     pass_fds: Callable[[], tuple[int, ...]] = lambda: ()
     prepare: Callable[[], None] | None = None  # runs before each spawn (e.g. open the listen socket)

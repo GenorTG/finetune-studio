@@ -38,9 +38,8 @@ def cmd_auth(args) -> None:
             print(f"auth.json: {e}", file=sys.stderr)
             sys.exit(1)
         addr = server.load()
-        where = "this computer only" if addr.loopback_only else "the network"
         print(f"password:   {'on' if cfg.enabled else 'off'} (changed {_when(cfg.password_changed_at)})")
-        print(f"address:    {addr.host}:{addr.port} ({where})")
+        print(f"address:    {addr.host}:{addr.port} ({server.describe(addr)})")
         print(f"sessions:   {sessions.count()} signed-in browser(s)")
         print(f"API tokens: {len(cfg.tokens)}")
         for t in cfg.tokens:
@@ -110,21 +109,34 @@ def cmd_auth(args) -> None:
 
 def cmd_server(args) -> None:
     current = server.load()
+    from finetune_studio.access import tailscale
     if args.server_action == "show":
-        print(f"{current.host}:{current.port}" + (f"  allowed host names: {', '.join(current.allowed_hosts)}"
-                                                  if current.allowed_hosts else ""))
+        print(f"{current.host}:{current.port} ({server.describe(current)})"
+              + (f"  allowed host names: {', '.join(current.allowed_hosts)}" if current.allowed_hosts else ""))
+        tailnet = tailscale.detect()
+        if tailnet and not current.tailscale and server.is_loopback(current.host):
+            print(f"Tailscale detected ({tailnet.ipv4}{' · ' + tailnet.dns_name if tailnet.dns_name else ''}): "
+                  "fts server set --tailscale on")
         return
     allowed = current.allowed_hosts if args.allowed_hosts is None else tuple(
         n for n in args.allowed_hosts.split(",") if n.strip())
+    tailnet = tailscale.detect() if args.tailscale == "on" else None
+    if args.tailscale == "on" and tailnet is None:
+        print("Not saved: Tailscale is not detected on this computer (not installed, logged out or down).",
+              file=sys.stderr)
+        sys.exit(2)
+    want_ts = current.tailscale if args.tailscale is None else args.tailscale == "on"
     try:
-        addr = server.validate(args.host or current.host, args.port or current.port, allowed)
+        base = server.validate(args.host or current.host, args.port or current.port, allowed,
+                               tailscale_ip=current.tailscale_ip, tailscale_names=current.tailscale_names)
+        addr = server.with_tailscale(base, want_ts, tailnet)
     except ValueError as e:
         print(f"Not saved: {e}", file=sys.stderr)
         sys.exit(2)
     if not addr.loopback_only and not store.load().enabled and not args.yes:
-        print(f"{addr.host} lets other machines reach this instance and no password is set.\n"
+        print(f"Reachable from {server.describe(addr)} and no password is set.\n"
               "Set one first (fts auth set-password) or repeat with --yes.", file=sys.stderr)
         sys.exit(2)
     server.save(addr)
-    print(f"Saved {addr.host}:{addr.port}. It applies when the service restarts: fts down && fts up "
-          "(or systemctl --user restart finetune-studio).")
+    print(f"Saved {addr.host}:{addr.port} ({server.describe(addr)}). It applies when the service restarts: "
+          "fts restart web is not enough; run systemctl --user restart finetune-studio (or fts down && fts up).")

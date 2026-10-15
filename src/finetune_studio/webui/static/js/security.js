@@ -12,7 +12,9 @@
 
   function render(s) {
     const srv = s.server;
-    const where = srv.loopback_only ? 'this computer only' : 'every device on the network';
+    const ts = s.tailscale;
+    const where = !srv.loopback_only ? 'every device on the network'
+      : (ts.listening ? 'this computer and your Tailscale devices' : 'this computer only');
     const pw = s.password_set ? 'a password is required' : 'no password';
     let summary = `Reachable from ${where} (${srv.listening_on}:${srv.listening_port}); ${pw}.`;
     if (s.exposed_without_password) summary += ' Anyone on your network can use it: set a password.';
@@ -33,6 +35,7 @@
     host.value = srv.host;
     $('access-port').value = srv.port;
     $('access-allowed').value = srv.allowed_hosts.join(', ');
+    renderTailscale(ts, srv);
 
     const list = $('access-tokens');
     list.replaceChildren(...s.tokens.map(t => {
@@ -49,6 +52,24 @@
     }));
     if (!s.tokens.length) list.replaceChildren(Object.assign(document.createElement('li'), { textContent: 'No tokens.' }));
     $('access-sessions').textContent = `${s.sessions} signed-in browser(s)`;
+  }
+
+  // Tailscale: offered when this computer is on a tailnet (or was, when it is on but Tailscale is down now).
+  function renderTailscale(ts, srv) {
+    const det = ts.detected;
+    const row = $('access-ts-row'), note = $('access-ts-note');
+    row.hidden = !(det || ts.enabled) || ts.covered_by_host;
+    $('access-ts').checked = ts.enabled;
+    const ip = det ? det.ip : ts.ip;
+    const name = det && det.dns_name ? ` · ${det.dns_name}` : '';
+    $('access-ts-where').textContent = ip ? `(${ip}${name})` : '';
+    let msg = '';
+    if (ts.covered_by_host && det) msg = `Tailscale (${det.ip}) is included: this address listens on every network.`;
+    else if (ts.enabled && !det) msg = `Tailscale is not running right now; the service keeps listening on ${ts.ip} for when it is back.`;
+    else if (det && !ts.enabled) msg = 'Tailscale detected on this computer: tick the box to open the web UI to your Tailscale devices only (needs a password).';
+    else if (ts.enabled && det && !ts.listening) msg = 'Saved: applies after a restart.';
+    else if (ts.enabled && det) msg = `Open http://${det.dns_name || det.ip}:${srv.listening_port} from any of your Tailscale devices.`;
+    note.textContent = msg; note.hidden = !msg;
   }
 
   async function load() { render(await call('GET', '/api/settings/security')); }
@@ -84,6 +105,7 @@
         host: $('access-host').value, port: parseInt($('access-port').value, 10),
         allowed_hosts: $('access-allowed').value.split(',').map(x => x.trim()).filter(Boolean),
       };
+      if (!$('access-ts-row').hidden) body.tailscale = $('access-ts').checked;
       try { await call('PUT', '/api/settings/security/server', body); }
       catch (e) {
         if (!/password/.test(e.message) || !window.confirm(e.message + '\n\nSave anyway?')) throw e;

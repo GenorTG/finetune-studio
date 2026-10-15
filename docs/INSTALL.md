@@ -136,13 +136,16 @@ onboarding tutorial.
 ### 5. Access: who can open the web UI
 
 By default Finetune Studio listens on **127.0.0.1:7860: this computer only, no password**. A terminal install
-asks once whether other devices on your network should reach it; if yes, it asks for a password.
+asks once whether other devices on your network should reach it; if yes, it asks for a password. When the computer
+is on a [Tailscale](https://tailscale.com) network, it also offers **this computer + my Tailscale devices**: a second
+listener on the Tailscale address only, so the LAN cannot reach it (also needs a password).
 Change it any time in **Settings -> Access & network**, or on the machine itself:
 
 ```bash
 fts auth status                   # address, password on/off, sessions, API tokens
 fts auth set-password             # turn sign-in on / change the password (prompt; or --password-file FILE)
 fts server set --host 0.0.0.0     # reachable from the network (asks for a password first; applies on restart)
+fts server set --tailscale on     # also listen on this computer's Tailscale address (needs a password)
 fts auth token create "backup"    # API token for scripts: Authorization: Bearer <token> (shown once)
 fts auth disable                  # no sign-in (only sensible on 127.0.0.1)
 ```
@@ -159,6 +162,7 @@ FTS_PORT=7860
 FTS_AUTH=password                          # password | off (off is refused with a network address)
 FTS_ADMIN_PASSWORD_FILE=/run/secrets/fts   # or FTS_ADMIN_PASSWORD=... in this file (chmod 600 it)
 FTS_ALLOWED_HOSTS=studio.example           # extra host names for a reverse proxy, comma separated
+FTS_TAILSCALE=1                            # also listen on the Tailscale address (needs FTS_AUTH=password)
 FTS_INSTALL_SERVICE=1                      # also install the systemd user unit
 ```
 

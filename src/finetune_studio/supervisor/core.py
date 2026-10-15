@@ -191,7 +191,7 @@ class Supervisor:
         try:
             if spec.prepare:
                 spec.prepare()
-            env = child_env(spec.env)
+            env = child_env(spec.env() if callable(spec.env) else spec.env)
             c.proc = await asyncio.create_subprocess_exec(
                 *spec.argv(), cwd=spec.cwd, env=env, stdin=asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,

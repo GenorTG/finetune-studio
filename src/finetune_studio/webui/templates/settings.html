@@ -102,8 +102,12 @@
         <input id="access-port" class="input" type="number" min="1" max="65535" aria-label="Port">
         <input id="access-allowed" class="input" type="text"
                placeholder="Extra host names, comma separated (reverse proxy), e.g. studio.example">
+        <label id="access-ts-row" class="text-xs access-ts" hidden>
+          <input id="access-ts" type="checkbox"> Also listen on Tailscale <span id="access-ts-where" class="dim"></span>
+        </label>
         <button class="btn sm" type="submit">Save address</button>
       </form>
+      <p id="access-ts-note" class="text-xs dim mb-3" hidden></p>
 
       <h3 class="text-xs muted mb-1">API tokens</h3>
       <p class="text-xs dim mb-2">For scripts and other tools: <code>Authorization: Bearer &lt;token&gt;</code>. Only used while a password is set.</p>
@@ -317,5 +321,5 @@
 
 {% block scripts %}
 <script src="/static/js/settings.js?v=15"></script>
-<script src="/static/js/security.js?v=1"></script>
+<script src="/static/js/security.js?v=2"></script>
 {% endblock %}
