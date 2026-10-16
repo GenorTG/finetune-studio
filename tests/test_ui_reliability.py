@@ -710,6 +710,18 @@ def test_training_stop_disabled_while_idle() -> None:
     assert "ACTIVE[st]" in body
 
 
+def test_training_routes_keep_sft_primary_and_fold_alternatives() -> None:
+    body = _TRAINING.read_text(encoding="utf-8")
+    assert '<legend class="text-xs muted">Training route</legend>' in body
+    assert body.count('name="training_mode" value="sft"') == 1
+    assert body.count('id="advanced-training-routes"') == 1
+    assert body.index('value="sft"') < body.index('id="advanced-training-routes"')
+    folded = body.split('id="advanced-training-routes"', 1)[1].split("</details>", 1)[0]
+    for mode in ("dpo", "kto", "tool_sft", "continued_pretraining", "reasoning_distillation"):
+        assert folded.count(f'name="training_mode" value="{mode}"') == 1
+    assert 'querySelectorAll(\'input[name="training_mode"]\')' in body
+
+
 def test_wizard_step5_not_ready_without_finished_run() -> None:
     """Quick work step 5 showed READY with zero runs; it now names what's missing,
     and treats the RAG coverage empty states (200 + state) as 'not built'."""

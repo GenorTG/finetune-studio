@@ -134,12 +134,17 @@
       <legend class="text-xs muted">Training route</legend>
       <div class="flex gap-4 wrap mt-2">
         <label class="flex items-center gap-2"><input type="radio" name="training_mode" value="sft" checked> Supervised fine-tuning (SFT)</label>
+      </div>
+      <details id="advanced-training-routes" class="mt-2">
+        <summary class="text-xs muted">Other training routes</summary>
+        <div class="flex gap-4 wrap mt-2">
         <label class="flex items-center gap-2"><input type="radio" name="training_mode" value="dpo"> Preference tuning (DPO)</label>
         <label class="flex items-center gap-2"><input type="radio" name="training_mode" value="kto"> Good/bad examples (KTO)</label>
         <label class="flex items-center gap-2"><input type="radio" name="training_mode" value="tool_sft"> Tool-calling SFT</label>
         <label class="flex items-center gap-2"><input type="radio" name="training_mode" value="continued_pretraining"> Continued pretraining</label>
         <label class="flex items-center gap-2"><input type="radio" name="training_mode" value="reasoning_distillation"> Reasoning distillation</label>
-      </div>
+        </div>
+      </details>
       <div id="training-mode-help" class="text-xs muted mt-2">SFT learns from prompt/answer examples. Choose an approved Q&amp;A export or a conversational JSONL dataset.</div>
       <div id="dpo-format-help" class="text-xs muted mt-2" hidden>
         DPO learns which answer is preferred for the same prompt. Use at least 2 judged pairs; the app reserves a deterministic 10% holdout.
