@@ -20,13 +20,13 @@ def test_css_pins():
     assert "var(--bg-nav)" in css
     assert ':root[data-theme="light"]' in tokens
     assert ':root[data-theme="light"]' not in base
-    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=2") < base.index("layout.css?v=1") < base.index("app.css?v=109") < base.index("typography.css?v=1")
+    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=2") < base.index("layout.css?v=1") < base.index("app.css?v=110") < base.index("typography.css?v=1")
     assert ".hf-card .meta .stat" in css
     assert "min-width: 40rem" in css or "min-width:40rem" in css
 
 
 def test_base_cache_bust():
-    assert "app.css?v=109" in _r("templates/base.html")
+    assert "app.css?v=110" in _r("templates/base.html")
 
 
 def test_project_data_modals_use_hidden_state():
@@ -176,3 +176,11 @@ def test_project_overview_no_duplicate_topbar():
 
 def test_settings_tour_step_count():
     assert "7-step" in _r("templates/settings.html")
+
+
+def test_files_page_has_no_inline_styles():
+    # Inline styles here silently beat app.css (the checkbox width made a 700px rule dead).
+    assert 'style="' not in _r("templates/project_data.html")
+    css = _r("static/css/app.css")
+    for cls in (".modal-dialog.modal-sm", ".modal-dialog.modal-lg", ".modal-dialog.modal-xl", ".fb-cols-menu {"):
+        assert cls in css, cls

@@ -3381,10 +3381,9 @@
   #brain-docs-table .brain-col-chunks { width: 12%; }
   #brain-docs-table .brain-col-status { width: 14%; }
   #brain-docs-table .brain-col-indexed { width: 20%; }
-  /* File browser: 512px floor over 11 columns starved the checkbox cell
-     (needs ~55px incl padding, got 40 → clipped -15px ×6 at 375). */
+  /* File browser checkbox cell: compact padding; its width is .fb-col-check (2.5em). */
   #fb-files-table th:first-child,
-  #fb-files-table td:first-child { width: 56px; padding: 8px; text-align: center; }
+  #fb-files-table td:first-child { padding: 8px; text-align: center; }
   .main .flex { flex-wrap: wrap; }
   .dash-activity li div { overflow-wrap: anywhere; }
 }
@@ -3437,6 +3436,10 @@
   width: 90%;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
 }
+.modal-dialog.modal-sm { max-width: 460px; }
+.modal-dialog.modal-md { max-width: 520px; }
+.modal-dialog.modal-lg { max-width: 720px; }
+.modal-dialog.modal-xl { max-width: 920px; }
 .modal-head {
   font-size: 14px;
   font-weight: 600;
@@ -3578,7 +3581,32 @@
 }
 .fb-tag-pill:hover { border-color: var(--accent); color: var(--accent); }
 
-.fb-cols-menu { box-shadow: 0 6px 24px rgba(0,0,0,0.45); }
+.stat .value.warn { color: var(--warn); }
+.fb-toolbar { padding: 12px 16px; }
+.fb-search { max-width: 220px; }
+.fb-filter { max-width: 180px; }
+.fb-narrow { max-width: 110px; }
+#fb-folders-row { padding: 0 16px 12px; }
+.fb-upload { padding: 12px 16px 16px; }
+.fb-upload .input { padding: 8px; }
+#fb-page-bar { padding: 8px 16px; border-top: 1px solid var(--border); }
+#fb-content-list { padding: 4px 16px 14px; }
+.fb-actions-wrap { max-width: 15em; }
+.fb-folder-icon { margin-right: 6px; }
+.fb-code-box { padding: 10px; border: 1px solid var(--border); background: var(--bg-panel); }
+.fb-search-msg { padding: 12px 0; }
+.wb-tabs { padding: 8px 16px 0; }
+#wb-parsed-text { width: 100%; font-size: 12px; }
+.fb-cols-anchor { position: relative; }
+.fb-cols-menu {
+  position: absolute;
+  right: 0;
+  top: 110%;
+  z-index: 20;
+  padding: 10px 14px;
+  min-width: 150px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.45);
+}
 .fb-col-opt {
   display: flex;
   gap: 8px;
@@ -3748,7 +3776,7 @@
   width: 100%;
   min-width: 36rem;
 }
-#fb-files-table .fb-col-check { width: 2.5rem; }
+#fb-files-table .fb-col-check { width: 2.5em; }
 #fb-files-table .fb-col-type { width: 5.5rem; }
 #fb-files-table .fb-col-size { width: 5rem; }
 #fb-files-table .fb-col-ver { width: 4rem; }

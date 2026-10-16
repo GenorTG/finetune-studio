@@ -52,7 +52,7 @@
   </a>
   <a class="stat hover" href="#fb-table" data-view="trash" onclick="return fbStatClick(event,'trash')">
     <div class="label">In trash</div>
-    <div class="value" style="color:var(--warn);" id="fb-stat-trash">{{ fb_stats.trash }}</div>
+    <div class="value warn" id="fb-stat-trash">{{ fb_stats.trash }}</div>
     <div class="delta">restore or purge</div>
   </a>
   <a class="stat hover" href="#fb-table" data-view="active" onclick="return fbStatClick(event,'active')">
@@ -64,12 +64,12 @@
 
 {# ── C. Toolbar ── #}
 <div class="card mb-4">
-  <div class="flex gap-2 wrap items-center" style="padding:12px 16px;">
-    <input class="input" type="search" id="fb-search" placeholder="Search filename / tag…" style="max-width:220px;">
-    <select class="input" id="fb-folder" aria-label="Filter by folder" style="max-width:180px;">
+  <div class="flex gap-2 wrap items-center fb-toolbar">
+    <input class="input fb-search" type="search" id="fb-search" placeholder="Search filename / tag…">
+    <select class="input fb-filter" id="fb-folder" aria-label="Filter by folder">
       <option value="">All folders</option>
     </select>
-    <select class="input" id="fb-mime" aria-label="Filter by file type" style="max-width:160px;">
+    <select class="input fb-filter" id="fb-mime" aria-label="Filter by file type">
       <option value="">All types</option>
       <option value="image/">image/*</option>
       <option value="text/">text/*</option>
@@ -85,9 +85,9 @@
     <label class="text-xs dim flex items-center gap-1 cursor-pointer" title="Search the knowledge, not just filenames: mined facts (Q&amp;A pairs) and the parsed text of every file. Press Enter.">
       <input type="checkbox" id="fb-content-toggle"> in knowledge
     </label>
-    <div style="position:relative;">
+    <div class="fb-cols-anchor">
       <button class="btn sm" type="button" id="fb-cols-btn" title="Show / hide columns">Columns ▾</button>
-      <div class="card fb-cols-menu" id="fb-cols-menu" hidden style="position:absolute;right:0;top:110%;z-index:20;padding:10px 14px;min-width:150px;">
+      <div class="card fb-cols-menu" id="fb-cols-menu" hidden>
         <label class="fb-col-opt"><input type="checkbox" data-col="type" checked> Type</label>
         <label class="fb-col-opt"><input type="checkbox" data-col="size" checked> Size</label>
         <label class="fb-col-opt"><input type="checkbox" data-col="ver" checked> Version</label>
@@ -97,7 +97,7 @@
       </div>
     </div>
     <button class="btn sm danger" type="button" id="fb-empty-trash" hidden>Empty trash</button>
-    <select class="input text-xs" id="fb-trash-retention" hidden title="Only purge files older than this" style="max-width:110px;">
+    <select class="input text-xs fb-narrow" id="fb-trash-retention" hidden title="Only purge files older than this">
       <option value="0">everything</option>
       <option value="7">older than 7d</option>
       <option value="30">older than 30d</option>
@@ -105,7 +105,7 @@
     <span class="flex-1"></span>
     <span class="text-xs dim mono" id="fb-footer-count"></span>
   </div>
-  <div class="flex gap-2 wrap items-center" id="fb-folders-row" style="padding:0 16px 12px;"></div>
+  <div class="flex gap-2 wrap items-center" id="fb-folders-row"></div>
 </div>
 
 {# ── G. Upload (collapsible) ── #}
@@ -117,11 +117,11 @@
     </div>
     <button class="btn sm ghost" type="button" id="fb-upload-hide">Hide</button>
   </div>
-  <form id="fb-upload-form" enctype="multipart/form-data" data-drop class="dropzone" style="padding:12px 16px 16px;">
+  <form id="fb-upload-form" enctype="multipart/form-data" data-drop class="dropzone fb-upload">
     <div class="flex gap-3 items-center">
       <div class="bin-host"></div>
       <div class="flex-1">
-        <input type="file" name="files" id="fb-upload-input" class="input" style="padding:8px;" multiple>
+        <input type="file" name="files" id="fb-upload-input" class="input" multiple>
         <div class="text-xs dim mt-1 mono">// drag &amp; drop files here</div>
       </div>
     </div>
@@ -148,7 +148,7 @@
   <table class="table compact" id="fb-files-table">
     <thead>
       <tr>
-        <th class="fb-col-check" style="width:2.5em"><input type="checkbox" id="fb-select-all" title="Select all visible"></th>
+        <th class="fb-col-check"><input type="checkbox" id="fb-select-all" title="Select all visible"></th>
         <th class="fb-col-name wb-sortable" data-sort="name" title="Sort by name">Name <span class="wb-sort-ind"></span></th>
         <th class="fb-col-type wb-sortable" data-sort="type">Type <span class="wb-sort-ind"></span></th>
         <th class="fb-col-size wb-sortable" data-sort="size">Size <span class="wb-sort-ind"></span></th>
@@ -164,11 +164,11 @@
     </tbody>
   </table>
   </div>
-  <div class="flex gap-2 items-center" id="fb-page-bar" style="padding:8px 16px;border-top:1px solid var(--border);">
+  <div class="flex gap-2 items-center" id="fb-page-bar">
     <button class="btn sm" type="button" id="fb-page-prev" title="Previous page">‹</button>
     <span class="text-xs dim mono" id="fb-page-label">page 1 / 1</span>
     <button class="btn sm" type="button" id="fb-page-next" title="Next page">›</button>
-    <select class="input text-xs" id="fb-page-size" title="Rows per page" style="max-width:110px;">
+    <select class="input text-xs fb-narrow" id="fb-page-size" title="Rows per page">
       <option value="50">50 / page</option>
       <option value="100" selected>100 / page</option>
       <option value="250">250 / page</option>
@@ -186,11 +186,11 @@
     </div>
     <button class="btn sm" type="button" id="fb-content-back">← Back to files</button>
   </div>
-  <div id="fb-content-list" style="padding:4px 16px 14px;"></div>
+  <div id="fb-content-list"></div>
 </div>
 {# ── Usage modal: where this file's content actually went ── #}
 <div class="modal-overlay" id="fb-usage-modal" hidden>
-  <div class="modal-dialog" style="max-width:680px;">
+  <div class="modal-dialog modal-lg">
     <div class="modal-head" id="fb-usage-title">Usage</div>
     <div class="modal-body text-sm" id="fb-usage-body"></div>
     <div class="modal-actions">
@@ -200,9 +200,9 @@
 </div>
 
 <div class="modal-overlay" id="wb-editor-modal" hidden>
-  <div class="modal-dialog" style="max-width:920px;">
+  <div class="modal-dialog modal-xl">
     <div class="modal-head" id="wb-modal-title">File</div>
-    <div class="flex gap-2" style="padding:8px 16px 0;">
+    <div class="flex gap-2 wb-tabs">
       <button class="btn sm" type="button" id="wb-tab-original">Original</button>
       <button class="btn sm" type="button" id="wb-tab-parsed" title="View & hand-edit the parsed text that feeds training data and the Smart Brain">Parsed&nbsp;✎</button>
       <span class="flex-1"></span>
@@ -211,7 +211,7 @@
     <div class="modal-body">
       <div id="wb-pane-original"></div>
       <div id="wb-pane-parsed" hidden>
-        <textarea class="textarea" id="wb-parsed-text" rows="18" style="width:100%;font-family:var(--mono,monospace);font-size:12px;" spellcheck="false"></textarea>
+        <textarea class="textarea mono" id="wb-parsed-text" rows="18" spellcheck="false"></textarea>
         <div class="flex gap-2 mt-2 items-center wrap">
           <button class="btn primary" type="button" id="wb-save-parsed">💾 Save parsed text</button>
           <button class="btn" type="button" id="wb-reparse-btn" title="Discard manual edits and re-run the real parser on the original bytes">↻ Re-parse from original</button>
@@ -485,7 +485,7 @@
     if (!tbody) return;
     const rows = pagedRows();
     if (!rows.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="9" class="empty" style="border:0">No files in this view — clear the search or folder filter, or drop new files on the upload box above.</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="9" class="empty border-0">No files in this view — clear the search or folder filter, or drop new files on the upload box above.</td></tr>';
       if (footer) footer.textContent = '0 files';
       updateBulkBar();
       return;
@@ -505,7 +505,7 @@
         const mime = f.mime_type || '';
         const p = pipe[f.id] || {};
         actions =
-          '<div class="flex gap-1 wrap fb-actions-wrap" style="max-width:15em;">' +
+          '<div class="flex gap-1 wrap fb-actions-wrap">' +
           '<button class="btn sm" type="button" title="View / edit this file" onclick="wbOpen(\'' + esc(f.id) + '\',\'original\')">👁</button>' +
           '<button class="btn sm" type="button" title="Edit parsed text (feeds training and the Smart Brain)" onclick="wbOpen(\'' + esc(f.id) + '\',\'parsed\')">✎p</button>' +
           '<button class="btn sm" type="button" title="Usage — where this file\'s content went (parse / Smart Brain / pairs / datasets / runs)" onclick="fbUsage(\'' + esc(f.id) + '\')">ℹ️</button>' +
@@ -525,7 +525,7 @@
         '<td><input type="checkbox" aria-label="Select file" ' + checked + ' onclick="fbToggleSelect(event,\'' + esc(f.id) + '\')"></td>' +
         '<td class="name cell-wrap" title="' + esc(f.original_name) + '">' +
           thumb +
-          '<span class="mono" style="margin-right:6px">' + folderIcon + '</span>' + esc(f.original_name) +
+          '<span class="mono fb-folder-icon">' + folderIcon + '</span>' + esc(f.original_name) +
           (f.first_folder ? ' <span class="text-xs dim">· ' + esc(f.first_folder) + '</span>' : '') +
           (tagPills ? '<div class="flex gap-1 wrap mt-1">' + tagPills + '</div>' : '') +
         '</td>' +
@@ -641,7 +641,7 @@
                   '/raw?version=' + encodeURIComponent(v.version) + '" download>Download</a></td></tr>';
             }).join('') + '</tbody></table>';
         }
-        modal.innerHTML = '<div class="modal-dialog" style="max-width:720px;">' +
+        modal.innerHTML = '<div class="modal-dialog modal-lg">' +
           '<div class="modal-head">Versions — ' + esc(name) + '</div>' +
           '<div class="modal-body">' + body + '</div>' +
           '<div class="modal-actions"><button class="btn" data-action="close">Close</button></div></div>';
@@ -660,14 +660,14 @@
         const convCount = (f.conversions || []).length;
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
-        modal.innerHTML = '<div class="modal-dialog" style="max-width:520px;">' +
+        modal.innerHTML = '<div class="modal-dialog modal-md">' +
           '<div class="modal-head">' + esc(name) + '</div>' +
           '<div class="modal-body">' +
           '<label class="block mb-3"><span class="muted text-xs">Tags (comma-separated)</span>' +
           '<input id="fb-tag-input" class="input" value="' + esc(f.tags || '') + '"></label>' +
           '<label class="block mb-3"><span class="muted text-xs">Notes</span>' +
           '<textarea id="fb-note-input" class="textarea" rows="4">' + esc(f.notes || '') + '</textarea></label>' +
-          '<div class="text-xs dim mono" style="padding:10px;border:1px solid var(--border);background:var(--bg-panel);">' +
+          '<div class="text-xs dim mono fb-code-box">' +
           'uploaded: ' + relativeTime(f.uploaded_at) + '<br>' +
           'by: ' + esc(f.uploaded_by || '—') + '<br>' +
           'mime: ' + esc(f.mime_type || '—') + '<br>' +
@@ -823,7 +823,7 @@
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.style.display = 'flex';
-    modal.innerHTML = '<div class="modal-dialog" style="max-width:440px;">' +
+    modal.innerHTML = '<div class="modal-dialog modal-sm">' +
       '<div class="modal-head">Move ' + selected.size + ' file(s) to folder</div>' +
       '<div class="modal-body"><div class="flex gap-2 wrap">' +
       userFolders.map((f) => '<button class="btn" type="button" data-dest="' + esc(f.id) + '" data-name="' + esc(f.name) + '">📁 ' + esc(f.name) + '</button>').join('') +
@@ -872,7 +872,7 @@
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.style.display = 'flex';
-    modal.innerHTML = '<div class="modal-dialog" style="max-width:460px;">' +
+    modal.innerHTML = '<div class="modal-dialog modal-sm">' +
       '<div class="modal-head">Tag ' + selected.size + ' file(s)</div>' +
       '<div class="modal-body"><input id="fb-bulk-tags" class="input" placeholder="comma, separated, tags">' +
       '<div class="text-xs dim mt-2">Applied to every selected file; existing tags are kept.</div></div>' +
@@ -1068,7 +1068,7 @@
     const meta = document.getElementById('fb-content-meta');
     panel.hidden = false;
     table.hidden = true;
-    list.innerHTML = '<div class="dim text-xs" style="padding:12px 0">Searching facts and parsed text…</div>';
+    list.innerHTML = '<div class="dim text-xs fb-search-msg">Searching facts and parsed text…</div>';
     meta.textContent = '“' + q + '”';
     try {
       const r = await fetch('/api/projects/' + PID + '/knowledge/search?limit=40&q=' + encodeURIComponent(q));
@@ -1078,9 +1078,9 @@
       const facts = hits.filter((h) => h.kind === 'fact').length;
       meta.textContent = '“' + q + '” — ' + facts + ' fact(s), ' + (hits.length - facts) + ' passage(s), best first';
       list.innerHTML = hits.length ? hits.map(knHit).join('')
-        : '<div class="dim text-xs" style="padding:12px 0">No fact or passage shares a word with this search.</div>';
+        : '<div class="dim text-xs fb-search-msg">No fact or passage shares a word with this search.</div>';
     } catch (e) {
-      list.innerHTML = '<div class="err text-xs" style="padding:12px 0">Search failed: ' + esc(e.message) + '</div>';
+      list.innerHTML = '<div class="err text-xs fb-search-msg">Search failed: ' + esc(e.message) + '</div>';
     }
   }
 
