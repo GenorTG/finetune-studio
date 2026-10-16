@@ -55,7 +55,7 @@ def test_polling_is_cheap_and_pauses_in_background_tabs():
 
 def test_asset_versions_bumped_with_the_change():
     base = _r("templates/base.html")
-    assert "app.css?v=98" in base and "app.js?v=24" in base
+    assert "app.css?v=99" in base and "app.js?v=24" in base
 
 
 def test_chat_page_shows_model_status_once():

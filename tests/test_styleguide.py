@@ -25,12 +25,14 @@ def test_styleguide_is_reachable_and_renders_shared_components(client: TestClien
     ):
         assert component in body
     assert 'href="/static/css/tokens.css?v=1"' in body
-    assert 'href="/static/css/app.css?v=98"' in body
+    assert 'href="/static/css/components.css?v=1"' in body
+    assert 'href="/static/css/app.css?v=99"' in body
     assert 'href="/static/css/typography.css?v=1"' in body
 
 
 def test_styleguide_samples_follow_existing_theme_and_layout_tokens() -> None:
     css = (_WEB / "static" / "css" / "app.css").read_text(encoding="utf-8")
+    components = (_WEB / "static" / "css" / "components.css").read_text(encoding="utf-8")
     typography = (_WEB / "static" / "css" / "typography.css").read_text(encoding="utf-8")
     template = (_WEB / "templates" / "styleguide.html").read_text(encoding="utf-8")
     settings = (_WEB / "templates" / "settings.html").read_text(encoding="utf-8")
@@ -38,6 +40,9 @@ def test_styleguide_samples_follow_existing_theme_and_layout_tokens() -> None:
     assert "var(--bg-panel)" in css
     assert "var(--text-muted)" in css
     assert "var(--accent)" in css
+    assert ".card {" in components
+    assert ".stat {" in components
+    assert ".pill {" in components
     assert "#content *" in typography
     assert "#content .mono" in typography
     assert "styleguide-section" in template
