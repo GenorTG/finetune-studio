@@ -507,6 +507,7 @@
 .w-fit  { width: fit-content; }
 .min-w-0 { min-width: 0; }
 .max-w-full { max-width: 100%; }
+.max-w-420 { max-width: 420px; }
 
 /* Overflow */
 .overflow-hidden { overflow: hidden; }

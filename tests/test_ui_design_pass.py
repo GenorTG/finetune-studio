@@ -20,13 +20,13 @@ def test_css_pins():
     assert "var(--bg-nav)" in css
     assert ':root[data-theme="light"]' in tokens
     assert ':root[data-theme="light"]' not in base
-    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=1") < base.index("layout.css?v=1") < base.index("app.css?v=101") < base.index("typography.css?v=1")
+    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=1") < base.index("layout.css?v=1") < base.index("app.css?v=102") < base.index("typography.css?v=1")
     assert ".hf-card .meta .stat" in css
     assert "min-width: 40rem" in css or "min-width:40rem" in css
 
 
 def test_base_cache_bust():
-    assert "app.css?v=101" in _r("templates/base.html")
+    assert "app.css?v=102" in _r("templates/base.html")
 
 
 def test_project_data_modals_use_hidden_state():
@@ -62,6 +62,22 @@ def test_grid_full_utility_replaces_inline_spans():
     assert ".grid-full { grid-column: 1 / -1; }" in css
     for name in ("projects", "project_training", "project_models", "export_models", "hf_models"):
         assert "grid-column:" not in _r(f"templates/{name}.html"), name
+
+
+def test_settings_reuses_shared_max_width_utility():
+    settings = _r("templates/settings.html")
+    css = _r("static/css/app.css")
+    assert ".max-w-420 { max-width: 420px; }" in css
+    assert settings.count("max-width:420px") == 0
+
+
+def test_templates_use_spacing_utilities_for_static_margins():
+    for name in ("export_models", "projects", "project_models", "data_prep"):
+        template = _r(f"templates/{name}.html")
+        assert "style=\"margin-top:12px" not in template
+        assert "style=\"margin-top:8px" not in template
+    assert "wrap mt-3" in _r("templates/export_models.html")
+    assert "dp-items-scroll mt-2" in _r("templates/data_prep.html")
 
 
 def test_project_overview_no_duplicate_topbar():

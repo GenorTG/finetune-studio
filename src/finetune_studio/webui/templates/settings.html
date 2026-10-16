@@ -168,7 +168,7 @@
       </div>
       <div class="mb-3">
         <label class="block text-xs muted mb-1" for="judge-provider">Default judge</label>
-        <select id="judge-provider" class="select" style="max-width:420px" aria-label="Default test judge"></select>
+        <select id="judge-provider" class="select max-w-420" aria-label="Default test judge"></select>
         <div class="text-xs dim mt-1">A local GGUF judge loads onto the GPU after the run (the tested model is unloaded first); an API judge needs no GPU. Leave on the helper seat unless you want a stronger judge.</div>
       </div>
       <div class="mb-3">
@@ -197,17 +197,17 @@
         </div>
         <div class="mb-3">
           <label class="block text-xs muted mb-1" for="helper-api-url">API base URL</label>
-          <input id="helper-api-url" type="text" class="input" style="max-width:420px" autocomplete="off" />
+          <input id="helper-api-url" type="text" class="input max-w-420" autocomplete="off" />
         </div>
         <div class="mb-3">
           <label class="block text-xs muted mb-1" for="helper-api-key">API key <span id="helper-key-state" class="dim">(not set)</span></label>
-          <input id="helper-api-key" type="password" class="input" style="max-width:420px" autocomplete="new-password"
+          <input id="helper-api-key" type="password" class="input max-w-420" autocomplete="new-password"
                  placeholder="leave blank to keep the current key" />
           <div class="text-xs dim mt-1">Stored on this computer only (never in the project or the repo) and never shown again.</div>
         </div>
         <div class="mb-3">
           <label class="block text-xs muted mb-1" for="helper-api-model">Model <button class="btn sm" id="btn-helper-models" type="button">Fetch model list</button></label>
-          <input id="helper-api-model" type="text" class="input" style="max-width:420px" autocomplete="off" list="helper-api-model-list" />
+          <input id="helper-api-model" type="text" class="input max-w-420" autocomplete="off" list="helper-api-model-list" />
           <datalist id="helper-api-model-list"></datalist>
         </div>
         <div class="mb-3">
@@ -251,15 +251,15 @@
       <div id="vision-api-fields">
         <div class="mb-3">
           <label class="block text-xs muted mb-1" for="vision-api-url">API base URL</label>
-          <input id="vision-api-url" type="text" class="input" style="max-width:420px" autocomplete="off" />
+          <input id="vision-api-url" type="text" class="input max-w-420" autocomplete="off" />
         </div>
         <div class="mb-3">
           <label class="block text-xs muted mb-1" for="vision-api-key">API key <span id="vision-key-state" class="dim">(not set)</span></label>
-          <input id="vision-api-key" type="password" class="input" style="max-width:420px" autocomplete="new-password" placeholder="leave empty to keep the saved key" />
+          <input id="vision-api-key" type="password" class="input max-w-420" autocomplete="new-password" placeholder="leave empty to keep the saved key" />
         </div>
         <div class="mb-3">
           <label class="block text-xs muted mb-1" for="vision-api-model">Model (must accept images)</label>
-          <input id="vision-api-model" type="text" class="input" style="max-width:420px" autocomplete="off" />
+          <input id="vision-api-model" type="text" class="input max-w-420" autocomplete="off" />
         </div>
         <div class="text-xs mb-3" style="color:var(--warn-text, var(--warn))">With an API vision model, the pictures in the documents you mine (scans, charts, page images) are sent to that provider.</div>
       </div>
@@ -310,7 +310,7 @@
       <div class="text-xs dim mb-3" id="compute-effective">Loading…</div>
       <div class="mb-3">
         <label class="block text-xs muted mb-1" for="compute-select">Use at next start</label>
-        <select id="compute-select" class="select" style="max-width:420px" disabled>
+        <select id="compute-select" class="select max-w-420" disabled>
           <option value="auto">Auto (best detected GPU, CPU only if there is none)</option>
         </select>
       </div>

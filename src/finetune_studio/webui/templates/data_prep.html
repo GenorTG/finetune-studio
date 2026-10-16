@@ -2219,7 +2219,7 @@ function dpPrefRenderResult(d, pid) {
     (drops.length ? '<details class="text-xs dim" style="margin-top:6px;"><summary>' + drops.length +
       ' kinds of candidate dropped by quality checks</summary><ul style="margin:4px 0 0 16px;"><li>' +
       drops.join('</li><li>') + '</li></ul></details>' : '') +
-    '<div class="dp-ds-row" style="margin-top:8px;"><span class="text-xs dim">Next step</span>' +
+    '<div class="dp-ds-row mt-2"><span class="text-xs dim">Next step</span>' +
     '<a class="btn sm primary" id="dp-pref-train" data-link href="' + escapeHtml(d.train_url) + '">Train with this dataset →</a></div>';
   panel.hidden = false;
 }
@@ -2598,7 +2598,7 @@ function dpItemsHtml(d) {
 
 function dpRoundsHtml() {
   var rounds = _dpPanel.rounds;
-  if (!rounds) return '<div class="dim" style="margin-top:8px;">Loading rounds…</div>';
+  if (!rounds) return '<div class="dim mt-2">Loading rounds…</div>';
   if (!rounds.length) return '<div class="dp-empty">No helper call recorded for this file yet.</div>';
   var rows = rounds.map(function (r) {
     return '<tr data-round="' + escapeHtml(r.id) + '" class="dp-round-row' + (_dpPanel.round && _dpPanel.round.id === r.id ? ' cur' : '') + '">' +
@@ -2609,10 +2609,10 @@ function dpRoundsHtml() {
   var detail = '';
   if (_dpPanel.round) {
     var msgs = (_dpPanel.round.messages || []).map(function (m) { return '── ' + m.role + ' ──\n' + m.content; }).join('\n\n');
-    detail = '<div class="grid grid-2 gap-2" style="margin-top:8px;"><div><div class="text-xs dim">Prompt</div><pre class="dp-rq-src">' + escapeHtml(msgs) +
+    detail = '<div class="grid grid-2 gap-2 mt-2"><div><div class="text-xs dim">Prompt</div><pre class="dp-rq-src">' + escapeHtml(msgs) +
       '</pre></div><div><div class="text-xs dim">Raw reply</div><pre class="dp-rq-src">' + escapeHtml(_dpPanel.round.reply || _dpPanel.round.error || '(empty)') + '</pre></div></div>';
   }
-  return '<div class="table-scroll dp-items-scroll" style="margin-top:8px;"><table class="table compact"><thead><tr><th>Round</th><th>Chunk</th><th>Time</th>' +
+  return '<div class="table-scroll dp-items-scroll mt-2"><table class="table compact"><thead><tr><th>Round</th><th>Chunk</th><th>Time</th>' +
     '<th>Parsed</th><th>Pairs kept</th><th>Items added</th><th>Model / error</th></tr></thead><tbody>' + rows + '</tbody></table></div>' + detail;
 }
 
