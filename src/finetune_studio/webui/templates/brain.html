@@ -54,14 +54,14 @@
 </details>
 
 <details class="card mb-4" id="brain-agent-help">
-  <summary class="card-head" style="cursor:pointer;list-style:none;">
+  <summary class="card-head brain-help-head">
     <div>
       <div class="card-title">Optional: ask Agent chat for help</div>
       <div class="card-sub">Chat can recommend chunk size / embedder and call Build — it does not replace uploading files (step 1).</div>
     </div>
     <a href="/projects/{{ pid }}/chat?mode=agent" class="btn" data-link onclick="event.stopPropagation()">Open Agent chat →</a>
   </summary>
-  <div class="text-xs dim" style="padding:0 16px 14px;">
+  <div class="text-xs dim brain-help-body">
     Example prompts: <i>"Recommend an embedder for my sources."</i>
     or <i>"Build the index with fact cards on."</i>
   </div>
@@ -104,7 +104,7 @@
         <option value="sentence-transformers/all-MiniLM-L6-v2">all-MiniLM-L6-v2 (384d, fast, weaker)</option>
       </select>
     </div>
-    <div class="col-span-6 text-xs dim" style="align-self:center;"
+    <div class="col-span-6 text-xs dim self-center"
          title="The index uses the passages each file was split into when it was parsed (Files &amp; Knowledge), the same passages mining reads. Measured on the Korvane quiz: right passage in the top 5 for 95/102 questions vs 89/102 with separate 400-token chunks.">
       Passages: the same ones mining reads (one split per file, set when it is parsed). <span class="dim">?</span>
     </div>
@@ -235,12 +235,12 @@
 
 {# Chunks modal #}
 <div id="brain-chunks-modal" class="modal-back" hidden onclick="if(event.target===this)this.hidden=true">
-  <div class="modal" style="max-width:640px;">
+  <div class="modal">
     <div class="modal-head">
       <span id="brain-chunks-title">Chunks</span>
       <button class="btn ghost icon ml-auto" onclick="document.getElementById('brain-chunks-modal').hidden=true">✕</button>
     </div>
-    <div class="modal-body" id="brain-chunks-body" style="max-height:420px;overflow-y:auto;"></div>
+    <div class="modal-body" id="brain-chunks-body"></div>
     <div class="modal-foot">
       <button class="btn ghost" onclick="document.getElementById('brain-chunks-modal').hidden=true">Close</button>
     </div>
@@ -283,7 +283,7 @@
       </div>
     </div>
   </div>
-  <div id="chat-messages" class="flex flex-col gap-2 mb-3" style="min-height:120px;max-height:360px;overflow-y:auto;background:var(--bg-app);border:1px solid var(--border);border-radius:var(--radius);padding:12px;"></div>
+  <div id="chat-messages" class="flex flex-col gap-2 mb-3 brain-chat-log"></div>
   <div class="flex gap-2">
     <input id="chat-input" type="text" placeholder="Ask anything — model uses the retrieved documents as context…"
            class="input flex-1"
@@ -334,7 +334,7 @@
     </div>
   </div>
   <div class="mt-3" id="mcp-pkg-panel">
-    <div class="text-sm" style="font-weight:600;">Standalone Smart Brain server (MCP + HTTP)</div>
+    <div class="text-sm font-semibold">Standalone Smart Brain server (MCP + HTTP)</div>
     <p class="text-xs dim mb-2">An archive with the index, a small Python server, installer, run scripts and a README. Speaks plain HTTP and MCP. <b>Encrypted by default</b> (AES-256-GCM); the passphrase is never stored — it is shown once below.</p>
     <div class="grid grid-12 gap-3 items-end mb-2">
       <div class="col-span-4">
@@ -368,7 +368,7 @@
     <div class="flex gap-4 items-center mb-2 text-xs">
       <label class="flex items-center gap-2" title="Ship the embedding model (+ reranker) inside for offline meaning-search (~2 GB). Model weights are public and are NOT encrypted."><input id="mcp-models" type="checkbox"> Include models (not encrypted)</label>
       <label class="flex items-center gap-2"><input id="mcp-rerank" type="checkbox" checked> Reranker on by default</label>
-      <label class="flex items-center gap-2" style="color:var(--err, #c33);" title="Off the default path. Documents and index become plain files in the archive."><input id="mcp-noenc" type="checkbox"> Export WITHOUT encryption (plaintext)</label>
+      <label class="flex items-center gap-2 brain-plaintext-opt" title="Off the default path. Documents and index become plain files in the archive."><input id="mcp-noenc" type="checkbox"> Export WITHOUT encryption (plaintext)</label>
     </div>
     <div class="flex gap-2 items-center">
       <button class="btn primary" type="button" id="mcp-pkg-btn" onclick="startMcpPackage()"
@@ -379,7 +379,7 @@
     <div id="mcp-pass-box" hidden class="mt-2 card">
       <div class="text-xs"><b>Passphrase (shown once &mdash; copy it now, it is not stored anywhere):</b></div>
       <div class="flex gap-2 items-center mt-1">
-        <code id="mcp-pass-val" style="user-select:all;word-break:break-all;"></code>
+        <code id="mcp-pass-val"></code>
         <button class="btn" type="button" onclick="copyMcpPass()">Copy</button>
         <button class="btn" type="button" onclick="hideMcpPass()">I saved it</button>
       </div>
@@ -407,7 +407,7 @@
 </details>
 
 {# Danger zone #}
-<div class="card" style="border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.04);">
+<div class="card card-danger">
   <div class="card-head">
     <div>
       <div class="card-title err">Danger zone</div>
@@ -574,7 +574,7 @@
         + '<tr><td class="meta muted">Path</td><td class="mono text-xs" title="' + esc(d.corpus_dir || '') + '">' + esc(d.corpus_dir || '') + '</td></tr>'
         + '</tbody></table>'
         + '<details class="mt-2"><summary class="text-xs muted">Debug JSON</summary>'
-        + '<pre class="mono text-xs" style="max-height:160px;overflow:auto;white-space:pre-wrap;margin:6px 0 0;">'
+        + '<pre class="mono text-xs debug-pre short">'
         + esc(JSON.stringify(d, null, 2)) + '</pre></details>';
     } catch (e) {
       el.innerHTML = '<span class="dim">Failed: ' + esc(e.message) + '</span>';
@@ -615,7 +615,7 @@
       });
       html += '</tbody></table></div>';
       html += '<details class="mt-2"><summary class="text-xs muted">Debug JSON</summary>'
-        + '<pre class="mono text-xs" style="max-height:200px;overflow:auto;white-space:pre-wrap;margin:6px 0 0;">'
+        + '<pre class="mono text-xs debug-pre">'
         + esc(JSON.stringify(d, null, 2)) + '</pre></details>';
       results.innerHTML = html;
     } catch (e) {

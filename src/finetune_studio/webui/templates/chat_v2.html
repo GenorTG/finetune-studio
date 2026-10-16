@@ -20,14 +20,14 @@
   </div>
 
   <div class="grid grid-2 gap-3 mt-2">
-    <label class="flex items-start gap-3 p-3 card-inner" style="cursor:pointer; border:1px solid var(--border);">
+    <label class="flex items-start gap-3 p-3 card-inner chat-mode-option">
       <input type="radio" name="chat-mode" value="test" checked class="mt-1">
       <div>
         <div class="font-bold">Test</div>
         <div class="text-xs muted">Simple chat with the project's production system prompt. Optionally use the Smart Brain so answers come with sources. Best for: testing the trained model, comparing runs, debugging prompts.</div>
       </div>
     </label>
-    <label class="flex items-start gap-3 p-3 card-inner" style="cursor:pointer; border:1px solid var(--border);">
+    <label class="flex items-start gap-3 p-3 card-inner chat-mode-option">
       <input type="radio" name="chat-mode" value="agent" class="mt-1">
       <div>
         <div class="font-bold">Agent <span class="pill solid-purple text-[10px] ml-1">tool-calling</span></div>
@@ -74,7 +74,7 @@
         <p>Load a model here to start chatting — or switch the global one on the <a href="/inference" data-link>Inference</a> tab.</p>
         <div class="dp-chat-warn-load" id="chat-inline-load" hidden>
           <select id="chat-inline-model" class="select"></select>
-          <input id="chat-inline-ctx" type="number" class="input" style="width:6.5rem" value="0" min="0" max="1048576" step="512" placeholder="auto"
+          <input id="chat-inline-ctx" type="number" class="input" value="0" min="0" max="1048576" step="512" placeholder="auto"
                  title="Context window to load with (in tokens). 0 = auto: the model's native window, lowered only if it cannot fit on the GPU. Changing this here changes the shared default for every other page that loads this model too.">
           <button class="btn sm" id="chat-inline-load-btn" onclick="chatInlineLoad()">Load</button>
         </div>
@@ -111,12 +111,12 @@
   </div>
 
   {# System prompt (Test mode) — presets below write into it; sent as system_prompt_override #}
-  <label class="block mt-2" style="font-size:11px;">
+  <label class="block mt-2 chat-params">
     <span class="dim">System prompt (Test mode)</span>
     <textarea id="chat-system-prompt" name="system_prompt" rows="2" class="input w-full">{{ project.system_prompt or '' }}</textarea>
   </label>
-  <div class="flex gap-2 mt-2" style="font-size:11px;flex-wrap:wrap;">
-    <span class="dim" style="align-self:center;">Preset:</span>
+  <div class="flex gap-2 mt-2 wrap chat-params">
+    <span class="dim self-center">Preset:</span>
     <button type="button" class="btn sm" onclick="document.querySelector('[name=system_prompt]').value='You are a helpful assistant.'" title="Reset to default">Default</button>
     <button type="button" class="btn sm" onclick="document.querySelector('[name=system_prompt]').value='You are an expert tutor. Always show your work step by step.'" title="Tutor mode">Tutor</button>
     <button type="button" class="btn sm" onclick="document.querySelector('[name=system_prompt]').value='You are a research assistant. Answer based on the provided context. If you don\'t know, say so.'" title="RAG mode">RAG</button>
@@ -124,24 +124,24 @@
   </div>
 
   {# Chat parameter controls #}
-  <div class="flex gap-3 mt-2" style="font-size:11px;flex-wrap:wrap;">
+  <div class="flex gap-3 mt-2 wrap chat-params">
     <label class="flex items-center gap-1" title="Temperature: randomness of the reply. Higher (e.g. 1.0) = more varied and creative; lower (e.g. 0.2) = more focused and repeatable.">
       <span class="dim">Temp</span>
-      <input type="range" id="chat-temperature" min="0" max="2" step="0.1" value="0.7" style="width:60px;" oninput="document.getElementById('chat-temp-val').textContent=parseFloat(this.value).toFixed(1)">
-      <span class="mono" id="chat-temp-val" style="width:24px;">0.7</span>
+      <input type="range" id="chat-temperature" min="0" max="2" step="0.1" value="0.7" class="chat-range" oninput="document.getElementById('chat-temp-val').textContent=parseFloat(this.value).toFixed(1)">
+      <span class="mono" id="chat-temp-val">0.7</span>
     </label>
     <label class="flex items-center gap-1" title="Top-p: only pick from the most likely words whose probabilities add up to this share. Lower = safer, more predictable wording; 1.0 = no limit.">
       <span class="dim">Top-p</span>
-      <input type="range" id="chat-top-p" min="0" max="1" step="0.05" value="0.9" style="width:60px;" oninput="document.getElementById('chat-topp-val').textContent=parseFloat(this.value).toFixed(2)">
-      <span class="mono" id="chat-topp-val" style="width:32px;">0.90</span>
+      <input type="range" id="chat-top-p" min="0" max="1" step="0.05" value="0.9" class="chat-range" oninput="document.getElementById('chat-topp-val').textContent=parseFloat(this.value).toFixed(2)">
+      <span class="mono" id="chat-topp-val">0.90</span>
     </label>
     <label class="flex items-center gap-1" title="Top-k: only pick from the K most likely next words. Lower = more predictable; 0 = no limit.">
       <span class="dim">Top-k</span>
-      <input type="number" id="chat-top-k" value="40" min="0" max="200" style="width:72px;" class="input">
+      <input type="number" id="chat-top-k" value="40" min="0" max="200" class="input">
     </label>
     <label class="flex items-center gap-1" title="Max tokens: the longest reply allowed, in tokens (a token is roughly ¾ of a word). The reply stops when it hits this limit.">
       <span class="dim">Max</span>
-      <input type="number" id="chat-max-tokens" value="4096" min="1" max="16384" style="width:88px;" class="input">
+      <input type="number" id="chat-max-tokens" value="4096" min="1" max="16384" class="input">
     </label>
   </div>
 </div>

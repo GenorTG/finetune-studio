@@ -3198,7 +3198,8 @@
   white-space: pre-wrap;
 }
 .run-error-head { color: var(--err); }
-.run-debug-json { max-height: 200px; overflow: auto; white-space: pre-wrap; margin: 6px 0 0; }
+.debug-pre { max-height: 200px; overflow: auto; white-space: pre-wrap; margin: 6px 0 0; }
+.debug-pre.short { max-height: 160px; }
 #preset-note { color: var(--text-dim); }
 #preset-advisory { margin-top: 8px; padding: 10px 12px; font-size: 12px; }
 #train-log {
@@ -4406,6 +4407,33 @@
   color: var(--text-dim, #888);
   font-style: italic;
 }
+/* Chat */
+.chat-mode-option { cursor: pointer; border: 1px solid var(--border); }
+#chat-inline-ctx { width: 6.5rem; }
+.chat-params { font-size: 11px; }
+.chat-range { width: 60px; }
+#chat-temp-val { width: 24px; }
+#chat-topp-val { width: 32px; }
+#chat-top-k { width: 72px; }
+#chat-max-tokens { width: 88px; }
+
+/* Smart Brain */
+.brain-help-head { cursor: pointer; list-style: none; }
+.brain-help-body { padding: 0 16px 14px; }
+#brain-chunks-body { max-height: 420px; overflow-y: auto; }
+.brain-chat-log {
+  min-height: 120px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+.brain-plaintext-opt { color: var(--err, #c33); }
+#mcp-pass-val { user-select: all; word-break: break-all; }
+.card.card-danger { border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.04); }
+
 /* Settings */
 #update-log { max-height: 220px; overflow-y: auto; border: 1px solid var(--border); padding: 8px; white-space: pre-wrap; }
 .settings-beta { color: var(--accent); }
