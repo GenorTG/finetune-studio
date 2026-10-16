@@ -1,7 +1,7 @@
 # Tutorial — your first model, start to finish
 
 A complete hands-on walkthrough of Finetune Studio: from a folder of raw
-documents to a fine-tuned, exported model you can chat with and evaluate.
+documents to a Smart Brain that answers from them and a LoRA adapter that answers in your voice, exported and evaluated.
 Every step happens in the browser on your own machine.
 
 Prerequisites: the app is running (see [INSTALL.md](INSTALL.md)) at
