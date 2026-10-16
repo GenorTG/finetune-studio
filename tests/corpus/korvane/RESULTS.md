@@ -327,3 +327,32 @@ The 29 MISSING manifest facts (`coverage-any.json`) are mostly multi-value facts
 (legal-0049 "successive periods of 12 months" + "120 days' notice", ops-0072 the three KC-OPS-114 fields, product-0010 the
 calibration card + serial format); the coverage rule needs every value in ONE answer. Not changed here: the one-fact-per-pair rule
 (§10) is what trains; a "set" pair that lists all fields of a form is the Smart Brain's reading material, not a training row.
+
+## 15. Full functional retest through the browser, password on (2026-10-16 evening, throwaway project `ux-walk-func-1016` feeda5da, deleted after)
+
+Track A + B in a real browser against the live service (0.1.0.403 -> 0.1.0.410 as fixes landed), Bearer token for pages and scripts
+(`dfd1fc0`). Training data = the 2,455 human-approved golden pairs (`golden/approved_pairs_core_2026-10-08.jsonl.gz`) uploaded through
+the Training page, so nothing was approved on the reviewer's behalf; the DPO run used unreviewed builder output (functional only).
+
+| Step | Result |
+|---|---|
+| Upload + parse (19 core files) | 19/19 parsed in 11 s; manifest facts kept 1,130/1,130 |
+| Mining (API helper, Vision on) | 6.5 min, 4,022 pairs, recall 1,099/1,130 = 97.3 % (§14: 97.4 %), no job failed |
+| SFT (Qwen3.5-9B, rank 64, LR 1e-4, 3 ep, early stop) | stopped 350/417, 23 min, train 0.48, best eval 1.04 (§1 run 1: 350/417, 0.53, 1.01); adapter + 17 GB merge |
+| GGUF export | q4_k_m 5.6 GB + q6_k 7.4 GB in 6 min; app answered in 10 ms throughout |
+| Quick index | 30 s, 19 docs / 162 chunks; retrieval@5 98/102 = 96.1 % |
+| Quiz, SFT merged (judge deepseek-v4.1-flash) | 14/102 = 13.7 %, unanswerable declined 0/20 |
+| Smart Brain quiz, SFT merged reader | 94/102 = 92.2 %, declined 0/20 |
+| Smart Brain quiz, untrained base reader | **94/102 = 92.2 %, declined 20/20** (best so far; §8 best was 87) |
+| Preference build (11 exact golden replays approved) | 17 pairs (9 hallucination, 8 abstain), 1 min after the VRAM fix (21 min before) |
+| DPO from the SFT run (17 unreviewed pairs) | 24 steps, 2 min, loss 0.30 -> 0.04; quiz 7/102, declined 12/20 (abstention moved, recall fell) |
+| Guide | tool calls + navigation; after `419b359` it quotes runs, test runs and exports |
+
+Bugs found and fixed in the run: llama.cpp log levels off by one (`6b57c02`: INFO logged as WARNING, WARN as ERROR); transformers
+answers ran to max_new_tokens because the base has no generation_config and stops only at `<|endoftext|>` (`9f01951`: 122 quiz
+answers 57 min -> 210 s); cuBLAS workspaces pinned a freed 9B's 17 GB segment in the inference worker so the next model spilled to
+CPU (`4ff2ff6`); the Guide's readiness summary had no runs (`419b359`); job-run training wrote run state under '<project>-<run>'
+(stop notes, post-train errors and the auto-suite FK silently lost, `a8173fb`); the post-training quiz skipped `messages` datasets
+(`778cd24`). Harness: token for pages/scripts, folded DPO card and routes, Smart Brain mode renamed from rag (`22865ac`).
+Not changed: Qwen3.5's linear-attention layers run on transformers' PyTorch fallback (`flash-linear-attention` / `causal_conv1d`
+not installed), so HF training and generation are slower than they need to be.
