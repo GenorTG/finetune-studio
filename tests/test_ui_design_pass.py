@@ -21,13 +21,13 @@ def test_css_pins():
     assert "var(--bg-nav)" in css
     assert ':root[data-theme="light"]' in tokens
     assert ':root[data-theme="light"]' not in base
-    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=2") < base.index("layout.css?v=1") < base.index("app.css?v=116") < base.index("typography.css?v=1")
+    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=2") < base.index("layout.css?v=1") < base.index("app.css?v=117") < base.index("typography.css?v=1")
     assert ".hf-card .meta .stat" in css
     assert "min-width: 40rem" in css or "min-width:40rem" in css
 
 
 def test_base_cache_bust():
-    assert "app.css?v=116" in _r("templates/base.html")
+    assert "app.css?v=117" in _r("templates/base.html")
 
 
 def test_project_data_modals_use_hidden_state():
@@ -221,3 +221,10 @@ def test_training_inline_style_only_for_js_progress_width():
     lines = [ln.strip() for ln in _r("templates/project_training.html").splitlines() if 'style="' in ln]
     assert lines == ['<div class="bar mt-3"><div class="fill" id="train-progress-bar" style="width:0%"></div></div>'], lines
     assert "sev-warning" in _r("templates/project_training.html") and ".sev-warning" in _r("static/css/app.css")
+
+
+def test_data_editor_table_scrolls_on_phones_instead_of_crushing_qa():
+    assert 'id="de-table"' in _r("templates/data_editor.html")
+    css = _r("static/css/app.css")
+    assert ".table-scroll #de-table { min-width: 1100px; }" in css
+    assert "#de-table th.de-col-actions { width: 360px; }" in css

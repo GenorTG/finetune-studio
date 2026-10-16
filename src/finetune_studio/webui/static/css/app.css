@@ -2178,6 +2178,10 @@
   .table-scroll .table { min-width: 640px; }
   /* File library: the name column collapsed to ~20px (one letter per line) at 780px. */
   .table-scroll #fb-files-table { min-width: 1200px; }
+  /* Data editor: the four row buttons need ~360px; under 640 Question/Answer
+     shrank to 41px ("W…"). Scroll instead and keep both readable. */
+  .table-scroll #de-table { min-width: 1100px; }
+  #de-table th.de-col-actions { width: 360px; }
   #fb-files-table .fb-col-name { width: 14em; min-width: 11em; }
   /* Past-runs: 7 columns under 640 still squeezed the Details button cell
      to a half-clipped "Details" (probe -25px) — give this table more scroll
