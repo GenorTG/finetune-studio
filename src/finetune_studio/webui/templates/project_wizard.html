@@ -38,7 +38,7 @@
     </div>
   </div>
 
-  <div class="card mb-2" id="wiz-step-brain" style="border-color: var(--cyan);">
+  <div class="card mb-2 border-cyan" id="wiz-step-brain">
     <div class="card-head"><div>
       <div class="card-title">Step 1b · Or answer from the files now (Smart Brain)</div>
       <div class="card-sub text-dim">
@@ -127,10 +127,10 @@
       <summary class="text-xs muted cursor-pointer">Advanced: how long to train</summary>
       <div class="flex gap-2 wrap items-center mt-2">
         <label class="text-xs muted" for="wiz-epochs" title="Epochs = passes over your whole dataset. Optimizer steps = (training rows ÷ effective batch) × epochs. This is the same num_epochs field the Training page sends.">Epochs</label>
-        <input id="wiz-epochs" class="input" type="number" min="1" max="100" step="1" placeholder="preset" style="max-width:96px" inputmode="numeric">
+        <input id="wiz-epochs" class="input" type="number" min="1" max="100" step="1" placeholder="preset" inputmode="numeric">
         <button class="btn sm" type="button" id="wiz-epochs-suggest" hidden>Use 0 epochs</button>
       </div>
-      <div class="text-xs mt-2" id="wiz-steps-hint" role="status" style="color:var(--text-dim);">Leave empty to use the preset's own epoch count.</div>
+      <div class="text-xs mt-2" id="wiz-steps-hint" role="status">Leave empty to use the preset's own epoch count.</div>
       <div class="text-xs mt-1 steps-hint-warn" id="wiz-steps-warn" role="status" hidden></div>
     </details>
     <div class="text-sm mt-2" id="wiz-train-sub">—</div>
@@ -148,7 +148,7 @@
     <div class="text-sm" id="wiz-test-sub">—</div>
     <div class="flex gap-2 wrap mt-1 items-center">
       <label class="text-xs muted" for="wiz-test-sample">Limit to a random sample of</label>
-      <input id="wiz-test-sample" class="input" type="number" min="1" placeholder="all" style="max-width:96px" title="Only for huge datasets — leave empty to test every row. A sampled run is labeled 'sampled' everywhere so it can't masquerade as full coverage.">
+      <input id="wiz-test-sample" class="input" type="number" min="1" placeholder="all" title="Only for huge datasets — leave empty to test every row. A sampled run is labeled 'sampled' everywhere so it can't masquerade as full coverage.">
       <span class="text-xs muted">questions (huge datasets only — leave empty for the full test).</span>
     </div>
     <div class="flex gap-2 wrap mt-2">
@@ -166,7 +166,7 @@
       </div>
     </div><span class="pill outline" id="wiz-version-pill">…</span></div>
     <form id="wiz-version-form" class="flex gap-2 wrap m-0">
-      <input class="input" id="wiz-version-label" placeholder="label (e.g. v3-my-corpus)" style="max-width:220px">
+      <input class="input" id="wiz-version-label" placeholder="label (e.g. v3-my-corpus)">
       <button class="btn sm primary" type="submit">Pin version</button>
     </form>
     <div class="flex gap-2 wrap mt-2">
@@ -176,7 +176,7 @@
     </div>
   </div>
 
-  <div class="card mb-2" style="border-color: var(--accent);">
+  <div class="card mb-2 border-accent">
     <div class="card-head"><div>
       <div class="card-title">Run everything at once</div>
       <div class="card-sub text-dim">
@@ -191,7 +191,7 @@
 {# ─────────────────────── ADVANCED MODE ──────────────────────── #}
 <div id="wiz-advanced" hidden>
   <div class="sub mb-2 text-dim">Everything the Quick start does, one control at a time — same APIs, any order.</div>
-  <div class="flow-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;">
+  <div class="flow-grid">
     <div class="card mb-2" id="flow-files">
       <div class="card-head"><div>
         <div class="card-title">Files</div>
@@ -258,7 +258,7 @@
         <div class="card-sub text-dim" id="flow-version-sub">—</div>
       </div><span class="pill outline" id="flow-version-pill">…</span></div>
       <form id="flow-version-form" class="flex gap-2 wrap m-0">
-        <input class="input" id="flow-version-label" placeholder="label (e.g. v3-my-corpus)" style="max-width:200px">
+        <input class="input" id="flow-version-label" placeholder="label (e.g. v3-my-corpus)">
         <button class="btn sm primary" type="submit">Save version</button>
       </form>
       <div class="flex gap-2 wrap mt-2">
@@ -269,7 +269,7 @@
   </div>
 </div>
 
-<pre id="flow-log" class="mono text-xs bg-elev" style="max-height:220px;overflow-y:auto;border:1px solid var(--border);padding:10px;white-space:pre-wrap">Idle — status checks run on load.</pre>
+<pre id="flow-log" class="mono text-xs bg-elev">Idle — status checks run on load.</pre>
 {% endblock %}
 
 {% block scripts %}

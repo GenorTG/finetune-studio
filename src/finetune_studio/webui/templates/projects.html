@@ -33,7 +33,7 @@
         <button type="button" class="btn sm template-btn" data-template="brain" onclick="selectTemplate('brain')">🧠 Smart Brain</button>
       </div>
     </div>
-    <div class="grid" style="grid-template-columns:1fr 1fr;">
+    <div class="grid proj-new-grid">
       <label>
         <span class="muted text-xs">Name</span>
         <input class="input" name="name" placeholder="e.g. Helios handbook" required>
@@ -66,8 +66,8 @@
 
 <div class="flex mb-4">
   <div class="flex gap-2 items-center">
-    <input id="proj-search" class="input" placeholder="Search projects…" style="max-width:280px;" oninput="filterProjects()">
-    <select id="proj-sort" class="select" style="max-width:140px;" onchange="filterProjects()" title="Sort projects">
+    <input id="proj-search" class="input" placeholder="Search projects…" oninput="filterProjects()">
+    <select id="proj-sort" class="select" onchange="filterProjects()" title="Sort projects">
       <option value="updated">Last updated</option>
       <option value="created">Newest first</option>
       <option value="name">Name A-Z</option>
@@ -79,7 +79,7 @@
 
 {# Bulk-action bar — shows when at least one card is selected. #}
 <div class="bulk-bar" id="bulk-bar">
-  <label class="flex items-center gap-2" style="font-size:12px;">
+  <label class="flex items-center gap-2 text-12">
     <input type="checkbox" id="proj-select-all" onclick="event.stopPropagation(); selectAll(this.checked);">
     <span class="muted">all visible</span>
   </label>
@@ -113,7 +113,7 @@
       <div class="flex-1 min-w-0">
         <div class="name">{{ p.name }}</div>
         <div class="desc truncate" title="{{ p.description or 'No description yet — click to open.' }}">{{ p.description or 'No description yet — click to open.' }}</div>
-        <div class="flex gap-2 mt-1" style="font-size:11px;">
+        <div class="flex gap-2 mt-1 text-xs">
           {% if p.base_model %}<span class="pill solid-blue">base: {{ p.base_model.split('/')[-1].replace('__', '/') }}</span>{% endif %}
           {% if p.production_run %}<span class="pill solid-green">● production</span>{% endif %}
           {% if p.tags %}{% for t in p.tags.split(',') %}<span class="pill solid-purple">{{ t.strip() }}</span>{% endfor %}{% endif %}
@@ -128,13 +128,13 @@
 {# Import modal. #}
 <div class="modal-back" id="import-project-modal" hidden onclick="if(event.target===this)this.hidden=true">
   <div class="modal">
-    <h3 style="margin-top:0;">Import project</h3>
+    <h3 class="mt-0">Import project</h3>
     <p class="muted text-sm">Upload a <code>.tar.gz</code> archive exported from another Finetune Studio instance.</p>
     <form id="import-form" enctype="multipart/form-data" class="mt-3">
       <input type="file" id="import-file" accept=".tar.gz,.tar" class="input" required>
       <div id="import-status" class="text-xs dim mt-2"></div>
     </form>
-    <div class="modal-foot" style="margin-top:16px;">
+    <div class="modal-foot mt-16">
       <button class="btn ghost" onclick="document.getElementById('import-project-modal').hidden=true">Cancel</button>
       <button class="btn primary" onclick="submitImport()">Import</button>
     </div>
@@ -144,9 +144,9 @@
 {# Delete-confirm modal; one instance reused for single + bulk delete. #}
 <div class="modal-bg" id="delete-modal-bg" onclick="if(event.target===this)closeModal()">
   <div class="modal">
-    <h3 id="delete-modal-title" style="margin-top:0;">Confirm delete</h3>
+    <h3 id="delete-modal-title" class="mt-0">Confirm delete</h3>
     <p id="delete-modal-body" class="muted text-sm"></p>
-    <div class="flex gap-2 mt-4" style="justify-content:flex-end;">
+    <div class="flex gap-2 mt-4 justify-end">
       <button type="button" class="btn ghost" onclick="closeModal()">Cancel</button>
       <button type="button" class="btn danger" id="delete-modal-confirm">Delete</button>
     </div>

@@ -78,7 +78,7 @@
   </a>
   <a class="stat hover" href="/projects/{{ pid }}/models" data-link>
     <div class="label">Models</div>
-    <div class="value" style="color: var(--ok);">{{ stats.models }}</div>
+    <div class="value ok">{{ stats.models }}</div>
     <div class="delta">{{ stats.models }} exports · {{ stats.models_size_gb }} GB total</div>
   </a>
 </div>
@@ -221,10 +221,10 @@
     </div>
   </div>
   {% if activity %}
-  <ul class="dash-activity" style="list-style:none;margin:0;padding:8px 16px 16px;">
+  <ul class="dash-activity">
     {% for ev in activity %}
-    <li style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border);">
-      <span class="mono" style="width:1.5em;text-align:center;color:var(--accent);flex-shrink:0;" title="{{ ev.kind }}">{{ ev.icon }}</span>
+    <li>
+      <span class="mono dash-ev-icon" title="{{ ev.kind }}">{{ ev.icon }}</span>
       <div class="flex-1 min-w-0">
         <div>{{ ev.message }}</div>
         <div class="dim text-xs mono">{{ ev.when }}</div>
@@ -372,7 +372,7 @@
     } else {
       inner = '<pre id="dash-preview-content" class="mono text-xs file-preview-content">Loading…</pre>';
     }
-    modal.innerHTML = '<div class="modal-dialog" style="max-width:800px;">' +
+    modal.innerHTML = '<div class="modal-dialog modal-xl">' +
       '<div class="modal-head">' + esc(name) + '</div>' +
       '<div class="modal-body">' + inner + '</div>' +
       '<div class="modal-actions"><button class="btn" data-action="close">Close</button></div></div>';
@@ -399,7 +399,7 @@
       .then((f) => {
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
-        modal.innerHTML = '<div class="modal-dialog" style="max-width:500px;">' +
+        modal.innerHTML = '<div class="modal-dialog modal-md">' +
           '<div class="modal-head">' + esc(name) + '</div>' +
           '<div class="modal-body">' +
           '<label class="block mb-3"><span class="muted text-xs">Tags (comma-separated)</span>' +
@@ -460,7 +460,7 @@
       const data = await r.json();
       const files = (data.files || []).slice().sort((a, b) => (Number(b.uploaded_at) || 0) - (Number(a.uploaded_at) || 0)).slice(0, 5);
       if (!files.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty" style="border:0">No files yet — upload them on <a href="/projects/' + PID + '/data" data-link>Files</a>, or run <a href="/projects/' + PID + '/wizard" data-link>⚡ Quick work</a> to do everything from one page.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty border-0">No files yet — upload them on <a href="/projects/' + PID + '/data" data-link>Files</a>, or run <a href="/projects/' + PID + '/wizard" data-link>⚡ Quick work</a> to do everything from one page.</td></tr>';
         return;
       }
       tbody.innerHTML = files.map((f) => {

@@ -32,14 +32,14 @@
 
 {# ── B. Toolbar ── #}
 <div class="card mb-4">
-  <div class="flex gap-2 wrap items-center" style="padding:12px 16px;">
+  <div class="flex gap-2 wrap items-center de-toolbar">
     <div class="flex gap-1" role="group" aria-label="Status filter">
       <button class="btn sm" type="button" data-de-filter="all" id="de-filter-all">All</button>
       <button class="btn sm primary" type="button" data-de-filter="pending" id="de-filter-pending">Pending</button>
       <button class="btn sm" type="button" data-de-filter="approved" id="de-filter-approved">Approved</button>
       <button class="btn sm" type="button" data-de-filter="rejected" id="de-filter-rejected">Rejected</button>
     </div>
-    <input class="input" type="search" id="de-search" placeholder="Search question / answer…" style="max-width:260px;">
+    <input class="input" type="search" id="de-search" placeholder="Search question / answer…">
     <button class="btn sm success" type="button" id="de-bulk-approve">Approve all visible</button>
     <button class="btn sm danger" type="button" id="de-bulk-reject">Reject all visible</button>
     <span class="flex-1"></span>
@@ -64,12 +64,12 @@
   <table class="table compact">
     <thead>
       <tr>
-        <th style="width:3.5em">#</th>
-        <th style="width:7em">Status</th>
-        <th style="width:12em">Source</th>
+        <th class="de-col-num">#</th>
+        <th class="de-col-status">Status</th>
+        <th class="de-col-source">Source</th>
         <th>Question</th>
         <th>Answer</th>
-        <th style="width:20em"></th>
+        <th class="de-col-actions"></th>
       </tr>
     </thead>
     <tbody id="de-tbody">
@@ -77,14 +77,14 @@
     </tbody>
   </table>
   </div>
-  <div style="padding:12px 16px;text-align:center;">
+  <div class="de-more">
     <button class="btn sm" type="button" id="de-load-more" hidden>Load more</button>
   </div>
 </div>
 
 {# ── D. Row editor modal ── #}
 <div id="de-modal" class="modal-back" hidden>
-  <div class="modal" style="max-width:820px;">
+  <div class="modal">
     <div class="modal-head">
       <span id="de-modal-title">Row editor</span>
       <button class="btn ghost icon ml-auto" type="button" id="de-modal-close">✕</button>
@@ -95,7 +95,7 @@
       <textarea class="textarea mt-1 mb-3" id="de-modal-q" rows="5"></textarea>
       <label class="text-xs dim" for="de-modal-a">Answer</label>
       <textarea class="textarea mt-1 mb-3" id="de-modal-a" rows="8"></textarea>
-      <pre class="text-xs mono dim" id="de-modal-context" style="white-space:pre-wrap;max-height:160px;overflow:auto;background:var(--bg-app);border:1px solid var(--border);padding:8px;"></pre>
+      <pre class="text-xs mono dim" id="de-modal-context"></pre>
     </div>
     <div class="modal-foot flex gap-2 wrap">
       <button class="btn ghost" type="button" id="de-modal-cancel">Cancel</button>

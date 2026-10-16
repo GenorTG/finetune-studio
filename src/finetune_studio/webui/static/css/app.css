@@ -3606,6 +3606,7 @@
 .fb-tag-pill:hover { border-color: var(--accent); color: var(--accent); }
 
 .stat .value.warn { color: var(--warn); }
+.stat .value.ok { color: var(--ok); }
 .fb-toolbar { padding: 12px 16px; }
 .fb-search { max-width: 220px; }
 .fb-filter { max-width: 180px; }
@@ -4407,6 +4408,39 @@
   color: var(--text-dim, #888);
   font-style: italic;
 }
+/* Projects */
+.proj-new-grid { grid-template-columns: 1fr 1fr; }
+#proj-search { max-width: 280px; }
+#proj-sort { max-width: 140px; }
+.text-12 { font-size: 12px; }
+.mt-0 { margin-top: 0; }
+.mt-16 { margin-top: 16px; }
+
+/* Data editor */
+.de-toolbar { padding: 12px 16px; }
+#de-search { max-width: 260px; }
+.de-col-num { width: 3.5em; }
+.de-col-status { width: 7em; }
+.de-col-source { width: 12em; }
+.de-col-actions { width: 20em; }
+.de-more { padding: 12px 16px; text-align: center; }
+#de-modal-context { white-space: pre-wrap; max-height: 160px; overflow: auto; background: var(--bg-app); border: 1px solid var(--border); padding: 8px; }
+
+/* Quick work (wizard) */
+.card.border-cyan { border-color: var(--cyan); }
+.card.border-accent { border-color: var(--accent); }
+#wiz-epochs, #wiz-test-sample { max-width: 96px; }
+#wiz-steps-hint { color: var(--text-dim); }
+#wiz-version-label { max-width: 220px; }
+#flow-version-label { max-width: 200px; }
+.flow-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+#flow-log { max-height: 220px; overflow-y: auto; border: 1px solid var(--border); padding: 10px; white-space: pre-wrap; }
+
+/* Project home */
+.dash-activity { list-style: none; margin: 0; padding: 8px 16px 16px; }
+.dash-activity > li { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.dash-ev-icon { width: 1.5em; text-align: center; color: var(--accent); flex-shrink: 0; }
+
 /* Chat */
 .chat-mode-option { cursor: pointer; border: 1px solid var(--border); }
 #chat-inline-ctx { width: 6.5rem; }
