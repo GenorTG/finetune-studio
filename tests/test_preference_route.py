@@ -102,32 +102,48 @@ def test_bad_body_is_rejected_by_the_typed_model(api, payload) -> None:
 def test_build_runs_off_the_event_loop_and_reports_progress(monkeypatch) -> None:
     proj = seed_project()
     fake, seen = FakeModel(), {}
+    started, release = threading.Event(), threading.Event()
+    calls = 0
 
     def slow(messages, **kw):
+        nonlocal calls
+        calls += 1
         seen.setdefault("thread", threading.current_thread().name)
-        time.sleep(0.05)
+        if calls == 1:
+            started.set()
+            if not release.wait(timeout=2):
+                raise TimeoutError("test did not release the model call")
+        else:
+            time.sleep(0.05)
         return fake(messages[-1]["content"])
 
     monkeypatch.setattr("finetune_studio.data.prep.generator.resolve_generator", lambda: slow)
     app = FastAPI()
     app.include_router(route.router, prefix="/api")
 
-    async def drive() -> tuple[int, list[dict], int]:
+    async def drive() -> tuple[int, list[dict], int, bool]:
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
             build = asyncio.create_task(c.post(_url(proj["id"]), json={"max_pairs": 4}))
-            await asyncio.sleep(0.3)
-            polls, ticks = [], 0
+            assert await asyncio.to_thread(started.wait, 1), "model call never started"
             second = await c.post(_url(proj["id"]), json={})  # concurrent build for the same project
-            while not build.done():
+            polls, ticks = [], 0
+            while ticks < 3 and not build.done():
                 polls.append((await c.get(_url(proj["id"], "/progress"))).json())
                 await asyncio.sleep(0.05)
                 ticks += 1
+            still_running = not build.done()
+            release.set()
+            while not build.done():
+                polls.append((await c.get(_url(proj["id"], "/progress"))).json())
+                if any(p.get("attempted", 0) > 0 for p in polls):
+                    break
+                await asyncio.sleep(0.01)
             assert (await build).status_code == 200
-            return second.status_code, polls, ticks
+            return second.status_code, polls, ticks, still_running
 
-    second, polls, ticks = asyncio.run(drive())
+    second, polls, ticks, still_running = asyncio.run(drive())
     assert seen["thread"] != threading.main_thread().name, "model calls ran on the event loop thread"
-    assert second == 409 and ticks >= 3, "event loop was blocked by the build"
+    assert second == 409 and ticks == 3 and still_running, "event loop was blocked by the build"
     running = [p for p in polls if p.get("running")]
     assert running and running[-1]["attempted"] > 0 and running[-1]["planned"] >= running[-1]["attempted"]
 
