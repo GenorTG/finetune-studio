@@ -504,6 +504,7 @@
 .h-8   { height: 2rem; }
 .h-full { height: 100%; }
 .w-full { width: 100%; }
+.ml-auto { margin-left: auto; }
 .w-fit  { width: fit-content; }
 .min-w-0 { min-width: 0; }
 .max-w-full { max-width: 100%; }

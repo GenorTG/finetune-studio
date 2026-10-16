@@ -624,7 +624,7 @@ kbd { border:1px solid var(--border-strong); padding:0 4px; font-size:11px; }
     const kws = c.keywords || [];
     let h = '<div class="flex items-center gap-2"><b>' + esc(c.case_name) + '</b> <span class="pill outline">' + esc(c.category) + '</span> '
       + (c.expect_abstain ? '<span class="pill solid-orange" title="The documents do not answer this: declining is the right behaviour">unanswerable</span>' : '')
-      + '<span style="margin-left:auto">' + verdictBadge(c.verdict) + ' <span class="tp-src">' + esc(srcLabel(c.judge)) + '</span></span></div>';
+      + '<span class="ml-auto">' + verdictBadge(c.verdict) + ' <span class="tp-src">' + esc(srcLabel(c.judge)) + '</span></span></div>';
     h += '<h4>Question</h4><div class="rv-text">' + esc(c.question) + '</div>';
     h += '<h4>Answer key' + (c.expect_abstain ? ' (none — should decline)' : '') + '</h4><div class="rv-text key">' + esc(c.correct_answer || '(none)') + '</div>';
     if (kws.length) h += '<div class="text-xs mt-1">Key values: ' + kws.map(function(k) { return '<span class="pill outline">' + esc(k) + '</span>'; }).join(' ') + '</div>';

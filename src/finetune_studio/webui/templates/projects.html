@@ -74,7 +74,7 @@
       <option value="name-desc">Name Z-A</option>
     </select>
   </div>
-  <button class="btn primary" id="new-project-btn" onclick="(function(){const c=document.getElementById('new-project');if(c){c.hidden=false;c.scrollIntoView({behavior:'smooth',block:'start'});}})()" style="margin-left:auto;">＋ New project</button>
+  <button class="btn primary ml-auto" id="new-project-btn" onclick="(function(){const c=document.getElementById('new-project');if(c){c.hidden=false;c.scrollIntoView({behavior:'smooth',block:'start'});}})()">＋ New project</button>
 </div>
 
 {# Bulk-action bar — shows when at least one card is selected. #}
@@ -84,7 +84,7 @@
     <span class="muted">all visible</span>
   </label>
   <span id="bulk-count" class="mono text-xs">0 selected</span>
-  <button type="button" class="btn ghost" style="margin-left:auto;" onclick="clearSelection()">Clear</button>
+  <button type="button" class="btn ghost ml-auto" onclick="clearSelection()">Clear</button>
   <button type="button" class="btn danger" onclick="bulkDelete()">Delete selected</button>
 </div>
 

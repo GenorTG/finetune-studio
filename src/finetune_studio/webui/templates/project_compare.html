@@ -256,7 +256,7 @@
       const a = c.answers[m.benchmark_id];
       if (!a) { h += '<div class="cp-ans"><div class="who">' + esc(m.label) + '</div><span class="dim">no answer saved</span></div>'; return; }
       const mark = function(x) { return a.judge === 'human' && a.verdict === x ? ' on' : ''; };
-      h += '<div class="cp-ans"><div class="who">' + esc(m.label) + '<span style="margin-left:auto">' + verdictBadge(a.verdict)
+      h += '<div class="cp-ans"><div class="who">' + esc(m.label) + '<span class="ml-auto">' + verdictBadge(a.verdict)
         + (a.verdict ? ' <span class="cp-src">' + esc(SRC[a.judge] || '') + '</span>' : '') + '</span></div>'
         + '<div class="txt">' + (a.error && !a.model_answer ? '<span class="err">run failed: ' + esc(a.error) + '</span>' : esc(a.model_answer || '(empty)')) + '</div>'
         + (a.judge_reasoning ? '<div class="why">' + esc((a.judge === 'human' ? 'you: ' : 'judge: ') + a.judge_reasoning) + '</div>' : '')

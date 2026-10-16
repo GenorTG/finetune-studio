@@ -20,13 +20,13 @@ def test_css_pins():
     assert "var(--bg-nav)" in css
     assert ':root[data-theme="light"]' in tokens
     assert ':root[data-theme="light"]' not in base
-    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=1") < base.index("layout.css?v=1") < base.index("app.css?v=102") < base.index("typography.css?v=1")
+    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=1") < base.index("layout.css?v=1") < base.index("app.css?v=103") < base.index("typography.css?v=1")
     assert ".hf-card .meta .stat" in css
     assert "min-width: 40rem" in css or "min-width:40rem" in css
 
 
 def test_base_cache_bust():
-    assert "app.css?v=102" in _r("templates/base.html")
+    assert "app.css?v=103" in _r("templates/base.html")
 
 
 def test_project_data_modals_use_hidden_state():
@@ -74,8 +74,8 @@ def test_settings_reuses_shared_max_width_utility():
 def test_templates_use_spacing_utilities_for_static_margins():
     for name in ("export_models", "projects", "project_models", "data_prep"):
         template = _r(f"templates/{name}.html")
-        assert "style=\"margin-top:12px" not in template
-        assert "style=\"margin-top:8px" not in template
+        assert 'style="margin-top:12px' not in template
+        assert 'style="margin-top:8px' not in template
     assert "wrap mt-3" in _r("templates/export_models.html")
     assert "dp-items-scroll mt-2" in _r("templates/data_prep.html")
 
@@ -86,7 +86,7 @@ def test_templates_use_shared_flex_utilities():
     assert ".min-w-0 { min-width: 0; }" in css
     for name in ("projects", "hf_models", "project", "index", "inference", "brain"):
         template = _r(f"templates/{name}.html")
-        assert "style=\"flex:1;" not in template
+        assert 'style="flex:1;' not in template
 
 
 def test_templates_reuse_full_width_utility():
@@ -94,7 +94,22 @@ def test_templates_reuse_full_width_utility():
     assert ".w-full { width: 100%; }" in css
     for name in ("chat_v2", "benchmarks", "project_testing", "project_wizard", "brain", "project_compare"):
         template = _r(f"templates/{name}.html")
-        assert "style=\"width:100%;" not in template
+        assert 'style="width:100%;' not in template
+
+
+def test_templates_reuse_auto_margin_utility():
+    css = _r("static/css/app.css")
+    assert ".ml-auto { margin-left: auto; }" in css
+    for name in ("projects", "hf_models", "project", "project_data", "data_editor", "project_testing", "brain", "project_compare"):
+        assert 'style="margin-left:auto' not in _r(f"templates/{name}.html"), name
+
+
+def test_data_prep_reuses_bottom_margin_utility():
+    css = _r("static/css/app.css")
+    template = _r("templates/data_prep.html")
+    assert ".mb-2 { margin-bottom: 8px; }" in css
+    assert 'style="margin-bottom:8px' not in template
+    assert 'class="text-xs dim mb-2" id="dp-grounded-note"' in template
 
 
 def test_project_overview_no_duplicate_topbar():

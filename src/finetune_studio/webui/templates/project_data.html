@@ -1090,7 +1090,7 @@
     if (h.kind === 'passage') {
       return '<div class="fb-content-hit kn-hit"><div class="flex gap-2 items-baseline wrap">' +
         '<span class="pill outline text-xs">passage</span>' + where +
-        '<button class="btn sm" type="button" style="margin-left:auto" onclick="wbOpen(\'' + esc(h.file_id) + '\',\'parsed\')">✎ Edit parsed text</button></div>' +
+        '<button class="btn sm ml-auto" type="button" onclick="wbOpen(\'' + esc(h.file_id) + '\',\'parsed\')">✎ Edit parsed text</button></div>' +
         '<div class="text-xs dim mt-1">' + esc(h.text) + '</div></div>';
     }
     const id = esc(h.pair_id);

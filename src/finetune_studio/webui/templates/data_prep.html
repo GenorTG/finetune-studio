@@ -160,7 +160,7 @@
   </div>
 
   <div id="dp-review-toolbar" class="dp-review-toolbar">
-    <div class="flex gap-2 wrap items-center" style="margin-bottom:8px;">
+    <div class="flex gap-2 wrap items-center mb-2">
       <span class="pill outline" id="dp-stat-total">0 total</span>
       <span class="pill solid-amber" id="dp-stat-pending">0 pending</span>
       <span class="pill solid-green" id="dp-stat-approved">0 approved</span>
@@ -173,7 +173,7 @@
         <button class="btn sm" type="button" data-dp-filter="rejected" id="dp-filter-rejected">Rejected</button>
       </div>
     </div>
-    <div class="flex gap-2 wrap items-center" style="margin-bottom:8px;">
+    <div class="flex gap-2 wrap items-center mb-2">
       <button class="btn sm success" type="button" id="dp-bulk-approve" title="Approve checked rows (or all visible pending if none checked)">Approve selected</button>
       <button class="btn sm danger" type="button" id="dp-bulk-reject" title="Reject checked rows">Reject selected</button>
       <button class="btn sm success" type="button" id="dp-approve-all-pending" title="Mark every pending pair approved">Approve all pending</button>
@@ -188,7 +188,7 @@
       <input type="number" id="dp-grounded-pct" min="1" max="100" value="40" style="width:4.5rem;" aria-label="Percent of rows that carry retrieved context">
       <span class="text-sm">% of rows</span>
     </div>
-    <div class="text-xs dim" id="dp-grounded-note" style="margin-bottom:8px;">
+    <div class="text-xs dim mb-2" id="dp-grounded-note">
       Only matters if the trained model will answer with the Smart Brain's context (chat with sources). That share of rows gets the Smart Brain chat prompt with the pair's own source passage (cited by filename) added; answers stay the same. In one test on a 0.6B model this took grounded answers from 2/5 to 4/5.
       <span id="dp-grounded-state"></span>
     </div>
@@ -208,7 +208,7 @@
     </div>
     <span class="pill outline" id="dp-pref-approved">0 approved pairs</span>
   </summary>
-  <div class="text-sm" style="margin-bottom:8px;">
+  <div class="text-sm mb-2">
     Each preference pair is one question with two answers: the <b>chosen</b> one (your approved, source-faithful answer
     or an honest “not covered”) and a <b>rejected</b> one (what a model writes when it guesses). Training on them
     pushes the model away from inventing facts.
