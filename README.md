@@ -3,9 +3,9 @@
 **A self-hosted workshop for local-model training, inference, and evaluation.**
 
 A self-hosted workshop that gives you full control over the model training
-lifecycle: turn your files into knowledge once, then fine-tune a model on it
-(LoRA adapter or merged model) or serve it as a **Smart Brain** that answers
-from the files with sources — and chat with local models,
+lifecycle: turn your files into knowledge once, then serve them as a **Smart Brain**
+that answers from the files with sources, or train a **LoRA adapter** that teaches a
+model how to answer (tone, format, a baked system prompt, a few key facts) — and chat with local models,
 run evaluation suites, compare runs side-by-side — all from one dark-themed
 WebUI that lives in your browser. The UI, the data pipeline, and the test
 suite all live in one repo.
@@ -21,7 +21,7 @@ suite all live in one repo.
 | Files & Knowledge — every file parsed once | Smart Brain — answers from your files, with sources |
 |---|---|
 | ![Files & Knowledge](docs/screenshots/hero_04_files.png) | ![Smart Brain](docs/screenshots/hero_06_brain.png) |
-| **Pairs — mined, checked, reviewed** | **Training — LoRA adapter or merged model** |
+| **Pairs — mined, checked, reviewed** | **Training — a LoRA adapter (merged checkpoint optional)** |
 | ![Pairs](docs/screenshots/hero_05_pairs.png) | ![Training](docs/screenshots/hero_07_training.png) |
 
 <sub>Screenshots: a throwaway instance with the fictional demo corpus in `tests/corpus/korvane`.</sub>
@@ -148,10 +148,15 @@ handles:
 
 📸 **See:** the Smart Brain page with the live index inventory.
 
-### Use case 2 — Fine-tune a model on your data
+### Use case 2 — Train an adapter (LoRA) on your pairs
 
 > *"I want to teach a small open model how my company talks, how to answer
 > support questions, how to follow our style guide."*
+
+An adapter teaches **how to answer**, not a document set. Measured on the fictional
+Korvane corpus (1,130 facts, Qwen3.5-9B QLoRA): a fine-tune alone passed 10–24 % of
+the quiz; the same adapter with the Smart Brain passed 94 of 102 (`tests/corpus/korvane/RESULTS.md`).
+Put the facts in the Smart Brain; train the adapter on how you want answers phrased.
 
 The **Training** workflow lets you point the studio at a JSONL of
 prompt/completion pairs (or your own dataset), pick a base model, and run a
@@ -269,7 +274,7 @@ projects, quick-create buttons.
 ### Project home (`/projects/{pid}`)
 
 Answers “where do I start?” before you touch any tab: two cards —
-🧠 **Train a model** (what it is, why it's slow, the ordered steps) and
+🧠 **Train an adapter (LoRA)** (what it teaches, what it does not, the ordered steps) and
 🧠 **Smart Brain** (answers from your files with sources; minutes, no training) — plus live
 counts for files, datasets, runs and models, recent training history,
 latest exports, and the activity feed.
@@ -336,7 +341,7 @@ connecting to embedding vectors in real time.
 
 ### Training — step 3 (`/projects/{pid}/training`)
 
-Configure a fine-tune, watch loss curves live. Base-model and preset
+Configure an adapter run, watch loss curves live. Base-model and preset
 pickers recommend rank/LR/epochs from your base size and dataset size. Each
 past run in the **Past runs** table carries Actions (⭐ Set Production,
 ▶ Inference, ⬇ Download) so you can promote / inspect / pull down any of

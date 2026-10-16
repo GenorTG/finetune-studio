@@ -242,7 +242,7 @@ class TestWizardPage:
         body = client.get(f"/projects/{pid}").text
         assert "start-here" in body
         assert "flow-card-model" in body and "flow-card-brain" in body
-        assert "Train a model" in body and "Smart Brain (no training)" in body
+        assert "Train an adapter (LoRA)" in body and "Smart Brain (no training)" in body
 
     def test_project_nav_is_one_flow_with_two_step_2s(self, client):
         """Genor 2026-10-14: files go one route (Files & Knowledge), then train OR Smart Brain. Every project page shows

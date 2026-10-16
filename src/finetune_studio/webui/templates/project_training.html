@@ -11,11 +11,21 @@
 <div class="page-head row">
   <div>
     <h1>Training</h1>
-    <div class="sub"><b>Step 2 · Train a model.</b> Teaches a base model your dataset so it
-      answers from memory. Pick the base model and the dataset built in
-      <a href="/projects/{{ pid }}/data-prep" data-link>Files &amp; Knowledge → pairs</a>, choose a preset, start.
-      Hours, not minutes — the page keeps live progress. Then
-      <a href="/projects/{{ pid }}/testing" data-link>test it (step 3)</a>.</div>
+    <div class="sub"><b>Step 2 · Train an adapter (LoRA).</b> Teaches a base model how to answer from your
+      approved pairs — tone, format, a baked system prompt, a few key facts; the facts of a whole document set
+      belong in the <a href="/projects/{{ pid }}/brain" data-link>Smart Brain</a>.</div>
+    <details class="page-more">
+      <summary>More about this step</summary>
+      <div class="sub">Pick the base model and the dataset built in
+        <a href="/projects/{{ pid }}/data-prep" data-link>Files &amp; Knowledge → pairs</a>, choose a preset, start.
+        Hours, not minutes — the page keeps live progress and the run outlives a web restart. Then
+        <a href="/projects/{{ pid }}/testing" data-link>test it (step 3)</a>; a model that declines what the
+        documents do not say is part of the score.</div>
+      <div class="sub"><b>Measured limits</b> (fictional Korvane corpus, 1,130 facts, Qwen3.5-9B QLoRA): a fine-tune
+        alone passed 10 % of the quiz with consolidated pairs and 24 % with one-fact pairs; the same adapter with the
+        Smart Brain passed 94 of 102. A large, fact-heavy dataset (hundreds of document facts) trains poorly as
+        memory: keep it for the Smart Brain and train the adapter on how you want answers phrased.</div>
+    </details>
   </div>
   <div class="actions">
     <span class="pill solid-green" id="production-run-pill"

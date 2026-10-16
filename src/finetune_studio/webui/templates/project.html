@@ -40,17 +40,18 @@
   <div class="flow-picker-grid">
     <div class="flow-card" id="flow-card-model">
       <div class="flow-card-icon" aria-hidden="true">🧠</div>
-      <div class="flow-card-title">Train a model</div>
+      <div class="flow-card-title">Train an adapter (LoRA)</div>
       <div class="flow-card-sub">
-        Teach a model your material so it answers from memory, with no lookup
-        at question time. <b>Slow</b> (hours of GPU) but the knowledge is baked in.
+        Teaches a model <b>how to answer</b>: tone, format, persona, a baked system prompt and a handful of
+        key facts. It is not a store for your documents — measured on our test corpus, a fine-tune alone
+        answered 10–24 % of the quiz; the same model with the Smart Brain 94 of 102. <b>Hours of GPU.</b>
       </div>
       <ol class="flow-card-steps">
         <li>Upload files</li>
-        <li>Turn them into question-answer pairs → dataset</li>
-        <li>Fine-tune</li>
-        <li>Test the answers</li>
-        <li>Export / chat with it</li>
+        <li>Turn them into question-answer pairs → review → dataset</li>
+        <li>Train the adapter (merged checkpoint optional)</li>
+        <li>Test the answers (declines count too)</li>
+        <li>Export / chat with it — with the Smart Brain for the facts</li>
       </ol>
       <div class="flex gap-2 wrap mt-2">
         <a class="btn primary" href="/projects/{{ pid }}/wizard" data-link>⚡ Do it step by step</a>

@@ -7,7 +7,7 @@
 {% block content %}
 <div class="page-head">
   <h1>Benchmarks — {{ project.name }}</h1>
-  <div class="sub"><b>Optional · Train a model.</b> Scores a run on <em>public</em> exams (MMLU, GSM8K, HellaSwag) to compare with published numbers or to check the fine-tune did not hurt general ability. "Did it learn MY material?" is <a href="/projects/{{ pid }}/testing" data-link>testing (step 4)</a>.</div>
+  <div class="sub"><b>Optional · Adapter.</b> Scores a run on <em>public</em> exams (MMLU, GSM8K, HellaSwag) to compare with published numbers or to check the fine-tune did not hurt general ability. "Did it learn MY material?" is <a href="/projects/{{ pid }}/testing" data-link>testing (step 4)</a>.</div>
   <details class="page-more"><summary>More about this page</summary>
   <div class="sub"><b>Sources.</b> Real HuggingFace MMLU / GSM8K / HellaSwag (official splits, downloaded on first use, exact MCQ / GSM8K scoring) and built-in <em>synthetic</em> look-alikes (same shape, local, <em>not</em> industry scores); all run against a trained run or the untrained base.
   <br><b>Benchmark vs project quiz.</b> The project quiz (<a href="/projects/{{ pid }}/testing" data-link>Testing</a>) is built from <em>your own</em> files and pairs and answers "did the model learn my material?". <b>Synthetic knowledge MCQ (offline)</b> ships with the app, never sees your data, runs without downloading anything, and its score is <em>not</em> comparable with published MMLU numbers: a quick check that the model still answers general questions after fine-tuning.</div>

@@ -225,7 +225,7 @@
       <a href="/projects/{{ pid }}/data" data-link data-tab="data" class="ws-link {% if bc in ('files', 'data') %}here{% endif %}" title="Upload, organise, read and edit your files">files</a>
       <a href="/projects/{{ pid }}/data-prep" data-link data-tab="data-prep" class="ws-link {% if bc in ('pairs', 'data-prep') %}here{% endif %}" title="Mine question-answer pairs from the files, review them, build the dataset">pairs</a>
       <span class="ws-sep" aria-hidden="true">|</span>
-      <a href="/projects/{{ pid }}/training" data-link data-tab="training" class="ws-link {% if bc == 'training' %}here{% endif %}" title="2 · Train a model on the reviewed pairs (LoRA adapter or merged model)">2 train</a>
+      <a href="/projects/{{ pid }}/training" data-link data-tab="training" class="ws-link {% if bc == 'training' %}here{% endif %}" title="2 · Train an adapter (LoRA) on the reviewed pairs: how to answer, not a document store (merged checkpoint optional)">2 train</a>
       <span class="ws-steps-label" aria-hidden="true">or</span>
       <a href="/projects/{{ pid }}/brain" data-link data-tab="brain" class="ws-link {% if bc == 'smart brain' %}here{% endif %}" title="2 · Smart Brain: answer from the files without training (search index, chat with sources, standalone server)">2 Smart Brain</a>
       <span class="ws-sep" aria-hidden="true">|</span>
