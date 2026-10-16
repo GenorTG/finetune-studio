@@ -1,0 +1,54 @@
+/* Global browser reset and shared page defaults. */
+@import url('fonts.css');
+
+html, body {
+  min-height: 100%;
+  margin: 0;
+  max-width: 100%;
+  overflow-x: clip;
+  background: var(--bg-app);
+  color: var(--text);
+  font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  background-image:
+    repeating-linear-gradient(0deg,
+      rgba(0,255,102,0.025) 0,
+      rgba(0,255,102,0.025) 1px,
+      transparent 1,
+      transparent 3px),
+    radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%);
+}
+
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; }
+
+body::before {
+  content: "";
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background:
+    radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.5) 100%),
+    repeating-linear-gradient(0deg,
+      rgba(0,255,102,0.04) 0px,
+      rgba(0,255,102,0.04) 1px,
+      transparent 1,
+      transparent 2px);
+  mix-blend-mode: multiply;
+}
+
+::selection { background: var(--accent); color: var(--on-accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bg-nav); border-left: 1px solid var(--border); }
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 2px solid var(--bg-nav);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* Class display rules must not override the hidden attribute. */
+[hidden] { display: none !important; }

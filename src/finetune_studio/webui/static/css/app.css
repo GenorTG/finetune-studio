@@ -1,66 +1,6 @@
-/* ============================================================
-   FINETUNE STUDIO — base layout and application components
-   ============================================================ */
+/* Shared defaults and app shell live in base.css and layout.css. */
+/* Legacy page/component styles retained here during the design-system migration. */
 
-/* Fonts are vendored (static/fonts, fonts.css): no page load calls Google, offline installs render the real faces. */
-@import url('fonts.css');
-
-html, body {
-  min-height: 100%;
-  margin: 0;
-  max-width: 100%;
-  overflow-x: clip; /* session-bar/tabs scroll inside header — never widen the page */
-  background: var(--bg-app);
-  color: var(--text);
-  font-family: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  background-image:
-    repeating-linear-gradient(0deg,
-      rgba(0,255,102,0.025) 0,
-      rgba(0,255,102,0.025) 1px,
-      transparent 1px,
-      transparent 3px),
-    radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.55) 100%);
-}
-
-a { color: inherit; text-decoration: none; }
-button { font-family: inherit; cursor: pointer; }
-
-body::before {
-  content: "";
-  position: fixed; inset: 0;
-  pointer-events: none;
-  z-index: 9999;
-  background:
-    radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.5) 100%),
-    repeating-linear-gradient(0deg,
-      rgba(0,255,102,0.04) 0px,
-      rgba(0,255,102,0.04) 1px,
-      transparent 1px,
-      transparent 2px);
-  mix-blend-mode: multiply;
-}
-
-::selection { background: var(--accent); color: var(--on-accent); }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-::-webkit-scrollbar { width: 10px; height: 10px; }
-::-webkit-scrollbar-track { background: var(--bg-nav); border-left: 1px solid var(--border); }
-::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
-  border: 2px solid var(--bg-nav);
-}
-::-webkit-scrollbar-thumb:hover { background: var(--accent); }
-
-.app {
-  display: grid;
-  grid-template-rows: auto auto auto 1fr;
-  grid-template-columns: minmax(0, 1fr);
-  min-height: 100vh;  /* was height:100vh — let content grow beyond viewport so the file library (989px) renders */
-  overflow: visible;
-}
 /* Legacy sidebar rules retained for back-compat but the nav element is
    no longer rendered. Drawer + header live elsewhere. */
 
@@ -94,16 +34,6 @@ body::before {
   z-index: 1;
 }
 
-.main {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  width: 100%;
-  max-width: 100%;
-  overflow: visible;  /* was auto — inner scroll was clipping the 989px file library; window scrolls instead */
-  position: relative;
-}
-
 .topbar {
   height: var(--header-h);
   border-bottom: 1px solid var(--border-strong);
@@ -127,30 +57,7 @@ body::before {
 .topbar .crumbs .here::before { content: "> "; opacity: 0.7; }
 .topbar .right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
 
-.content {
-  flex: 0 0 auto;
-  min-width: 0;
-  max-width: 100%;
-  min-height: calc(100vh - 76px);  /* fill the visible viewport minus the topbar row, but allow growth past it for tall pages like data-prep (989px file library) */
-  overflow-y: visible;
-  /* NOTE: never set overflow-x:hidden here — pairing it with visible-y
-     forces overflow-y to compute as auto (CSS spec), turning .content
-     into a 361px inner scroll trap for tall pages. body already clips
-     horizontal overflow (overflow-x: clip on html/body root rule). */
-  padding: 28px 32px 48px;
-  position: relative;
-}
-.content > * { animation: fade-up var(--t-slow) var(--ease) both; }
-@keyframes fade-up {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
 /* ===== Buttons (chunky, beveled) ===== */
-/* The `hidden` attribute must actually hide — class rules like .btn set
-   display:inline-flex which otherwise override the UA [hidden] rule. */
-[hidden] { display: none !important; }
-
 .btn {
   display: inline-flex;
   align-items: center;
@@ -1790,32 +1697,6 @@ body::before {
     rgba(0,255,102,0.03) 0, rgba(0,255,102,0.03) 1px,
     transparent 1px, transparent 4px);
   pointer-events: none;
-}
-
-/* Adjust main content to sit below header. Rows are explicit because the
-   breadcrumb (QABUG-009) and workspace subnav are optional siblings: without
-   pinned rows, .main's old "grid-row: 2" collided with the breadcrumb's
-   auto-placement and the bar rendered mid-page over the content. */
-.main {
-  grid-row: 4;
-  grid-column: 1;
-  min-width: 0;
-  width: 100%;
-  max-width: 100%;
-  overflow: visible;  /* was auto — the inner scroll was clipping the 989px file library on data-prep; let <main> grow and the window scroll instead */
-  display: flex;
-  flex-direction: column;
-}
-
-/* The old .topbar element is no longer used. Content fills the main area. */
-.content {
-  flex: 1 1 0;
-  min-width: 0;
-  max-width: 100%;
-  padding: 22px 28px;
-  /* no overflow-x:hidden here — see note in the first .content rule */
-  overflow-y: visible;  /* let .main / the window handle scrolling */
-  position: relative;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -4610,7 +4491,7 @@ details.card:not([open]) > summary.card-head { margin-bottom: 0; border-bottom: 
 html, body { font-family: var(--font-sans); font-size: 14px; background-image: none; }
 body::before, .matrix-rain { display: none !important; }
 .card::before, .card::after { display: none !important; }
-h1, h2, h3, .card-title, .page-head, .sb-tab, .workspace-subnav, .btn, .pill {
+h1, h2, h3, .card-title, .page-head, .sb-tab, .workspace-subnav, .btn, .pill:not(.mono) {
   font-family: inherit !important; letter-spacing: normal; text-shadow: none;
 }
 .card-title { font-size: 16px; font-weight: 650; text-transform: none; }

@@ -75,7 +75,7 @@ def test_header_nav_overflow_affordance_markup() -> None:
     assert "nav_overflow.js" in base
     assert "☰" in base
     assert "components.css?v=1" in base
-    assert "app.css?v=99" in base
+    assert "app.css?v=100" in base
     assert "{{ release_channel }}" in base
     assert "· {{ release_channel }}</title>" in base
     assert "spa.js?v=19" in base
@@ -91,8 +91,9 @@ def test_header_nav_css_overflow_contract() -> None:
     assert "overflow-x: auto" in css
     assert "scrollbar-width: auto" in css
     assert ".sb-tabs::-webkit-scrollbar { height: 8px; }" in css
-    # Session bar still contains width; document clip stays.
-    assert "overflow-x: clip" in css
+    # Session bar still contains width; document clip stays in shared base CSS.
+    base_css = (_ROOT / "src" / "finetune_studio" / "webui" / "static" / "css" / "base.css").read_text(encoding="utf-8")
+    assert "overflow-x: clip" in base_css
     assert ".session-bar" in css
     bar = css.split(".session-bar {", 1)[1].split("}", 1)[0]
     assert "overflow-x: hidden" in bar
@@ -197,5 +198,5 @@ def test_project_pages_serve_nav_affordance(client: TestClient) -> None:
 def test_css_cache_bust_header_nav() -> None:
     base = _BASE.read_text(encoding="utf-8")
     assert "components.css?v=1" in base
-    assert "app.css?v=99" in base
+    assert "app.css?v=100" in base
     assert "nav_overflow.js?v=2" in base

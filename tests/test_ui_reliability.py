@@ -287,7 +287,8 @@ def test_responsive_header_gutter_and_780_breakpoint() -> None:
 def test_header_no_page_overflow_contract_at_640() -> None:
     """At ≤700px the session bar must not widen the document; tabs stay scrollable."""
     css = _CSS.read_text(encoding="utf-8")
-    assert "overflow-x: clip" in css
+    base_css = (_ROOT / "src" / "finetune_studio" / "webui" / "static" / "css" / "base.css").read_text(encoding="utf-8")
+    assert "overflow-x: clip" in base_css
     assert ".session-bar" in css
     assert "overflow-x: hidden" in css  # session-bar containment
     assert "min-width: 0" in css
@@ -325,7 +326,7 @@ def test_card_head_stacks_below_700() -> None:
 
 def test_css_cache_bust_bumped() -> None:
     base = _BASE.read_text(encoding="utf-8")
-    assert "app.css?v=99" in base
+    assert "app.css?v=100" in base
     assert "sprites.js?v=19" in base
     assert "nav_overflow.js?v=2" in base
     assert "spa.js?v=19" in base
