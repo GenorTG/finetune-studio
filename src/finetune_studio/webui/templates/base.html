@@ -16,58 +16,10 @@
       }
     })();
   </script>
-  <style>
-    /* Light palette — remaps the app.css :root tokens. */
-    :root[data-theme="light"] {
-      --bg-app:        #f4f6f4;
-      --bg-nav:        #e8ece8;
-      --bg-panel:      #ffffff;
-      --bg-panel-2:    #f0f3f0;
-      --bg-elevated:   #e4ebe4;
-      --bg:            #f4f6f4;
-      --fg:            #1a2a1a;
-      --card:          #ffffff;
-
-      --border:        #b8c8b8;
-      --border-strong: #7a9a7a;
-      --border-hot:    #006633;
-
-      --text:          #1a2a1a;
-      /* Light-theme dim tones were lifted straight from the dark palette's
-         ratios and failed WCAG on every page: --text-muted read 3.85:1 and
-         --text-dim 3.22:1 against the nav/panel backgrounds (version chip,
-         breadcrumb prompt, "Flow" label). Darkened to clear 4.5:1 against
-         the LIGHTEST surface they sit on (#e8ece8 nav), not just white. */
-      --text-muted:    #3a5a3a;
-      --text-dim:      #4a6a4a;
-
-      --accent:        #006633;
-      --accent-2:      #338855;
-      --accent-glow:   rgba(0,102,51,0.25);
-      --on-accent:     #ffffff;
-      /* --warn is the FILL colour (bars, borders). --warn-text is the same
-         hue darkened until amber-on-tint text clears 4.5:1 — amber pills and
-         the chat "no model loaded" box read 3.99:1 with the fill colour. */
-      --warn:          #b86e00;
-      --warn-text:     #8a5200;
-      --ok-text:       #14683a;
-      --err-text:      #a01c1c;
-      --cyan-text:     #0a6272;
-      --magenta-text:  #7d1268;
-      --err:           #c62828;
-      --ok:            #1b7a3d;
-      --cyan:          #007a8a;
-      --magenta:       #a01880;
-    }
-    :root[data-theme="dark"] {
-      --bg:   #060a07;
-      --fg:   #d2ffda;
-      --card: #0c1810;
-    }
-  </style>
   <title>{% block title %}Finetune Studio{% endblock %} · {{ release_channel }}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/css/app.css?v=96">
+  <link rel="stylesheet" href="/static/css/tokens.css?v=1">
+  <link rel="stylesheet" href="/static/css/app.css?v=97">
   <link rel="stylesheet" href="/static/css/access.css?v=3">
   <script src="/static/js/access.js?v=1"></script>
   <script src="/static/js/api.js?v=1"></script>

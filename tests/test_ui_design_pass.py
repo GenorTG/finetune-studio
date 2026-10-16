@@ -15,14 +15,18 @@ def test_no_first_paint_boot_toast():
 
 def test_css_pins():
     css = _r("static/css/app.css")
+    tokens = _r("static/css/tokens.css")
+    base = _r("templates/base.html")
     assert "var(--bg-nav)" in css
-    assert ':root[data-theme="light"]' in css
+    assert ':root[data-theme="light"]' in tokens
+    assert ':root[data-theme="light"]' not in base
+    assert base.index("tokens.css?v=1") < base.index("app.css?v=97")
     assert ".hf-card .meta .stat" in css
     assert "min-width: 40rem" in css or "min-width:40rem" in css
 
 
 def test_base_cache_bust():
-    assert "app.css?v=96" in _r("templates/base.html")
+    assert "app.css?v=97" in _r("templates/base.html")
 
 
 def test_project_overview_no_duplicate_topbar():

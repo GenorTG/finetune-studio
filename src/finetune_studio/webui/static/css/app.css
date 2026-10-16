@@ -1,66 +1,9 @@
 /* ============================================================
-   FINETUNE STUDIO — UI TOKENS
-   neutral surfaces · accessible accents · compact workspace
+   FINETUNE STUDIO — base layout and application components
    ============================================================ */
 
 /* Fonts are vendored (static/fonts, fonts.css): no page load calls Google, offline installs render the real faces. */
 @import url('fonts.css');
-
-:root {
-  --bg-app:        #0b1020;
-  --bg-nav:        #090e1a;
-  --bg-panel:      #121a2b;
-  --bg-panel-2:    #172338;
-  --bg-elevated:   #1d2b42;
-  --bg:             #0b1020;
-  --fg:             #e8eef8;
-  --card:           #121a2b;
-
-  --border:        #29364c;
-  --border-strong: #3b4c68;
-  --border-hot:    #78a6ff;
-
-  --text:          #e8eef8;
-  --text-muted:    #a9b7cd;
-  --text-dim:      #8393ad;
-
-  --accent:        #78a6ff;
-  --accent-2:      #9b8cff;
-  --accent-glow:   rgba(120,166,255,.18);
-  /* Text on an accent fill; contrast-safe in both themes. */
-  --on-accent:     #08101e;
-  /* Legacy token aliases — templates reference these names; resolving them
-     through the real tokens makes every one of them theme-aware (the light
-     block in base.html overrides the targets, so the alias follows). */
-  --muted:         var(--text-muted);
-  --danger:        var(--err);
-  --accent-red:    var(--err);
-  --accent-rose:   var(--err);
-  --accent-green:  var(--accent);
-  --accent-amber:  var(--warn);
-  --accent-cyan:   var(--cyan);
-  --accent-violet: var(--magenta);
-  --bg-deep:       var(--bg-app);
-  --surface:       var(--bg-panel);
-  --font-mono:     "Share Tech Mono", ui-monospace, monospace;
-  --mono:          "Share Tech Mono", ui-monospace, monospace;
-  --warn:          #f1b85b;
-  --err:           #f0787c;
-  --ok:            #4fc995;
-  --cyan:          #60c4e8;
-  --magenta:       #d29af4;
-
-  --radius:        8px;
-  --radius-lg:     12px;
-  --radius-sm:     6px;
-  --nav-w:         244px;
-  --header-h:      76px;
-
-  --ease:          cubic-bezier(.2, .8, .2, 1);
-  --t-fast:        120ms;
-  --t-mid:         220ms;
-  --t-slow:        380ms;
-}
 
 html, body {
   min-height: 100%;
@@ -4585,17 +4528,7 @@ body::before {
 .run-failure .muted { color: var(--text-muted); }
 .steps-hint-warn { color: var(--warn-text, var(--warn)); }
 
-:root[data-theme="light"] {
-  --bg-app: #f5f7fb; --bg-nav: #eef2f8; --bg-panel: #fff; --bg-panel-2: #f3f6fb; --bg-elevated: #e8edf6;
-  --bg: #f5f7fb; --fg: #202a3a; --card: #fff;
-  --border: #d4dce9; --border-strong: #bdc9dc; --border-hot: #315ec9;
-  --text: #202a3a; --text-muted: #53627a; --text-dim: #64748b;
-  --accent: #315ec9; --accent-2: #5b4bc4; --accent-glow: rgba(49,94,201,.16); --on-accent: #fff;
-  --warn: #b56b12; --warn-text: #81500f; --ok: #19794e; --ok-text: #16724d;
-  --err: #b93442; --err-text: #a52b35; --cyan: #087a9e; --cyan-text: #0c6887;
-  --magenta: #894da9; --magenta-text: #7443a2;
-}
-:root[data-theme="dark"] { --bg: #0b1020; --fg: #e8eef8; --card: #121a2b; }
+
 
 /* ============================================================
    GUIDE PANEL — docked assistant (templates/base.html, static/js/guide.js)

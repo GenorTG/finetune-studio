@@ -24,7 +24,8 @@ def test_styleguide_is_reachable_and_renders_shared_components(client: TestClien
         'role="alert"',
     ):
         assert component in body
-    assert 'href="/static/css/app.css?v=96"' in body
+    assert 'href="/static/css/tokens.css?v=1"' in body
+    assert 'href="/static/css/app.css?v=97"' in body
 
 
 def test_styleguide_samples_follow_existing_theme_and_layout_tokens() -> None:
