@@ -512,6 +512,17 @@ class TrainingEngine:
             and getattr(self._mp_stop, "is_set", lambda: False)()
         )
 
+    def _run_db_id(self) -> str | None:
+        """The ``training_runs.id`` of this run: jobs set ``current_run_id`` to ``<project>-<run>``, the DB key is ``<run>``.
+
+        Passing the composite id to ``update_run`` matched no row (stop notes, post-train export errors and the
+        auto-suite's foreign key were silently lost for every job-run training)."""
+        plain = getattr(self, "current_db_run_id", None)   # set next to current_run_id by attach_run / the job kind
+        if plain:
+            return str(plain)
+        rid = self.current_run_id
+        return rid.rsplit("-", 1)[-1] if rid else None
+
     def _mark_stopped(self) -> None:
         """Terminal state when the user hits Stop (adapter may still be valid)."""
         self.state.status = "stopped"
@@ -529,7 +540,7 @@ class TrainingEngine:
                 os.path.join(self.config.output_dir, "adapter")
             ):
                 fields["output_path"] = self.config.output_dir
-            update_run(self.current_run_id, **fields)
+            update_run(self._run_db_id(), **fields)
         except Exception:  # run-state persistence is best-effort
             log.exception("Failed to persist run state")
 
@@ -540,7 +551,7 @@ class TrainingEngine:
             return
         try:
             from finetune_studio.db.runs import update_run
-            update_run(self.current_run_id, error=message[:2000])
+            update_run(self._run_db_id(), error=message[:2000])
         except Exception:  # status sync must never crash the run
             log.exception("failed to sync run error")
 
@@ -825,8 +836,7 @@ class TrainingEngine:
             return
         try:
             from finetune_studio.db.runs import update_run
-            # current_run_id is the full 8-char hex like "bdc217b1" — use it as-is
-            update_run(self.current_run_id, status="failed", error=error_msg[:2000])
+            update_run(self._run_db_id(), status="failed", error=error_msg[:2000])
         except Exception:  # best-effort status write
             log.exception("Failed to mark run %s as failed", self.current_run_id)
 
@@ -835,7 +845,7 @@ class TrainingEngine:
         endpoint can find the adapter after training completes."""
         if not self.current_run_id or not self.config.output_dir:
             return
-        run_id = self.current_run_id.split("-")[-1] if "-" in self.current_run_id else self.current_run_id
+        run_id = self._run_db_id()
         try:
             from finetune_studio.db.runs import update_run
             fields: dict = {
@@ -1354,7 +1364,7 @@ class TrainingEngine:
             # NOT NULL on auto_suites.run_id and the quiz was never recorded); the run's own directory names it:
             # output/projects/<pid>/runs/<run_id>.
             out = Path(self.config.output_dir)
-            run_id = self.current_run_id or out.name
+            run_id = self._run_db_id() or out.name
             if not project_id and out.parent.name == "runs":
                 project_id = out.parent.parent.name
             with cursor() as c:
