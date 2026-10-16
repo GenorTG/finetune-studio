@@ -169,7 +169,7 @@
   {# QABUG-012: per-case detail table — empty placeholder must leave the DOM
      when cases exist so NO_DATA markers cannot linger beside results. #}
   <div class="flex items-center gap-2 mt-6 mb-2" style="flex-wrap:wrap">
-    <h3 style="margin:0">Case results{% if selected_bench %}
+    <h3 class="m-0">Case results{% if selected_bench %}
       <span class="text-sm dim">— {{ selected_bench._run_name }} · {{ selected_bench.suite_name or '—' }} · {{ selected_bench._ran_at_str }}</span>{% endif %}</h3>
     {% if selected_bench %}
     <button type="button" class="btn sm" id="bench-audit-btn" title="Check that every stored verdict is backed by a judgement (exact match, AI judge or you) and show where the verdicts came from. Nothing is changed.">Check verdicts</button>

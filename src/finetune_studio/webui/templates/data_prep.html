@@ -2209,14 +2209,14 @@ function dpPrefRenderResult(d, pid) {
     });
   });
   var ln = d.length || {};
-  var warn = ln.warning ? '<div class="dp-pref-warn" style="margin-top:6px;">⚠ ' + escapeHtml(ln.warning) + '</div>' : '';
+  var warn = ln.warning ? '<div class="dp-pref-warn mt-1.5">⚠ ' + escapeHtml(ln.warning) + '</div>' : '';
   panel.innerHTML =
     '<div><b>' + d.pairs + ' preference pairs</b> written to <span class="mono">' + escapeHtml(d.dataset.name) + '</span>' +
     ' · training will hold out ' + ((d.split || {}).val || 0) + ' for validation</div>' +
     '<div class="dp-pref-result-grid">' + kinds + '</div>' +
     '<div class="text-xs dim">Answer length: chosen ' + ln.mean_chosen_chars + ' chars vs rejected ' + ln.mean_rejected_chars +
     ' (ratio ' + ln.ratio + ')</div>' + warn +
-    (drops.length ? '<details class="text-xs dim" style="margin-top:6px;"><summary>' + drops.length +
+    (drops.length ? '<details class="text-xs dim mt-1.5"><summary>' + drops.length +
       ' kinds of candidate dropped by quality checks</summary><ul style="margin:4px 0 0 16px;"><li>' +
       drops.join('</li><li>') + '</li></ul></details>' : '') +
     '<div class="dp-ds-row mt-2"><span class="text-xs dim">Next step</span>' +

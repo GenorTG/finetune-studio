@@ -124,7 +124,7 @@
       </div>
     </div>
     <details class="mt-2" id="wiz-train-adv">
-      <summary class="text-xs muted" style="cursor:pointer;">Advanced: how long to train</summary>
+      <summary class="text-xs muted cursor-pointer">Advanced: how long to train</summary>
       <div class="flex gap-2 wrap items-center mt-2">
         <label class="text-xs muted" for="wiz-epochs" title="Epochs = passes over your whole dataset. Optimizer steps = (training rows ÷ effective batch) × epochs. This is the same num_epochs field the Training page sends.">Epochs</label>
         <input id="wiz-epochs" class="input" type="number" min="1" max="100" step="1" placeholder="preset" style="max-width:96px" inputmode="numeric">
@@ -165,7 +165,7 @@
         the model for chat / GGUF.
       </div>
     </div><span class="pill outline" id="wiz-version-pill">…</span></div>
-    <form id="wiz-version-form" class="flex gap-2 wrap" style="margin:0">
+    <form id="wiz-version-form" class="flex gap-2 wrap m-0">
       <input class="input" id="wiz-version-label" placeholder="label (e.g. v3-my-corpus)" style="max-width:220px">
       <button class="btn sm primary" type="submit">Pin version</button>
     </form>
@@ -257,7 +257,7 @@
         <div class="card-title">Pin version</div>
         <div class="card-sub text-dim" id="flow-version-sub">—</div>
       </div><span class="pill outline" id="flow-version-pill">…</span></div>
-      <form id="flow-version-form" class="flex gap-2 wrap" style="margin:0">
+      <form id="flow-version-form" class="flex gap-2 wrap m-0">
         <input class="input" id="flow-version-label" placeholder="label (e.g. v3-my-corpus)" style="max-width:200px">
         <button class="btn sm primary" type="submit">Save version</button>
       </form>

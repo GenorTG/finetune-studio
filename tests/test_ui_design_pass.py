@@ -20,13 +20,13 @@ def test_css_pins():
     assert "var(--bg-nav)" in css
     assert ':root[data-theme="light"]' in tokens
     assert ':root[data-theme="light"]' not in base
-    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=1") < base.index("layout.css?v=1") < base.index("app.css?v=104") < base.index("typography.css?v=1")
+    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=1") < base.index("layout.css?v=1") < base.index("app.css?v=105") < base.index("typography.css?v=1")
     assert ".hf-card .meta .stat" in css
     assert "min-width: 40rem" in css or "min-width:40rem" in css
 
 
 def test_base_cache_bust():
-    assert "app.css?v=104" in _r("templates/base.html")
+    assert "app.css?v=105" in _r("templates/base.html")
 
 
 def test_project_data_modals_use_hidden_state():
@@ -122,6 +122,19 @@ def test_templates_reuse_empty_state_spacing():
         template = _r(f"templates/{name}.html")
         assert 'style="text-align:center;padding:' not in template
         assert 'style="padding:24px;text-align:center' not in template
+
+
+def test_templates_reuse_margin_and_pointer_utilities():
+    css = _r("static/css/app.css")
+    assert r".mt-1\.5 { margin-top: 0.375rem; }" in css
+    assert ".m-0   { margin: 0; }" in css
+    assert ".cursor-pointer { cursor: pointer; }" in css
+    assert 'style="margin:0"' not in _r("templates/benchmarks.html")
+    assert 'style="margin:0"' not in _r("templates/project_wizard.html")
+    for name in ("data_prep", "index"):
+        assert 'style="margin-top:6px' not in _r(f"templates/{name}.html")
+    for name in ("project_data", "project_wizard", "brain"):
+        assert 'style="cursor:pointer;"' not in _r(f"templates/{name}.html")
 
 
 def test_project_overview_no_duplicate_topbar():
