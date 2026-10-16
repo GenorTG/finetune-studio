@@ -215,6 +215,18 @@ def test_approve_all_pending_follows_the_file_filter_and_asks_first() -> None:
     assert "dpCoverageChanged()" in bulk                      # the file table follows a bulk review
 
 
+def test_primary_data_prep_action_tracks_the_next_incomplete_step() -> None:
+    src = _TEMPLATE.read_text(encoding="utf-8")
+    assert 'id="dp-jump-label">Add source files</span>' in src
+    action = src[src.index("function dpUpdateWorkflowAction"):src.index("function dpSelectedIds")]
+    for label in ("Add source files", "Prepare source files", "Mine source files", "Review pairs"):
+        assert label in action
+    assert "_flTotalCount" in action and "_flSources" in action and "pairCount" in action
+    click = src[src.index("(function dpWireJump"):src.index("function dpSelectedIds")]
+    for target in ("dp-uploaded-files", "fl-files-body", "fl-upload-btn", "dp-mining", "dp-review-card"):
+        assert target in click
+
+
 def test_checklist_rows_wrap_instead_of_clipping_and_offer_proposals() -> None:
     src = _TEMPLATE.read_text(encoding="utf-8")
     css = (Path(__file__).parents[1] / "src/finetune_studio/webui/static/css/app.css").read_text(encoding="utf-8")

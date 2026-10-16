@@ -25,7 +25,7 @@
       <div class="card-sub">Upload → Mine each file → Review until complete → Export → Train</div>
     </div>
     <div class="flex gap-2">
-      <button class="btn primary" type="button" id="dp-jump-review" title="Jump to the review workspace">Review pairs · <span id="dp-jump-count">0</span> pending ↓</button>
+      <button class="btn primary" type="button" id="dp-jump-review" title="Choose the next data-prep step"><span id="dp-jump-label">Add source files</span><span id="dp-jump-count-wrap" hidden> · <span id="dp-jump-count">0</span> pending</span> ↓</button>
       <a href="/projects/{{ pid }}/brain" class="btn" data-link id="dp-cta-brain">Open the Smart Brain →</a>
     </div>
   </div>
@@ -403,6 +403,7 @@ function flRenderFiles() {
   const footer = document.getElementById('fl-footer');
   const count = document.getElementById('dp-uploaded-count');
   if (count) count.textContent = _flTotalCount + (_flTotalCount === 1 ? ' file' : ' files');
+  if (typeof dpUpdateWorkflowAction === 'function') dpUpdateWorkflowAction();
   if (!tbody) return;
   const _q = _flSearchQuery.trim().toLowerCase();
   const _visible = _flFiles.filter(f => {
@@ -1176,13 +1177,55 @@ function dpUpdateStats() {
   set('dp-stat-rejected', c.rejected + ' rejected');
   dpPrefSyncApproved(c.approved);
   set('dp-jump-count', String(c.pending));
+  dpUpdateWorkflowAction();
+}
+
+function dpUpdateWorkflowAction() {
+  var button = document.getElementById('dp-jump-review');
+  var label = document.getElementById('dp-jump-label');
+  var count = document.getElementById('dp-jump-count-wrap');
+  if (!button || !label || !count) return;
+  var hasFiles = Number(_flTotalCount || 0) > 0;
+  var hasSources = Array.isArray(_flSources) && _flSources.length > 0;
+  var pairCount = _rq.counts.pending + _rq.counts.approved + _rq.counts.rejected;
+  if (!hasFiles) {
+    label.textContent = 'Add source files';
+    count.hidden = true;
+    button.title = 'Open the upload control';
+  } else if (!hasSources) {
+    label.textContent = 'Prepare source files';
+    count.hidden = true;
+    button.title = 'Open the file library to choose files as sources';
+  } else if (!pairCount) {
+    label.textContent = 'Mine source files';
+    count.hidden = true;
+    button.title = 'Jump to the file-by-file mining controls';
+  } else {
+    label.textContent = 'Review pairs';
+    count.hidden = false;
+    button.title = 'Jump to the review workspace';
+  }
 }
 
 (function dpWireJump() {
   var b = document.getElementById('dp-jump-review');
   if (b) b.addEventListener('click', function () {
-    var card = document.getElementById('dp-review-card');
-    if (card) card.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    var hasFiles = Number(_flTotalCount || 0) > 0;
+    var hasSources = Array.isArray(_flSources) && _flSources.length > 0;
+    var pairCount = _rq.counts.pending + _rq.counts.approved + _rq.counts.rejected;
+    var target;
+    if (!hasSources) {
+      var library = document.getElementById('dp-uploaded-files');
+      if (library) {
+        library.open = true;
+        target = hasFiles ? document.getElementById('fl-files-body') : library.querySelector('.fl-upload-btn');
+      }
+    } else if (!pairCount) {
+      target = document.getElementById('dp-mining');
+    } else {
+      target = document.getElementById('dp-review-card');
+    }
+    if (target) target.scrollIntoView({ block: 'start', behavior: 'smooth' });
   });
 })();
 
@@ -2043,6 +2086,7 @@ async function dpLoadFiles() {
   }
   dpRenderHelper();
   dpRenderFiles();
+  dpUpdateWorkflowAction();
   flUpdatePromotePanel();
   if (_dpPanel.sid) dpLoadPanel(false);
   clearTimeout(_dpFilesTimer);
