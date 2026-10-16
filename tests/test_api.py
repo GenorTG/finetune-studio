@@ -235,14 +235,15 @@ class TestWizardPage:
         assert r.status_code == 302
         assert r.headers["location"].endswith(f"/projects/{pid}/wizard")
 
-    def test_overview_has_flow_picker(self, client):
-        """Project home must answer 'where do I start' before any tab: two
-        explicit flow cards (train a model / Smart Brain)."""
-        pid = self._pid(client, name="Overview Banner")
+    def test_overview_has_live_checklist_and_smart_brain_alternate(self, client):
+        """Project home tracks the next adapter step and keeps the Smart Brain path reachable."""
+        pid = self._pid(client, name="Overview Checklist")
         body = client.get(f"/projects/{pid}").text
-        assert "start-here" in body
-        assert "flow-card-model" in body and "flow-card-brain" in body
-        assert "Train an adapter (LoRA)" in body and "Smart Brain (no training)" in body
+        checklist = body.split('id="project-checklist"', 1)[1].split("</section>", 1)[0]
+        assert 'id="project-next-action"' in checklist
+        assert "Add source files" in checklist
+        assert f'href="/projects/{pid}/brain"' in checklist
+        assert checklist.count('class="btn primary"') == 1
 
     def test_project_nav_is_one_flow_with_two_step_2s(self, client):
         """Genor 2026-10-14: files go one route (Files & Knowledge), then train OR Smart Brain. Every project page shows

@@ -2,19 +2,18 @@
 id: overview
 title: Project overview page
 page: overview
-keywords: overview project home flow cards recent runs models files activity production run start here
+keywords: overview project home checklist recent runs models files activity production run next step
 ---
 ## Purpose
-Project home: pick a flow, see recent training runs, models, files and activity, and the production run.
+Project home: track adapter setup, see recent training runs, models, files and activity, and the production run.
 
 ## Workflow
-Use the flow cards to train a model or build the Smart Brain; use **Recent training** to open a run; the production pill shows which run Chat serves by default.
+Follow the checklist's single **Next** action to prepare and test an adapter. Open Smart Brain directly when you need document-grounded answers without training. Use **Recent training** to open a run; the production pill shows which run Chat serves by default.
 
 ## Key controls
-- `#start-here` — the start-here prompt.
+- `#project-checklist` — live progress for the adapter workflow.
+- `#project-next-action` — the next incomplete adapter step.
 - `#production-run-pill` — the production run.
-- `#flow-card-model` — the model-flow card.
-- `#flow-card-brain` — the Smart Brain card.
 - `#ov-runs-table` — recent training runs.
 
 ## What to check

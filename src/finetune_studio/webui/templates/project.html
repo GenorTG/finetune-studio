@@ -31,57 +31,33 @@
   </div>
 </div>
 
-{# ── A2. Start here — pick one of the two kinds of work ── #}
-<div class="flow-picker mb-4" id="start-here">
-  <div class="flow-picker-head">
-    <h2>What do you want to do with these files?</h2>
-    <p class="text-dim">Start with the files you have. You can use both paths at any time.</p>
-    <a class="btn primary" href="{% if stats.files == 0 %}/projects/{{ pid }}/data{% else %}/projects/{{ pid }}/wizard{% endif %}" data-link>
-      {% if stats.files == 0 %}＋ Add your first files{% else %}Continue setup →{% endif %}
+{# ── A2. Live setup checklist and one primary next action ── #}
+<section class="setup-card card mb-4" id="project-checklist" aria-labelledby="project-checklist-title">
+  <div class="setup-card-head">
+    <div>
+      <h2 id="project-checklist-title">Project checklist</h2>
+      <p class="text-dim">Track the adapter path. You can use Smart Brain on its own at any time.</p>
+    </div>
+    <a class="btn primary" id="project-next-action"
+       href="/projects/{{ pid }}{{ setup_checklist['next'].href }}" data-link>
+      {{ setup_checklist['next'].label }} →
     </a>
   </div>
-  <div class="flow-picker-grid">
-    <div class="flow-card" id="flow-card-model">
-      <div class="flow-card-icon" aria-hidden="true">🧠</div>
-      <div class="flow-card-title">Train an adapter (LoRA)</div>
-      <div class="flow-card-sub">
-        Teaches a model how to answer: tone, format, persona and a few key facts. It does not store your documents.
-        In our measured corpus, fine-tuning alone answered 10–24% of the quiz; with Smart Brain, 94 of 102. Training takes hours of GPU time.
-      </div>
-      <ol class="flow-card-steps">
-        <li>Upload files</li>
-        <li>Turn them into question-answer pairs → review → dataset</li>
-        <li>Train the adapter (merged checkpoint optional)</li>
-        <li>Test the answers (declines count too)</li>
-        <li>Export / chat with it — with the Smart Brain for the facts</li>
-      </ol>
-      <div class="flex gap-2 wrap mt-2">
-        <a class="btn sm" href="/projects/{{ pid }}/training" data-link>Training details</a>
-      </div>
-    </div>
-    <div class="flow-card" id="flow-card-brain">
-      <div class="flow-card-icon" aria-hidden="true">🧠</div>
-      <div class="flow-card-title">Smart Brain (no training)</div>
-      <div class="flow-card-sub">
-        Answers from your files with sources: it looks the passages up instead of learning them.
-        <b>Minutes, no training</b>; a rebuild picks up new and edited files.
-      </div>
-      <ol class="flow-card-steps">
-        <li>Upload files</li>
-        <li>Build the index (one click)</li>
-        <li>Search it</li>
-        <li>Chat grounded in the documents</li>
-      </ol>
-      <div class="flex gap-2 wrap mt-2">
-        <a class="btn sm" href="/projects/{{ pid }}/brain" data-link>Open Smart Brain</a>
-      </div>
-    </div>
-  </div>
-  <div class="flow-picker-foot text-dim">
-    Both start from the same place:
-    <a href="/projects/{{ pid }}/data" data-link>the file library</a> — upload there first.
-  </div>
-</div>
+  <ol class="setup-checklist">
+    {% for item in setup_checklist['items'] %}
+    <li class="setup-checklist-item is-{{ item.state }}">
+      <a href="/projects/{{ pid }}{{ item.href }}" data-link>
+        <span class="setup-checklist-marker" aria-hidden="true">{% if item.state == 'done' %}✓{% else %}{{ loop.index }}{% endif %}</span>
+        <span>{{ item.label }}</span>
+      </a>
+      <span class="setup-checklist-state">{% if item.state == 'done' %}Done{% elif item.state == 'next' %}Next{% else %}Later{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ol>
+  <p class="setup-brain-link">Need document-grounded answers without training?
+    <a href="/projects/{{ pid }}/brain" data-link>Open Smart Brain →</a>
+  </p>
+</section>
 
 {# ── B. Top-row stats ── #}
 <div class="grid grid-4 gap-3 mb-4">
@@ -303,13 +279,6 @@
       <button class="btn primary" onclick="document.getElementById('settings-form').requestSubmit()">Save</button>
     </div>
   </div>
-</div>
-
-<div class="next-step" aria-label="Next step">
-  <span class="text-dim">Next:</span>
-  <a href="{% if stats.files == 0 %}/projects/{{ pid }}/data{% else %}/projects/{{ pid }}/wizard{% endif %}" data-link>
-    {% if stats.files == 0 %}Add files to this project{% else %}Continue in Quick work{% endif %}
-  </a>
 </div>
 
 <script>

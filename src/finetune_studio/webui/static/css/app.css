@@ -4767,9 +4767,29 @@ details.card:not([open]) > summary.card-head { margin-bottom: 0; border-bottom: 
 .next-step .next-step-label { font-family: "Share Tech Mono", monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); font-size: 11px; }
 .next-step .next-step-why { color: var(--text-muted); font-size: 12px; flex: 1 1 18rem; }
 
+/* Project home checklist: concise live state with one primary next action. */
+.setup-card { padding: 18px 20px; }
+.setup-card-head { display: flex; align-items: center; justify-content: space-between; gap: 18px; }
+.setup-card-head h2 { margin: 0 0 3px; font-size: 18px; }
+.setup-card-head p { margin: 0; font-size: 13px; }
+.setup-checklist { list-style: none; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin: 18px 0 12px; padding: 0; }
+.setup-checklist-item { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-panel-2); }
+.setup-checklist-item > a { display: flex; align-items: flex-start; gap: 8px; min-height: 42px; font-size: 12px; font-weight: 600; }
+.setup-checklist-marker { display: grid; place-items: center; flex: 0 0 22px; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border-strong); color: var(--text-muted); font-size: 11px; }
+.setup-checklist-item.is-done .setup-checklist-marker { border-color: var(--ok); color: var(--ok); }
+.setup-checklist-item.is-next { border-color: var(--accent); }
+.setup-checklist-item.is-next .setup-checklist-marker { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.setup-checklist-state { padding-left: 30px; color: var(--text-dim); font-size: 11px; }
+.setup-checklist-item.is-done .setup-checklist-state { color: var(--ok); }
+.setup-checklist-item.is-next .setup-checklist-state { color: var(--accent); font-weight: 700; }
+.setup-brain-link { margin: 0; padding-top: 10px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 12px; }
+.setup-brain-link a { color: var(--accent); font-weight: 600; }
+.setup-brain-link a:hover { text-decoration: underline; }
+
 /* ── Studio visual refresh: neutral surfaces, readable type, no CRT treatment. ── */
-html, body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background-image: none; }
+html, body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; background-image: none; }
 body::before, .matrix-rain { display: none !important; }
+.card::before, .card::after { display: none !important; }
 h1, h2, h3, .card-title, .page-head, .sb-tab, .workspace-subnav, .btn, .pill {
   font-family: inherit !important; letter-spacing: normal; text-shadow: none;
 }
@@ -4782,3 +4802,7 @@ h1, h2, h3, .card-title, .page-head, .sb-tab, .workspace-subnav, .btn, .pill {
 .btn { border-radius: var(--radius-sm); text-transform: none; }
 .pill { border-radius: 999px; }
 .guide-ctx, .guide-label, .guide-arg, .guide-hint { color: var(--text-muted); }
+@media (max-width: 780px) {
+  .setup-card-head { align-items: flex-start; flex-direction: column; }
+  .setup-checklist { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

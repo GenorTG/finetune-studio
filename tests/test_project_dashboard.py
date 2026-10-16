@@ -90,3 +90,27 @@ def test_build_activity_and_dashboard_ctx() -> None:
     assert ctx["runs_started_max"] == 100.0
     assert ctx["desc_long"] is False
     assert ctx["production_run"] == {"id": "r1", "name": "run-one"}
+    assert ctx["setup_checklist"]["items"][0]["state"] == "done"
+    assert ctx["setup_checklist"]["items"][1]["state"] == "done"
+    assert ctx["setup_checklist"]["items"][2]["state"] == "done"
+    assert ctx["setup_checklist"]["items"][3]["state"] == "next"
+    assert ctx["setup_checklist"]["next"] == {"label": "Test answer quality", "href": "/testing"}
+
+
+def test_setup_checklist_tracks_live_project_state() -> None:
+    from finetune_studio.webui.project_dashboard import build_setup_checklist
+
+    empty = build_setup_checklist({})
+    assert empty["items"][0]["state"] == "next"
+    assert empty["next"] == {"label": "Add source files", "href": "/data"}
+    assert not empty["complete"]
+
+    project = {
+        "production_run": "r1",
+        "datasets": [{"id": "d1"}],
+        "runs": [{"status": "done", "benchmarks": [{"status": "done"}]}],
+    }
+    done = build_setup_checklist(project, files=[{"id": "f1"}])
+    assert all(item["state"] == "done" for item in done["items"])
+    assert done["complete"]
+    assert done["next"] == {"label": "Continue in chat", "href": "/chat"}

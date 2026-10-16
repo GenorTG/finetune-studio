@@ -260,6 +260,45 @@ def resolve_production_run(
     return {"id": run_id, "name": run_id[:8]}
 
 
+def build_setup_checklist(project: dict, *, files: list[dict] | None = None) -> dict[str, Any]:
+    """Return a live, ordered adapter workflow checklist for the project home."""
+    runs = project.get("runs") or []
+    datasets = project.get("datasets") or []
+    tested = any(
+        benchmark.get("status") == "done"
+        for run in runs
+        for benchmark in run.get("benchmarks") or []
+    )
+    complete = (
+        bool(files),
+        bool(datasets),
+        any(run.get("status") == "done" for run in runs),
+        tested,
+        bool((project.get("production_run") or "").strip()),
+    )
+    labels = (
+        ("Add source files", "/data"),
+        ("Prepare a training dataset", "/data-prep"),
+        ("Train an adapter", "/training"),
+        ("Test answer quality", "/testing"),
+        ("Choose the adapter to use", "/models"),
+    )
+    next_index = next((index for index, done in enumerate(complete) if not done), None)
+    items = [
+        {
+            "label": label,
+            "href": href,
+            "state": "done" if done else "next" if index == next_index else "later",
+        }
+        for index, ((label, href), done) in enumerate(zip(labels, complete, strict=True))
+    ]
+    if next_index is None:
+        next_action = {"label": "Continue in chat", "href": "/chat"}
+    else:
+        next_action = {"label": labels[next_index][0], "href": labels[next_index][1]}
+    return {"items": items, "next": next_action, "complete": next_index is None}
+
+
 def build_dashboard_ctx(
     project: dict,
     pid: str,
@@ -276,12 +315,14 @@ def build_dashboard_ctx(
     size_gb = models_size_gb(models)
     desc = truncate_description(project.get("description"))
     production = resolve_production_run(project, runs)
+    checklist = build_setup_checklist(project, files=file_rows)
 
     return {
         "desc_short": desc["short"],
         "desc_long": desc["long"],
         "desc_full": desc["full"],
         "production_run": production,
+        "setup_checklist": checklist,
         "stats": {
             "files": len(file_rows),
             "datasets": len(datasets),

@@ -65,6 +65,20 @@ def test_project_file_page_points_to_the_next_workflow_step(client: TestClient) 
     assert "Review question-answer pairs" in response.text
 
 
+def test_project_home_shows_live_checklist_and_single_primary_action(client: TestClient) -> None:
+    pid = _project(client)
+    response = client.get(f"/projects/{pid}")
+    assert response.status_code == 200
+    body = response.text
+    checklist = body.split('id="project-checklist"', 1)[1].split("</section>", 1)[0]
+    assert 'id="project-next-action"' in checklist
+    assert f'href="/projects/{pid}/data"' in checklist
+    assert "Add source files →" in checklist
+    assert checklist.count('class="btn primary"') == 1
+    assert "flow-card" not in body
+    assert f'href="/projects/{pid}/brain"' in checklist
+
+
 def test_table_fixed_layout_and_empty_colspan() -> None:
     css = _CSS.read_text(encoding="utf-8")
     assert "table-layout: fixed" in css
@@ -311,7 +325,7 @@ def test_card_head_stacks_below_700() -> None:
 
 def test_css_cache_bust_bumped() -> None:
     base = _BASE.read_text(encoding="utf-8")
-    assert "app.css?v=93" in base
+    assert "app.css?v=95" in base
     assert "sprites.js?v=19" in base
     assert "nav_overflow.js?v=2" in base
     assert "spa.js?v=19" in base
