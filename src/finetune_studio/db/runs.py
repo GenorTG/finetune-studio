@@ -126,9 +126,12 @@ def update_run(rid: str, **fields: Any) -> dict | None:
 
 
 def delete_run(rid: str) -> bool:
+    """Delete the row (benchmarks, suites, quant exports cascade). True when a row was deleted.
+
+    Rows only: a run's output directory is removed by ``training.run_delete.delete_run`` (the routes use that)."""
     with cursor() as c:
-        c.execute("DELETE FROM training_runs WHERE id = ?", (rid,))
-    return True
+        cur = c.execute("DELETE FROM training_runs WHERE id = ?", (rid,))
+        return cur.rowcount > 0
 
 
 _STALE_RUN_STATUSES: tuple[str, ...] = (

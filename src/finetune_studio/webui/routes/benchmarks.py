@@ -542,17 +542,21 @@ async def run_history(pid: str, rid: str) -> list[dict[str, Any]] | dict[str, st
 
 @router.delete("/projects/{pid}/runs/{rid}", response_model=None)
 async def delete_run(pid: str, rid: str) -> dict[str, Any] | JSONResponse:
-    """Delete a training run and its benchmark results."""
+    """Delete a training run, its benchmark results and its own output directory (``training.run_delete``:
+    the same delete as ``DELETE /api/projects/{pid}/runs/{rid}``). 409 while its training or export job runs."""
+    from finetune_studio.training import run_delete
+
     run = db.get_run(rid)
     if not run:
         return JSONResponse({"detail": "run not found"}, status_code=404)
     if run["project_id"] != pid:
         return JSONResponse({"detail": "project mismatch"}, status_code=403)
-    with db.cursor() as c:
-        c.execute("DELETE FROM benchmark_cases WHERE run_id = ?", (rid,))
-        c.execute("DELETE FROM benchmark_runs WHERE run_id = ?", (rid,))
-        c.execute("DELETE FROM training_runs WHERE id = ?", (rid,))
-    return {"ok": True}
+    try:
+        return await asyncio.to_thread(run_delete.delete_run, pid, rid)
+    except run_delete.RunNotFound:
+        return JSONResponse({"detail": "run not found"}, status_code=404)
+    except run_delete.RunBusy as e:
+        return JSONResponse({"detail": str(e), "code": "run_busy", "job_id": e.job_id}, status_code=409)
 
 
 @router.delete("/projects/{pid}/benchmarks/{bid}", response_model=None)

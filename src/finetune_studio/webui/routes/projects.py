@@ -422,8 +422,25 @@ async def update_run(pid: str, rid: str, request: Request):
 
 @router.delete("/{pid}/runs/{rid}")
 async def delete_run(pid: str, rid: str):
+    """Delete a run: its rows and its own output directory (``training.run_delete``). 409 while its training or
+    export job runs. The response says what was removed (``removed_dir``, ``freed_bytes``) or why files stayed
+    (``kept``)."""
+    from finetune_studio.training import run_delete
+
     _run, err = _get_owned_run(pid, rid)
     if err is not None:
         return err
-    db.delete_run(rid)
-    return {"ok": True}
+    try:
+        # The run dir can hold gigabytes of weights: never rmtree on the loop.
+        out = await asyncio.to_thread(run_delete.delete_run, pid, rid)
+    except run_delete.RunNotFound:
+        return JSONResponse({"detail": "run not found"}, status_code=404)
+    except run_delete.RunBusy as e:
+        return JSONResponse({"detail": str(e), "code": "run_busy", "job_id": e.job_id}, status_code=409)
+    if out["removed_dir"]:
+        from finetune_studio.webui.routes.models import refresh_model_registry
+        try:
+            await asyncio.to_thread(refresh_model_registry)
+        except Exception:  # the delete already succeeded; a rescan failure must not undo that
+            log.warning("model registry rescan after run delete failed", exc_info=True)
+    return out
