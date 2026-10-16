@@ -390,7 +390,8 @@ def test_brain_ia_workflow_and_cta(client: TestClient) -> None:
     r = client.get(f"/projects/{pid}/brain")
     assert r.status_code == 200, r.text
     body = r.text
-    assert 'id="brain-workflow"' in body
+    assert '<details class="card mb-4" id="brain-workflow">' in body
+    assert '<summary class="card-head">' in body
     assert "Upload" in body and "parsed on arrival" in body and "Build" in body and "Test" in body
     assert 'id="brain-cta-data"' in body and f'href="/projects/{pid}/data"' in body
     assert "Files &amp; Knowledge" in body

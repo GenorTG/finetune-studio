@@ -32,13 +32,13 @@
 </div>
 
 {# Where the Smart Brain sits in the project flow #}
-<div class="card mb-4" id="brain-workflow" style="border-color: var(--accent);">
-  <div class="card-head">
+<details class="card mb-4" id="brain-workflow">
+  <summary class="card-head">
     <div>
       <div class="card-title">How the Smart Brain fits in</div>
       <div class="card-sub">Files are prepared once; the Smart Brain and training both read that one parse.</div>
     </div>
-  </div>
+  </summary>
   <ol class="brain-workflow-steps" aria-label="Smart Brain steps">
     <li><a href="/projects/{{ pid }}/data" data-link><b>Upload</b></a> files in Files &amp; Knowledge; each one is parsed on arrival (pictures are read by the Vision reader during mining)</li>
     <li><b>Check or edit</b> the parsed text there if a file read badly</li>
@@ -49,7 +49,7 @@
     Stored on disk: the passages, their vectors, the keyword index and the search settings. Shared embedder and
     reranker weights live under <code>~/.finetune-studio/shared_models/</code> (not inside your fine-tuned model).
   </p>
-</div>
+</details>
 
 <details class="card mb-4" id="brain-agent-help">
   <summary class="card-head" style="cursor:pointer;list-style:none;">
