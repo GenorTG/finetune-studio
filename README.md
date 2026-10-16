@@ -6,8 +6,8 @@ A self-hosted workshop that gives you full control over the model training
 lifecycle: turn your files into knowledge once, then serve them as a **Smart Brain**
 that answers from the files with sources, or train a **LoRA adapter** that teaches a
 model how to answer (tone, format, a baked system prompt, a few key facts) — and chat with local models,
-run evaluation suites, compare runs side-by-side — all from one dark-themed
-WebUI that lives in your browser. The UI, the data pipeline, and the test
+run evaluation suites, compare runs side-by-side — all from one responsive,
+themeable WebUI that lives in your browser. The UI, the data pipeline, and the test
 suite all live in one repo.
 
 [![Python 3.12–3.13](https://img.shields.io/badge/python-3.12--3.13-blue.svg)](https://www.python.org/downloads/)

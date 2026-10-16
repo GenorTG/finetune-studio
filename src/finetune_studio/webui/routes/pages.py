@@ -646,6 +646,14 @@ async def project_work_page(request: Request, pid: str):
     return RedirectResponse(url=f"/projects/{pid}/wizard", status_code=302)
 
 
+# ── Shared UI reference ──────────────────────────────────────────────
+
+@router.get("/styleguide", response_class=HTMLResponse)
+async def styleguide_page(request: Request):
+    """Show shared UI components in one place for visual regression review."""
+    return templates.TemplateResponse(request, "styleguide.html", {})
+
+
 # ── Settings & Debug Info ───────────────────────────────────────────
 
 @router.get("/settings", response_class=HTMLResponse)

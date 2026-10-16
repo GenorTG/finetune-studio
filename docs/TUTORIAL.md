@@ -20,9 +20,7 @@ offers two uses of that same knowledge:
                                     → 2 Smart Brain   → 3 test   (minutes, no training)
 ```
 
-The project home shows these as two big cards so you always know where to
-start, and the sub-nav lists the numbered steps of whichever flow you're in.
-You can do both, in any order — they never block each other.
+The project home shows a live checklist and one suggested next action. Smart Brain remains an alternate path on that page, and the sub-nav lists the numbered steps of whichever flow you're in. You can do both, in any order — they never block each other.
 
 **The short path: ⚡ Quick work.** One page (`work` in the sub-nav) holds the
 whole model pipeline as six numbered cards — upload, make pairs, build the

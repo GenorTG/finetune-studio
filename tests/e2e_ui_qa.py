@@ -505,6 +505,7 @@ async def main():
             ("/projects",        "projects"),
             ("/models/explore",  "hf_explore"),
             ("/inference",       "inference"),
+            ("/styleguide",      "styleguide"),
         ]:
             await visit(ctx, BASE + path, name)
 

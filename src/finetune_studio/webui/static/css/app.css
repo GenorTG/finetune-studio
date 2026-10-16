@@ -4806,3 +4806,46 @@ h1, h2, h3, .card-title, .page-head, .sb-tab, .workspace-subnav, .btn, .pill {
   .setup-card-head { align-items: flex-start; flex-direction: column; }
   .setup-checklist { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Shared UI reference page: samples reuse production primitives and semantic tokens. */
+.styleguide-section { margin-bottom: 16px; }
+.styleguide-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.styleguide-grid > .card { min-width: 0; }
+.styleguide-swatches { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin: 8px 0 24px; }
+.styleguide-swatch { display: grid; gap: 6px; color: var(--text-muted); font-size: 12px; }
+.styleguide-color { display: block; height: 34px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); }
+.styleguide-color-app { background: var(--bg-app); }
+.styleguide-color-panel { background: var(--bg-panel); }
+.styleguide-color-accent { background: var(--accent); }
+.styleguide-color-ok { background: var(--ok); }
+.styleguide-color-warn { background: var(--warn); }
+.styleguide-color-error { background: var(--err); }
+.styleguide-type-h1 { margin: 0 0 6px; font-size: 24px; }
+.styleguide-type-h2 { margin: 0 0 6px; font-size: 18px; }
+.styleguide-code { display: inline-block; padding: 4px 8px; border-radius: var(--radius-sm); background: var(--bg-panel-2); }
+.styleguide-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 14px; }
+.styleguide-fields { display: grid; gap: 6px; }
+.styleguide-fields label { margin-top: 6px; color: var(--text-muted); font-size: 12px; }
+.styleguide-alert { margin: 8px 0; padding: 9px 12px; border: 1px solid var(--border); border-left-width: 4px; border-radius: var(--radius-sm); background: var(--bg-panel-2); }
+.styleguide-alert-info { border-left-color: var(--accent); }
+.styleguide-alert-warning { border-left-color: var(--warn); }
+.styleguide-alert-error { border-left-color: var(--err); }
+.styleguide-progress-label { display: flex; justify-content: space-between; margin-top: 14px; color: var(--text-muted); font-size: 12px; }
+.styleguide-progress { height: 8px; overflow: hidden; border-radius: 999px; background: var(--bg-elevated); }
+.styleguide-progress span { display: block; width: 68%; height: 100%; border-radius: inherit; background: var(--accent); }
+.styleguide-empty { display: grid; justify-items: center; gap: 8px; margin-top: 14px; padding: 22px 12px; border: 1px dashed var(--border-strong); border-radius: var(--radius); color: var(--text-muted); text-align: center; }
+.styleguide-empty strong { color: var(--text); }
+.styleguide-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 0 0 18px; padding: 0; list-style: none; }
+.styleguide-steps li { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 9px; border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text-muted); }
+.styleguide-steps li span { display: grid; place-items: center; flex: 0 0 22px; width: 22px; height: 22px; border-radius: 50%; background: var(--bg-panel-2); }
+.styleguide-steps li.is-done span, .styleguide-steps li.is-current span { background: var(--accent); color: var(--on-accent); }
+.styleguide-steps li.is-current { border-color: var(--accent); color: var(--text); }
+.styleguide-disclosure { padding-top: 12px; border-top: 1px solid var(--border); }
+.styleguide-disclosure summary { display: flex; flex-wrap: wrap; gap: 8px; cursor: pointer; }
+@media (max-width: 780px) {
+  .styleguide-grid { grid-template-columns: minmax(0, 1fr); }
+  .styleguide-swatches { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 420px) {
+  .styleguide-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
