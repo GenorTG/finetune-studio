@@ -21,13 +21,13 @@ def test_css_pins():
     assert "var(--bg-nav)" in css
     assert ':root[data-theme="light"]' in tokens
     assert ':root[data-theme="light"]' not in base
-    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=2") < base.index("layout.css?v=1") < base.index("app.css?v=117") < base.index("typography.css?v=1")
+    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=2") < base.index("layout.css?v=1") < base.index("app.css?v=118") < base.index("typography.css?v=1")
     assert ".hf-card .meta .stat" in css
     assert "min-width: 40rem" in css or "min-width:40rem" in css
 
 
 def test_base_cache_bust():
-    assert "app.css?v=117" in _r("templates/base.html")
+    assert "app.css?v=118" in _r("templates/base.html")
 
 
 def test_project_data_modals_use_hidden_state():
@@ -228,3 +228,10 @@ def test_data_editor_table_scrolls_on_phones_instead_of_crushing_qa():
     css = _r("static/css/app.css")
     assert ".table-scroll #de-table { min-width: 1100px; }" in css
     assert "#de-table th.de-col-actions { width: 360px; }" in css
+
+
+def test_overview_files_and_compute_tables_fit_on_small_screens():
+    assert 'id="ov-files-table"' in _r("templates/project.html")
+    css = _r("static/css/app.css")
+    assert ".table-scroll #ov-files-table { min-width: 800px; }" in css
+    assert "#compute-table td:nth-child(3) { white-space: normal; }" in css
