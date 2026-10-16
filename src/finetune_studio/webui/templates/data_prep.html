@@ -102,7 +102,7 @@
         </div>
         <div id="fl-drop-hint" class="fl-drop-hint">Drop files here to upload</div>
       </div>
-      <pre id="fl-upload-status" class="fl-upload-status text-xs mt-2" role="status" aria-live="polite" hidden style="white-space:pre-wrap;margin:8px 0 0"></pre>
+      <pre id="fl-upload-status" class="fl-upload-status text-xs" role="status" aria-live="polite" hidden></pre>
       <div class="fl-footer text-xs dim mt-2" id="fl-footer"></div>
     </div>
   </div>
@@ -132,15 +132,15 @@
     </ol>
     A file is <b>complete</b> when every data point is stated by an approved pair or excluded; export needs every file complete. Every helper call is kept: open a file's checklist and look under <b>Rounds</b>.
   </details>
-  <div class="flex gap-2 wrap items-center text-xs" style="margin:8px 0;">
+  <div class="flex gap-2 wrap items-center text-xs dp-row">
     <span>Helper: <b id="dp-helper-name">{{ helper_label }}</b> <span class="dim" id="dp-helper-par"></span></span>
-    <span style="flex:1 1 auto;"></span>
+    <span class="spacer"></span>
     <span id="dp-promote-panel" class="prep-promote-panel" hidden>
       <button type="button" class="btn sm" id="dp-promote-library-btn" onclick="flPromoteEligibleFromLibrary()">Use text/markdown from file library</button>
       <span id="dp-promote-status" class="text-xs dim" role="status" aria-live="polite"></span>
     </span>
   </div>
-  <pre id="dp-mining-status" role="status" aria-live="polite" hidden style="margin:0 0 8px;font-size:12px;white-space:pre-wrap;"></pre>
+  <pre id="dp-mining-status" role="status" aria-live="polite" class="dp-status-pre" hidden></pre>
   <div id="prep-helper-picker" hidden></div>
   <div id="dp-files" class="text-sm">Loading…</div>
   <div id="dp-file-panel" class="dp-file-panel" hidden></div>
@@ -165,7 +165,7 @@
       <span class="pill solid-amber" id="dp-stat-pending">0 pending</span>
       <span class="pill solid-green" id="dp-stat-approved">0 approved</span>
       <span class="pill solid-rose" id="dp-stat-rejected">0 rejected</span>
-      <span style="flex:1 1 auto;"></span>
+      <span class="spacer"></span>
       <div class="flex gap-1" role="group" aria-label="Status filter">
         <button class="btn sm" type="button" data-dp-filter="all" id="dp-filter-all">All</button>
         <button class="btn sm primary" type="button" data-dp-filter="pending" id="dp-filter-pending">Pending</button>
@@ -180,20 +180,19 @@
       <button class="btn sm primary" type="button" id="dp-export-approved" title="Write approved pairs as ShareGPT JSONL and register it for Training">Export approved → Training</button>
       <a class="btn sm" href="/projects/{{ pid }}/training" data-link id="dp-open-training">Open Training</a>
     </div>
-    <div id="dp-grounded-opts" class="flex gap-2 wrap items-center" style="margin-bottom:4px;">
+    <div id="dp-grounded-opts" class="flex gap-2 wrap items-center mb-1">
       <label class="text-sm flex gap-1 items-center" for="dp-grounded">
         <input type="checkbox" id="dp-grounded">
         Include retrieved context in
       </label>
-      <input type="number" id="dp-grounded-pct" min="1" max="100" value="40" style="width:4.5rem;" aria-label="Percent of rows that carry retrieved context">
+      <input type="number" id="dp-grounded-pct" min="1" max="100" value="40" aria-label="Percent of rows that carry retrieved context">
       <span class="text-sm">% of rows</span>
     </div>
     <div class="text-xs dim mb-2" id="dp-grounded-note">
       Only matters if the trained model will answer with the Smart Brain's context (chat with sources). That share of rows gets the Smart Brain chat prompt with the pair's own source passage (cited by filename) added; answers stay the same. In one test on a 0.6B model this took grounded answers from 2/5 to 4/5.
       <span id="dp-grounded-state"></span>
     </div>
-    <pre id="dp-bridge-status" role="status" aria-live="polite" hidden
-         style="margin:0 0 8px;font-size:12px;white-space:pre-wrap;"></pre>
+    <pre id="dp-bridge-status" role="status" aria-live="polite" class="dp-status-pre" hidden></pre>
     <div id="dp-exported-datasets" class="dp-exported-panel text-sm" hidden></div>
   </div>
 
@@ -213,7 +212,7 @@
     or an honest “not covered”) and a <b>rejected</b> one (what a model writes when it guesses). Training on them
     pushes the model away from inventing facts.
   </div>
-  <div class="text-xs dim" style="margin-bottom:12px;">
+  <div class="text-xs dim mb-3">
     <b>When to use it:</b> after the normal fine-tune (SFT) has taught the facts, to curb hallucination and teach the
     model to say “that isn’t in the documents”. It needs approved pairs above and the helper model loaded
     (it writes the rejected answers). Not a replacement for SFT.
@@ -227,22 +226,22 @@
       <span><b>Admit it doesn’t know</b> — a plausible question the documents do <em>not</em> answer. Chosen: a short
       honest refusal. Rejected: a confident made-up answer.</span></label>
   </fieldset>
-  <div class="flex gap-2 wrap items-center" style="margin:10px 0;">
+  <div class="flex gap-2 wrap items-center dp-pref-controls">
     <label class="text-sm" for="dp-pref-max">Up to</label>
-    <input type="number" id="dp-pref-max" min="2" max="2000" value="100" style="width:5.5rem;" aria-label="Maximum number of preference pairs">
+    <input type="number" id="dp-pref-max" min="2" max="2000" value="100" aria-label="Maximum number of preference pairs">
     <span class="text-sm">pairs</span>
-    <details class="text-xs dim" style="margin-left:8px;"><summary>Advanced</summary>
+    <details class="text-xs dim dp-pref-adv"><summary>Advanced</summary>
       <label for="dp-pref-seed">Seed</label>
-      <input type="number" id="dp-pref-seed" value="42" style="width:5rem;" aria-label="Random seed">
+      <input type="number" id="dp-pref-seed" value="42" aria-label="Random seed">
     </details>
-    <span style="flex:1 1 auto;"></span>
+    <span class="spacer"></span>
     <button class="btn sm primary" type="button" id="dp-pref-build" title="Write the pairs and register the dataset for Training">Build preference pairs</button>
   </div>
   <div id="dp-pref-progress" hidden>
     <div class="hpbar" role="progressbar" aria-label="Building preference pairs" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="dp-pref-bar"><div class="hpbar-fill" id="dp-pref-fill"></div></div>
-    <div class="text-xs dim" id="dp-pref-progress-text" role="status" aria-live="polite" style="margin-top:4px;"></div>
+    <div class="text-xs dim" id="dp-pref-progress-text" role="status" aria-live="polite"></div>
   </div>
-  <pre id="dp-pref-status" role="status" aria-live="polite" hidden style="margin:8px 0 0;font-size:12px;white-space:pre-wrap;"></pre>
+  <pre id="dp-pref-status" role="status" aria-live="polite" class="dp-status-pre below" hidden></pre>
   <div id="dp-pref-result" class="dp-exported-panel text-sm" hidden></div>
 </div>
 
@@ -666,7 +665,7 @@ function flEditTags(fid, name) {
     .then(f => {
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
-      modal.innerHTML = '<div class="modal-dialog" style="max-width:500px;">' +
+      modal.innerHTML = '<div class="modal-dialog modal-md">' +
         '<div class="modal-head">' + escapeHtml(name) + '</div>' +
         '<div class="modal-body">' +
         '<label class="block mb-3"><span class="muted text-xs">Tags (comma-separated)</span>' +
@@ -987,7 +986,7 @@ function flPreviewFile(fid, name, mime) {
   const modal = document.createElement('div');
   modal.className = 'modal-overlay';
   const rawInner = flBuildRawInner(fid, name, mime);
-  modal.innerHTML = '<div class="modal-dialog" style="max-width:860px;">' +
+  modal.innerHTML = '<div class="modal-dialog modal-xl">' +
     '<div class="modal-head">' + escapeHtml(name) + '</div>' +
     '<div class="modal-body">' +
       '<div class="data-tabs" role="tablist">' +
@@ -1331,7 +1330,7 @@ function rqShell() {
         '<select id="dp-rq-source" aria-label="Source file"></select>' +
         '<input id="dp-rq-search" type="search" placeholder="Search question / answer  ( / )" aria-label="Search pairs">' +
         '<span id="dp-rq-saving" class="text-xs dim" role="status" aria-live="polite"></span>' +
-        '<span style="flex:1 1 auto"></span>' +
+        '<span class="spacer"></span>' +
         '<button class="btn sm" type="button" id="dp-rq-help-btn" title="Keyboard shortcuts">Keys ?</button>' +
       '</div>' +
       '<div id="dp-rq-help" class="dp-rq-help text-xs" hidden>' +
@@ -1473,7 +1472,7 @@ function rqRenderDetail() {
       '<textarea id="dp-rq-add-a" rows="2" placeholder="Answer" spellcheck="false"></textarea>' +
       '<button class="btn sm success" type="button" data-rq="add-save">Save pair · Ctrl+Enter</button>' +
     '</div>' +
-    '<div class="text-xs dim" style="margin-top:10px;">Source chunk <span id="dp-rq-chunkof"></span></div>' +
+    '<div class="text-xs dim dp-rq-chunk">Source chunk <span id="dp-rq-chunkof"></span></div>' +
     '<pre id="dp-rq-src" class="dp-rq-src">Loading source…</pre>';
   _rq.rejecting = false; _rq.adding = false;
   rqRenderSource();
@@ -1956,7 +1955,7 @@ function dpPrefRenderResult(d, pid) {
     '<div class="text-xs dim">Answer length: chosen ' + ln.mean_chosen_chars + ' chars vs rejected ' + ln.mean_rejected_chars +
     ' (ratio ' + ln.ratio + ')</div>' + warn +
     (drops.length ? '<details class="text-xs dim mt-1.5"><summary>' + drops.length +
-      ' kinds of candidate dropped by quality checks</summary><ul style="margin:4px 0 0 16px;"><li>' +
+      ' kinds of candidate dropped by quality checks</summary><ul class="dp-drop-list"><li>' +
       drops.join('</li><li>') + '</li></ul></details>' : '') +
     '<div class="dp-ds-row mt-2"><span class="text-xs dim">Next step</span>' +
     '<a class="btn sm primary" id="dp-pref-train" data-link href="' + escapeHtml(d.train_url) + '">Train with this dataset →</a></div>';
@@ -2294,7 +2293,7 @@ function dpRenderPanel() {
   var head = '<div class="dp-panel-head"><b>' + escapeHtml(src.filename || _dpPanel.sid) + '</b> · ' +
     '<span class="pill ' + (DP_STATUS[d.coverage.status] || ['outline'])[0] + '">' + escapeHtml((DP_STATUS[d.coverage.status] || [0, d.coverage.status])[1]) + '</span> · ' +
     c.items + ' data points: ' + c.approved + ' approved, ' + c.pending + ' awaiting review, ' + c.open + ' open, ' + c.excluded + ' excluded' +
-    '<span style="flex:1 1 auto"></span>' + tab('items', 'Checklist') + tab('rounds', 'Rounds') +
+    '<span class="spacer"></span>' + tab('items', 'Checklist') + tab('rounds', 'Rounds') +
     '<button type="button" class="btn sm" data-dp-tab="close" aria-label="Close">✕</button></div>';
   box.hidden = false;
   box.innerHTML = head + (_dpPanel.tab === 'rounds' ? dpRoundsHtml() : dpItemsHtml(d));
@@ -2303,10 +2302,10 @@ function dpRenderPanel() {
 function dpItemsHtml(d) {
   var f = _dpPanel.filter, c = d.coverage.counts;
   var chip = function (id, label, n) { return '<button type="button" class="btn sm' + (f === id ? ' primary' : '') + '" data-dp-filter-items="' + id + '">' + label + ' ' + n + '</button>'; };
-  var bar = '<div class="flex gap-1 wrap" style="margin:8px 0;">' + chip('open', 'Open', c.open) +
+  var bar = '<div class="flex gap-1 wrap dp-row">' + chip('open', 'Open', c.open) +
     (c.proposed ? chip('proposed', 'Helper proposes to skip', c.proposed) : '') + chip('pending', 'Awaiting review', c.pending) +
     chip('approved', 'Approved', c.approved) + chip('excluded', 'Excluded', c.excluded) + chip('all', 'All', c.items) +
-    (f === 'proposed' && c.proposed ? '<span style="flex:1 1 auto"></span><button type="button" class="btn sm primary" data-dp-item="confirm-all" data-item="" ' +
+    (f === 'proposed' && c.proposed ? '<span class="spacer"></span><button type="button" class="btn sm primary" data-dp-item="confirm-all" data-item="" ' +
       'title="Exclude every data point the helper proposed to skip, with its reason">Confirm all ' + c.proposed + ' skips</button>' : '') + '</div>';
   var items = d.items.filter(function (it) {
     return f === 'all' || (f === 'proposed' ? it.state === 'open' && it.proposed_reason : it.state === f);
