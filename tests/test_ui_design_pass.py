@@ -29,6 +29,17 @@ def test_base_cache_bust():
     assert "app.css?v=100" in _r("templates/base.html")
 
 
+def test_project_data_modals_use_hidden_state():
+    template = _r("templates/project_data.html")
+    assert 'id="fb-usage-modal" hidden' in template
+    assert 'id="wb-editor-modal" hidden' in template
+    assert 'id="wb-pane-parsed" hidden' in template
+    assert "modal.hidden = false" in template
+    assert "wbModal().hidden = true" in template
+    assert "usageModal.hidden = true" in template
+    assert "o.style.display" not in template and "p.style.display" not in template
+
+
 def test_project_overview_no_duplicate_topbar():
     assert "block topbar_right" not in _r("templates/project.html")
 

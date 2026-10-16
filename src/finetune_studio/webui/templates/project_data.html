@@ -189,7 +189,7 @@
   <div id="fb-content-list" style="padding:4px 16px 14px;"></div>
 </div>
 {# ── Usage modal: where this file's content actually went ── #}
-<div class="modal-overlay" id="fb-usage-modal" style="display:none;">
+<div class="modal-overlay" id="fb-usage-modal" hidden>
   <div class="modal-dialog" style="max-width:680px;">
     <div class="modal-head" id="fb-usage-title">Usage</div>
     <div class="modal-body text-sm" id="fb-usage-body"></div>
@@ -199,7 +199,7 @@
   </div>
 </div>
 
-<div class="modal-overlay" id="wb-editor-modal" style="display:none;">
+<div class="modal-overlay" id="wb-editor-modal" hidden>
   <div class="modal-dialog" style="max-width:920px;">
     <div class="modal-head" id="wb-modal-title">File</div>
     <div class="flex gap-2" style="padding:8px 16px 0;">
@@ -210,7 +210,7 @@
     </div>
     <div class="modal-body">
       <div id="wb-pane-original"></div>
-      <div id="wb-pane-parsed" style="display:none;">
+      <div id="wb-pane-parsed" hidden>
         <textarea class="textarea" id="wb-parsed-text" rows="18" style="width:100%;font-family:var(--mono,monospace);font-size:12px;" spellcheck="false"></textarea>
         <div class="flex gap-2 mt-2 items-center wrap">
           <button class="btn primary" type="button" id="wb-save-parsed">💾 Save parsed text</button>
@@ -1026,7 +1026,7 @@
     const f = files.find((x) => x.id === fid) || {};
     document.getElementById('fb-usage-title').textContent = 'Usage — ' + (f.original_name || fid);
     body.innerHTML = '<div class="dim">Loading…</div>';
-    modal.style.display = 'flex';
+    modal.hidden = false;
     try {
       const r = await fetch('/api/projects/' + PID + '/files/' + encodeURIComponent(fid) + '/usage');
       const d = await r.json().catch(() => ({}));
@@ -1138,20 +1138,20 @@
     const p = document.getElementById('wb-pane-parsed');
     const bo = document.getElementById('wb-tab-original');
     const bp = document.getElementById('wb-tab-parsed');
-    o.style.display = which === 'original' ? '' : 'none';
-    p.style.display = which === 'parsed' ? '' : 'none';
+    o.hidden = which !== 'original';
+    p.hidden = which !== 'parsed';
     bo.classList.toggle('primary', which === 'original');
     bp.classList.toggle('primary', which === 'parsed');
   }
 
-  function wbClose() { wbModal().style.display = 'none'; wbFid = null; }
+  function wbClose() { wbModal().hidden = true; wbFid = null; }
 
   window.wbOpen = async function (fid, tab) {
     wbFid = fid;
     const f = files.find((x) => x.id === fid) || {};
     document.getElementById('wb-modal-title').textContent = f.original_name || fid;
     document.getElementById('wb-modal-src').textContent = (f.mime_type || '') + ' · ' + formatBytes(f.size_bytes);
-    wbModal().style.display = 'flex';
+    wbModal().hidden = false;
     wbShowTab(tab === 'parsed' ? 'parsed' : 'original');
 
     const pane = document.getElementById('wb-pane-original');
@@ -1382,9 +1382,9 @@
       else if (search && search.value.trim().length >= 2) runContentSearch();
     });
     const usageClose = document.getElementById('fb-usage-close');
-    if (usageClose) usageClose.addEventListener('click', () => { document.getElementById('fb-usage-modal').style.display = 'none'; });
+    if (usageClose) usageClose.addEventListener('click', () => { document.getElementById('fb-usage-modal').hidden = true; });
     const usageModal = document.getElementById('fb-usage-modal');
-    if (usageModal) usageModal.addEventListener('click', (e) => { if (e.target === usageModal) usageModal.style.display = 'none'; });
+    if (usageModal) usageModal.addEventListener('click', (e) => { if (e.target === usageModal) usageModal.hidden = true; });
     wireFolderRow();
     wireColsMenu();
     const tbody = document.getElementById('fb-tbody');
