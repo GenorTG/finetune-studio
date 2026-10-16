@@ -138,7 +138,7 @@
           <span class="status-label" id="model-status-label">no model</span>
         </span>
         <button class="sb-palette" id="model-unload-btn" title="Unload the currently loaded model (frees VRAM)"
-                style="display:none" aria-label="Unload model">⏏</button>
+                hidden aria-label="Unload model">⏏</button>
         <span class="version" title="{{ release_channel }} release · v{{ app_version }}">
           <span class="version-number">v{{ app_version }}</span>
         </span>
@@ -223,7 +223,7 @@
         <button class="activity-close" id="activity-close" title="Close (Esc)" aria-label="Close">✕</button>
       </div>
       <div class="activity-filters" id="activity-filters">
-        <select id="activity-filter-type" class="select" onchange="activityApplyFilter()" style="flex:1;">
+        <select id="activity-filter-type" class="select" onchange="activityApplyFilter()">
           <option value="">All types</option>
           <option value="data_prep">Data prep</option>
           <option value="training">Training</option>
@@ -240,10 +240,10 @@
           <option value="brain_query">Smart Brain queries</option>
           <option value="testing">Testing</option>
         </select>
-        <select id="activity-filter-project" class="select" onchange="activityApplyFilter()" style="flex:1;">
+        <select id="activity-filter-project" class="select" onchange="activityApplyFilter()">
           <option value="">All projects</option>
         </select>
-        <select id="activity-filter-status" class="select" onchange="activityApplyFilter()" style="flex:1;">
+        <select id="activity-filter-status" class="select" onchange="activityApplyFilter()">
           <option value="">All statuses</option>
           <option value="running">Running</option>
           <option value="queued">Queued</option>
@@ -374,12 +374,12 @@
           dot.className = 'status-dot idle';
           lbl.textContent = '● ' + deriveLabel(active);
           pill.title = 'Loaded: ' + deriveLabel(active) + '\n' + JSON.stringify(active, null, 2);
-          if (unloadBtn) unloadBtn.style.display = '';
+          if (unloadBtn) unloadBtn.hidden = false;
         } else {
           dot.className = 'status-dot';
           lbl.textContent = '○ no model';
           pill.title = 'No model loaded. Click to open Inference.';
-          if (unloadBtn) unloadBtn.style.display = 'none';
+          if (unloadBtn) unloadBtn.hidden = true;
         }
       }
       async function tick() {
@@ -412,7 +412,7 @@
             await api.post('/api/models/unload');
             lbl.textContent = '○ no model';
             dot.className = 'status-dot';
-            unloadBtn.style.display = 'none';
+            unloadBtn.hidden = true;
             lastState = null; // force re-render on next tick
           } catch (e) {
             if (window.fts) window.fts.notify('Unload failed: ' + e.message, 'error');

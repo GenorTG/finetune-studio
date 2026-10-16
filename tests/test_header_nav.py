@@ -200,3 +200,11 @@ def test_css_cache_bust_header_nav() -> None:
     assert "components.css?v=1" in base
     assert "app.css?v=100" in base
     assert "nav_overflow.js?v=2" in base
+
+
+def test_shared_shell_uses_hidden_attribute_without_inline_styles() -> None:
+    base = _BASE.read_text(encoding="utf-8")
+    assert 'id="model-unload-btn"' in base and 'hidden aria-label="Unload model"' in base
+    assert "unloadBtn.hidden = false" in base
+    assert "unloadBtn.hidden = true" in base
+    assert 'style="' not in base
