@@ -450,6 +450,7 @@ def test_data_prep_ia_sections(client: TestClient) -> None:
     assert 'id="dp-uploaded-count"' in body
     assert "count.textContent = _flTotalCount" in body
     assert ".dp-points-col { min-width: 12rem; white-space: nowrap; }" in body
+    assert ".table td.dp-points-col { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }" in body
     assert '<details class="card mb-6" id="dp-pref-card">' in body
     assert 'details.card:not([open]) > summary.card-head' in _CSS.read_text(encoding="utf-8")
     assert "Uploaded files" in body
