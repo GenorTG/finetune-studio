@@ -159,8 +159,13 @@ def generate_suite_from_training_data(
                 if str(m.get("role") or "").lower() == "system"
             ), "")
         else:
-            question, answer = _first_exchange(ex.get("conversations", []))
-            system_prompt = _system_turn(ex.get("conversations", []))
+            # Same row shapes as training.data.format_for_sft: ShareGPT first, then chat messages, then prompt/completion.
+            # (Uploaded and converted datasets are ``messages``: the post-training quiz used to skip every row.)
+            turns = ex.get("conversations") if isinstance(ex.get("conversations"), list) else ex.get("messages")
+            if not isinstance(turns, list) and isinstance(ex.get("prompt"), str) and isinstance(ex.get("completion"), str):
+                turns = [{"role": "user", "content": ex["prompt"]}, {"role": "assistant", "content": ex["completion"]}]
+            question, answer = _first_exchange(turns or [])
+            system_prompt = _system_turn(turns or [])
 
         if not question or not answer:
             skipped += 1
