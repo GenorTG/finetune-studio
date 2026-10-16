@@ -20,13 +20,13 @@ def test_css_pins():
     assert "var(--bg-nav)" in css
     assert ':root[data-theme="light"]' in tokens
     assert ':root[data-theme="light"]' not in base
-    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=2") < base.index("layout.css?v=1") < base.index("app.css?v=111") < base.index("typography.css?v=1")
+    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=2") < base.index("layout.css?v=1") < base.index("app.css?v=112") < base.index("typography.css?v=1")
     assert ".hf-card .meta .stat" in css
     assert "min-width: 40rem" in css or "min-width:40rem" in css
 
 
 def test_base_cache_bust():
-    assert "app.css?v=111" in _r("templates/base.html")
+    assert "app.css?v=112" in _r("templates/base.html")
 
 
 def test_project_data_modals_use_hidden_state():
@@ -189,3 +189,7 @@ def test_files_page_has_no_inline_styles():
 def test_data_prep_inline_styles_only_for_data_driven_widths():
     lines = [ln for ln in _r("templates/data_prep.html").splitlines() if 'style="' in ln]
     assert len(lines) == 1 and "style=\"width:' +" in lines[0], lines
+
+
+def test_settings_page_has_no_inline_styles():
+    assert 'style="' not in _r("templates/settings.html")

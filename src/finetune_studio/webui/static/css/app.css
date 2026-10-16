@@ -4383,6 +4383,19 @@
   color: var(--text-dim, #888);
   font-style: italic;
 }
+/* Settings */
+#update-log { max-height: 220px; overflow-y: auto; border: 1px solid var(--border); padding: 8px; white-space: pre-wrap; }
+.settings-beta { color: var(--accent); }
+.settings-field-sm { max-width: 120px; }
+.settings-field-md { max-width: 260px; }
+.settings-field-lg { max-width: 640px; }
+#service-log-which { max-width: 9rem; }
+#compute-table .cd-col-device { width: 38%; }
+#compute-table .cd-col-runtime,
+#compute-table .cd-col-vram { width: 20%; }
+#compute-table .cd-col-state { width: 22%; }
+
+/* Data Prep */
 .fl-upload-status { white-space: pre-wrap; margin: 8px 0 0; }
 .dp-row { margin: 8px 0; }
 .dp-status-pre { margin: 0 0 8px; font-size: 12px; white-space: pre-wrap; }

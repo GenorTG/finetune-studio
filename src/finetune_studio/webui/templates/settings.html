@@ -7,7 +7,7 @@
   <h1>Settings</h1>
   <div class="sub">Manage updates, access, storage, and how this studio is hosted.</div>
 </div>
-<div class="grid grid-1-2" style="gap: 16px;">
+<div class="grid grid-1-2">
 
   {# ── Left column: Updates + Tutorial + Quick Ref ──────── #}
   <div>
@@ -23,7 +23,7 @@
         <button class="btn sm" id="btn-update-repair" title="Recreate the venv from scratch (slow, thorough)">Repair</button>
       </div>
       <div id="update-status" class="text-xs dim mb-2">Idle.</div>
-      <pre id="update-log" class="text-xs" hidden style="max-height:220px;overflow-y:auto;border:1px solid var(--border);padding:8px;white-space:pre-wrap"></pre>
+      <pre id="update-log" class="text-xs" hidden></pre>
       <div id="update-history" class="text-xs dim mt-2"></div>
       {% else %}
       <p class="text-sm">In-app updates and repair are not available on Windows. Close Finetune Studio, run <code>git pull</code> in the checkout, then run <code>install.ps1</code> and <code>run.bat</code>.</p>
@@ -61,11 +61,11 @@
     <div class="card">
       <div class="card-head">
         <div class="card-title">About</div>
-      <div class="card-sub">Finetune Studio · <strong style="color:var(--accent)">EARLY BETA</strong> · v{{ app_version }}</div>
+      <div class="card-sub">Finetune Studio · <strong class="settings-beta">EARLY BETA</strong> · v{{ app_version }}</div>
       </div>
       <div class="text-sm">
         <p class="mb-2">
-          <strong style="color:var(--accent)">EARLY BETA:</strong> A self-hosted training studio for local LLMs: build a Smart Brain from your files,
+          <strong class="settings-beta">EARLY BETA:</strong> A self-hosted training studio for local LLMs: build a Smart Brain from your files,
           fine-tune models on your own hardware, run benchmarks, chat —
           all in one place. No cloud, no lock-in.
         </p>
@@ -80,7 +80,7 @@
 
   {# ── Right column: Debug info + Storage Paths + Hosting ────────────── #}
   {# min-width:0 lets the compute table scroll inside its card instead of widening the grid column #}
-  <div style="min-width:0">
+  <div class="min-w-0">
     <div class="card mb-4" id="access-card">
       <div class="card-head">
         <div class="card-title">Access &amp; network</div>
@@ -197,7 +197,7 @@
       <div id="helper-api-fields">
         <div class="mb-3">
           <label class="block text-xs muted mb-1" for="helper-api-preset">Provider</label>
-          <select id="helper-api-preset" class="select" style="max-width:260px"></select>
+          <select id="helper-api-preset" class="select settings-field-md"></select>
         </div>
         <div class="mb-3">
           <label class="block text-xs muted mb-1" for="helper-api-url">API base URL</label>
@@ -216,7 +216,7 @@
         </div>
         <div class="mb-3">
           <label class="block text-xs muted mb-1" for="helper-api-effort">Reasoning effort (only if the model supports it; &ldquo;none&rdquo; is fastest and cheapest for extraction work)</label>
-          <select id="helper-api-effort" class="select" style="max-width:260px">
+          <select id="helper-api-effort" class="select settings-field-md">
             <option value="">provider default</option>
             <option value="none">none</option><option value="minimal">minimal</option><option value="low">low</option>
             <option value="medium">medium</option><option value="high">high</option>
@@ -224,9 +224,9 @@
         </div>
         <div class="mb-3">
           <label class="block text-xs muted mb-1" for="helper-api-concurrency">Parallel calls while mining (1–32; the provider's rate limit is the ceiling)</label>
-          <input id="helper-api-concurrency" type="number" class="input" min="1" max="32" step="1" style="max-width:120px" />
+          <input id="helper-api-concurrency" type="number" class="input settings-field-sm" min="1" max="32" step="1" />
         </div>
-        <div class="text-xs mb-3" style="color:var(--warn-text, var(--warn))">With the API helper, the text of the documents you mine and the questions you ask the Guide are sent to that provider.</div>
+        <div class="text-xs mb-3 warn">With the API helper, the text of the documents you mine and the questions you ask the Guide are sent to that provider.</div>
       </div>
       <div class="flex gap-2 mt-3">
         <button class="btn sm primary" id="btn-helper-save">Save helper settings</button>
@@ -248,7 +248,7 @@
       </div>
       <div id="vision-local-fields" class="mb-3">
         <label class="block text-xs muted mb-1" for="vision-local-model">Vision model: path to a GGUF (suggestions: models found with an mmproj)</label>
-        <input id="vision-local-model" type="text" class="input" style="max-width:640px" autocomplete="off" list="vision-local-list" />
+        <input id="vision-local-model" type="text" class="input settings-field-lg" autocomplete="off" list="vision-local-list" />
         <datalist id="vision-local-list"></datalist>
         <div class="text-xs dim mt-1">It loads into the one inference worker while a batch with pictures is mined and is unloaded after. With a local helper, pick the helper's own GGUF here (if it has an mmproj) or use an API vision model.</div>
       </div>
@@ -265,7 +265,7 @@
           <label class="block text-xs muted mb-1" for="vision-api-model">Model (must accept images)</label>
           <input id="vision-api-model" type="text" class="input max-w-420" autocomplete="off" />
         </div>
-        <div class="text-xs mb-3" style="color:var(--warn-text, var(--warn))">With an API vision model, the pictures in the documents you mine (scans, charts, page images) are sent to that provider.</div>
+        <div class="text-xs mb-3 warn">With an API vision model, the pictures in the documents you mine (scans, charts, page images) are sent to that provider.</div>
       </div>
       <div class="flex gap-2 mt-3">
         <button class="btn sm primary" id="btn-vision-save" type="button">Save vision settings</button>
@@ -289,7 +289,7 @@
       <div class="flex gap-2 mb-3" id="service-actions" hidden>
         <button class="btn sm" id="btn-service-restart" type="button" title="Restart only the web server (about 6 s); the supervisor, the port and the loaded model stay">Restart web server</button>
         <button class="btn sm" id="btn-service-restart-inference" type="button" title="Restart the inference worker: drops the loaded model and frees its VRAM; the web server stays up">Restart inference worker</button>
-        <select class="select sm" id="service-log-which" aria-label="Which log to show" style="max-width:9rem"><option value="web">web</option><option value="inference">inference</option></select>
+        <select class="select sm" id="service-log-which" aria-label="Which log to show"><option value="web">web</option><option value="inference">inference</option></select>
         <button class="btn sm" id="btn-service-log" type="button">Show log</button>
         <button class="btn sm" id="btn-service-events" type="button">Show events</button>
       </div>
@@ -305,8 +305,8 @@
       <div class="table-scroll mb-3" role="region" aria-label="Detected compute devices">
         <table class="table" id="compute-table">
           <thead><tr>
-            <th style="width:38%">Device</th><th style="width:20%">Runtime</th>
-            <th style="width:20%">VRAM free</th><th style="width:22%">State</th>
+            <th class="cd-col-device">Device</th><th class="cd-col-runtime">Runtime</th>
+            <th class="cd-col-vram">VRAM free</th><th class="cd-col-state">State</th>
           </tr></thead>
           <tbody><tr><td colspan="4" class="dim text-xs">Loading…</td></tr></tbody>
         </table>
