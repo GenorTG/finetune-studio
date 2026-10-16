@@ -91,7 +91,7 @@ def test_table_fixed_layout_and_empty_colspan() -> None:
     assert ".fl-table { min-width: 36rem; }" in css
 
     dp = _DATA_PREP.read_text(encoding="utf-8")
-    assert "table-layout: fixed" in dp
+    assert ".fl-table {\n  width: 100%;\n  font-size: 12px;" in css
     assert 'class="fl-col-name"' in dp
     assert 'colspan="7"' in dp
     assert "empty-row" in dp
@@ -329,9 +329,18 @@ def test_card_head_stacks_below_700() -> None:
 
 def test_css_cache_bust_bumped() -> None:
     base = _BASE.read_text(encoding="utf-8")
-    assert "app.css?v=108" in base
+    assert "app.css?v=109" in base
     assert "sprites.js?v=20" in base
     assert "nav_overflow.js?v=2" in base
+
+
+def test_data_prep_styles_live_in_versioned_stylesheet() -> None:
+    template = _DATA_PREP.read_text(encoding="utf-8")
+    css = _CSS.read_text(encoding="utf-8")
+    base = _BASE.read_text(encoding="utf-8")
+    assert "<style>" not in template
+    assert ".dp-review-toolbar" in css and ".dp-points-col" in css and ".fl-tree" in css
+    assert "app.css?v=109" in base
 
 
 def test_testing_page_styles_live_in_versioned_stylesheet() -> None:
@@ -340,7 +349,7 @@ def test_testing_page_styles_live_in_versioned_stylesheet() -> None:
     base = _BASE.read_text(encoding="utf-8")
     assert "<style>" not in template
     assert ".tp-seg" in css and ".tp-runs" in css and ".rv-main" in css
-    assert 'app.css?v=108' in base
+    assert 'app.css?v=109' in base
     assert "spa.js?v=19" in base
 
 
@@ -449,8 +458,9 @@ def test_data_prep_ia_sections(client: TestClient) -> None:
     assert '<summary class="card-head">' in body
     assert 'id="dp-uploaded-count"' in body
     assert "count.textContent = _flTotalCount" in body
-    assert ".dp-points-col { min-width: 12rem; white-space: nowrap; }" in body
-    assert ".table td.dp-points-col { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }" in body
+    css = _CSS.read_text(encoding="utf-8")
+    assert ".dp-points-col { min-width: 12rem; white-space: nowrap; }" in css
+    assert ".table td.dp-points-col { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }" in css
     assert '<details class="card mb-6" id="dp-pref-card">' in body
     assert 'details.card:not([open]) > summary.card-head' in _CSS.read_text(encoding="utf-8")
     assert "Uploaded files" in body

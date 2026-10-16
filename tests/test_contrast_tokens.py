@@ -12,7 +12,7 @@ from pathlib import Path
 
 WEBUI = Path(__file__).resolve().parents[1] / "src" / "finetune_studio" / "webui"
 CSS = (WEBUI / "static" / "css" / "app.css").read_text(encoding="utf-8")
-DATA_PREP = (WEBUI / "templates" / "data_prep.html").read_text(encoding="utf-8")
+DATA_PREP = (WEBUI / "static" / "css" / "app.css").read_text(encoding="utf-8")
 
 
 def _rule(css: str, selector: str) -> str:

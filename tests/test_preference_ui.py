@@ -9,6 +9,7 @@ from tests.preference_fakes import seed_project
 _TEMPLATES = Path(__file__).resolve().parents[1] / "src" / "finetune_studio" / "webui" / "templates"
 _PAIRS = (_TEMPLATES / "data_prep.html").read_text(encoding="utf-8")
 _TRAINING = (_TEMPLATES / "project_training.html").read_text(encoding="utf-8")
+_CSS = (_TEMPLATES.parent / "static" / "css" / "app.css").read_text(encoding="utf-8")
 
 
 def test_card_is_present_and_separated_from_the_sft_review_card(client) -> None:
@@ -22,7 +23,8 @@ def test_card_is_present_and_separated_from_the_sft_review_card(client) -> None:
 
 
 def test_card_explains_what_it_is_and_when_to_use_it() -> None:
-    card = _PAIRS[_PAIRS.index('id="dp-pref-card"'):_PAIRS.index("<style>\n.dp-review-toolbar")]
+    start = _PAIRS.index('id="dp-pref-card"')
+    card = _PAIRS[start:_PAIRS.index("</details>", start)]
     assert "chosen" in card and "rejected" in card
     assert "When to use it" in card and "after the normal fine-tune" in card
     assert "curb hallucination" in card and "isn’t in the documents" in card
@@ -40,7 +42,7 @@ def test_build_posts_the_typed_body_to_the_real_route_and_polls_progress() -> No
     assert re.search(r"JSON\.stringify\(\{ kinds: kinds, max_pairs: maxPairs, seed:", _PAIRS)
     # reuses the shared progress bar + tokens only (no new colours)
     assert 'class="hpbar"' in _PAIRS
-    css = _PAIRS[_PAIRS.index(".dp-pref-kinds"):_PAIRS.index(".dp-exported-panel {")]
+    css = _CSS[_CSS.index(".dp-pref-kinds"): _CSS.index(".dp-exported-panel {")]
     assert not re.search(r"#[0-9a-fA-F]{3,8}\b", css), "preference card CSS must use tokens, not literals"
 
 
