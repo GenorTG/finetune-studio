@@ -1,0 +1,37 @@
+/* Shared application typography and code-font exceptions. */
+#content * {
+  font-family: var(--font-sans);
+}
+#content .mono,
+#content .mono *,
+#content code,
+#content code *,
+#content pre,
+#content pre * {
+  font-family: var(--mono);
+}
+
+#content .table th {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-transform: none;
+}
+#content .table td,
+#content .table .num {
+  font-size: 13px;
+}
+#content .stat .label {
+  font-size: 12px;
+  letter-spacing: normal;
+}
+#content .stat .value {
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+}
+#content .card-title {
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: normal;
+  text-transform: none;
+}

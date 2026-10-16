@@ -1,6 +1,7 @@
 /* Shared theme tokens. Theme overrides are declared in the same file to keep palette ownership singular. */
 
 :root {
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --bg-app:        #0b1020;
   --bg-nav:        #090e1a;
   --bg-panel:      #121a2b;

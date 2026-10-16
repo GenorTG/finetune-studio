@@ -4720,7 +4720,7 @@ details.card:not([open]) > summary.card-head { margin-bottom: 0; border-bottom: 
 .setup-brain-link a:hover { text-decoration: underline; }
 
 /* ── Studio visual refresh: neutral surfaces, readable type, no CRT treatment. ── */
-html, body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: 14px; background-image: none; }
+html, body { font-family: var(--font-sans); font-size: 14px; background-image: none; }
 body::before, .matrix-rain { display: none !important; }
 .card::before, .card::after { display: none !important; }
 h1, h2, h3, .card-title, .page-head, .sb-tab, .workspace-subnav, .btn, .pill {
