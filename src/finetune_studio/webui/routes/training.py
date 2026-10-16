@@ -332,10 +332,12 @@ async def recommend_config(
         return JSONResponse(status_code=400, content={"detail": str(e), "code": "bad_request"})
 
 @router.get("/status")
-async def status():
-    """Same snapshot the live SSE stream sends (one builder: ``monitor.training_snapshot``)."""
+async def status(project_id: str | None = None):
+    """Same snapshot the live SSE stream sends (one builder: ``monitor.training_snapshot``).
+
+    ``?project_id=`` scopes it: another project's run (live or its final state) is ``idle`` for this project."""
     from finetune_studio.training.monitor import training_snapshot
-    return training_snapshot(training_engine)
+    return training_snapshot(training_engine, project_id or None)
 
 @router.get("/failure")
 async def latest_failure(project_id: str):
@@ -363,6 +365,8 @@ async def latest_failure(project_id: str):
 
 @router.get("/status-text")
 async def status_text():
+    """The dashboard card's value: what the GPU is doing NOW. A finished run is history (the runs list, the
+    activity feed), not a status: the card says Idle once the run ended."""
     s = training_engine.state
     if s.status == "training":
         text = f"Training ({s.current_step}/{s.total_steps})"
@@ -370,18 +374,14 @@ async def status_text():
         text = "Loading model…"
     elif s.status == "saving":
         text = "Saving…"
-    elif s.status == "done":
-        text = "Done"
-    elif s.status == "error":
-        text = "Error"
     else:
         text = "Idle"
     return PlainTextResponse(text)
 
 @router.get("/progress")
-async def progress():
-    """SSE live training status (preferred over polling ``/status``)."""
-    return sse_response(training_events(training_engine))
+async def progress(project_id: str | None = None):
+    """SSE live training status (preferred over polling ``/status``); ``?project_id=`` scopes it like ``/status``."""
+    return sse_response(training_events(training_engine, project_id or None))
 
 
 @router.get("/progress-text")
@@ -393,8 +393,8 @@ async def progress_text():
       "step 124/1000"   — running
       "step 1000/1000 · loss 1.42" — running w/ loss
       "Saving…"         — saving
-      "Done"            — terminal state
-      "Error"           — terminal error
+      "last run: done · 54 steps · <project>" — nothing running; the last run's outcome, named
+      "last run: error · <project>"            — nothing running; the last run failed
     """
     s = training_engine.state
     if s.status == "training":
@@ -404,10 +404,13 @@ async def progress_text():
         return PlainTextResponse("Loading model…")
     if s.status == "saving":
         return PlainTextResponse("Saving…")
-    if s.status == "done":
-        return PlainTextResponse(f"Done · {s.total_steps} steps")
-    if s.status == "error":
-        return PlainTextResponse(f"Error · {s.error or 'unknown'}")
+    if s.status in ("done", "error", "stopped"):
+        from finetune_studio import db
+        pid = getattr(training_engine, "current_project_id", None)
+        proj = db.get_project(pid) if pid else None
+        who = f" · {proj['name']}" if proj else ""
+        steps = f" · {s.total_steps} steps" if s.status == "done" and s.total_steps else ""
+        return PlainTextResponse(f"last run: {s.status}{steps}{who}")
     return PlainTextResponse("Idle")
 
 @router.get("/runs")

@@ -330,8 +330,9 @@ def collect_activity() -> dict[str, Any]:
     try:
         from finetune_studio.webui.app import training_engine
         s = training_engine.state
-        # TrainingState is a dataclass, not a dict
-        is_active = s.status not in ("idle", "") or s.current_step > 0
+        # TrainingState is a dataclass, not a dict. Only a RUNNING job is live news here: a finished run's final
+        # state stays readable on the engine (last job), and its row below carries the real start/finish times.
+        is_active = s.status in ("loading", "training", "saving", "running")
         if is_active:
             run_id = getattr(training_engine, "current_run_id", "") or ""
             # current_run_id is the composite ``{pid}-{db_run_id}``. Split it so

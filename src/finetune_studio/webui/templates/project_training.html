@@ -1123,8 +1123,11 @@
     function applyStatus(s) {
       if (!s || typeof s !== "object") return;
       showPrefMetrics(s.pref_metrics);
-      // The engine is process-wide: an error from another project's run is not this page's news.
-      if (s.status === "error" && s.project_id && s.project_id !== PID) return;
+      // The engine is process-wide; the server scopes the snapshot to this project (?project_id=), and this guard
+      // keeps an unscoped snapshot from another project's run (live or finished) off this page.
+      if (s.project_id && s.project_id !== PID) {
+        s = { status: "idle", log_lines: [], message: s.other_project_running ? "Another project is training on the GPU right now." : "" };
+      }
       const st = s.status || "idle";
       const step = s.step || s.current_step || 0;
       const total = s.total_steps || 0;
@@ -1191,15 +1194,15 @@
       if (unsub) return;
       const sub = window.fts && window.fts.subscribe;
       if (sub) {
-        unsub = sub("/api/training/progress", applyStatus, {
-          pollUrl: "/api/training/status",
+        unsub = sub("/api/training/progress?project_id=" + encodeURIComponent(PID), applyStatus, {
+          pollUrl: "/api/training/status?project_id=" + encodeURIComponent(PID),
           fallbackMs: 5000,
         });
       } else {
         // Minimal fallback without claiming a 2s redraw cadence.
         const tick = async () => {
           try {
-            const r = await fetch("/api/training/status", { cache: "no-store" });
+            const r = await fetch("/api/training/status?project_id=" + encodeURIComponent(PID), { cache: "no-store" });
             if (r.ok) applyStatus(await r.json());
           } catch (_e) { /* ignore */ }
         };
