@@ -130,7 +130,7 @@
     <input type="hidden" name="dataset_id" id="dataset-id-input" value="">
     <input type="hidden" name="data_path" id="data-path-input" value="">
 
-    <fieldset class="card-inner" style="grid-column:1/-1;">
+    <fieldset class="card-inner grid-full">
       <legend class="text-xs muted">Training route</legend>
       <div class="flex gap-4 wrap mt-2">
         <label class="flex items-center gap-2"><input type="radio" name="training_mode" value="sft" checked> Supervised fine-tuning (SFT)</label>
@@ -156,7 +156,7 @@
       <div id="advanced-format-help" class="text-xs muted mt-2" hidden></div>
     </fieldset>
 
-    <fieldset class="card-inner" id="preference-options" style="grid-column:1/-1;" hidden>
+    <fieldset class="card-inner grid-full" id="preference-options" hidden>
       <legend class="text-xs muted">Preference options</legend>
       <div class="grid grid-2 gap-4 mt-2">
         <label>
@@ -249,11 +249,11 @@
       <span class="block text-xs muted mb-1" title="Where training output (adapter, merged model, GGUF export) will be written. Relative paths resolve under this project's directory.">Output Dir <span class="dim">?</span></span>
       <input type="text" name="output_dir" value="output" class="input">
     </label>
-    <label class="flex items-center gap-2 mt-1" style="grid-column: 1 / -1;" title="After training, merge the LoRA adapter into the base model. The merged model is a standalone file you can load directly (no need to keep the adapter separate) and is what the Testing page's \"auto (latest merged)\" model uses. Larger on disk (roughly the base model's size): untick to keep only the adapter and merge later at export time.">
+    <label class="flex items-center gap-2 mt-1 grid-full" title="After training, merge the LoRA adapter into the base model. The merged model is a standalone file you can load directly (no need to keep the adapter separate) and is what the Testing page's \"auto (latest merged)\" model uses. Larger on disk (roughly the base model's size): untick to keep only the adapter and merge later at export time.">
       <input type="checkbox" name="merge_on_save" value="1" id="merge-on-save-check" checked>
       <span class="block text-xs muted">Also save merged model (standalone; roughly the size of the base model)</span>
     </label>
-    <label style="grid-column: 1 / -1;">
+    <label class="grid-full">
       <span class="block text-xs muted mb-1" title="How the system prompt is handled during training and export.">System Prompt Mode <span class="dim">?</span></span>
       <select name="system_prompt_mode" id="system-prompt-mode" class="select">
         <option value="bake">Bake into training (default)</option>
@@ -262,7 +262,7 @@
       </select>
       <span class="block text-xs muted mt-1" id="system-prompt-help">Bake: model always behaves this way. Runtime: export includes a system_prompt.txt for inference engines. None: no system prompt.</span>
     </label>
-    <label style="grid-column: 1 / -1;">
+    <label class="grid-full">
       <span class="block text-xs muted mb-1" title="Presets fill every field below with a vetted starting point. The Quick-work wizard offers size-based presets (Nano, Standard, Large, QLoRA) that fill the same fields. Your evidence for what works lives in benchmarks: the 95%-strict run used PRECISION on a 515-pair domain dataset; 4-epoch runs at the same rank hit only 67%.">Training preset (by effort) <span class="dim">?</span></span>
       <select id="training-preset" class="select" aria-label="Training preset">
         <option value="" selected>— pick a preset (updates fields below, then adjust) —</option>
@@ -302,17 +302,17 @@
       <span class="block text-xs muted mb-1" for="warmup-steps">Warmup steps</span>
       <input type="number" name="warmup_steps" id="warmup-steps" value="100" min="0" class="input" title="Learning rate warmup steps. Helps stabilize early training.">
     </label>
-    <label class="flex items-center gap-2 mt-1" style="grid-column: 1 / -1;" title="Unsloth loads the model in 4-bit (QLoRA) with faster kernels: roughly half the VRAM and noticeably quicker. Falls back to standard training if Unsloth is not installed.">
+    <label class="flex items-center gap-2 mt-1 grid-full" title="Unsloth loads the model in 4-bit (QLoRA) with faster kernels: roughly half the VRAM and noticeably quicker. Falls back to standard training if Unsloth is not installed.">
       <input type="hidden" name="unsloth" value="0">
       <input type="checkbox" name="unsloth" value="1" id="unsloth-check">
       <span class="text-xs">Use Unsloth (4-bit, faster, less VRAM)</span>
     </label>
-    <label class="flex items-center gap-2 mt-1" style="grid-column: 1 / -1;" title="Save intermediate checkpoints every 100 steps (or at every evaluation when early stopping is on) so an interrupted run keeps its progress.">
+    <label class="flex items-center gap-2 mt-1 grid-full" title="Save intermediate checkpoints every 100 steps (or at every evaluation when early stopping is on) so an interrupted run keeps its progress.">
       <input type="hidden" name="save_checkpoints" value="0">
       <input type="checkbox" name="save_checkpoints" value="1" id="save-checkpoints-check" checked>
       <span class="text-xs">Save checkpoints during training</span>
     </label>
-    <label class="flex items-center gap-2 mt-1" style="grid-column: 1 / -1;" title="Stop when the held-out validation loss has not improved for 3 evaluations, and keep the best checkpoint. Needs 'Eval every N steps' above 0.">
+    <label class="flex items-center gap-2 mt-1 grid-full" title="Stop when the held-out validation loss has not improved for 3 evaluations, and keep the best checkpoint. Needs 'Eval every N steps' above 0.">
       <input type="checkbox" name="early_stopping" value="1" id="early-stopping-check">
       <span class="text-xs">Early stopping (stop when validation loss stops improving)</span>
     </label>
@@ -324,7 +324,7 @@
       <span class="block text-xs muted mb-1" for="eval-steps">Eval every N steps</span>
       <input type="number" name="eval_steps" id="eval-steps" value="50" min="0" class="input" title="Measure loss on the 10% held-out split every N steps. 0 = no evaluation during training. Small datasets need a small value, or no evaluation happens before training ends.">
     </label>
-    <div class="flex gap-2 mt-4" style="grid-column: 1 / -1;">
+    <div class="flex gap-2 mt-4 grid-full">
       <button type="submit" class="btn primary" id="start-btn" disabled title="Pick or upload a dataset first">Start training</button>
       <button type="button" class="btn danger" id="stop-btn" data-action="/api/training/stop" data-reload="true"
               disabled title="No active training run">Stop</button>

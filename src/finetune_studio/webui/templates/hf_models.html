@@ -145,7 +145,7 @@ function renderResults(results) {
   grid.innerHTML = '';
   if (empty) empty.style.display = '';
   if (!results.length) {
-    grid.innerHTML = '<div class="empty" style="grid-column:1/-1;">No results.</div>';
+    grid.innerHTML = '<div class="empty grid-full">No results.</div>';
     if (empty) empty.style.display = 'none';
     return;
   }

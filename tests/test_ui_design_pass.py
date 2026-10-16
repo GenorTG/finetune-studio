@@ -20,13 +20,13 @@ def test_css_pins():
     assert "var(--bg-nav)" in css
     assert ':root[data-theme="light"]' in tokens
     assert ':root[data-theme="light"]' not in base
-    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=1") < base.index("layout.css?v=1") < base.index("app.css?v=100") < base.index("typography.css?v=1")
+    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=1") < base.index("layout.css?v=1") < base.index("app.css?v=101") < base.index("typography.css?v=1")
     assert ".hf-card .meta .stat" in css
     assert "min-width: 40rem" in css or "min-width:40rem" in css
 
 
 def test_base_cache_bust():
-    assert "app.css?v=100" in _r("templates/base.html")
+    assert "app.css?v=101" in _r("templates/base.html")
 
 
 def test_project_data_modals_use_hidden_state():
@@ -55,6 +55,13 @@ def test_conditional_panels_use_hidden_state():
     assert "box.hidden = false" in brain and "box.hidden = true" in brain
     assert 'id="update-log" class="text-xs" hidden' in settings
     assert "el.hidden = true" in settings_js and "el.hidden = false" in settings_js
+
+
+def test_grid_full_utility_replaces_inline_spans():
+    css = _r("static/css/app.css")
+    assert ".grid-full { grid-column: 1 / -1; }" in css
+    for name in ("projects", "project_training", "project_models", "export_models", "hf_models"):
+        assert "grid-column:" not in _r(f"templates/{name}.html"), name
 
 
 def test_project_overview_no_duplicate_topbar():
