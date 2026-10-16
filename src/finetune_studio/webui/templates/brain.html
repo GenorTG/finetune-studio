@@ -14,15 +14,15 @@
       prepared in <a href="/projects/{{ pid }}/data" data-link>Files &amp; Knowledge</a>, finds the passages that
       answer a question and quotes them; then <a href="/projects/{{ pid }}/chat" data-link>chat with it</a> or
       <a href="/projects/{{ pid }}/testing" data-link>test it (step 3)</a>.</div>
-    <div class="text-xs dim mt-1">Methods: semantic search (multilingual embeddings) + keyword search (BM25), combined by
-      rank fusion, then reranking (cross-encoder); an answer gate declines when nothing found covers the question.
-      Often called RAG (retrieval-augmented generation).</div>
     <details class="page-more">
       <summary>More about the Smart Brain</summary>
       <p class="text-sm">It reads exactly the text that training uses: each file is parsed once in Files &amp; Knowledge,
         including pictures read by the Vision reader and your hand edits. New or edited files only need a rebuild
         (minutes, not hours) and model weights never change. Export it as an encrypted bundle or a standalone server
         that runs without this app.</p>
+      <p class="text-xs dim">Search combines multilingual semantic embeddings with BM25 keyword matches using rank fusion,
+        then reranks passages with a cross-encoder. An answer gate declines when no passage supports the question;
+        this is often called retrieval-augmented generation (RAG).</p>
     </details>
   </div>
   <div class="actions flex gap-2 wrap">

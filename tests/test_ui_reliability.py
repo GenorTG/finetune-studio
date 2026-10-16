@@ -395,6 +395,9 @@ def test_brain_ia_workflow_and_cta(client: TestClient) -> None:
     assert "Upload" in body and "parsed on arrival" in body and "Build" in body and "Test" in body
     assert 'id="brain-cta-data"' in body and f'href="/projects/{pid}/data"' in body
     assert "Files &amp; Knowledge" in body
+    assert "Methods:" not in body
+    more = body.split('<details class="page-more">', 1)[1].split("</details>", 1)[0]
+    assert "Search combines multilingual semantic embeddings" in more
     assert "<h1>🧠 Smart Brain</h1>" in body and "RAG index" not in body
     assert "Build with AI" not in body
     assert "agentic" not in body.lower()
