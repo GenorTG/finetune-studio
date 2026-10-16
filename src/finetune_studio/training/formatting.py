@@ -36,3 +36,33 @@ def render_chat_text(tokenizer, messages: list, *, generation: bool = False,
         except TypeError:
             pass
     return tokenizer.apply_chat_template(messages, **kwargs)
+
+
+# End-of-turn markers of the common chat templates (ChatML, Llama 3, Gemma, Phi).
+_CHAT_END_TOKENS = ("<|im_end|>", "<|eot_id|>", "<end_of_turn>", "<|end|>")
+
+
+def chat_stop_token_ids(tokenizer, generation_config=None) -> list[int]:
+    """Token ids that end an assistant turn, for ``generate(eos_token_id=...)`` and saved generation configs.
+
+    A base without ``generation_config.json`` (the local Qwen3.5-9B) derives its EOS from ``config.json``
+    (``<|endoftext|>``) while chat turns end with ``<|im_end|>``: transformers then generated up to
+    ``max_new_tokens`` on every answer (28 s for a one-line reply) and the extra text was cut afterwards.
+    """
+    tokenizer = getattr(tokenizer, "tokenizer", tokenizer)   # a multimodal processor wraps the tokenizer
+    ids: list[int] = []
+
+    def add(value) -> None:
+        for v in value if isinstance(value, (list, tuple)) else [value]:
+            if isinstance(v, int) and v >= 0 and v not in ids:
+                ids.append(v)
+
+    add(getattr(generation_config, "eos_token_id", None))
+    add(getattr(tokenizer, "eos_token_id", None))
+    unk = getattr(tokenizer, "unk_token_id", None)
+    vocab = tokenizer.get_vocab() if hasattr(tokenizer, "get_vocab") else {}
+    for token in _CHAT_END_TOKENS:
+        tid = vocab.get(token)
+        if tid is not None and tid != unk:
+            add(tid)
+    return ids

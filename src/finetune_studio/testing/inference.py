@@ -308,7 +308,10 @@ class InferenceEngine:
 
     def _generate_hf(self, messages, max_tokens, temperature, top_p, top_k, repeat_penalty, stop, think=False):
         # Qwen3 chat templates honour enable_thinking; keep the kwarg when present.
-        from finetune_studio.training.formatting import render_chat_text
+        from finetune_studio.training.formatting import (
+            chat_stop_token_ids,
+            render_chat_text,
+        )
         text = render_chat_text(self.tokenizer, messages, generation=True, enable_thinking=think)
         from finetune_studio import accel
         accel.activate()  # request threads start on device 0; generation must run on the loaded card
@@ -318,6 +321,7 @@ class InferenceEngine:
                 **inputs, max_new_tokens=max_tokens, temperature=max(temperature, 0.01),
                 top_p=top_p, top_k=top_k, repetition_penalty=repeat_penalty,
                 do_sample=temperature > 0, pad_token_id=self.tokenizer.pad_token_id,
+                eos_token_id=chat_stop_token_ids(self.tokenizer, getattr(self.model, "generation_config", None)) or None,
             )
         generated = outputs[0][inputs["input_ids"].shape[-1]:]
         response = self.tokenizer.decode(generated, skip_special_tokens=True)

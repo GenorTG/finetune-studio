@@ -299,18 +299,13 @@ W.PHASES["a_dpo_train"] = phase_a_dpo_train
 
 def _retrieval_quiz(pid: str) -> tuple[int, int]:
     """How many paraphrase questions have every expected value in the top-5 RAG chunks (blocking HTTP: run in a thread)."""
-    import urllib.request as _u
-
     from corpus_coverage import norm
     from corpus_eval import variants
 
     rows = [json.loads(ln) for ln in (ROOT / "eval" / "paraphrase_core.jsonl").read_text().splitlines() if ln.strip()]
     hit = 0
     for r in rows:
-        req = _u.Request(f"{W.BASE}/api/projects/{pid}/brain/search", method="POST", headers={"Content-Type": "application/json"},
-                         data=json.dumps({"query": r["q"], "top_k": 5}).encode())
-        with _u.urlopen(req, timeout=120) as resp:
-            hits = json.loads(resp.read()).get("hits", [])
+        hits = W.api(f"/api/projects/{pid}/brain/search", "POST", {"query": r["q"], "top_k": 5}, timeout=120).get("hits", [])
         blob = norm(" ".join(str(h.get("text", "")) for h in hits))
         hit += all(any(v in blob or v in blob.replace(",", "") for v in variants(x)) for x in r["expect"])
     return hit, len(rows)

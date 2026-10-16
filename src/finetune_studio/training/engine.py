@@ -1250,6 +1250,10 @@ class TrainingEngine:
             merged = peft_model.merge_and_unload()
             if hasattr(merged, "config") and hasattr(merged.config, "quantization_config"):
                 merged.config.quantization_config = None
+            gen_cfg = getattr(merged, "generation_config", None)
+            if gen_cfg is not None:   # stop at the chat end token, not only <|endoftext|> (formatting.chat_stop_token_ids)
+                from finetune_studio.training.formatting import chat_stop_token_ids
+                gen_cfg.eos_token_id = chat_stop_token_ids(tokenizer, gen_cfg) or gen_cfg.eos_token_id
             merged.save_pretrained(merged_dir)
             tokenizer.save_pretrained(merged_dir)
             src = os.path.join(adapter_dir, "chat_template.jinja")
