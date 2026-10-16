@@ -323,8 +323,27 @@ class ModelManager:
         if provider is None:
             return None
         d = provider.describe()
+        if d.get("kind") == "local_gguf" and not d.get("loaded") and self._replaced_in_worker(provider):
+            # Another model was loaded into the inference worker behind this provider's back (a judge, the Vision
+            # reader or a test run — job processes with their own proxy to the one worker). The provider is not
+            # "unloaded, reload on demand": it is gone. Saying so (nothing active) beats showing its name as the
+            # active provider for the rest of the session.
+            if self._provider is provider:                 # one reference write; load() holds the lock, not us
+                self._provider, self._active_id = None, ""
+            return None
         d["idle_seconds"] = int(time.time() - provider._loaded_at) if provider._loaded_at else 0
         return d
+
+    def _replaced_in_worker(self, provider: ModelProvider) -> bool:
+        """True when the inference worker holds a model that is not this provider's (a real path, not a stub)."""
+        try:
+            eng = self.engine
+            if eng.model is None:
+                return False
+            held = eng.model_path
+        except Exception:  # noqa: BLE001  # a status probe that fails is "unknown", never "replaced"
+            return False
+        return isinstance(held, str) and bool(held) and held != provider.config.model_id
 
     def load(self, pid: str, extra: dict | None = None) -> dict:
         cfg_row = self.get_provider(pid)
