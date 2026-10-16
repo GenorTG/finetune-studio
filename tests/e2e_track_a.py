@@ -223,6 +223,8 @@ async def phase_a_dpo_build(w: W.Walk) -> None:
     W.api("/api/models/unload", "POST")
     W.api("/api/providers/local-default/load", "POST", {"n_ctx": 32768}, timeout=300)
     await w.goto(f"/projects/{W.pid()}/data-prep")
+    if not await w.page.locator("#dp-pref-card").evaluate("d => d.open"):   # optional card, folded by default
+        await w.page.click("#dp-pref-card > summary")
     await w.page.fill("#dp-pref-max", os.environ.get("FTS_DPO_PAIRS", "300"))
     await w.shot("dpo-card", full=True)
     await w.page.click("#dp-pref-build")
@@ -254,6 +256,8 @@ async def phase_a_dpo_train(w: W.Walk) -> None:
     W.api("/api/providers/unload", "POST")
     run_id = os.environ.get("FTS_RUN_ID", "")
     await w.goto(f"/projects/{W.pid()}/training")
+    if not await w.page.locator("#advanced-training-routes").evaluate("d => d.open"):   # DPO is one of the folded routes
+        await w.page.click("#advanced-training-routes > summary")
     await w.page.check("input[name=training_mode][value=dpo]")
     base = w.page.locator("#train-base-model")
     opts = await base.locator("option").all_inner_texts()
@@ -265,7 +269,8 @@ async def phase_a_dpo_train(w: W.Walk) -> None:
     W.R.check(run_id in values, f"the SFT run {run_id} is offered as the DPO starting point")
     await start.select_option(value=run_id)
     await w.page.click("button.data-tab[data-tab=upload]")
-    await w.page.set_input_files("#dataset-upload", str(W.REPO / ".tmp" / "reviewed-preference.jsonl"))
+    # FTS_DPO_FILE: another preference JSONL (e.g. the builder's unreviewed output for a functional-only run).
+    await w.page.set_input_files("#dataset-upload", os.environ.get("FTS_DPO_FILE", str(W.REPO / ".tmp" / "reviewed-preference.jsonl")))
     await w.page.wait_for_timeout(4000)
     W.log("upload status: " + (await w.page.locator("#dataset-upload-status").inner_text()).strip()[:300])
     await w.shot("dpo-configured", full=True)
@@ -681,7 +686,7 @@ async def phase_b_rag_quiz_ui(w: W.Walk) -> None:
     tag = os.environ.get("FTS_EVAL_TAG", "rag")
     W.api("/api/models/unload", "POST")
     await w.goto(f"/projects/{W.pid()}/testing")
-    await w.page.locator('label:has(input[name="t-mode"][value="rag"])').click()
+    await w.page.locator('label:has(input[name="t-mode"][value="brain"])').click()   # "Smart Brain" (was "rag")
     opts = await w.page.locator("#t-suite option").evaluate_all("els => els.map(e => ({v: e.value, t: e.textContent}))")
     suite = next((o["v"] for o in opts if "korvane_quiz_core" in (o["v"] + o["t"])), None)
     W.R.check(suite is not None, f"the imported quiz is still offered as a suite ({len(opts)} options)")
@@ -693,7 +698,7 @@ async def phase_b_rag_quiz_ui(w: W.Walk) -> None:
     await w.page.fill("#t-brain-topk", "5")
     await w.page.fill("#t-brain-maxtok", "160")
     await w.shot("brain-suite-ready", full=True)
-    by = await W.testing_run_and_judge(w, "rag", tag, float(os.environ.get("FTS_QUIZ_TIMEOUT", "3600")), "RAG-grounded quiz")
+    by = await W.testing_run_and_judge(w, "brain", tag, float(os.environ.get("FTS_QUIZ_TIMEOUT", "3600")), "RAG-grounded quiz")
     if by is not None:
         bid = W.load_state().get("test_run_id", "")
         sc = W.testing_run(bid).get("scores") or {}
