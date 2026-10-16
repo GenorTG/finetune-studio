@@ -20,13 +20,13 @@ def test_css_pins():
     assert "var(--bg-nav)" in css
     assert ':root[data-theme="light"]' in tokens
     assert ':root[data-theme="light"]' not in base
-    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=2") < base.index("layout.css?v=1") < base.index("app.css?v=106") < base.index("typography.css?v=1")
+    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=2") < base.index("layout.css?v=1") < base.index("app.css?v=107") < base.index("typography.css?v=1")
     assert ".hf-card .meta .stat" in css
     assert "min-width: 40rem" in css or "min-width:40rem" in css
 
 
 def test_base_cache_bust():
-    assert "app.css?v=106" in _r("templates/base.html")
+    assert "app.css?v=107" in _r("templates/base.html")
 
 
 def test_project_data_modals_use_hidden_state():

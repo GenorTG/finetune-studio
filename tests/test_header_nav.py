@@ -75,7 +75,7 @@ def test_header_nav_overflow_affordance_markup() -> None:
     assert "nav_overflow.js" in base
     assert "☰" in base
     assert "components.css?v=2" in base
-    assert "app.css?v=106" in base
+    assert "app.css?v=107" in base
     assert "{{ release_channel }}" in base
     assert "· {{ release_channel }}</title>" in base
     assert "spa.js?v=19" in base
@@ -128,6 +128,15 @@ def test_desktop_tools_group_shares_navigation_row() -> None:
     assert "flex-basis: 100%" not in tools_group
     assert "flex: 0 0 auto" in tools_group
     assert "border-top: none" in tools_group
+
+
+def test_next_step_is_part_of_the_project_flow_band() -> None:
+    html = _render_base(pid="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+    flow = html.split('id="workspace-subnav"', 1)[1].split("</nav>", 1)[0]
+
+    assert 'aria-label="Next step"' in flow
+    assert 'href="/projects/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/export"' in flow
+    assert "Package a finished adapter, then try it in chat." in flow
 
 
 def test_header_nav_js_module_present() -> None:
@@ -208,7 +217,7 @@ def test_project_pages_serve_nav_affordance(client: TestClient) -> None:
 def test_css_cache_bust_header_nav() -> None:
     base = _BASE.read_text(encoding="utf-8")
     assert "components.css?v=2" in base
-    assert "app.css?v=106" in base
+    assert "app.css?v=107" in base
     assert "nav_overflow.js?v=2" in base
 
 

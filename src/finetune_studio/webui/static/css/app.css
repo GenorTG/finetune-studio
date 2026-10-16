@@ -4115,6 +4115,17 @@
   .session-bar { overflow: visible; }
   /* Flow bar: the labels cost a wrapped line each on a phone; the links carry the meaning. */
   .workspace-subnav .ws-label, .workspace-subnav .ws-steps-label { display: none; }
+  .workspace-subnav > .next-step {
+    flex: 1 0 100%;
+    max-width: none;
+    margin: 4px 0 0;
+    padding: 6px 0 0;
+    border: 0;
+    border-top: 1px solid var(--border);
+    border-radius: 0;
+    background: transparent;
+  }
+  .workspace-subnav > .next-step .next-step-why { display: none; }
   /* Narrow path row: the project name and tab are the useful part; the root segments and the prompt cursor only crowd it. */
   .session-bar .sb-active-bar .project-breadcrumb .bc-root { display: none; }
   .session-bar .sb-active-bar .project-breadcrumb + .sb-active-cursor { display: none; }
@@ -4471,10 +4482,28 @@ details.card > summary::-webkit-details-marker { display: none; }
 details.card > summary.card-head > :first-child .card-title::after { content: "  +"; color: var(--accent); opacity: .8; }
 details.card[open] > summary.card-head > :first-child .card-title::after { content: "  −"; }
 details.card:not([open]) > summary.card-head { margin-bottom: 0; border-bottom: 0; padding-bottom: 0; }
-/* The next step of the project flow, under every project page's content. */
+/* The next project action is compacted into the shared flow navigation band. */
 .next-step { margin: 28px 0 8px; padding: 14px 16px; border: 1px dashed var(--border); display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
 .next-step .next-step-label { font-family: "Share Tech Mono", monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); font-size: 11px; }
 .next-step .next-step-why { color: var(--text-muted); font-size: 12px; flex: 1 1 18rem; }
+.workspace-subnav > .next-step {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: min(42rem, 100%);
+  margin: 0 0 0 auto;
+  padding: 5px 8px;
+  gap: 6px 8px;
+  border-style: solid;
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+}
+.workspace-subnav > .next-step .next-step-why {
+  flex: 0 1 24ch;
+  max-width: 28ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* Project home checklist: concise live state with one primary next action. */
 .setup-card { padding: 18px 20px; }
