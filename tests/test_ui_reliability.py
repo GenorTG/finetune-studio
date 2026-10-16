@@ -18,6 +18,7 @@ _INFERENCE = (
     _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "inference.html"
 )
 _RAG = _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "brain.html"
+_TESTING = _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "project_testing.html"
 _PROJECT_DATA = (
     _ROOT / "src" / "finetune_studio" / "webui" / "templates" / "project_data.html"
 )
@@ -328,9 +329,18 @@ def test_card_head_stacks_below_700() -> None:
 
 def test_css_cache_bust_bumped() -> None:
     base = _BASE.read_text(encoding="utf-8")
-    assert "app.css?v=107" in base
+    assert "app.css?v=108" in base
     assert "sprites.js?v=20" in base
     assert "nav_overflow.js?v=2" in base
+
+
+def test_testing_page_styles_live_in_versioned_stylesheet() -> None:
+    template = _TESTING.read_text(encoding="utf-8")
+    css = _CSS.read_text(encoding="utf-8")
+    base = _BASE.read_text(encoding="utf-8")
+    assert "<style>" not in template
+    assert ".tp-seg" in css and ".tp-runs" in css and ".rv-main" in css
+    assert 'app.css?v=108' in base
     assert "spa.js?v=19" in base
 
 
