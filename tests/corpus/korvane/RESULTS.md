@@ -298,3 +298,32 @@ Fact cards sharpen the first hit but crowd multi-value passages out of the top 1
 
 Reader run (`scripts/rag_reader_compare.py`, Gemma 4 12B q4_k_m, top-10, auto context, AI judge deepseek-v4.1-flash):
 **93/102 pass, 19/20 unanswerable declined**; misses: not retrieved 2, reader 7, 1 wrongly answered. §8 had 11 never retrieved at top-5.
+
+## 14. Full core mine through the mining worker job, Vision reader on (2026-10-16, project `korvane-mining-12` 496126cb, results in `results/2026-10-16-mining12/`)
+
+Same setup as §12 (19 core files, helper deepseek-v4.1-flash via OpenCode Go, concurrency 8, up to 16 files at once) but mining now
+runs in the mining worker job process (b3c611e) and the Vision reader seat is on (local Gemma4-12B QAT Q4_K_M + mmproj): it read the
+scanned CAR page and one picture (`[Figure 1 · page 1 · scanned page · read by …]`, `[Figure 1 · page 3 · picture · read by …]`).
+Driven over the API (`.tmp/mine_core.py`; the browser walkthrough cannot sign in while the password is on), coverage with
+`scripts/corpus_coverage.py --status any` (now sends `FTS_API_TOKEN`).
+
+| Run | Wall time | Helper calls | Pairs | Manifest recall | Open checklist items (app) |
+|---|---|---|---|---|---|
+| mining-5 (§12) | 5.8 min | 574 | 3,688 | 1,093 / 1,130 = 96.7 % | 102 |
+| mining-12 (job process, Vision on) | 8.0 min* | 533 | 3,915 | **1,101 / 1,130 = 97.4 %** | **64** (47 helper, 8 whole-file, 9 rule) |
+
+\* includes the Vision reader load + 2 figure readings at stage 0 and 19 parses (6 s). 18 files ended `gaps`, 1 (`postmortem`) `done`;
+no job failed. 487 of 3,915 pairs match no manifest fact (extra or noise: for the reviewer). 254 covered facts are stated by several
+answers, 81 only by token-level match.
+
+Open items (`open-items.txt`, 60 of 64 read): about a dozen are chatter, headings or template placeholders (board-pack coffee-machine
+aside, "dont panic the owls", the CAR form header, `[address]`), about five are rule fragments with number-only tokens (the MSA
+insurance amounts as `1000000 2000000 …`, a depot row, a phone-number fragment `01 47`), the rest (~45) are small real facts the
+pairs do not state: notice periods by service length (handbook 12.2, contract), sick-pay days 34-90, the EUR 0.29 rate "do not use",
+the 20 cm bulkhead clearance, KC-OPS-114 fields and signatures. Those are the reviewer's: exclude the first group with a reason,
+write pairs from the rest (or a fix round with the item texts as the checklist).
+
+The 29 MISSING manifest facts (`coverage-any.json`) are mostly multi-value facts whose values the answers split across pairs
+(legal-0049 "successive periods of 12 months" + "120 days' notice", ops-0072 the three KC-OPS-114 fields, product-0010 the
+calibration card + serial format); the coverage rule needs every value in ONE answer. Not changed here: the one-fact-per-pair rule
+(§10) is what trains; a "set" pair that lists all fields of a form is the Smart Brain's reading material, not a training row.

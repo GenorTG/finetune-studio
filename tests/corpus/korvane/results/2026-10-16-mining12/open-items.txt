@@ -1,0 +1,82 @@
+pairs: 3915 items: 3691 Counter({'pending': 3915})
+item states: {'pending': 3627, 'open': 64}
+open: 64 Counter({'agent': 47, 'rule': 9, 'agent_file': 8})
+   11 handbook_v4_extract_leave_expenses_discipline.pdf
+    8 sop_reefer_loading_and_excursions.rtf
+    5 runbook_kchub_offline.md
+    5 msa_oakhaven_dairy_2023.pdf
+    4 kctag4_quick_start_guide.pdf
+    4 employment_contract_template_ops_staff.docx
+    4 crm_export_2024_q3.csv
+    4 amendment_no2_oakhaven_2024.doc
+    3 case_study_fruttoria_baltica.pdf
+    3 thread_oakhaven_incident_2024_06.eml
+    3 depot_directory_2024.xls
+    2 board_pack_q3_2024.pptx
+    2 ops_chat_export_2024_09_w38.txt
+    2 scanned_corrective_action_0917.pdf
+    1 iso22000_surveillance_audit_report_2024.docx
+    1 minutes_ops_review_2024_09_24.txt
+    1 rate_card_2024.xlsx
+    1 kctag4_datasheet.html
+---- sample of open items
+board_pack_q3_2024.pptx | agent | Olek only told the CEO about the record because he asked why the coffee machine was empty. | ['Olek']
+board_pack_q3_2024.pptx | agent | The CEO says the numbers are better than budgeted. | ['better than we budgeted']
+ops_chat_export_2024_09_w3 | agent | Olek told radek not to panic about the temperature reading. | ['dont panic the owls']
+ops_chat_export_2024_09_w3 | agent | gunnar asked for the card to be brought back if it is in the cup holder | ['cup holder', 'bring it']
+case_study_fruttoria_balti | rule | September 2024 -- yes, that includes you, sales team. | ['2024']
+case_study_fruttoria_balti | agent | The PDF must not be forwarded outside the company before the official launch. | ['do not forward this PDF outside the company']
+case_study_fruttoria_balti | agent_file | The Tidewalk SSO request is due before the end of November 2024, while the Tidewalk v7 beta invitati | ['before the end of November 2024', 'Tidewalk v7', 'spring 2025']
+scanned_corrective_action_ | rule | KORVANE COLD CHAIN - CORRECTIVE ACTION REQUEST - form KC-QF-131 rev D (paper copy, signed) CAR no. K | ['action', 'car', 'chain', 'cold']
+scanned_corrective_action_ | agent | Why 2: why alone because the authority matrix in PRO-017 rev C names shift lead sufficient for "cust | ['authority matrix', 'PRO-017', 'rev C', 'shift lead sufficient']
+runbook_kchub_offline.md | rule | Mgmt VLAN per depot, hub address = base + (nn × 11) + 0 — yes it's an ugly scheme, Marek's, don't as | ['11', 'vlan']
+runbook_kchub_offline.md | agent | On a loaded GDY-1 hub, anything below 8 means antenna or interference. | ['antenna or interference']
+runbook_kchub_offline.md | agent | sanna.v reported that hub-gdy1-03 is offline again, the 3rd time this month. | ['sanna.v', 'hub-gdy1-03', 'offline again', '3rd time this month']
+runbook_kchub_offline.md | agent | sanna.v put a 120mm fan in there on a usb brick and asked that it not be tidied away. | ['120mm fan', 'usb brick', 'pls dont tidy it away']
+runbook_kchub_offline.md | agent_file | Sanna's chat timestamp 2024-08-27 23:48 and the platform-oncall channel match the postmortem referen | ['2024-08-27 23:48', '#platform-oncall', 'Tidewalk alerting postmortem from August']
+sop_reefer_loading_and_exc | rule | So this SOP is mostly about the beginning, and a little bit about what to do when you got it wrong a | ['sop']
+sop_reefer_loading_and_exc | agent | The SOP is valid at all five depots. | ['five']
+sop_reefer_loading_and_exc | agent | Printed copies of the SOP are marked as uncontrolled. | ['uncontrolled']
+sop_reefer_loading_and_exc | agent | Keep the first 20 cm in front of the unit bulkhead completely clear. | ['first 20 cm', 'unit bulkhead', 'completely clear']
+sop_reefer_loading_and_exc | agent | At Level 1 Amber nobody external is called. | ['Nobody external is called']
+sop_reefer_loading_and_exc | agent | The KC-OPS-114 form must show the container number. | ['container number']
+sop_reefer_loading_and_exc | agent | The KC-OPS-114 form must show the seal number, which is a bolt seal and photographed. | ['seal number', 'bolt seal', 'photographed']
+sop_reefer_loading_and_exc | agent | Both the loader and the supervisor sign KC-OPS-114. | ['loader', 'supervisor', 'KC-OPS-114']
+thread_oakhaven_incident_2 | agent | Radosław moved the setpoint by hand. | ['setpoint', 'by hand']
+thread_oakhaven_incident_2 | agent | Szymon Karpiński says the supplier told him 'we are looking into it' three times in one day. | ['three times in one day']
+thread_oakhaven_incident_2 | agent | Szymon Karpiński was told that morning that a timeline would be provided by close of business. | ['this morning', 'close of business']
+kctag4_quick_start_guide.p | agent | The guide must be read attentively before the first use of the device and kept for later reference. | ['before the first use', 'keep it for the later reference']
+kctag4_quick_start_guide.p | agent_file | The tag must be paired once with the yard hub before reporting, and a paired tag keeps its hub ID un | ['paired once', 'keeps the ID of its hub until it is reset', 'Devices', 'Release']
+kctag4_quick_start_guide.p | agent_file | The battery expected life of 38 months applies at the 10-minute factory setting, measured at +5 °C w | ['38 months', '10 minutes (factory setting)', '+5 °C', '60 m']
+kctag4_quick_start_guide.p | rule | 01 47, Monday to Friday from 07:00 to 19:00 Central European Time. | ['01', '07:00', '19:00', '47']
+iso22000_surveillance_audi | agent | Under ACP-07 an observation is a statement of fact or an opportunity for improvement that is not gra | ['statement of fact', 'opportunity for improvement', 'not graded', 'need not be answered formally']
+minutes_ops_review_2024_09 | agent | The old fuel card was blocked on Tuesday. | ['old card', 'blocked Tue']
+employment_contract_templa | agent | The Employer is represented by [name and capacity of signatory]. | ['[name and capacity of signatory]']
+employment_contract_templa | agent | The Employee's address is left blank as [address]. | ['[address]']
+employment_contract_templa | agent | After probation, the Employer's notice period is 3 months where the Employee has been employed for m | ['3 months', 'more than 3 years']
+employment_contract_templa | agent | In the event of discrepancy the Polish version prevails. | ['Polish version prevails']
+rate_card_2024.xlsx | agent | Rates are per started day (NOTE 2). | ['per started day']
+msa_oakhaven_dairy_2023.pd | agent_file | Korvane Cold Chain Sp. z o.o. is registered in the National Court Register under KRS 0000488213 with | ['KRS 0000488213', 'ul. Łużycka 14, 81-537 Gdynia', 'cabinet L-3, shelf 2']
+msa_oakhaven_dairy_2023.pd | agent_file | Clause 17.4 e-mail notices are deemed received at 09:00 on the next Business Day after sending, and  | ['09:00', 'next Business Day', "courier's waybill", '24 or 31 December']
+msa_oakhaven_dairy_2023.pd | rule | 4,000,000 per occurrence, (b) public and third-party liability cover of not less than EUR 2,000,000  | ['1000000', '2000000', '4000000', '5000000']
+msa_oakhaven_dairy_2023.pd | agent | Korvane's cyber and data cover must be not less than EUR 1,000,000. | ['cyber and data cover', 'EUR 1,000,000']
+msa_oakhaven_dairy_2023.pd | agent_file | The insurance cover amounts in clause 9.1 for Korvane and the Customer apply throughout the term, wh | ['EUR 4,000,000', 'EUR 2,000,000', 'EUR 5,000,000', 'EUR 1,000,000']
+crm_export_2024_q3.csv | agent | Opportunity OPP-24-0314 next step is to hold until claim closed. | ['OPP-24-0314', 'Hold until claim closed']
+crm_export_2024_q3.csv | agent | OPP-24-0334 notes say it stays with spreadsheet + own loggers. | ['spreadsheet + own loggers']
+crm_export_2024_q3.csv | agent | OPP-24-0335 likes the pitch. | ['Likes the pitch']
+crm_export_2024_q3.csv | agent | OPP-24-0339 is bananas + pineapple. | ['bananas + pineapple']
+depot_directory_2024.xls | rule | GOT-4 | Arendal | Skarviksvägen 9, 418 34 Göteborg | Mon-Fri 06:00-21:00; weekends by appointment, 2 | ['06:00-21:00', '24', '2500', '34']
+depot_directory_2024.xls | agent | Equipment RS-GDY-02 notes: backup, do NOT lend to Waltershof again. | ['backup', 'do NOT lend to Waltershof again']
+depot_directory_2024.xls | agent_file | The Gdynia reach stacker RS-GDY-02 backup must not be lent to Waltershof again. | ['RS-GDY-02', 'do NOT lend to Waltershof again']
+amendment_no2_oakhaven_202 | agent | The rest of clause 4.5 is unchanged. | ['clause 4.5', 'unchanged']
+amendment_no2_oakhaven_202 | rule | The recall-cost limit of EUR 200,000 per event in the same clause is not altered, and nor is clause  | ['200000', '7.1', 'eur']
+amendment_no2_oakhaven_202 | agent | The release does not extend to claims for death or personal injury or to any matter unconnected with | ['death or personal injury', 'unconnected with the Incident']
+amendment_no2_oakhaven_202 | agent | Neither party shall make any public statement about the Incident. | ['public statement']
+kctag4_datasheet.html | agent | The KC-Tag 4 is tested in a freezer that is colder than your customers' complaints. | ['freezer']
+handbook_v4_extract_leave_ | agent | Where the Handbook and a signed individual contract differ, the contract prevails to the extent it i | ['the contract shall prevail', 'more favourable to the employee']
+handbook_v4_extract_leave_ | agent | For employees without sufficient service, days 34 to 90 are paid at statutory sickness benefit only. | ['Days 34 to 90', 'statutory sickness benefit only', 'all others']
+handbook_v4_extract_leave_ | agent | The v3 German mileage rate of EUR 0.29 per km must not be used. | ['EUR 0.29 per km', 'Do not use it']
+handbook_v4_extract_leave_ | rule | 8.4 The following are gross misconduct and may lead to summary dismissal after a hearing: falsificat | ['gm-']
+handbook_v4_extract_leave_ | agent | During the probation period of 3 months, either party may terminate with 5 working days' notice. | ['probation period', '3 months', 'either party', "5 working days' notice"]
+handbook_v4_extract_leave_ | agent | After probation, the notice to be given by the Company is two weeks if the employee has been employe | ['two weeks', 'less than 6 months in total', '12.2']
+handbook_v4_extract_leave_ | agent | After probation, the notice to be given by the Company is one month if employed for 6 months up to 3 | ['one month', '6 months up to 3 years', '12.2']

@@ -49,8 +49,10 @@ def log(msg: str) -> None:
 
 def api(path: str, method: str = "GET", body: dict | None = None, timeout: float = 60.0) -> Any:
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(BASE + path, data=data, method=method,
-                                 headers={"Content-Type": "application/json"} if data else {})
+    headers = {"Content-Type": "application/json"} if data else {}
+    if os.environ.get("FTS_API_TOKEN"):      # password-protected instance: ``fts auth token create <name>``
+        headers["Authorization"] = f"Bearer {os.environ['FTS_API_TOKEN']}"
+    req = urllib.request.Request(BASE + path, data=data, method=method, headers=headers)
     with urllib.request.urlopen(req, timeout=timeout) as r:
         raw = r.read()
     return json.loads(raw) if raw else {}

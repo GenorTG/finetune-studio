@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import urllib.request
 from collections import defaultdict
@@ -30,7 +31,9 @@ norm, squash, lenient_value_in = _match.norm, _match.squash, _match.loosely_cont
 
 
 def get(path: str):
-    with urllib.request.urlopen(BASE + path, timeout=60) as r:
+    # Password-protected instance: ``fts auth token create <name>`` and export it as FTS_API_TOKEN.
+    headers = {"Authorization": f"Bearer {os.environ['FTS_API_TOKEN']}"} if os.environ.get("FTS_API_TOKEN") else {}
+    with urllib.request.urlopen(urllib.request.Request(BASE + path, headers=headers), timeout=60) as r:
         return json.loads(r.read())
 
 
