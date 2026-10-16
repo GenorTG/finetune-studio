@@ -30,10 +30,13 @@ BASE = "http://127.0.0.1:7860"
 norm, squash, lenient_value_in = _match.norm, _match.squash, _match.loosely_contains
 
 
+def auth_headers() -> dict[str, str]:
+    """Password-protected instance: ``fts auth token create <name>`` and export it as FTS_API_TOKEN."""
+    return {"Authorization": f"Bearer {os.environ['FTS_API_TOKEN']}"} if os.environ.get("FTS_API_TOKEN") else {}
+
+
 def get(path: str):
-    # Password-protected instance: ``fts auth token create <name>`` and export it as FTS_API_TOKEN.
-    headers = {"Authorization": f"Bearer {os.environ['FTS_API_TOKEN']}"} if os.environ.get("FTS_API_TOKEN") else {}
-    with urllib.request.urlopen(urllib.request.Request(BASE + path, headers=headers), timeout=60) as r:
+    with urllib.request.urlopen(urllib.request.Request(BASE + path, headers=auth_headers()), timeout=60) as r:
         return json.loads(r.read())
 
 

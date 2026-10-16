@@ -17,12 +17,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from corpus_build import ROOT
-from corpus_coverage import BASE, norm
+from corpus_coverage import BASE, auth_headers, norm
 from corpus_eval import ABSTAIN, passes, variants
 
 
 def rag_chat(pid: str, question: str, top_k: int, max_tokens: int = 200) -> tuple[str, list[dict]]:
-    req = urllib.request.Request(f"{BASE}/api/projects/{pid}/brain/chat", method="POST", headers={"Content-Type": "application/json"},
+    req = urllib.request.Request(f"{BASE}/api/projects/{pid}/brain/chat", method="POST", headers={"Content-Type": "application/json", **auth_headers()},
                                  data=json.dumps({"messages": [{"role": "user", "content": question}], "top_k": top_k,
                                                   "max_tokens": max_tokens, "temperature": 0.0}).encode())
     with urllib.request.urlopen(req, timeout=600) as r:

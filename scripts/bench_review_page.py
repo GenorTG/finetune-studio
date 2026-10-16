@@ -21,6 +21,8 @@ import urllib.request
 import uuid
 from pathlib import Path
 
+from corpus_coverage import auth_headers
+
 ROOT = Path(__file__).resolve().parents[1]
 BASE = "http://127.0.0.1:7860"
 GOLDEN = ROOT / "tests" / "corpus" / "korvane" / "golden"
@@ -28,7 +30,7 @@ GOLDEN = ROOT / "tests" / "corpus" / "korvane" / "golden"
 
 def call(path: str, method: str = "GET", body: dict | None = None):
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(BASE + path, data=data, method=method, headers={"Content-Type": "application/json"} if data else {})
+    req = urllib.request.Request(BASE + path, data=data, method=method, headers={**({"Content-Type": "application/json"} if data else {}), **auth_headers()})
     with urllib.request.urlopen(req, timeout=120) as r:
         raw = r.read()
     return json.loads(raw) if raw else {}

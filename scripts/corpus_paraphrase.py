@@ -16,7 +16,6 @@ import os
 import re
 import sys
 import time
-import urllib.request
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -24,7 +23,7 @@ from pathlib import Path
 import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from corpus_coverage import BASE
+from corpus_coverage import get
 
 URL = "https://opencode.ai/zen/go/v1/chat/completions"
 SYSTEM = ("You rewrite questions for a training set. Given a question and its reviewed answer, write {n} DIFFERENT re-wordings of the "
@@ -86,8 +85,7 @@ def main() -> int:
     key = os.environ.get("OPENCODE_GO_API_KEY", "")
     if not key:
         raise SystemExit("OPENCODE_GO_API_KEY is not set (source ~/.openclaw/workspace/.env_opcgo)")
-    with urllib.request.urlopen(f"{BASE}/api/projects/{a.pid}/data-prep/qa", timeout=60) as r:
-        pairs = [p for p in json.loads(r.read())["items"] if p["status"] == "approved"]
+    pairs = [p for p in get(f"/api/projects/{a.pid}/data-prep/qa")["items"] if p["status"] == "approved"]
     # one row per (question, answer): the same de-duplication the export applies
     uniq = {}
     for p in pairs:

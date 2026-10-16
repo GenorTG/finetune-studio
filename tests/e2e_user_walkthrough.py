@@ -838,7 +838,10 @@ async def run(phases: list[str], headed: bool) -> int:
     mon = Monitor()
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=not headed, args=["--no-sandbox", "--disable-gpu"])
-        ctx = await browser.new_context(viewport={"width": 1440, "height": 1000})
+        # Password-protected instance: pages accept the same Bearer token as the API.
+        ctx = await browser.new_context(viewport={"width": 1440, "height": 1000},
+                                        extra_http_headers=({"Authorization": f"Bearer {os.environ['FTS_API_TOKEN']}"}
+                                                            if os.environ.get("FTS_API_TOKEN") else {}))
         await ctx.add_init_script("try{localStorage.setItem('fts.tutorial.seen','1')}catch(e){}")
         mon.start()
         for name in phases:

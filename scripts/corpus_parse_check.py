@@ -9,14 +9,12 @@ Exit 1 when any fact is lost.
 from __future__ import annotations
 
 import argparse
-import json
 import sys
-import urllib.request
 from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from corpus_coverage import BASE, manifest_facts, norm, squash
+from corpus_coverage import get, manifest_facts, norm, squash
 
 
 def main() -> int:
@@ -28,8 +26,7 @@ def main() -> int:
     a = ap.parse_args()
     from finetune_studio.data.fs.paths import file_dir
 
-    with urllib.request.urlopen(f"{BASE}/api/projects/{a.pid}/data-prep/sources", timeout=60) as r:
-        sources = json.loads(r.read())["sources"]
+    sources = get(f"/api/projects/{a.pid}/data-prep/sources")["sources"]
     by_name = {s["filename"]: s for s in sources}
     lost: list[dict] = []
     total = 0

@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from corpus_build import ROOT
-from corpus_coverage import BASE, norm
+from corpus_coverage import BASE, auth_headers, norm
 
 WORDS = {"one": "1", "two": "2", "three": "3", "four": "4", "five": "5", "six": "6", "seven": "7", "eight": "8", "nine": "9", "ten": "10"}
 ABSTAIN = ("don't know", "do not know", "not know", "no information", "not mentioned", "not specified", "not provided", "cannot",
@@ -32,7 +32,7 @@ ABSTAIN = ("don't know", "do not know", "not know", "no information", "not menti
 def ask(question: str, system: str, max_tokens: int = 160) -> str:
     messages = [{"role": "system", "content": system}] if system else []
     messages.append({"role": "user", "content": question})
-    req = urllib.request.Request(BASE + "/api/inference/chat", method="POST", headers={"Content-Type": "application/json"},
+    req = urllib.request.Request(BASE + "/api/inference/chat", method="POST", headers={"Content-Type": "application/json", **auth_headers()},
                                  data=json.dumps({"messages": messages, "max_tokens": max_tokens, "temperature": 0.0,
                                                   "top_p": 1.0, "top_k": 1, "repeat_penalty": 1.0}).encode())
     with urllib.request.urlopen(req, timeout=300) as r:
