@@ -56,6 +56,15 @@ def test_base_workspace_label_and_aria_current() -> None:
     assert "1 Files &amp; Knowledge" in base and "2 Smart Brain" in base and "2 train" in base
 
 
+def test_project_file_page_points_to_the_next_workflow_step(client: TestClient) -> None:
+    pid = _project(client)
+    response = client.get(f"/projects/{pid}/data")
+    assert response.status_code == 200
+    assert 'aria-label="Next step"' in response.text
+    assert f'href="/projects/{pid}/data-prep"' in response.text
+    assert "Review question-answer pairs" in response.text
+
+
 def test_table_fixed_layout_and_empty_colspan() -> None:
     css = _CSS.read_text(encoding="utf-8")
     assert "table-layout: fixed" in css
@@ -302,7 +311,7 @@ def test_card_head_stacks_below_700() -> None:
 
 def test_css_cache_bust_bumped() -> None:
     base = _BASE.read_text(encoding="utf-8")
-    assert "app.css?v=88" in base
+    assert "app.css?v=93" in base
     assert "sprites.js?v=19" in base
     assert "nav_overflow.js?v=2" in base
     assert "spa.js?v=19" in base
@@ -390,6 +399,10 @@ def test_brain_ia_workflow_and_cta(client: TestClient) -> None:
         assert title in body, title
     assert body.count("5. Search test") == 1
     assert "Chat with RAG" not in body
+    assert '<details class="card mb-4" id="brain-search-settings">' in body
+    assert '<details class="card mb-4" id="brain-docs-panel">' in body
+    assert '<details class="card mb-4" id="brain-export-panel">' in body
+    assert '<details class="card mb-4" id="brain-shared-models">' in body
 
 
 def test_data_prep_ia_sections(client: TestClient) -> None:
@@ -398,6 +411,13 @@ def test_data_prep_ia_sections(client: TestClient) -> None:
     assert r.status_code == 200, r.text
     body = r.text
     assert 'id="dp-uploaded-files"' in body
+    assert '<details class="card mb-6" id="dp-uploaded-files">' in body
+    assert '<summary class="card-head">' in body
+    assert 'id="dp-uploaded-count"' in body
+    assert "count.textContent = _flTotalCount" in body
+    assert ".dp-points-col { min-width: 12rem; white-space: nowrap; }" in body
+    assert '<details class="card mb-6" id="dp-pref-card">' in body
+    assert 'details.card:not([open]) > summary.card-head' in _CSS.read_text(encoding="utf-8")
     assert "Uploaded files" in body
     assert 'id="dp-mining"' in body
     assert "Mine pairs, file by file" in body
@@ -405,6 +425,13 @@ def test_data_prep_ia_sections(client: TestClient) -> None:
     assert 'id="dp-files-empty"' in body  # the empty-state text the files table renders
     assert f'href="/projects/{pid}/brain"' in body
     assert "dpRenderFiles" in body
+
+
+def test_settings_and_inference_pages_have_headings(client: TestClient) -> None:
+    for path, heading in (("/settings", "Settings"), ("/inference", "Inference")):
+        response = client.get(path)
+        assert response.status_code == 200, response.text
+        assert f"<h1>{heading}</h1>" in response.text
 
 
 def test_brain_is_marked_here_in_the_flow_bar(client: TestClient) -> None:

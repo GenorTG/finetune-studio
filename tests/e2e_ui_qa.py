@@ -1,9 +1,8 @@
 """
 Finetune Studio — End-to-end Playwright QA suite.
 
-Exercises every public route, captures screenshots, asserts zero JS
-errors, smoke-tests each major interaction, and validates the new
-hacker-station aesthetic in the DOM.
+Exercises public routes, captures screenshots, checks current UI assets,
+asserts zero JS errors, and smoke-tests non-destructive interactions.
 
 Designed to be robust: tolerates missing optional endpoints (downloaded
 models, etc.), focuses on real behavior rather than decorative features.
@@ -14,10 +13,14 @@ import json
 import os
 import re
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from playwright.async_api import async_playwright
+
+# This suite catches page-level failures, records them as QA results, and continues to the other routes.
+# Those broad catches are intentional here: one bad page must not erase evidence from the rest of the sweep.
+# ruff: noqa: BLE001
 
 BASE = os.environ.get("FTS_BASE", "http://127.0.0.1:7860").rstrip("/")
 PROJECT_ID = os.environ.get("FTS_PROJECT_ID", "").strip()
@@ -31,19 +34,12 @@ def rec(name, ok, detail=""):
     print(f"  [{sym}] {name}{suffix}")
 
 
-AESTHETIC_POSITIVE = [("VT323", "font-family"),
-                      ("JetBrains Mono", "font-family"),
-                      ("prefers-reduced-motion", "")]
+AESTHETIC_POSITIVE = [("--bg-app", "design token"),
+                      ("system-ui", "font-family"),
+                      ("prefers-reduced-motion", "motion accessibility")]
 
 async def check_aesthetic(page, label):
-    """Check that the new hacker-station aesthetic is present and the old
-    rounded aesthetic has not leaked into .card elements.
-
-    The old aesthetic used border-radius: 8px+ on cards. The new design
-    intentionally uses rounded pills/avatars/scrollbars (border-radius:
-    9999px, 2px, 8px on non-card elements), so we only check .card computed
-    style rather than grepping all CSS.
-    """
+    """Check loaded design tokens, readable system typography and softened cards."""
     css = await page.evaluate("""
 () => {
   const out = [];
@@ -64,16 +60,16 @@ async def check_aesthetic(page, label):
   const radii = [];
   for (const c of cards) {
     const r = getComputedStyle(c).borderRadius;
-    if (r && r !== '0px' && r !== '1px') radii.push(r);
+    radii.push(r);
   }
   return radii;
 }
     """)
-    if card_radii:
-        fails.append(f".card border-radius leaked: {card_radii[:3]}")
+    if not card_radii or any(r in ("0px", "1px") for r in card_radii):
+        fails.append(f".card corners are not consistently softened: {card_radii[:3]}")
     font = await page.evaluate("() => getComputedStyle(document.body).fontFamily")
-    if "Inter" in font:
-        fails.append(f"body font has Inter: {font}")
+    if "system-ui" not in font or "monospace" in font:
+        fails.append(f"body font is not the readable UI face: {font}")
     rec(f"aesthetic [{label}]", not fails, "; ".join(fails) if fails else "")
 
 
@@ -115,10 +111,8 @@ async def test_dashboard(ctx):
             repr(progress[:60]))
         gpu = await page.text_content("#dash-gpu") or ""
         rec("dashboard.gpu_ratio", "/" in gpu and "{" not in gpu, repr(gpu))
-        mr = await page.evaluate(
-            "() => Boolean(document.querySelector('[data-matrix] .matrix-rain'))"
-        )
-        rec("dashboard.matrix_rain_active", mr)
+        quick_actions = await page.locator(".card-title", has_text="Quick actions").count()
+        rec("dashboard.quick_actions_present", quick_actions == 1, f"count={quick_actions}")
         brand = await page.query_selector(".sb-brand .logo")
         if brand:
             clip = await brand.evaluate("el => getComputedStyle(el).clipPath")
@@ -292,21 +286,9 @@ async def test_projects(ctx):
         n = await page.evaluate("() => document.querySelectorAll('.bin-sprite').length")
         rec("project_data.bin_sprite", n >= 1, f"{n} bins")
 
-        try:
-            uploaded = await page.evaluate("""
-async () => {
-  const fd = new FormData();
-  fd.append('files', new Blob(['hello world'], {type:'text/plain'}), 'hello.txt');
-  const r = await fetch('/api/projects/' + location.pathname.split('/')[2]
-                       + '/files/upload', {method:'POST', body:fd});
-  return {status: r.status, body: await r.text()};
-}
-            """)
-            ok = uploaded.get("status") == 200
-            rec("project_data.upload", ok,
-                f"status={uploaded.get('status')} body={uploaded.get('body','')[:80]!r}")
-        except Exception as e:
-            rec("project_data.upload.error", False, str(e)[:80])
+        await page.click("#fb-upload-toggle")
+        upload_visible = await page.is_visible("#fb-upload-card")
+        rec("project_data.upload_form_opens", upload_visible)
     except Exception as e:
         rec("projects.test.error", False, str(e)[:120])
     finally:
@@ -328,7 +310,7 @@ async def test_palette(ctx):
         expected = "⌘" if is_mac else "Ctrl"
         rec("palette.platform_label", expected in btn_text, btn_text[:40])
 
-        # Open via hotkey and search 'rag' from a no-project page.
+        # Open via hotkey and search the current Smart Brain destination.
         await page.keyboard.press("Control+K")
         await page.wait_for_timeout(400)
         visible = await page.evaluate(
@@ -336,7 +318,7 @@ async def test_palette(ctx):
         )
         rec("palette.opens_with_ctrl_k", visible)
 
-        # How many projects exist? Each contributes one 'rag' sub-page.
+        # How many projects exist? Each contributes one Smart Brain page.
         projects = await page.evaluate("""
 async () => {
   const r = await fetch('/api/projects');
@@ -346,29 +328,29 @@ async () => {
 }
         """)
         n_projects = len(projects) if isinstance(projects, list) else 0
-        # Expect one rag row per project (capped by the palette's 14-row limit).
+        # Expect one Brain row per project (capped by the palette's 14-row limit).
         # With a single project the old hardcoded ">= 3" was unreachable.
-        rag_expected = min(n_projects, 3) if n_projects else 0
+        brain_expected = min(n_projects, 3) if n_projects else 0
 
-        await page.fill("#palette-input", "rag")
+        await page.fill("#palette-input", "brain")
         await page.wait_for_timeout(500)
         rows = await page.evaluate("""
 () => Array.from(document.querySelectorAll('.palette-row')).map(r => ({
   href: r.dataset.href, label: r.querySelector('.palette-row-label')?.textContent
 }))
         """)
-        rag_rows = [r for r in rows if (r.get("label") or "").strip().lower() == "rag"]
-        rag_ok = len(rag_rows) >= rag_expected and (
-            rag_expected == 0 or len(rag_rows) >= 1
+        brain_rows = [r for r in rows if "brain" in (r.get("label") or "").strip().lower()]
+        brain_ok = len(brain_rows) >= brain_expected and (
+            brain_expected == 0 or len(brain_rows) >= 1
         )
         rec(
-            "palette.rag_returns_multiple",
-            rag_ok,
-            f"got {len(rows)} rows ({len(rag_rows)} rag), "
-            f"projects={n_projects}, expect>={rag_expected}",
+            "palette.brain_returns_project_routes",
+            brain_ok,
+            f"got {len(rows)} rows ({len(brain_rows)} brain), "
+            f"projects={n_projects}, expect>={brain_expected}",
         )
 
-        # Multi-token: '<project-token> rag' should only return rag pages of
+        # Multi-token: '<project-token> brain' should return Brain pages of
         # that project. Derive the token from a live project name so the
         # suite stays valid when QA fixtures are renamed.
         token = ""
@@ -381,7 +363,7 @@ async () => {
             if token:
                 break
         if token:
-            await page.fill("#palette-input", f"{token} rag")
+            await page.fill("#palette-input", f"{token} brain")
             await page.wait_for_timeout(500)
             rows = await page.evaluate("""
 () => Array.from(document.querySelectorAll('.palette-row')).map(r => ({
@@ -389,11 +371,11 @@ async () => {
 }))
             """)
             labels = [(r.get("label") or "").strip().lower() for r in rows]
-            all_rag = bool(labels) and all(lab == "rag" for lab in labels)
+            all_brain = bool(labels) and all("brain" in lab for lab in labels)
             rec(
                 "palette.multi_token_tight",
-                all_rag,
-                f"q={token!r} rag → {labels}",
+                all_brain,
+                f"q={token!r} brain → {labels}",
             )
         else:
             rec("palette.multi_token_tight", True, "skipped — no project name token")
@@ -433,7 +415,6 @@ async def test_spa(ctx):
             if href.startswith("http"):
                 continue
             try:
-                before = page.url
                 await page.click(f'.sb-tab[href="{href}"]')
                 await page.wait_for_timeout(700)
                 after = page.url
@@ -470,7 +451,7 @@ async def test_settings_ssr(ctx):
         for slug, name in [
             ("",           "project_home"),
             ("data",       "project_data"),
-            ("rag",        "project_rag"),
+            ("brain",      "project_brain"),
             ("testing",    "project_testing"),
             ("training",   "project_training"),
             ("benchmarks", "project_benchmarks"),
@@ -479,7 +460,7 @@ async def test_settings_ssr(ctx):
         ]:
             sp = await ctx.new_page()
             local_errs = []
-            sp.on("pageerror", lambda e: local_errs.append(str(e)))
+            sp.on("pageerror", lambda e, errors=local_errs: errors.append(str(e)))
             try:
                 r = await sp.goto(f"{BASE}/projects/{pid}/{slug}",
                                   wait_until="networkidle", timeout=15000)
@@ -505,7 +486,7 @@ async def main():
         return 2
     SHOTS.mkdir(parents=True, exist_ok=True)
     print("━" * 70)
-    print(f"Finetune Studio — E2E QA V2  ({datetime.now().isoformat()})")
+    print(f"Finetune Studio — E2E QA V2  ({datetime.now(UTC).isoformat()})")
     print(f"Target: {BASE}")
     print("━" * 70)
 
@@ -546,15 +527,14 @@ async def main():
     print("━" * 70)
 
     report = {
-        "timestamp": datetime.now().isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "target": BASE,
         "passed": passed,
         "failed": failed,
         "total": len(RESULTS),
         "results": [{"name": n, "ok": ok, "detail": d} for n, ok, d in RESULTS],
     }
-    with open(SHOTS / "report.json", "w") as f:
-        json.dump(report, f, indent=2)
+    (SHOTS / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
 
     return 1 if failed else 0
 

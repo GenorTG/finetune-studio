@@ -67,7 +67,7 @@
   </style>
   <title>{% block title %}Finetune Studio{% endblock %} · {{ release_channel }}</title>
   <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
-  <link rel="stylesheet" href="/static/css/app.css?v=88">
+  <link rel="stylesheet" href="/static/css/app.css?v=93">
   <link rel="stylesheet" href="/static/css/access.css?v=3">
   <script src="/static/js/access.js?v=1"></script>
   <script src="/static/js/api.js?v=1"></script>
@@ -197,7 +197,8 @@
           <span class="bc-sep">/</span>
           <a href="/projects" data-link>projects</a>
           <span class="bc-sep">/</span></span>
-          <a href="/projects/{{ pid }}" data-link class="bc-project">{{ (project.name if project is defined and project else pid) }}</a>
+          <a href="/projects/{{ pid }}" data-link class="bc-project"
+             title="{{ project.name if project is defined and project else pid }}">{{ (project.name if project is defined and project else pid) }}</a>
           <span class="bc-sep">/</span>
           <span class="bc-tab">{% block breadcrumb_tab %}overview{% endblock %}</span>
         </nav>
@@ -329,6 +330,28 @@
         {% set _page_actions %}{% block topbar_right %}{% endblock %}{% endset %}
         {% if _page_actions|trim %}<div class="page-actions" id="page-actions">{{ _page_actions }}</div>{% endif %}
         {% block content %}{% endblock %}
+        {% if pid is defined and pid %}
+        {% set _flow_next = {
+          'files': ['/data-prep', 'Review question-answer pairs', 'For training, mine and approve examples from your files.'],
+          'pairs': ['/training', 'Train an adapter', 'Use the reviewed dataset to teach the model how to answer.'],
+          'training': ['/testing', 'Test the answers', 'Run a quiz to see what the adapter learned and when it declines.'],
+          'testing': ['/export', 'Export or use the model', 'Package a finished adapter, then try it in chat.'],
+          'export': ['/chat', 'Try it in chat', 'Test the exported model; add Smart Brain when answers need document facts.'],
+          'smart brain': ['/chat', 'Ask with sources', 'Chat uses the indexed files and shows where each answer came from.'],
+          'chat': ['/testing', 'Measure answer quality', 'Run a quiz to check accuracy and appropriate declines.'],
+          'compare': ['/testing', 'Run a focused quiz', 'Compare models on the same questions, then score the answers.'],
+          'benchmarks': ['/testing', 'Test your own questions', 'Public benchmarks are useful context; your quiz measures your task.'],
+          'models': ['/chat', 'Open a model in chat', 'Use a model in this project and optionally ground it with Smart Brain.'],
+          'settings': ['', 'Return to project overview', 'Pick up the next project step from its overview.']
+        }.get(self.breadcrumb_tab()|trim) %}
+        {% if _flow_next %}
+        <div class="next-step" aria-label="Next step">
+          <span class="next-step-label">Next</span>
+          <a href="/projects/{{ pid }}{{ _flow_next[0] }}" data-link>{{ _flow_next[1] }} →</a>
+          <span class="next-step-why">{{ _flow_next[2] }}</span>
+        </div>
+        {% endif %}
+        {% endif %}
       </main>
     </div>
   </div>

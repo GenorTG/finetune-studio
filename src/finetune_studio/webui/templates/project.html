@@ -35,16 +35,18 @@
 <div class="flow-picker mb-4" id="start-here">
   <div class="flow-picker-head">
     <h2>What do you want to do with these files?</h2>
-    <p class="text-dim">Two kinds of work, same file library. Do one, the other, or both — in any order.</p>
+    <p class="text-dim">Start with the files you have. You can use both paths at any time.</p>
+    <a class="btn primary" href="{% if stats.files == 0 %}/projects/{{ pid }}/data{% else %}/projects/{{ pid }}/wizard{% endif %}" data-link>
+      {% if stats.files == 0 %}＋ Add your first files{% else %}Continue setup →{% endif %}
+    </a>
   </div>
   <div class="flow-picker-grid">
     <div class="flow-card" id="flow-card-model">
       <div class="flow-card-icon" aria-hidden="true">🧠</div>
       <div class="flow-card-title">Train an adapter (LoRA)</div>
       <div class="flow-card-sub">
-        Teaches a model <b>how to answer</b>: tone, format, persona, a baked system prompt and a handful of
-        key facts. It is not a store for your documents — measured on our test corpus, a fine-tune alone
-        answered 10–24 % of the quiz; the same model with the Smart Brain 94 of 102. <b>Hours of GPU.</b>
+        Teaches a model how to answer: tone, format, persona and a few key facts. It does not store your documents.
+        In our measured corpus, fine-tuning alone answered 10–24% of the quiz; with Smart Brain, 94 of 102. Training takes hours of GPU time.
       </div>
       <ol class="flow-card-steps">
         <li>Upload files</li>
@@ -54,8 +56,7 @@
         <li>Export / chat with it — with the Smart Brain for the facts</li>
       </ol>
       <div class="flex gap-2 wrap mt-2">
-        <a class="btn primary" href="/projects/{{ pid }}/wizard" data-link>⚡ Do it step by step</a>
-        <a class="btn sm" href="/projects/{{ pid }}/training" data-link>Training page</a>
+        <a class="btn sm" href="/projects/{{ pid }}/training" data-link>Training details</a>
       </div>
     </div>
     <div class="flow-card" id="flow-card-brain">
@@ -72,8 +73,7 @@
         <li>Chat grounded in the documents</li>
       </ol>
       <div class="flex gap-2 wrap mt-2">
-        <a class="btn primary" href="/projects/{{ pid }}/brain" data-link>🧠 Open the Smart Brain</a>
-        <a class="btn sm" href="/projects/{{ pid }}/wizard#wiz-step-brain" data-link>One-click build</a>
+        <a class="btn sm" href="/projects/{{ pid }}/brain" data-link>Open Smart Brain</a>
       </div>
     </div>
   </div>
@@ -105,14 +105,6 @@
     <div class="value" style="color: var(--ok);">{{ stats.models }}</div>
     <div class="delta">{{ stats.models }} exports · {{ stats.models_size_gb }} GB total</div>
   </a>
-</div>
-
-{# ── C. Quick actions ── #}
-<div class="flex gap-2 wrap mb-4">
-  <a class="btn primary" href="/projects/{{ pid }}/training" data-link>▶ Start training</a>
-  <a class="btn" href="/projects/{{ pid }}/chat" data-link>💬 Open chat</a>
-  <a class="btn" href="/projects/{{ pid }}/data" data-link>＋ New file</a>
-  <a class="btn" href="/api/projects/{{ pid }}/export">📦 Export project archive</a>
 </div>
 
 {# ── D. Recent training ── #}
@@ -158,7 +150,7 @@
           <button class="btn sm danger"
                   data-action="/api/projects/{{ pid }}/runs/{{ run.id }}"
                   data-method="DELETE"
-                  data-confirm="Delete this run? Output files on disk will be kept."
+                  data-confirm="Delete this run and its run-specific output files? Shared output files are kept."
                   data-reload="true">Delete</button>
         </td>
       </tr>
@@ -311,6 +303,13 @@
       <button class="btn primary" onclick="document.getElementById('settings-form').requestSubmit()">Save</button>
     </div>
   </div>
+</div>
+
+<div class="next-step" aria-label="Next step">
+  <span class="text-dim">Next:</span>
+  <a href="{% if stats.files == 0 %}/projects/{{ pid }}/data{% else %}/projects/{{ pid }}/wizard{% endif %}" data-link>
+    {% if stats.files == 0 %}Add files to this project{% else %}Continue in Quick work{% endif %}
+  </a>
 </div>
 
 <script>

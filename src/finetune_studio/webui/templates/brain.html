@@ -127,8 +127,8 @@
 </div>
 
 {# Settings #}
-<div class="card mb-4">
-  <div class="card-head">
+<details class="card mb-4" id="brain-search-settings">
+  <summary class="card-head">
     <div>
       <div class="card-title">3. Search settings</div>
       <div class="card-sub">
@@ -137,7 +137,7 @@
         accuracy. These affect retrieval only — they never retrain the chat model.
       </div>
     </div>
-  </div>
+  </summary>
   <div class="grid grid-12 gap-3 items-end">
     <div class="col-span-5">
       <label class="block text-xs muted mb-1"
@@ -160,11 +160,11 @@
       <button onclick="saveSettings()" class="btn primary" style="width:100%;">Save</button>
     </div>
   </div>
-</div>
+</details>
 
 {# Documents indexed #}
-<div class="card mb-4" id="brain-docs-panel">
-  <div class="card-head">
+<details class="card mb-4" id="brain-docs-panel">
+  <summary class="card-head">
     <div>
       <div class="card-title">4. Documents in the index</div>
       <div class="card-sub">
@@ -181,7 +181,7 @@
       <button class="btn sm" onclick="loadIndexedDocs()" title="Refresh inventory">⟲ Refresh</button>
       <button class="btn sm danger" onclick="clearAllDocuments()" title="Remove all parsed source files from the index. After this, press Build again to re-index from whatever sources remain.">Remove all sources</button>
     </div>
-  </div>
+  </summary>
   <div id="brain-docs-body">
     {% set docs = indexed_docs | default([]) %}
     {% if docs %}
@@ -231,7 +231,7 @@
     </p>
     {% endif %}
   </div>
-</div>
+</details>
 
 {# Chunks modal #}
 <div id="brain-chunks-modal" class="modal-back" hidden onclick="if(event.target===this)this.hidden=true">
@@ -295,8 +295,8 @@
 </div>
 
 {# Bundle #}
-<div class="card mb-4">
-  <div class="card-head">
+<details class="card mb-4" id="brain-export-panel">
+  <summary class="card-head">
     <div>
       <div class="card-title">7. Download / export the index</div>
       <div class="card-sub">
@@ -305,7 +305,7 @@
         Search-model files are not included &mdash; use the standalone package below for an offline pack.
       </div>
     </div>
-  </div>
+  </summary>
   <div class="grid grid-12 gap-3 items-end mb-3">
     <div class="col-span-5">
       <label class="block text-xs muted mb-1">File name (without extension)</label>
@@ -387,11 +387,11 @@
     <p class="text-xs dim mt-2" id="mcp-pkg-note">Runs anywhere with Python 3.10+. Keyword search works out of the box; for meaning-based search point it at an embeddings endpoint or include the models. Settings baked in here are written to <code>rag.config.json</code> inside the package and can be overridden by env vars and flags.</p>
   </div>
   <span id="bundle-status" class="block mt-2 text-xs dim"></span>
-</div>
+</details>
 
 {# Shared models #}
-<div class="card mb-4">
-  <div class="card-head">
+<details class="card mb-4" id="brain-shared-models">
+  <summary class="card-head">
     <div>
       <div class="card-title">8. Shared search models</div>
       <div class="card-sub">
@@ -402,9 +402,9 @@
       </div>
     </div>
     <button class="btn ghost" onclick="loadSharedModels()">Refresh</button>
-  </div>
+  </summary>
   <div id="shared-models-list" class="text-xs muted">Loading…</div>
-</div>
+</details>
 
 {# Danger zone #}
 <div class="card" style="border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.04);">

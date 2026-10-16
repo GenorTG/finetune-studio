@@ -2,8 +2,8 @@
 
 **File:** `tests/e2e_ui_qa.py`
 **Purpose:** exercise every public route in a real Chromium browser, capture
-screenshots, assert zero JS errors, validate that the hacker-station aesthetic
-stays consistent across the whole app.
+screenshots, assert zero JS errors, and smoke-test non-destructive interactions
+against the current Studio UI.
 
 ## Run
 
@@ -11,22 +11,34 @@ The suite points at `http://127.0.0.1:7860` by default. Override with the
 `FTS_BASE` env var:
 
 ```bash
-# Live suite against a running WebUI (mutates project data and can load a GPU model)
+# Live suite against a running WebUI (read-only route and interaction checks)
 FTS_ALLOW_LIVE_E2E=1 python tests/e2e_ui_qa.py
 
-# Against local dev server
-FTS_ALLOW_LIVE_E2E=1 FTS_BASE=http://localhost:7860 python tests/e2e_ui_qa.py
+# Against an isolated local dev server on a non-production port
+FTS_ALLOW_LIVE_E2E=1 FTS_BASE=http://localhost:7891 python tests/e2e_ui_qa.py
 ```
 
 Outputs:
-- Screenshots: `~/.openclaw/workspace/media/qa_v2/<name>.png`
-- JSON report: `~/.openclaw/workspace/media/qa_v2/report.json`
+- Screenshots: `.tmp/qa-shots/ui/<name>.png` (or `FTS_QA_SHOTS`)
+- JSON report: `.tmp/qa-shots/ui/report.json`
 
 Exit code is non-zero on any failed check.
-Live E2E scripts and `run_qa.sh` require `FTS_ALLOW_LIVE_E2E=1`; they can
-download models, load GPU memory, train, or mutate project data. The nightly
-runner refuses to contact the service or send its Discord report without the
-same explicit opt-in.
+
+The Guide has a fully isolated browser flow; it starts its own sandbox WebUI
+and scripted OpenAI-compatible helper, so it never uses the live database or a
+real model:
+
+```bash
+PYTHONPATH=src python tests/e2e_guide_sandbox.py
+```
+
+It checks streaming tool feedback, page navigation, highlighted and pre-filled
+controls, conversation persistence, error handling, and both themes.
+`e2e_ui_qa.py` checks routes and opens the Files upload panel but does not
+upload, train, download, or otherwise mutate project data. Other live E2E
+drivers can perform those actions; inspect the selected driver before pointing
+it at a non-sandbox service. `FTS_ALLOW_LIVE_E2E=1` remains required for live
+runs and for the nightly runner to contact the service or send its report.
 
 ## What it checks
 
@@ -34,23 +46,20 @@ For each public route:
 
 1. **load** — HTTP 200 / 3xx, no redirect loop.
 2. **no_js_errors** — no `pageerror` events, no `console.error` messages.
-3. **aesthetic** — computed `border-radius` on `.card` is `0` or `1px`,
-   body font doesn't include Inter, hacker-station markers (VT323, JetBrains
-   Mono, `prefers-reduced-motion`) all present in CSS, no non-zero
-   `border-radius: Npx` slipped back in.
+3. **design tokens** — the Studio design tokens and system UI font load,
+   cards use softened corners, and reduced-motion support is present.
 
 Plus interactive flow tests:
 
-- **dashboard** — boot sprite present, polling returns plain text
-  (`Idle` not raw JSON), GPU tile shows ratio, matrix rain renders,
-  brand logo has octagon clip-path.
+- **dashboard** — polling returns plain text (`Idle` not raw JSON), GPU tile
+  shows its ratio, quick actions render, and the brand mark is present.
 - **inference** — model `<select>` populated, load button wires up.
 - **hf_explore** — search box works, search click returns ≥0 cards.
-- **project_data** — bin sprite exists, multipart upload returns 200.
+- **project_data** — bin sprite exists and the upload form opens.
 - **spa** — clicking each nav item navigates without a full page reload,
   both `window.spritesInit` and `window.fts.init` are exposed.
-- **project sub-pages** — home / data / rag / testing / training /
-  benchmarks / chat / data-prep all render cleanly.
+- **project sub-pages** — home / files / Smart Brain / testing / training /
+  benchmarks / chat / pairs all render cleanly.
 
 ## Last recorded run (historical)
 

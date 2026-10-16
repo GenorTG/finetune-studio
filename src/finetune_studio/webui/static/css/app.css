@@ -1,32 +1,34 @@
 /* ============================================================
-   FINETUNE STUDIO — HACKER STATION
-   phosphor green · amber · CRT scanlines · brutalist
+   FINETUNE STUDIO — UI TOKENS
+   neutral surfaces · accessible accents · compact workspace
    ============================================================ */
 
 /* Fonts are vendored (static/fonts, fonts.css): no page load calls Google, offline installs render the real faces. */
 @import url('fonts.css');
 
 :root {
-  --bg-app:        #060a07;
-  --bg-nav:        #08110a;
-  --bg-panel:      #0c1810;
-  --bg-panel-2:    #122619;
-  --bg-elevated:   #143022;
+  --bg-app:        #0b1020;
+  --bg-nav:        #090e1a;
+  --bg-panel:      #121a2b;
+  --bg-panel-2:    #172338;
+  --bg-elevated:   #1d2b42;
+  --bg:             #0b1020;
+  --fg:             #e8eef8;
+  --card:           #121a2b;
 
-  --border:        #2b4a30;
-  --border-strong: #3f7a4d;
-  --border-hot:    #00ff66;
+  --border:        #29364c;
+  --border-strong: #3b4c68;
+  --border-hot:    #78a6ff;
 
-  --text:          #d2ffda;
-  --text-muted:    #7fc98f;
-  --text-dim:      #66b47a;
+  --text:          #e8eef8;
+  --text-muted:    #a9b7cd;
+  --text-dim:      #8393ad;
 
-  --accent:        #00ff66;
-  --accent-2:      #9cff00;
-  --accent-glow:   rgba(0,255,102,0.45);
-  /* text placed ON an accent fill — black on neon green (dark), white on
-     forest green (light); keeps every logo/primary-btn/pill ≥ 4.5:1 */
-  --on-accent:     #000;
+  --accent:        #78a6ff;
+  --accent-2:      #9b8cff;
+  --accent-glow:   rgba(120,166,255,.18);
+  /* Text on an accent fill; contrast-safe in both themes. */
+  --on-accent:     #08101e;
   /* Legacy token aliases — templates reference these names; resolving them
      through the real tokens makes every one of them theme-aware (the light
      block in base.html overrides the targets, so the alias follows). */
@@ -42,15 +44,15 @@
   --surface:       var(--bg-panel);
   --font-mono:     "Share Tech Mono", ui-monospace, monospace;
   --mono:          "Share Tech Mono", ui-monospace, monospace;
-  --warn:          #ffaa00;
-  --err:           #ff3a3a;
-  --ok:            #00ff66;
-  --cyan:          #00e1ff;
-  --magenta:       #ff2bd6;
+  --warn:          #f1b85b;
+  --err:           #f0787c;
+  --ok:            #4fc995;
+  --cyan:          #60c4e8;
+  --magenta:       #d29af4;
 
-  --radius:        0px;
-  --radius-lg:     0px;
-  --radius-sm:     0px;
+  --radius:        8px;
+  --radius-lg:     12px;
+  --radius-sm:     6px;
   --nav-w:         244px;
   --header-h:      76px;
 
@@ -4583,6 +4585,18 @@ body::before {
 .run-failure .muted { color: var(--text-muted); }
 .steps-hint-warn { color: var(--warn-text, var(--warn)); }
 
+:root[data-theme="light"] {
+  --bg-app: #f5f7fb; --bg-nav: #eef2f8; --bg-panel: #fff; --bg-panel-2: #f3f6fb; --bg-elevated: #e8edf6;
+  --bg: #f5f7fb; --fg: #202a3a; --card: #fff;
+  --border: #d4dce9; --border-strong: #bdc9dc; --border-hot: #315ec9;
+  --text: #202a3a; --text-muted: #53627a; --text-dim: #64748b;
+  --accent: #315ec9; --accent-2: #5b4bc4; --accent-glow: rgba(49,94,201,.16); --on-accent: #fff;
+  --warn: #b56b12; --warn-text: #81500f; --ok: #19794e; --ok-text: #16724d;
+  --err: #b93442; --err-text: #a52b35; --cyan: #087a9e; --cyan-text: #0c6887;
+  --magenta: #894da9; --magenta-text: #7443a2;
+}
+:root[data-theme="dark"] { --bg: #0b1020; --fg: #e8eef8; --card: #121a2b; }
+
 /* ============================================================
    GUIDE PANEL — docked assistant (templates/base.html, static/js/guide.js)
    Lives outside #content so SPA navigation never unloads it. Docks beside
@@ -4740,3 +4754,31 @@ body::before {
 .sprite-mount > svg, .sprite-mount > .sprite { flex: 0 0 auto; }
 .sprite-mount-caption { margin-top: 0; font-size: 13px; }
 .sprite-mount .sprite-mount-sub { margin-top: 0 !important; }
+
+/* ── Folded sections (2026-10-16 IA pass): a <details class="card"> keeps the card chrome, its summary is the head.
+   Secondary surfaces (the pairs page's file-library copy, DPO, index export, shared models) open on demand. ── */
+details.card > summary { list-style: none; cursor: pointer; }
+details.card > summary::-webkit-details-marker { display: none; }
+details.card > summary.card-head > :first-child .card-title::after { content: "  +"; color: var(--accent); opacity: .8; }
+details.card[open] > summary.card-head > :first-child .card-title::after { content: "  −"; }
+details.card:not([open]) > summary.card-head { margin-bottom: 0; border-bottom: 0; padding-bottom: 0; }
+/* The next step of the project flow, under every project page's content. */
+.next-step { margin: 28px 0 8px; padding: 14px 16px; border: 1px dashed var(--border); display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.next-step .next-step-label { font-family: "Share Tech Mono", monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); font-size: 11px; }
+.next-step .next-step-why { color: var(--text-muted); font-size: 12px; flex: 1 1 18rem; }
+
+/* ── Studio visual refresh: neutral surfaces, readable type, no CRT treatment. ── */
+html, body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background-image: none; }
+body::before, .matrix-rain { display: none !important; }
+h1, h2, h3, .card-title, .page-head, .sb-tab, .workspace-subnav, .btn, .pill {
+  font-family: inherit !important; letter-spacing: normal; text-shadow: none;
+}
+.card-title { font-size: 16px; font-weight: 650; text-transform: none; }
+.card-title::before, .stat .label::before { content: none !important; }
+.card, .stat, .modal, .card-inner { border-radius: var(--radius); }
+.stat { border-color: var(--border); }
+.stat .label { color: var(--text-muted); font-family: inherit; letter-spacing: .04em; }
+.stat .value { font-family: inherit; text-shadow: none; line-height: 1.2; }
+.btn { border-radius: var(--radius-sm); text-transform: none; }
+.pill { border-radius: 999px; }
+.guide-ctx, .guide-label, .guide-arg, .guide-hint { color: var(--text-muted); }

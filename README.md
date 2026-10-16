@@ -478,9 +478,11 @@ step-by-step installation instructions. The supported Python range is
 - **Export:** merged and abliterated are first-class; GGUF needs llama.cpp
   conversion tools on the host. Missing tools return clear errors instead
   of fake success.
-- **Testing:** Playwright live-browser E2E in `tests/e2e_ui_qa.py`; it can
-  mutate project data or load a GPU model, so run only with explicit
-  `FTS_ALLOW_LIVE_E2E=1` (override target with `FTS_BASE`).
+- **Testing:** the Playwright route suite `tests/e2e_ui_qa.py` is non-mutating;
+  the Guide flow `tests/e2e_guide_sandbox.py` runs against its own fake helper
+  and temporary database. Both have a real-browser path. Other live E2E
+  drivers may mutate data or use a GPU; inspect the selected driver and require
+  explicit `FTS_ALLOW_LIVE_E2E=1` before pointing it at a running instance.
 - **Updates:** self-healing pipeline — `./update.sh` or Settings → Apply
   update (pull → venv repair → dep sync → migrations → restart), with
   startup reconciliation of interrupted runs.
@@ -492,8 +494,7 @@ step-by-step installation instructions. The supported Python range is
 Python 3.12–3.13 — `fastapi` `uvicorn` `jinja2` `sqlite3` (stdlib) `pydantic`
 ML — `torch` `transformers` `trl` `peft` `bitsandbytes`
 Smart Brain — `sentence-transformers` (embeddings + cross-encoder reranking), BM25, rank fusion · `llama-cpp-python`
-Web — vanilla HTML/CSS/JS, Google Fonts (JetBrains Mono, Share Tech Mono,
-VT323, Press Start 2P)
+Web — vanilla HTML/CSS/JS, system UI typography, locally vendored font assets
 Tests — `playwright` `pytest`
 
 Full list with versions and licenses → **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTIONS.md)**

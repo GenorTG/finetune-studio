@@ -59,10 +59,10 @@ def brain(messages: list[dict]) -> str:
         raise RuntimeError("scripted helper failure")
     if "loop forever" in question:
         return call("app_help", query=f"loop topic {step}")
-    if "qa per chunk" in question:
-        script = [call("app_help", query="pairs per chunk setting"),
+    if "mine selected" in question:
+        script = [call("app_help", query="how to mine selected files"),
                   call("highlight", control_id="pairs.mine_selected"),
-                  "That is **Pairs per chunk** on the Pairs page; 3 is the default. I pointed at it."]
+                  "Use **Mine selected** on the Pairs page after selecting files. I pointed at the button."]
         return script[min(step, len(script) - 1)]
     if "readiness" in question:
         return call("inspect_project_readiness") if step == 0 else "You have 99 approved pairs and 12 sources."
@@ -244,17 +244,22 @@ def run_theme(page, base, pid, theme, shots, probe_src, check, errors) -> None:
 
     # 2. persistence: SPA navigation keeps the conversation; a hard reload restores it.
     before = page.locator(".guide-msg, .guide-tool, .guide-effect").count()
-    page.click('a[data-link][href$="/data-prep"] >> nth=0')
+    page.click('.workspace-subnav a.ws-link[href$="/data-prep"]')
     page.wait_for_url(f"**/projects/{pid}/data-prep")
     check(tag + "conversation intact after SPA navigation", page.locator(".guide-msg, .guide-tool, .guide-effect").count() == before)
     # 3. highlight from another page opens the right page first.
-    page.fill("#guide-input", "Where is qa per chunk?")
+    page.fill("#guide-input", "How do I mine selected files?")
     page.click("#guide-send")
-    page.wait_for_selector(".guide-effect:has-text('Pairs per chunk')", timeout=30000)
+    try:
+        page.wait_for_selector(".guide-effect:has-text('Mine selected')", timeout=30000)
+    except Exception:
+        print("Guide DOM after settings lookup:", page.locator("#guide-msgs").inner_text()[-3000:])
+        print("Guide page after settings lookup:", page.url)
+        raise
     check(tag + "highlight pulses the control", page.locator("#dp-mine-selected.guide-pulse").count() == 1 or page.locator(".guide-pulse").count() >= 1)
     page.screenshot(path=str(shots / f"{theme}-3-highlight.png"))
-    page.click('a[data-link][href$="/brain"] >> nth=0')
-    page.fill("#guide-input", "Where is qa per chunk? (again)")
+    page.click('.workspace-subnav a.ws-link[href$="/brain"]')
+    page.fill("#guide-input", "How do I mine selected files? (again)")
     page.click("#guide-send")
     page.wait_for_url(f"**/projects/{pid}/data-prep", timeout=30000)
     check(tag + "highlight from another page navigates there first", page.url.endswith("/data-prep"))
@@ -306,7 +311,7 @@ def run_theme(page, base, pid, theme, shots, probe_src, check, errors) -> None:
             page.wait_for_timeout(1300)
             res = page.evaluate("() => window.__audit()")
         guide_issues = {k: [i for i in (res.get(k) or []) if "guide" in json.dumps(i).lower()]
-                        for k in ("overflow", "clipped", "tiny", "low", "cryptic")}
+                        for k in ("overflow", "clipped", "tiny", "low", "cryptic", "wall", "emptyBad")}
         check(tag + "window.__audit has no findings on the Guide", not any(guide_issues.values()), json.dumps(guide_issues)[:300])
         print(f"      audit {theme}: clean={res.get('clean')} counts={res.get('counts')}")
     real = [e for e in errors if "favicon" not in e and "fonts.g" not in e and "Failed to load resource" not in e]

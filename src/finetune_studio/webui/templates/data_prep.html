@@ -29,30 +29,31 @@
       <a href="/projects/{{ pid }}/brain" class="btn" data-link id="dp-cta-brain">Open the Smart Brain →</a>
     </div>
   </div>
+  <details class="page-more text-xs"><summary>The four steps</summary>
   <ol class="brain-workflow-steps" aria-label="Data prep workflow">
     <li><b>Upload</b> files into the library below; every readable file is parsed on arrival (<b>Use as source</b> retries a failed one)</li>
     <li><b>Mine</b> each file: its data-point checklist, pairs, checks and fixes</li>
     <li><b>Review</b> the pairs until every file is <b>complete</b></li>
     <li>Export approved pairs to Training (the <a href="/projects/{{ pid }}/brain" data-link>Smart Brain</a> needs no pairs)</li>
   </ol>
+  </details>
 </div>
 
 <!-- ── Uploaded files (Stage 1B) ──────────────────────────────────────────── -->
-<div class="card mb-6" id="dp-uploaded-files">
-  <div class="card-head">
+<details class="card mb-6" id="dp-uploaded-files">
+  <summary class="card-head">
     <div>
-      <div class="card-title">Uploaded files</div>
+      <div class="card-title">Uploaded files <span class="pill outline" id="dp-uploaded-count"></span></div>
       <div class="card-sub">
-        Raw uploads in the project file library. Drag files in, organise into folders,
-        hand-edit. Parsing a file (or clicking <b>Use as source</b>) creates a <b>Parsed source</b>
-        (next section) — your original upload is never changed.
+        The same library as the <a href="/projects/{{ pid }}/data" data-link>Files page</a>, folded here for a quick
+        drop-in; parsing a file (or <b>Use as source</b>) creates a parsed source for the mining table below.
       </div>
     </div>
     <div class="flex gap-2">
       <button class="btn" id="fl-toggle-trash" onclick="flToggleTrash()">Show trash</button>
-      <a href="/projects/{{ pid }}/chat?mode=agent" class="btn" data-link>Open chat in Agent mode →</a>
+      <a href="/projects/{{ pid }}/data" class="btn" data-link>Open the Files page →</a>
     </div>
-  </div>
+  </summary>
 
   <div class="grid grid-2 gap-4 mt-4 fl-grid">
     <!-- ── Folder tree (left) ── -->
@@ -105,7 +106,7 @@
       <div class="fl-footer text-xs dim mt-2" id="fl-footer"></div>
     </div>
   </div>
-</div>
+</details>
 
 <!-- ── Mine pairs, file by file ──────────────────────────────────────────── -->
 <div class="card mb-6" id="dp-mining">
@@ -199,14 +200,14 @@
   <div id="dp-results" class="text-sm muted">Loading…</div>
 </div>
 
-<div class="card mb-6" id="dp-pref-card">
-  <div class="card-head">
+<details class="card mb-6" id="dp-pref-card">
+  <summary class="card-head">
     <div>
       <div class="card-title">Preference pairs (DPO)</div>
-      <div class="card-sub">An optional second training stage that teaches the model what a <em>good</em> answer looks like next to a bad one.</div>
+      <div class="card-sub">Optional second stage after the adapter has its pairs: teaches the model what a <em>good</em> answer looks like next to a bad one.</div>
     </div>
     <span class="pill outline" id="dp-pref-approved">0 approved pairs</span>
-  </div>
+  </summary>
   <div class="text-sm" style="margin-bottom:8px;">
     Each preference pair is one question with two answers: the <b>chosen</b> one (your approved, source-faithful answer
     or an honest “not covered”) and a <b>rejected</b> one (what a model writes when it guesses). Training on them
@@ -306,7 +307,8 @@
 
 /* ── Mining: file table, per-file checklist and rounds ── */
 .dp-mining-steps { margin: 6px 0 6px 18px; padding: 0; line-height: 1.6; }
-.dp-points-bar { display: inline-flex; width: 90px; height: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; vertical-align: middle; margin-right: 6px; background: var(--bg-elevated); }
+.dp-points-col { min-width: 12rem; white-space: nowrap; }
+.dp-points-bar { display: inline-flex; width: 72px; height: 8px; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; vertical-align: middle; margin-right: 6px; background: var(--bg-elevated); }
 .dp-points-bar span { display: block; height: 100%; }
 .dp-points-bar .ok { background: var(--ok); }
 .dp-points-bar .ex { background: var(--text-dim); }
@@ -702,6 +704,8 @@ function flSelectFolder(folderId, label) {
 function flRenderFiles() {
   const tbody = document.getElementById('fl-files-body');
   const footer = document.getElementById('fl-footer');
+  const count = document.getElementById('dp-uploaded-count');
+  if (count) count.textContent = _flTotalCount + (_flTotalCount === 1 ? ' file' : ' files');
   if (!tbody) return;
   const _q = _flSearchQuery.trim().toLowerCase();
   const _visible = _flFiles.filter(f => {
@@ -2397,7 +2401,7 @@ function dpRenderFiles() {
   host.querySelectorAll('.dp-source-check:checked').forEach(function (b) { ticked[b.value] = true; });
   host.innerHTML = '<div class="table-scroll"><table class="table compact" id="dp-files-table"><thead><tr>' +
     '<th><input type="checkbox" id="dp-source-check-all" aria-label="Select all files"></th><th>File</th><th>Status</th>' +
-    '<th>Data points</th><th>Pairs</th><th class="num">Chunks</th><th></th></tr></thead><tbody>' +
+    '<th class="dp-points-col">Data points</th><th>Pairs</th><th class="num">Chunks</th><th></th></tr></thead><tbody>' +
     list.map(function (s) {
       var m = s.mining || {}, job = _dpJobs[s.id];
       var st = job ? 'mining' : (m.status || 'parsed');
@@ -2412,7 +2416,7 @@ function dpRenderFiles() {
         '<td class="mono cell-wrap"><a href="#" data-dp-act="items" data-sid="' + escapeHtml(s.id) + '">' + escapeHtml(s.filename || s.id) + '</a></td>' +
         '<td><span class="pill ' + (bad ? 'solid-rose' : pill[0]) + '">' + escapeHtml(bad ? 'parse error' : label) + '</span>' +
           (detail ? '<div class="text-xs dim">' + escapeHtml(detail) + '</div>' : '') + '</td>' +
-        '<td>' + dpPointsCell(m) + '</td>' +
+        '<td class="dp-points-col">' + dpPointsCell(m) + '</td>' +
         '<td class="text-xs">' + (p.total ? (p.approved + ' ok · ' + p.pending + ' pending · ' + p.rejected + ' rej') : '<span class="dim">—</span>') + '</td>' +
         '<td class="num">' + (s.chunk_count || 0) + '</td>' +
         '<td class="dp-file-acts">' + dpFileActions(s, job) + '</td></tr>';
