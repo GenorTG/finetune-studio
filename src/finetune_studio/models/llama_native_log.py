@@ -18,7 +18,9 @@ from finetune_studio.accel import is_oom_message
 
 log = logging.getLogger("llama.cpp")
 
-_GGML_LEVEL_WARN, _GGML_LEVEL_ERROR, _GGML_LEVEL_CONT = 2, 3, 5
+# ggml.h ``enum ggml_log_level``: NONE 0, DEBUG 1, INFO 2, WARN 3, ERROR 4, CONT 5. Off by one here once sent every INFO
+# line to the journal as WARNING and every WARN (e.g. the mmproj's "n_ctx_train (0)" note) as ERROR.
+_GGML_LEVEL_WARN, _GGML_LEVEL_ERROR, _GGML_LEVEL_CONT = 3, 4, 5
 
 _LOCK = threading.Lock()
 _RING: deque[tuple[int, int, str]] = deque(maxlen=600)   # (sequence, level, line)

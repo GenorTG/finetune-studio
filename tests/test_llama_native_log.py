@@ -1,12 +1,13 @@
 """llama.cpp's native log is the only place a load failure explains itself (models/llama_native_log.py)."""
 from __future__ import annotations
 
+import logging
 import sys
 import types
 
 from finetune_studio.models import llama_native_log as nl
 
-ERR, WARN, INFO, CONT = 3, 2, 1, 5
+ERR, WARN, INFO, CONT = 4, 3, 2, 5   # ggml.h enum ggml_log_level
 
 
 def _feed(level: int, text: str) -> None:
@@ -66,3 +67,15 @@ def test_install_tolerates_an_incomplete_llama_cpp(monkeypatch) -> None:
     monkeypatch.setattr(nl, "_CALLBACK", None)
     monkeypatch.setitem(sys.modules, "llama_cpp", types.ModuleType("llama_cpp"))
     assert nl.install() is False
+
+
+def test_levels_follow_the_ggml_enum_when_forwarded_to_python_logging(caplog) -> None:
+    caplog.set_level(logging.DEBUG, logger="llama.cpp")
+    pos = nl.mark()
+    _feed(INFO, "llama_context: n_ctx = 512\n")
+    _feed(WARN, "llama_context: n_ctx_seq (512) > n_ctx_train (0) -- possible training context overflow\n")
+    _feed(ERR, "llama_model_load: error loading model\n")
+    forwarded = [(r.levelno, r.getMessage()) for r in caplog.records if r.name == "llama.cpp"]
+    assert forwarded == [(logging.WARNING, "llama_context: n_ctx_seq (512) > n_ctx_train (0) -- possible training context overflow"),
+                         (logging.ERROR, "llama_model_load: error loading model")]
+    assert nl.failure_detail(pos) == "llama_model_load: error loading model"   # warnings are not the failure reason
