@@ -350,3 +350,15 @@ def test_d6_pascal_does_not_report_emulated_bf16(monkeypatch: pytest.MonkeyPatch
 def test_d9_oom_marker_is_a_word_not_a_substring(text: str, expected: bool) -> None:
     assert accel.is_oom_message(text) is expected
     assert accel.is_oom_error(RuntimeError(text)) is expected
+
+
+def test_unload_release_drops_blas_workspaces_before_emptying_the_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A cuBLAS workspace inside a 9B model's weight segment kept 17 GB reserved after the model was freed.
+    t, cuda = _fake_cuda_torch(monkeypatch, [_props("RTX 3090", 24)])
+    t._C = types.SimpleNamespace(_cuda_clearCublasWorkspaces=lambda: cuda.log.append(("clear_blas", cuda.cur)))
+    _use(monkeypatch, t)
+    accel.empty_cache()
+    assert cuda.log == [("empty_cache", 0)]                      # default: workspaces stay (a kernel may be running)
+    cuda.log.clear()
+    accel.empty_cache(release_workspaces=True)
+    assert cuda.log == [("clear_blas", 0), ("empty_cache", 0)]

@@ -115,14 +115,25 @@ def pin_trainer_args(args: Any, acc: Accelerator | None = None) -> Any:
     return args
 
 
-def empty_cache() -> None:
-    """Release cached allocator blocks (after ``gc``) on the accelerator in use; never raises."""
+def empty_cache(*, release_workspaces: bool = False) -> None:
+    """Release cached allocator blocks (after ``gc``) on the accelerator in use; never raises.
+
+    ``release_workspaces`` also drops the cuBLAS/hipBLAS workspaces torch caches per stream. They are carved from
+    the caching allocator during the first matmuls and can sit inside a model's weight segment: after an unload
+    those few MiB pinned the whole segment (a 9B bf16 model kept 17 GB reserved in the inference worker, and the
+    next model spilled to CPU). Only pass it when nothing runs a kernel in this process (an unload under the lock).
+    """
     gc.collect()
     acc = get_accelerator()
     try:
         ns = _ns(acc)
         if ns is not None and hasattr(ns, "empty_cache"):
             with _on_device(acc, ns):
+                if release_workspaces and acc.kind in ("cuda", "rocm"):
+                    import torch
+                    clear = getattr(getattr(torch, "_C", None), "_cuda_clearCublasWorkspaces", None)
+                    if callable(clear):
+                        clear()
                 ns.empty_cache()
     except Exception:  # noqa: BLE001, S110 - cache release is best effort
         pass

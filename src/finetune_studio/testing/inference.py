@@ -279,7 +279,7 @@ class InferenceEngine:
 
         try:
             from finetune_studio import accel
-            accel.empty_cache()
+            accel.empty_cache(release_workspaces=True)   # no kernel runs: unload holds the engine
         except Exception:  # noqa: BLE001,S110
             pass
 
