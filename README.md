@@ -231,9 +231,9 @@ Since v2 the app grew a spine — and a lot of muscle:
   for fully offline semantic search).
 - **Parsed-text editor** — fix a bad parse in-app; corrections feed
   mining and the next Smart Brain build while raw bytes stay immutable.
-- **Per-commit build chip + self-update** — the header pins the exact
-  deployed version (`v0.1.0.N`); Settings → Apply update pulls, repairs,
-  migrates and restarts.
+- **Per-commit build chip + Linux in-app update** — the header pins the exact
+  deployed version (`v0.1.0.N`); on Linux, Settings → Apply update pulls,
+  repairs, migrates and restarts. Windows updates are manual.
 - **Dark and light themes** — switch themes in the UI; responsive layout
   and theme behavior have dedicated regression checks.
 

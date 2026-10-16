@@ -123,7 +123,7 @@
   <h1>⚡ FINETUNE STUDIO<span class="cursor">▮</span></h1>
   <p class="tagline">A self-hosted workshop for local-model training,
   inference, and evaluation.</p>
-  <p class="sub">Your files stay on your machine; model downloads and optional integrations may contact their providers.</p>
+  <p class="sub">Project data is stored locally. If you enable a connected provider, the data needed for that feature may be sent to it.</p>
   <div class="cta">
     <a class="btn primary" href="https://github.com/GenorTG/finetune-studio">[ CLONE THE REPO ]</a>
     <a class="btn" href="#quickstart">[ QUICKSTART ↓ ]</a>
@@ -201,7 +201,7 @@
     <li>· <b style="color:var(--accent)">Project versions</b> — immutable manifests pinning datasets + sources + corpora + runs + base model, with lineage</li>
     <li>· <b style="color:var(--accent)">Standalone Smart Brain</b> — the index ships as a self-installing tarball (MCP + HTTP, <code style="color:var(--amber)">setup.sh</code>, optional bundled embedder + reranker for fully offline semantic search)</li>
     <li>· <b style="color:var(--accent)">Parsed-text editor</b> — fix a bad parse in-app; corrections feed mining + the next Smart Brain build while raw bytes stay immutable</li>
-    <li>· <b style="color:var(--accent)">Per-commit build chip + self-update</b> — Settings → Apply update pulls, repairs, migrates, restarts</li>
+    <li>· <b style="color:var(--accent)">Per-commit build chip + Linux in-app update</b> — Settings → Apply update pulls, repairs, migrates, and restarts; Windows updates are manual</li>
     <li>· <b style="color:var(--accent)">Dark and light themes</b> — switch themes in the UI; regression checks cover theme and responsive behavior</li>
   </ul>
 </div></section>
@@ -236,7 +236,7 @@
     <figure><img src="screenshots/13_chat.png" alt="Chat" loading="lazy">
       <figcaption><b>CHAT</b> — safetensors or GGUF, streaming with sprite feedback, Smart Brain sources, Agent mode for tool-driven dataset curation.</figcaption></figure>
     <figure><img src="screenshots/12_settings.png" alt="Settings" loading="lazy">
-      <figcaption><b>SETTINGS</b> — per-project config + WebUI log tail + Apply update + Replay Tutorial.</figcaption></figure>
+      <figcaption><b>SETTINGS</b> — per-project config + WebUI log tail + Linux Apply update + Replay Tutorial.</figcaption></figure>
   </div>
   <p class="lead"><b>BENCHMARKS</b> — optional public exams with offline smoke suites, real HF splits, recent scores, and two-run comparison.</p>
 </div></section>

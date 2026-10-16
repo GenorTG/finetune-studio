@@ -84,3 +84,24 @@ def test_pages_index_avoids_stale_benchmark_and_e2e_badges() -> None:
     assert "70/70" not in text
     assert "Winogrande" not in text
     assert "TruthfulQA" not in text
+
+
+def test_public_docs_disclose_provider_data_and_platform_update_scope() -> None:
+    readme = (_ROOT / "README.md").read_text(encoding="utf-8")
+    pages = (_ROOT / "docs" / "index.html").read_text(encoding="utf-8")
+
+    assert "data needed for that feature may be sent" in pages
+    assert "Linux in-app update" in readme
+    assert "Windows updates are manual" in readme
+    assert "Linux in-app update" in pages
+    assert "Windows updates are manual" in pages
+
+
+def test_tutorial_distinguishes_adapter_learning_from_smart_brain_retrieval() -> None:
+    tutorial = (
+        _ROOT / "src" / "finetune_studio" / "webui" / "static" / "js" / "tutorial.js"
+    ).read_text(encoding="utf-8")
+
+    assert "Smart Brain retrieves answers with sources" in tutorial
+    assert "Adapter learns response style and format" in tutorial
+    assert "Turn your own documents into an AI that knows them" not in tutorial

@@ -42,11 +42,10 @@
     {
       target: null,
       title: "WELCOME TO FINETUNE STUDIO",
-      body: "Turn your own documents into an AI that knows them, on your own GPU. " +
-            "Two ways: TRAIN a model on question-answer pairs made from your files, " +
-            "or let the Smart Brain answer from your files with no training at all. " +
-            "This 1-minute tour walks the path from nothing to a working model. " +
-            "Esc skips; Settings → Replay brings it back.",
+      body: "Use your files in two different ways: Smart Brain retrieves answers with sources; " +
+            "an Adapter learns response style and format from curated examples, and may retain " +
+            "some trained facts. This short tour shows the setup. Esc skips; Settings → Replay " +
+            "brings it back.",
     },
     {
       target: ".sb-group-tools",

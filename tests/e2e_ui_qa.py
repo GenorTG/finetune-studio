@@ -82,6 +82,9 @@ async def visit(ctx, url, name, wait_ms=1500):
         resp = await page.goto(url, wait_until="networkidle", timeout=20000)
         await page.wait_for_timeout(wait_ms)
         rec(f"{name}.load", resp.status < 400, f"status={resp.status}")
+        if name == "styleguide":
+            tutorial_open = await page.locator("#tutorial-overlay").is_visible()
+            rec("styleguide.tutorial_overlay_hidden", not tutorial_open)
         rec(f"{name}.no_js_errors", not errs and not cerrs,
             "; ".join((errs + cerrs)[:3]))
         await page.screenshot(path=str(SHOTS / f"{name}.png"))
@@ -498,6 +501,9 @@ async def main():
             # Password-protected instance: ``fts auth token create <name>`` -> FTS_API_TOKEN (pages accept Bearer too).
             extra_http_headers=({"Authorization": f"Bearer {os.environ['FTS_API_TOKEN']}"}
                                 if os.environ.get("FTS_API_TOKEN") else {}),
+        )
+        await ctx.add_init_script(
+            "try { localStorage.setItem('fts.tutorial.seen', '1'); } catch (_) {}"
         )
 
         for path, name in [
