@@ -376,7 +376,7 @@
       <button class="btn" type="button" onclick="saveMcpDefaults('studio')" title="Save these options as the studio-wide export defaults (never the passphrase).">Save as defaults</button>
       <button class="btn" type="button" onclick="saveMcpDefaults('project')" title="Save these options as an override for this project only.">Save for this project</button>
     </div>
-    <div id="mcp-pass-box" style="display:none;" class="mt-2 card" >
+    <div id="mcp-pass-box" hidden class="mt-2 card">
       <div class="text-xs"><b>Passphrase (shown once &mdash; copy it now, it is not stored anywhere):</b></div>
       <div class="flex gap-2 items-center mt-1">
         <code id="mcp-pass-val" style="user-select:all;word-break:break-all;"></code>
@@ -666,7 +666,7 @@
     if (!p) return;
     document.getElementById('mcp-pass-val').textContent = p;
     var box = document.getElementById('mcp-pass-box');
-    box.style.display = '';
+    box.hidden = false;
     box.style.outline = '2px solid var(--warn)';
     box.scrollIntoView({ behavior: 'smooth', block: 'center' });
     notify('Copy the passphrase now \u2014 it is shown once and never stored.', 'warn');
@@ -757,7 +757,7 @@
   window.hideMcpPass = function () {
     var box = document.getElementById('mcp-pass-box');
     document.getElementById('mcp-pass-val').textContent = '';
-    if (box) box.style.display = 'none';
+    if (box) box.hidden = true;
   };
 
   window.copyMcpPass = function () {

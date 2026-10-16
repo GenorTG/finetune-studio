@@ -40,6 +40,23 @@ def test_project_data_modals_use_hidden_state():
     assert "o.style.display" not in template and "p.style.display" not in template
 
 
+def test_conditional_panels_use_hidden_state():
+    exports = _r("templates/export_models.html")
+    testing = _r("templates/project_testing.html")
+    brain = _r("templates/brain.html")
+    settings = _r("templates/settings.html")
+    settings_js = _r("static/js/settings.js")
+
+    assert 'id="export-result" class="p-2 pt-0" hidden' in exports
+    assert "$('export-result').hidden = true" in exports
+    assert 'id="t-suite-hint" class="text-xs dim mt-1" hidden' in testing
+    assert "hint.hidden = false" in testing and "hint.hidden = true" in testing
+    assert 'id="mcp-pass-box" hidden' in brain
+    assert "box.hidden = false" in brain and "box.hidden = true" in brain
+    assert 'id="update-log" class="text-xs" hidden' in settings
+    assert "el.hidden = true" in settings_js and "el.hidden = false" in settings_js
+
+
 def test_project_overview_no_duplicate_topbar():
     assert "block topbar_right" not in _r("templates/project.html")
 

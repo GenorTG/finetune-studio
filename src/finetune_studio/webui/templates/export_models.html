@@ -163,7 +163,7 @@
     <div class="text-xs dim mt-1" id="export-job-queue"></div>
     <div class="err text-xs mt-1" id="export-job-error"></div>
   </div>
-  <div id="export-result" class="p-2 pt-0" style="display:none;"></div>
+  <div id="export-result" class="p-2 pt-0" hidden></div>
 </div>
 
 {# ── Existing / trained exports (expand-row) ──────────────────────── #}
@@ -517,7 +517,7 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
   // ── starting jobs ──
   function showResultCard(rows) {
     const box = $('export-result');
-    box.style.display = '';
+    box.hidden = false;
     box.innerHTML = '<table class="table text-xs run-kv-table"><tbody>' + rows.map(([k, v]) =>
       '<tr><td class="meta muted">' + esc(k) + '</td><td class="mono">' + esc(v) + '</td></tr>').join('')
       + '</tbody></table>';
@@ -551,7 +551,7 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
     }
     plan.current = d.export_id;
     savePlan(plan);
-    $('export-result').style.display = 'none';
+    $('export-result').hidden = true;
     follow(d.export_id);
   }
 

@@ -98,7 +98,7 @@ kbd { border:1px solid var(--border-strong); padding:0 4px; font-size:11px; }
       {% if not suites %}
       <div class="text-xs dim mt-1" id="t-suite-empty">No quizzes yet. Open <a href="/projects/{{ pid }}/wizard" data-link>Quick work</a> and run <b>Step 5 · Test it</b> to generate one from your training data, or import your own below.</div>
       {% endif %}
-      <div id="t-suite-hint" class="text-xs dim mt-1" style="display:none;"></div>
+      <div id="t-suite-hint" class="text-xs dim mt-1" hidden></div>
     </div>
     <div class="col-span-2">
       <button id="t-run-btn" type="button" onclick="runTest()" class="btn primary" style="width:100%;" disabled
@@ -300,11 +300,11 @@ kbd { border:1px solid var(--border-strong); padding:0 4px; font-size:11px; }
 
   window.onSuitePicked = function() {
     const hint = $('t-suite-hint'), sel = $('t-suite');
-    if (!sel.value) { hint.style.display = 'none'; hint.textContent = ''; }
+    if (!sel.value) { hint.hidden = true; hint.textContent = ''; }
     else {
       const opt = sel.options[sel.selectedIndex];
       const src = opt.getAttribute('data-source') || '';
-      hint.style.display = '';
+      hint.hidden = false;
       hint.textContent = '✓ ' + suiteLabel() + (src ? ' · source: ' + src : '');
     }
     syncRunButton();

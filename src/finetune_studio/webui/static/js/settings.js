@@ -108,8 +108,8 @@
   function updRenderLog(text) {
     const el = updLog();
     if (!el) return;
-    if (!text) { el.style.display = 'none'; return; }
-    el.style.display = 'block';
+    if (!text) { el.hidden = true; return; }
+    el.hidden = false;
     el.textContent = text;
     el.scrollTop = el.scrollHeight;
   }
