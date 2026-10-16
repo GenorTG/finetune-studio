@@ -247,19 +247,52 @@ async def record_activity_operations(request: Request, call_next):
     try:
         response = await call_next(request)
     except Exception:
-        _record_activity_event(request, started, 500)
+        _record_activity_event(request, started, 500, "internal error; see the web log")
         raise
-    _record_activity_event(request, started, response.status_code)
+    detail = await _activity_response_error(response) if response.status_code >= 400 else ""
+    _record_activity_event(request, started, response.status_code, detail)
     return response
 
 
-def _activity_summary(path: str, method: str) -> str:
+async def _activity_response_error(response) -> str:
+    """Read a small JSON error body for the activity row, then replay it unchanged to the client."""
+    if not response.headers.get("content-type", "").startswith("application/json"):
+        return ""
+    try:
+        size = int(response.headers.get("content-length", "0"))
+    except ValueError:
+        return ""
+    if size <= 0 or size > 64 * 1024:
+        return ""
+    iterator = getattr(response, "body_iterator", None)
+    if iterator is None:
+        body = getattr(response, "body", b"")
+    else:
+        chunks = [chunk async for chunk in iterator]
+        response.body_iterator = _replay_activity_body(chunks)
+        body = b"".join(chunk.encode() if isinstance(chunk, str) else chunk for chunk in chunks)
+    try:
+        payload = json.loads(body)
+    except (TypeError, ValueError, UnicodeDecodeError):
+        return ""
+    return str(payload.get("detail") or "") if isinstance(payload, dict) else ""
+
+
+async def _replay_activity_body(chunks):
+    for chunk in chunks:
+        yield chunk
+
+
+def _activity_summary(path: str, method: str, http_status: int = 200, error_detail: str = "") -> str:
     """Human one-liner for the activity feed (replaces 'POST /api/x → 200').
 
     Screen-scrapes the path for the resource the user actually acted on:
     filenames, run ids, dataset names. The project name is NOT baked in —
-    it renders as its own badge from project_id.
+    it renders as its own badge from project_id. Errors use the sanitized API reason.
     """
+    if http_status >= 400:
+        detail = " ".join(logsetup.redact(error_detail).split())
+        return f"Failed ({http_status}): {detail[:180]}" if detail else f"Failed (HTTP {http_status})"
     try:
         # Keyed on the marker strings, not on path order.
         if "/mining/jobs" in path and path.endswith("/cancel"):
@@ -303,7 +336,7 @@ def _activity_summary(path: str, method: str) -> str:
         return "Operation"
 
 
-def _record_activity_event(request: Request, started: float, http_status: int) -> None:
+def _record_activity_event(request: Request, started: float, http_status: int, error_detail: str = "") -> None:
     """Best-effort event write; logging must never break the API response."""
     try:
         parts = request.url.path.strip("/").split("/")
@@ -317,7 +350,12 @@ def _record_activity_event(request: Request, started: float, http_status: int) -
             project_id=project_id,
             status=status,
             http_status=http_status,
-            message=_activity_summary(request.url.path, request.method),
+            message=_activity_summary(
+                request.url.path,
+                request.method,
+                http_status,
+                error_detail or getattr(request.state, "activity_error", ""),
+            ),
             started_at=started,
             finished_at=time.time(),
         )

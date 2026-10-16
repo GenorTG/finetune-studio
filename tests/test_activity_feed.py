@@ -281,3 +281,19 @@ def test_mutating_api_request_creates_operation_event(client):
         event["path"] == "/api/projects" and event["method"] == "POST"
         for event in events
     )
+
+
+def test_failed_mutating_request_records_the_actionable_error(client):
+    response = client.post("/api/projects/not-a-project/brain/search", json={"query": "what"})
+    assert response.status_code >= 400
+    detail = response.json()["detail"]
+
+    from finetune_studio import db
+
+    event = next(
+        row for row in db.list_activity_events_recent()
+        if row["path"] == "/api/projects/not-a-project/brain/search"
+    )
+    assert event["status"] == "error"
+    assert event["message"] == f"Failed ({response.status_code}): {detail}"
+    assert event["message"] != "Create"

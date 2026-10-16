@@ -41,6 +41,11 @@ _DEFAULT_CODES = {400: "bad_request", 401: "auth_required", 403: "forbidden", 40
                   500: "internal", 502: "upstream_failed", 503: "unavailable", 504: "upstream_timeout"}
 
 
+def _remember_activity_error(request: Request, detail: Any) -> None:
+    """Let the outer request-activity middleware show the same actionable reason as the API response."""
+    request.state.activity_error = logsetup.redact(str(detail))
+
+
 class ApiError(StarletteHTTPException):
     """An expected failure with a reason the user can act on."""
 
@@ -76,10 +81,12 @@ def install(app: FastAPI) -> None:
     @app.exception_handler(KnowledgeError)
     async def _knowledge(request: Request, exc: KnowledgeError):
         """A source or index request that cannot be served (unknown, not parsed, nothing to index): 4xx + reason."""
+        _remember_activity_error(request, exc)
         return error_response(exc.status, str(exc))
 
     @app.exception_handler(StarletteHTTPException)
     async def _http(request: Request, exc: StarletteHTTPException):
+        _remember_activity_error(request, exc.detail)
         wants_html = "text/html" in request.headers.get("accept", "")
         if exc.status_code == 404 and wants_html and not request.url.path.startswith("/api/"):
             return HTMLResponse(_NOT_FOUND_HTML, status_code=404)
@@ -90,11 +97,14 @@ def install(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
     async def _validation(request: Request, exc: RequestValidationError):
         errs = [{k: v for k, v in e.items() if k in ("loc", "msg", "type")} for e in exc.errors()]
-        return error_response(422, _validation_sentence(errs), "invalid_request", errors=errs)
+        detail = _validation_sentence(errs)
+        _remember_activity_error(request, detail)
+        return error_response(422, detail, "invalid_request", errors=errs)
 
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception):
         rid = logsetup.request_id.get()
         _log.exception("unhandled error in %s %s", request.method, request.url.path)
-        return error_response(500, f"internal error: {type(exc).__name__}. It is logged in logs/web.log under "
-                                   f"request id {rid}.", "internal", request_id=rid)
+        detail = (f"internal error: {type(exc).__name__}. It is logged in logs/web.log under request id {rid}.")
+        _remember_activity_error(request, detail)
+        return error_response(500, detail, "internal", request_id=rid)
