@@ -26,7 +26,9 @@
     </details>
   </div>
   <div class="actions flex gap-2 wrap">
-    <a href="/projects/{{ pid }}/data" class="btn primary" data-link
+    <button onclick="quickIndex()" id="quick-index-btn" class="btn primary"
+            title="⚡ One click: parse any library files that are not ready yet, then build the index.">⚡ Quick index</button>
+    <a href="/projects/{{ pid }}/data" class="btn" data-link
        id="brain-cta-data">⬆ Files &amp; Knowledge (step 1)</a>
   </div>
 </div>
@@ -107,8 +109,6 @@
       Passages: the same ones mining reads (one split per file, set when it is parsed). <span class="dim">?</span>
     </div>
     <div class="col-span-2 flex gap-2">
-      <button onclick="quickIndex()" id="quick-index-btn" class="btn primary"
-              title="⚡ One click: turn every library file that is not parsed yet into text (raw → parsed + chunks), then build the index from all parsed text. This is the quick flow — the controls below stay for fine-tuning.">⚡ Quick index</button>
       <button onclick="buildIndex(false)" id="build-btn" class="btn flex-1"
               title="Build the Smart Brain index: chunk your sources, embed each chunk, index for fast retrieval. First build downloads the embedder (~2.2 GB) which takes a few minutes.">Build</button>
       <button onclick="buildIndex(true)" id="rebuild-btn" class="btn"
@@ -546,7 +546,7 @@
     try {
       const d = await api().get('/api/projects/' + PID + '/brain');
       if (!d.exists) {
-        el.innerHTML = '<p class="text-sm muted">No index yet. Configure chunking below and click Build.</p>'
+        el.innerHTML = '<p class="text-sm muted">No index yet. Use Quick index above, or choose an embedder below and click Build.</p>'
           + '<div class="text-xs dim mono mt-1">' + esc(d.corpus_dir || '') + '</div>';
         if (badge) badge.hidden = true;
         return;

@@ -404,6 +404,9 @@ def test_brain_ia_workflow_and_cta(client: TestClient) -> None:
     assert "Build with AI" not in body
     assert "agentic" not in body.lower()
     assert "Upload new files on the files page" in body
+    assert body.count('id="quick-index-btn"') == 1
+    assert body.index('id="quick-index-btn"') < body.index('id="brain-workflow"')
+    assert "Use Quick index above" in body
     assert "model weights" in body.lower()
     assert "No documents indexed yet" in body
     # Numbered sections are unique and sequential
