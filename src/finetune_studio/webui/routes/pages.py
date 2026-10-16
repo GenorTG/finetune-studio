@@ -13,6 +13,7 @@ PROJECT-SCOPED PAGES (/projects/{pid}/...)
   Data, Training, Testing, Models — only accessible inside a project.
 """
 
+import platform
 import re
 from pathlib import Path
 
@@ -666,6 +667,7 @@ async def settings_page(request: Request):
             "request": request,
             "app_version": APP_VERSION,
             "release_channel": RELEASE_CHANNEL,
+            "update_supported": platform.system() != "Windows",
         },
     )
 

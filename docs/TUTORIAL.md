@@ -31,9 +31,7 @@ Quick work when you just want the model.
 
 ### 0. Bootstrap (once)
 
-1. Open `http://localhost:7860`. The dashboard loads; the first visit
-   starts an 8-step onboarding tour (replayable anytime: Tools → Settings
-   → Replay Tutorial).
+1. Open `http://localhost:7860`. The first visit starts a short, task-oriented onboarding tour; replay it any time from **Settings → Replay**.
 2. Click `+ New Project`, give it a name. Projects own everything: files,
    datasets, corpora, runs, exports, versions, suites.
 

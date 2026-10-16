@@ -119,13 +119,13 @@
               <option value="200">200</option>
               <option value="full">all</option>
             </select>
-            <button type="submit" class="btn primary" style="font-size:11px;padding:4px 10px;"
+            <button type="submit" class="btn sm primary"
                     {% if not can_bench %}disabled title="Only completed runs with a trained model can be benchmarked"{% endif %}>RUN</button>
           </form>
           <form data-api="/api/benchmarks/projects/{{ pid }}/runs/{{ run.id }}/evaluate-training"
                 data-reload="true" class="bench-run-form"
                 title="Evaluate on the project's approved training dataset (leakage / memorization check)">
-            <button type="submit" class="btn" style="font-size:11px;padding:4px 10px;"
+            <button type="submit" class="btn sm"
                     {% if not can_bench %}disabled{% endif %}>Train-set eval</button>
           </form>
         </td>
@@ -157,7 +157,7 @@
               <option value="200">200</option>
               <option value="full">all</option>
             </select>
-            <button type="submit" class="btn" style="font-size:11px;padding:4px 10px;" id="bench-base-run-btn"
+            <button type="submit" class="btn sm" id="bench-base-run-btn"
                     {% if not project.base_model %}disabled title="Project has no base_model configured"{% endif %}>RUN</button>
           </form>
         </td>

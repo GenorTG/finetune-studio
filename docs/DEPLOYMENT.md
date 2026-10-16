@@ -1,16 +1,20 @@
 # Deployment & Update Pipeline
 
-> How Finetune Studio gets installed, runs, and updates itself — on any host.
+> How Finetune Studio is installed, run, and updated on Linux hosts. Windows has a separate installer and launcher; the Linux self-update and systemd steps below do not apply there.
 > The update pipeline is **self-healing**: a failed venv/deps state is repaired,
 > not just reported. Two triggers: shell (`./update.sh`) or the web UI
 > (**Settings → Updates** card, backed by `/api/system/update`).
 
 ## 1. First install
 
+Linux/macOS:
+
 ```bash
 git clone https://github.com/GenorTG/finetune-studio && cd finetune-studio
 ./install.sh            # GPU-aware, idempotent
 ```
+
+Windows PowerShell uses `install.ps1`; Command Prompt uses `install.bat`. Both launch the app with `run.bat`. The Windows installer/runtime has not been verified in the current Linux-hosted review.
 
 `install.sh` steps:
 1. **Accelerator detection** (`scripts/accel_plan.py`, shared by every installer) — NVIDIA
@@ -39,7 +43,7 @@ git clone https://github.com/GenorTG/finetune-studio && cd finetune-studio
 
 `install.sh` does **not** install a systemd unit. On Linux, install it separately
 with `bash install-service.sh`; that script writes the user unit and supports
-`--restart`, `--status`, and `--uninstall`.
+`--restart`, `--status`, and `--uninstall`. The included service helper is Linux-only.
 
 GPTQ export support was removed (`gptqmodel`'s wheel metadata declared zero of
 its real runtime deps, making it unreliable to install on fresh machines).
@@ -52,8 +56,8 @@ commit secrets or HF tokens into this doc; use the host login /
 | Thing | Location |
 |---|---|
 | Repo + venv | `~/finetune-studio/` (or wherever you clone) |
-| Service | `systemctl --user {status,restart} finetune-studio` |
-| Logs | `journalctl --user -u finetune-studio -n 50` |
+| Linux service | `systemctl --user {status,restart} finetune-studio` |
+| Linux service logs | `journalctl --user -u finetune-studio -n 50` |
 | Project data | `$FTS_ROOT` = `~/.finetune-studio/projects/<pid>/` |
 | SQLite | `data/finetune_studio.db` (WAL) |
 | Models | `models/gguf/`, HF cache `~/.cache/huggingface` |

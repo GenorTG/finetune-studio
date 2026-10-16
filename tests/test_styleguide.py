@@ -20,13 +20,17 @@ def test_styleguide_is_reachable_and_renders_shared_components(client: TestClien
         'id="sg-status"',
         'id="sg-data"',
         'id="sg-flow"',
+        'id="sg-previews"',
+        'class="file-preview-image compact"',
+        'class="file-preview-frame compact"',
+        'class="mono text-xs file-preview-content compact"',
         'role="progressbar"',
         'role="alert"',
     ):
         assert component in body
     assert 'href="/static/css/tokens.css?v=1"' in body
     assert 'href="/static/css/base.css?v=1"' in body
-    assert 'href="/static/css/components.css?v=1"' in body
+    assert 'href="/static/css/components.css?v=2"' in body
     assert 'href="/static/css/layout.css?v=1"' in body
     assert 'href="/static/css/app.css?v=105"' in body
     assert 'href="/static/css/typography.css?v=1"' in body

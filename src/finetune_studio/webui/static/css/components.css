@@ -110,3 +110,11 @@
 .pill.solid-amber  { background: rgba(255,170,0,0.12); color: var(--warn-text, var(--warn)); border-color: rgba(255,170,0,0.3); }
 .pill.solid-rose   { background: rgba(255,58,58,0.12); color: var(--err); border-color: rgba(255,58,58,0.3); }
 .pill.outline { background: transparent; border-color: var(--border-strong); color: var(--text-muted); }
+
+/* File previews appear in the project overview, Files page, and Data Prep. */
+.file-preview-image { display: block; max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: 4px; }
+.file-preview-image.compact { max-height: 60vh; }
+.file-preview-frame { display: block; width: 100%; height: 70vh; border: 0; border-radius: 4px; }
+.file-preview-frame.compact { height: 60vh; }
+.file-preview-content { max-height: 70vh; overflow: auto; padding: 12px; background: var(--surface, var(--bg-panel)); border: 1px solid var(--border); border-radius: 4px; }
+.file-preview-content.compact { max-height: 60vh; }

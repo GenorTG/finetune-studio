@@ -36,8 +36,7 @@ source .venv/bin/activate
 fts webui
 ```
 
-Open http://localhost:7860. The first visit walks you through an 8-step
-onboarding tour. By default only this computer can open it; to use it from other devices, set a password
+Open http://localhost:7860. The first visit offers a short onboarding tour. By default only this computer can open it; to use it from other devices, set a password
 (the installer asks, or **Settings -> Access & network**, or `fts auth set-password`): see
 [docs/INSTALL.md](docs/INSTALL.md#5-access-who-can-open-the-web-ui). Prerequisites and Windows/macOS notes: [docs/INSTALL.md](docs/INSTALL.md).
 
@@ -411,8 +410,8 @@ fills in as scores arrive.
 
 Per-project settings including a **WebUI log tail** card (Refresh +
 Auto-refresh) for debugging long-running jobs without leaving the browser.
-Also hosts the in-app **Apply update** controls for the self-update
-pipeline and the **Replay Tutorial** button for the 8-step onboarding tour.
+On Linux, includes the in-app **Apply update** controls for the self-update
+pipeline; the **Replay Tutorial** button is available on every platform.
 
 ![Settings](docs/screenshots/12_settings.png)
 
@@ -511,7 +510,7 @@ Full list with versions and licenses → **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTI
 - **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTIONS.md)** — every package, version, license
 - **[⚡ Presentation page](https://genortg.github.io/finetune-studio/)** — the gallery version of this README
 - **/settings** — live debug info on your running instance (version, GPU, packages, paths) **+ WebUI log tail card**
-- Tools → Settings → **Replay Tutorial** — built-in onboarding, always available
+- **Settings → Replay** — replay the built-in onboarding tour
 
 ---
 

@@ -555,19 +555,15 @@
         document.addEventListener('fts:token', onToken);
         cleanups.push(() => document.removeEventListener('fts:token', onToken));
 
-        // Poll real model state — don't lie about MODEL ONLINE
+        // Test chat uses the Inference worker, not the configured Guide/API helper.
         async function refreshModelState() {
           try {
-            const [d, ie] = await Promise.all([
-              fetch('/api/providers').then(r => r.json()).catch(() => null),
-              fetch('/api/inference/status').then(r => r.json()).catch(() => null),
-            ]);
-            const active = d && d.active && d.active.loaded ? d.active : null;
+            const ie = await fetch('/api/inference/status').then(r => r.json()).catch(() => null);
             const infLoaded = ie && ie.loaded ? ie : null;
-            if (active || infLoaded) {
-              cap.textContent = '● MODEL ONLINE';
+            if (infLoaded) {
+              cap.textContent = '● INFERENCE MODEL LOADED';
               cap.style.color = 'var(--accent)';
-              const name = active ? (active.model_id || active.name || active.id) : (infLoaded.model || infLoaded.id);
+              const name = infLoaded.model || infLoaded.id;
               sub.textContent = String(name || '').split(/[\\/]/).pop();
             } else {
               cap.textContent = '○ NO MODEL LOADED';

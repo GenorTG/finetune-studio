@@ -96,6 +96,11 @@
   // ── Updates: trigger the self-healing pipeline + live log tail ──
   // Progress is SSE-first via /api/system/update/events. Silent poll of
   // /api/system/update/latest (fallbackMs ≥ 5s) only when EventSource fails.
+  if (!document.getElementById('update-status')) {
+    wireReplay();
+    await loadDebug();
+    return;
+  }
   const UPD_BTN = { check: 'btn-update-check', update: 'btn-update-apply', repair: 'btn-update-repair' };
   let stopLive = null;
 

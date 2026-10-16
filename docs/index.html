@@ -3,87 +3,84 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
 <title>⚡ Finetune Studio — self-hosted LLM workshop</title>
 <meta name="description" content="A self-hosted local-LLM workshop: one route for your files, then LoRA fine-tuning or a Smart Brain that answers from them, plus evaluation, export, and chat. Runs on your hardware; optional model downloads and integrations may use external services.">
 <meta property="og:title" content="⚡ Finetune Studio">
-<meta property="og:description" content="A self-hosted workshop for the whole local-LLM lifecycle: documents → datasets → LoRA training → merge/export → benchmarks → chat. Single repo, terminal-styled UI, explicitly gated live E2E checks.">
+<meta property="og:description" content="A self-hosted local-model workshop: organize files once, then use Smart Brain retrieval or train a LoRA adapter, evaluate results, and chat. Responsive dark/light WebUI.">
 <meta property="og:type" content="website">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
 <style>
   :root{
-    --bg:#050a06; --panel:#0a140c; --panel2:#0d1a10;
-    --border:#1d3a24; --border-strong:#2a5233;
-    --fg:#b8e6c0; --dim:#5f8a66; --accent:#00ff66; --amber:#ffb000; --violet:#b388ff;
-    --mono:'Share Tech Mono',ui-monospace,monospace; --code:'JetBrains Mono',ui-monospace,monospace;
+    --bg:#f5f7fb; --panel:#fff; --panel2:#f3f6fb;
+    --border:#d4dce9; --border-strong:#bdc9dc;
+    --fg:#202a3a; --dim:#64748b; --accent:#315ec9; --amber:#81500f; --violet:#7443a2;
+    --sans:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    --mono:var(--sans); --code:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
   }
+  @media(prefers-color-scheme:dark){:root{--bg:#0b1020;--panel:#121a2b;--panel2:#172338;--border:#29364c;--border-strong:#3b4c68;--fg:#e8eef8;--dim:#a9b7cd;--accent:#78a6ff;--amber:#f1b85b;--violet:#d29af4}}
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
-  body{background:var(--bg);color:var(--fg);font-family:var(--mono);line-height:1.6;overflow-x:hidden}
-  /* CRT scanlines */
-  body::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:99;
-    background:repeating-linear-gradient(0deg,rgba(0,0,0,.14) 0 1px,transparent 1px 3px);opacity:.5}
-  a{color:var(--accent);text-decoration:none} a:hover{text-shadow:0 0 8px var(--accent)}
+  body{background:var(--bg);color:var(--fg);font-family:var(--sans);line-height:1.6;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none} a:hover{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
   .wrap{max-width:1180px;margin:0 auto;padding:0 24px}
   /* nav */
-  nav{position:sticky;top:0;z-index:100;background:rgba(5,10,6,.92);backdrop-filter:blur(6px);
+  nav{position:sticky;top:0;z-index:100;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(12px);
     border-bottom:1px solid var(--border);padding:10px 0}
   nav .wrap{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
-  .logo{color:var(--accent);font-weight:700;letter-spacing:.06em;text-shadow:0 0 10px rgba(0,255,102,.5)}
+  .logo{color:var(--accent);font-weight:700;letter-spacing:-.02em}
   nav .links{margin-left:auto;display:flex;gap:16px;flex-wrap:wrap;font-size:13px}
   nav .links a{color:var(--dim)} nav .links a:hover{color:var(--accent)}
   /* hero */
   header{padding:88px 0 64px;text-align:center;position:relative}
   header::before{content:"";position:absolute;inset:auto 0 0 0;height:1px;
     background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.4}
-  h1{font-size:clamp(34px,6vw,64px);color:var(--accent);letter-spacing:.04em;
-    text-shadow:0 0 18px rgba(0,255,102,.45),0 0 60px rgba(0,255,102,.15)}
+  h1{font-size:clamp(34px,6vw,64px);color:var(--fg);letter-spacing:-.045em;line-height:1.08}
   h1 .cursor{display:inline-block;width:.55ch;background:var(--accent);color:transparent;
     animation:blink 1.1s steps(1) infinite}
   @keyframes blink{50%{opacity:0}}
   .tagline{max-width:760px;margin:18px auto 0;color:var(--fg);font-size:clamp(15px,2vw,19px)}
   .sub{color:var(--dim);margin-top:10px;font-size:14px}
   .cta{margin-top:34px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
-  .btn{border:1px solid var(--border-strong);padding:12px 22px;color:var(--fg);
-    letter-spacing:.08em;font-size:14px;transition:.15s;display:inline-block}
-  .btn:hover{border-color:var(--accent);color:var(--accent);box-shadow:0 0 14px rgba(0,255,102,.25)}
-  .btn.primary{background:rgba(0,255,102,.12);border-color:var(--accent);color:var(--accent)}
+  .btn{border:1px solid var(--border-strong);border-radius:9px;padding:12px 22px;color:var(--fg);
+    letter-spacing:.01em;font-size:14px;transition:.15s;display:inline-block;background:var(--panel)}
+  .btn:hover{border-color:var(--accent);color:var(--accent);box-shadow:0 6px 18px rgba(49,94,201,.14);transform:translateY(-1px)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
   .badges{margin-top:26px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
   .badges img{height:20px}
   /* sections */
   section{padding:64px 0}
-  h2{color:var(--accent);font-size:clamp(20px,3vw,28px);letter-spacing:.06em;margin-bottom:6px}
-  h2::before{content:"▐ "}
+  h2{color:var(--fg);font-size:clamp(20px,3vw,28px);letter-spacing:-.02em;margin-bottom:6px}
   h3{color:var(--accent);font-size:15px;letter-spacing:.05em;margin-bottom:8px}
   h3 .tag{color:var(--violet);font-size:11px;border:1px solid var(--violet);
     padding:1px 6px;margin-left:8px;vertical-align:2px}
   .lead{color:var(--dim);margin-bottom:30px;max-width:720px}
   /* feature grid */
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(255px,1fr));gap:14px}
-  .card{background:var(--panel);border:1px solid var(--border);padding:18px;position:relative;transition:.15s}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;position:relative;transition:.15s;box-shadow:0 4px 16px rgba(20,35,60,.05)}
   .card:hover{border-color:var(--border-strong);transform:translateY(-2px);
-    box-shadow:0 8px 24px rgba(0,0,0,.4)}
+    box-shadow:0 10px 28px rgba(20,35,60,.1)}
   .card p{font-size:13px;color:var(--fg)} .card .dim{color:var(--dim)}
   /* usecases */
   .usecases{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
-  .usecase{background:var(--panel);border:1px solid var(--border);padding:20px}
+  .usecase{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px;box-shadow:0 4px 16px rgba(20,35,60,.05)}
   .usecase h4{color:var(--accent);font-size:14px;letter-spacing:.04em;margin-bottom:6px}
   .usecase blockquote{margin:0 0 10px;color:var(--fg);font-style:italic;font-size:13px;
     border-left:2px solid var(--border-strong);padding-left:10px}
   .usecase p{font-size:13px;color:var(--fg)}
   /* new in v2 */
   .pillbox{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
-  .pill{font-size:11px;color:var(--amber);border:1px solid var(--amber);padding:2px 8px;
-    letter-spacing:.05em;display:inline-block}
+  .pill{font-size:11px;color:var(--amber);border:1px solid var(--amber);border-radius:999px;padding:3px 9px;
+    letter-spacing:.01em;display:inline-block}
   /* gallery */
-  figure{background:var(--panel);border:1px solid var(--border);padding:10px;margin:0}
+  figure{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:10px;margin:0}
   figure img{width:100%;display:block;border:1px solid var(--border)}
   figcaption{font-size:12px;color:var(--dim);padding:9px 3px 2px;letter-spacing:.04em}
   figcaption b{color:var(--accent);font-weight:400}
   .gallery-hero{margin-bottom:18px}
   .gallery{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
   /* pipeline */
-  pre.diagram{background:var(--panel2);border:1px solid var(--border);padding:22px;
+  pre.diagram{background:var(--panel2);border:1px solid var(--border);border-radius:12px;padding:22px;
     overflow-x:auto;color:var(--fg);font-family:var(--code);font-size:12.5px;line-height:1.5}
   pre.diagram .g{color:var(--accent)} pre.diagram .a{color:var(--amber)}
   /* table */
@@ -92,12 +89,12 @@
   th{color:var(--accent);font-weight:400;letter-spacing:.05em;background:var(--panel2)}
   td:first-child{color:var(--dim)} td:last-child{color:var(--fg)}
   /* quickstart */
-  .codeblock{background:#030804;border:1px solid var(--border-strong);padding:22px;
+  .codeblock{background:#0b1020;border:1px solid var(--border-strong);border-radius:12px;padding:22px;
     font-family:var(--code);font-size:13.5px;overflow-x:auto;line-height:1.8}
-  .codeblock .p{color:var(--accent)} .codeblock .c{color:var(--dim)}
+  .codeblock .p{color:var(--accent)} .codeblock .c{color:#a9b7cd}
   /* docs */
   .docs{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px}
-  .docs a{display:block;background:var(--panel);border:1px solid var(--border);padding:14px 16px;
+  .docs a{display:block;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px;
     color:var(--fg);font-size:13px;transition:.15s}
   .docs a:hover{border-color:var(--accent)}
   .docs b{color:var(--accent);display:block;margin-bottom:3px;font-weight:400;letter-spacing:.05em}
@@ -108,7 +105,7 @@
 <body>
 
 <nav><div class="wrap">
-  <span class="logo">root@fts:~$ ⚡FINETUNE-STUDIO</span>
+  <span class="logo">⚡ Finetune Studio</span>
   <span class="links">
     <a href="#usecases">use cases</a>
     <a href="#new">new in v2</a>
@@ -126,10 +123,7 @@
   <h1>⚡ FINETUNE STUDIO<span class="cursor">▮</span></h1>
   <p class="tagline">A self-hosted workshop for local-model training,
   inference, and evaluation.</p>
-  <p class="sub">A self-hosted workshop for the whole lifecycle: documents →
-  datasets → LoRA training → merge/export → benchmarks → chat. One
-  responsive WebUI with dark and light themes that lives in your browser. The app runs on your host;
-  model downloads and optional integrations can contact third-party services.</p>
+  <p class="sub">Your files stay on your machine; model downloads and optional integrations may contact their providers.</p>
   <div class="cta">
     <a class="btn primary" href="https://github.com/GenorTG/finetune-studio">[ CLONE THE REPO ]</a>
     <a class="btn" href="#quickstart">[ QUICKSTART ↓ ]</a>
@@ -214,9 +208,7 @@
 
 <section id="gallery"><div class="wrap">
   <h2>SCREENSHOTS</h2>
-  <p class="lead">Terminal-grade UI: tmux-style session bar, numbered flow
-  steps, phosphor-green notches, animated sprites, command palette on
-  Ctrl+K. Default listen port <span class="dim">:7860</span>.</p>
+  <p class="lead">A clear, responsive workspace with project checklists, keyboard navigation, and dark or light themes. Default local address <span class="dim">:7860</span>.</p>
 
   <figure class="gallery-hero">
     <img src="screenshots/03_quick_work.png" alt="Quick work — the whole training pipeline on one page" loading="lazy">
@@ -283,14 +275,13 @@
 
 <section id="quickstart"><div class="wrap">
   <h2>QUICKSTART</h2>
-  <p class="lead">Linux / macOS / Windows(WSL2). Auto-detects your GPU and
-  picks the right CUDA wheels.</p>
+  <p class="lead">Linux and macOS use install.sh; native Windows uses install.ps1 or install.bat. Each installer selects a compatible accelerator stack.</p>
 <pre class="codeblock"><span class="p">$</span> git clone https://github.com/GenorTG/finetune-studio.git
 <span class="p">$</span> cd finetune-studio
-<span class="p">$</span> ./install.sh                    <span class="c"># GPU detection, venv, wheels</span>
+<span class="p">$</span> ./install.sh                    <span class="c"># detects hardware; starts on localhost by default</span>
 <span class="p">$</span> source .venv/bin/activate
-<span class="p">$</span> fts web --host 0.0.0.0 --port 7860
-<span class="c"># open http://localhost:7860 — an 8-step tour walks you through it</span></pre>
+<span class="p">$</span> fts webui
+<span class="c"># open http://localhost:7860 — a short onboarding tour shows the first steps</span></pre>
 </div></section>
 
 <section id="docs"><div class="wrap">

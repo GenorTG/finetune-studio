@@ -20,7 +20,7 @@ def test_css_pins():
     assert "var(--bg-nav)" in css
     assert ':root[data-theme="light"]' in tokens
     assert ':root[data-theme="light"]' not in base
-    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=1") < base.index("layout.css?v=1") < base.index("app.css?v=105") < base.index("typography.css?v=1")
+    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=2") < base.index("layout.css?v=1") < base.index("app.css?v=105") < base.index("typography.css?v=1")
     assert ".hf-card .meta .stat" in css
     assert "min-width: 40rem" in css or "min-width:40rem" in css
 
@@ -135,6 +135,39 @@ def test_templates_reuse_margin_and_pointer_utilities():
         assert 'style="margin-top:6px' not in _r(f"templates/{name}.html")
     for name in ("project_data", "project_wizard", "brain"):
         assert 'style="cursor:pointer;"' not in _r(f"templates/{name}.html")
+
+
+def test_file_previews_share_component_styles():
+    components = _r("static/css/components.css")
+    base = _r("templates/base.html")
+    assert ".file-preview-image" in components
+    assert ".file-preview-frame" in components
+    assert ".file-preview-content" in components
+    assert "components.css?v=2" in base
+    for name in ("project", "project_data", "data_prep"):
+        template = _r(f"templates/{name}.html")
+        assert 'style="max-width:100%;max-height:' not in template
+        assert 'style="width:100%;height:' not in template
+        assert 'style="max-height:70vh;overflow:auto;padding:12px;' not in template
+        assert 'style="max-height:60vh;overflow:auto;padding:12px;' not in template
+
+
+def test_benchmark_actions_reuse_small_button_variant():
+    template = _r("templates/benchmarks.html")
+    assert template.count('class="btn sm') >= 3
+    assert 'style="font-size:11px;padding:4px 10px;"' not in template
+
+
+def test_chat_model_status_tracks_the_inference_worker_not_the_guide_helper():
+    sprites = _r("static/js/sprites.js")
+    block = sprites.split("// Test chat uses the Inference worker", 1)[1].split(
+        "// CPU chip", 1
+    )[0]
+    assert "fetch('/api/inference/status')" in block
+    assert "fetch('/api/providers')" not in block
+    assert "INFERENCE MODEL LOADED" in block
+    chat = _r("templates/chat_v2.html")
+    assert "Test chat uses the model loaded into Inference—not the Guide/API helper." in chat
 
 
 def test_project_overview_no_duplicate_topbar():

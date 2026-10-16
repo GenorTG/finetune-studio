@@ -1046,16 +1046,15 @@ function flHasParsedMd(f) {
 
 function flBuildRawInner(fid, name, mime) {
   if (mime && mime.startsWith('image/')) {
-    return '<img src="/api/projects/' + _flPid + '/files/' + fid + '/raw" alt="' + escapeHtml(name) +
-      '" style="max-width:100%;max-height:70vh;border-radius:4px;">';
+    return '<img class="file-preview-image" src="/api/projects/' + _flPid + '/files/' + fid + '/raw" alt="' + escapeHtml(name) + '">';
   }
   if (mime === 'application/pdf') {
-    return '<iframe src="/api/projects/' + _flPid + '/files/' + fid + '/raw" style="width:100%;height:70vh;border:none;border-radius:4px;"></iframe>';
+    return '<iframe class="file-preview-frame" src="/api/projects/' + _flPid + '/files/' + fid + '/raw"></iframe>';
   }
   if (mime && (mime.startsWith('text/') || mime === 'application/json' || mime === 'application/xml' ||
       mime === 'application/javascript' || mime.endsWith('+json') || mime.endsWith('+xml') ||
       /\.(md|txt|csv|json|xml|yaml|yml|log|py|js|ts|html|css)$/i.test(name))) {
-    return '<pre id="fl-preview-content" class="mono text-xs" style="max-height:70vh;overflow:auto;padding:12px;background:var(--surface,var(--bg-panel));border:1px solid var(--border);border-radius:4px;">Loading…</pre>';
+    return '<pre id="fl-preview-content" class="mono text-xs file-preview-content">Loading…</pre>';
   }
   const size = ((_flFiles || []).find((x) => x.id === fid) || {}).size_bytes;
   return '<div class="dim center p-6">' +
@@ -1086,7 +1085,7 @@ async function flFillParsedPanel(panel, fid, name) {
       panel.innerHTML =
         '<div class="text-xs dim mb-2">Parsed MD · source=<code>' +
         escapeHtml(src) + '</code></div>' +
-        '<pre id="fl-parsed-content" class="mono text-xs" style="max-height:60vh;overflow:auto;padding:12px;background:var(--surface,var(--bg-panel));border:1px solid var(--border);border-radius:4px;"></pre>';
+        '<pre id="fl-parsed-content" class="mono text-xs file-preview-content compact"></pre>';
       const el = document.getElementById('fl-parsed-content');
       if (el) el.textContent = d.parsed_md || '';
       return;
@@ -1112,7 +1111,7 @@ async function flFillParsedPanel(panel, fid, name) {
       '<div class="text-xs dim mb-2">Sibling markdown heuristic: showing <code>' +
       escapeHtml(sibling.original_name) +
       '</code>.</div>' +
-      '<pre id="fl-parsed-content" class="mono text-xs" style="max-height:60vh;overflow:auto;padding:12px;background:var(--surface,var(--bg-panel));border:1px solid var(--border);border-radius:4px;">Loading…</pre>';
+      '<pre id="fl-parsed-content" class="mono text-xs file-preview-content compact">Loading…</pre>';
     try {
       const t = await fetch('/api/projects/' + _flPid + '/files/' + sibling.id + '/raw').then((r) => r.text());
       const el = document.getElementById('fl-parsed-content');
@@ -1126,7 +1125,7 @@ async function flFillParsedPanel(panel, fid, name) {
 
   if (/\.md$/i.test(name)) {
     panel.innerHTML = '<div class="text-xs dim mb-2">This file is already markdown — showing raw as parsed.</div>' +
-      '<pre id="fl-parsed-content" class="mono text-xs" style="max-height:60vh;overflow:auto;padding:12px;background:var(--surface,var(--bg-panel));border:1px solid var(--border);border-radius:4px;">Loading…</pre>';
+      '<pre id="fl-parsed-content" class="mono text-xs file-preview-content compact">Loading…</pre>';
     try {
       const t = await fetch('/api/projects/' + _flPid + '/files/' + fid + '/raw').then((r) => r.text());
       const el = document.getElementById('fl-parsed-content');

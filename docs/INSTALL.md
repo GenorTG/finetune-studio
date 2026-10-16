@@ -1,11 +1,10 @@
 # Installation Guide
 
-Step-by-step instructions for getting Finetune Studio running on **Linux**
-(Ubuntu / Fedora / Arch), **Windows 10/11**, and **macOS**.
+Install Finetune Studio on **Linux** (Ubuntu / Fedora / Arch), **Windows 10/11**, or **macOS**. The repository has platform-specific installers; the Windows installer is maintained, but has not been exercised in the current Linux-hosted production review.
 
 ---
 
-## TL;DR — the 30-second version (Linux + NVIDIA GPU)
+## Quick start — Linux + NVIDIA GPU
 
 ```bash
 git clone https://github.com/GenorTG/finetune-studio.git
@@ -27,8 +26,8 @@ If something fails, read the relevant section below.
 |---|---|---|
 | **Python 3.12 or 3.13** | Supported runtime range (`>=3.12,<3.14`) | https://www.python.org/downloads/ |
 | **Git** | Clones the repo, pulls updates | https://git-scm.com/downloads |
-| **NVIDIA GPU + CUDA driver** (recommended) | Fast training & inference | https://www.nvidia.com/drivers |
-| **NVIDIA CUDA Toolkit 12.x** | Required to build PyTorch + llama-cpp-python with GPU support | https://developer.nvidia.com/cuda-toolkit |
+| **NVIDIA GPU + current driver** (recommended) | Fast training & inference; the installer selects a compatible PyTorch wheel | https://www.nvidia.com/drivers |
+| **CUDA Toolkit** (optional) | Needed only when a GPU-enabled llama.cpp component must be built from source; not required for PyTorch prebuilt CUDA wheels | https://developer.nvidia.com/cuda-toolkit |
 | **Node.js ≥ 18** (optional) | Only needed if you want to run the Playwright UI tests yourself | https://nodejs.org/ |
 | **15 GB free disk** | PyTorch + transformers + model weights | — |
 
@@ -42,10 +41,10 @@ If something fails, read the relevant section below.
 **Git**
 - All OSes: download from https://git-scm.com/downloads — or `apt install git` / `brew install git`
 
-**NVIDIA driver + CUDA**
-- NVIDIA driver: https://www.nvidia.com/drivers — pick your GPU + OS, download the .run / .exe / .dmg
-- CUDA Toolkit 12.x: https://developer.nvidia.com/cuda-12-x-downloads (Linux / Windows / macOS tabs)
-- After install, verify with `nvidia-smi` — should print your GPU name + driver version + CUDA version
+**NVIDIA driver**
+- Install a current driver from https://www.nvidia.com/drivers.
+- Verify with `nvidia-smi` — it should print your GPU name, driver version, and supported CUDA runtime level.
+- The CUDA Toolkit is not needed for PyTorch's prebuilt wheels. Install it only if you need to compile a CUDA-enabled llama.cpp component from source.
 - If you have an AMD GPU, see the **AMD / CPU-only** section below.
 
 **Node.js** (only for running tests)
@@ -85,8 +84,7 @@ Useful flags (`./install.sh --help` lists all):
 | `--repair` | diagnose and fix a broken install (mixed torch, missing deps, CPU build on a GPU host) |
 | `--cpu`, `--gpu <vendor>` | override detection. The choice is remembered in `.venv/fts-force-vendor`, so later `--check`, `--repair` and `update.sh` keep it; run `--gpu <vendor>` to change it |
 
-Updates: `./update.sh` (pull, health check, dependency sync, migrations, restart of the service that runs this
-checkout); `./update.sh --check` is the read-only version. Run as a service: `./install-service.sh`.
+On Linux, `./update.sh` pulls, checks/repairs the environment, syncs dependencies, migrates the database, and restarts the service running this checkout; `./update.sh --check` is the read-only mode. Install the optional Linux systemd service with `./install-service.sh`. Windows uses the PowerShell/batch installer and `run.bat`; the self-update and systemd scripts are Linux-only.
 
 The installer does not install Playwright or browser binaries. See
 [`../tests/README_E2E.md`](../tests/README_E2E.md) for the separate browser-test
@@ -98,9 +96,9 @@ If `./install.sh` doesn't exist or is broken, do it manually:
 python3 -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 python -m pip install --upgrade pip wheel
-# GPU (NVIDIA) install — pick the CUDA build that matches your driver
-# (`./install.sh --plan` prints the right one as "torch_index"):
-python -m pip install torch --index-url https://download.pytorch.org/whl/cu130
+# GPU install: do not hard-code a CUDA wheel index; it depends on the driver and GPU.
+# Run ./install.sh --plan and use its torch_index, or let the installer choose it.
+# Example shape only: python -m pip install torch --index-url <torch_index from the plan>
 # CPU-only:
 # python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
 python -m pip install -e ".[parsers]"
@@ -125,13 +123,16 @@ CMAKE_ARGS="-DGGML_METAL=on" python -m pip install llama-cpp-python --force-rein
 
 ### 4. Start the studio
 
+Linux/macOS:
+
 ```bash
-bash run.sh                       # or: source .venv/bin/activate && fts webui
-bash install-service.sh           # optional: run it as a systemd user service (restarts on crash and reboot)
+./run.sh                          # or: source .venv/bin/activate && fts webui
+bash install-service.sh           # optional Linux systemd user service
 ```
 
-Open http://localhost:7860 in any modern browser. First visit triggers the
-onboarding tutorial.
+Windows: run `run.bat` from the checkout directory. The included systemd service installer is Linux-only; on Windows, keep the launcher open or configure a service manager separately.
+
+Open http://localhost:7860 in a modern browser. The first visit offers the onboarding tutorial.
 
 ### 5. Access: who can open the web UI
 
@@ -231,22 +232,18 @@ brew install python@3.12 git cmake
 
 ### Windows 10 / 11
 
-1. Install Python 3.12 from python.org (check "Add to PATH")
-2. Install Git from git-scm.com
-3. Install the NVIDIA driver + CUDA 12.x from nvidia.com
-4. Open PowerShell:
+1. Install Python 3.12 or 3.13 and Git. For NVIDIA acceleration, install a current NVIDIA driver; the installer chooses a compatible PyTorch build. A CUDA Toolkit is only needed if building llama.cpp components from source.
+2. In PowerShell:
    ```powershell
    git clone https://github.com/GenorTG/finetune-studio.git
    cd finetune-studio
-   python -m venv .venv
-   .venv\Scripts\Activate.ps1
-   python -m pip install --upgrade pip
-   python -m pip install torch --index-url https://download.pytorch.org/whl/cu121
-   python -m pip install -e ".[parsers]"
-fts webui                          # address: Settings -> Access & network (default 127.0.0.1:7860)
+   .\install.ps1
+   .\run.bat
    ```
-5. Allow Python through Windows Firewall when prompted
-6. Open http://localhost:7860
+   Alternatively, run `install.bat` from Command Prompt, then `run.bat`.
+3. Open http://localhost:7860. If Windows Firewall prompts because you enabled network access, allow only the networks you intend to use.
+
+The PowerShell installer supports `-Cpu`, `-Gpu nvidia|amd|intel|none`, `-NoGguf`, and `-NoLlamaCpp`. Its optional llama.cpp CLI build may require CMake, Git, Visual Studio Build Tools, and a CUDA toolkit for NVIDIA source builds. Windows installer/runtime behavior still needs verification on a Windows host.
 
 ---
 
@@ -278,24 +275,20 @@ python -m pip install llama-cpp-python    # GGUF CPU inference
 
 ## Verifying the install
 
-After install, run this 30-second smoke test:
+Run the environment check from the checkout. On Unix:
 
 ```bash
 source .venv/bin/activate
-python -c "
-import torch, transformers, peft, fastapi
-print('torch:', torch.__version__)
-print('transformers:', transformers.__version__)
-print('peft:', peft.__version__)
-print('fastapi:', fastapi.__version__)
-print('CUDA available:', torch.cuda.is_available())
-"
-fts webui &
-sleep 5
-curl -s http://localhost:7860/api/projects | head -c 200
+fts doctor
 ```
 
-If you see a JSON array (or `[]`), you're good. Open http://localhost:7860.
+On Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe -m finetune_studio doctor
+```
+
+Then start the WebUI (`fts webui` on Unix, `run.bat` on Windows) and open http://localhost:7860. The default listener is local-only; enable LAN/Tailscale access in **Settings → Access & network** only when needed.
 
 ---
 
