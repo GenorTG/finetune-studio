@@ -89,6 +89,14 @@ def test_templates_use_shared_flex_utilities():
         assert "style=\"flex:1;" not in template
 
 
+def test_templates_reuse_full_width_utility():
+    css = _r("static/css/app.css")
+    assert ".w-full { width: 100%; }" in css
+    for name in ("chat_v2", "benchmarks", "project_testing", "project_wizard", "brain", "project_compare"):
+        template = _r(f"templates/{name}.html")
+        assert "style=\"width:100%;" not in template
+
+
 def test_project_overview_no_duplicate_topbar():
     assert "block topbar_right" not in _r("templates/project.html")
 

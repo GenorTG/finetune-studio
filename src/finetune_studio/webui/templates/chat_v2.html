@@ -112,7 +112,7 @@
   {# System prompt (Test mode) — presets below write into it; sent as system_prompt_override #}
   <label class="block mt-2" style="font-size:11px;">
     <span class="dim">System prompt (Test mode)</span>
-    <textarea id="chat-system-prompt" name="system_prompt" rows="2" class="input" style="width:100%;">{{ project.system_prompt or '' }}</textarea>
+    <textarea id="chat-system-prompt" name="system_prompt" rows="2" class="input w-full">{{ project.system_prompt or '' }}</textarea>
   </label>
   <div class="flex gap-2 mt-2" style="font-size:11px;flex-wrap:wrap;">
     <span class="dim" style="align-self:center;">Preset:</span>

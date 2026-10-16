@@ -157,7 +157,7 @@
       <label class="flex items-center gap-2 text-xs" title="Hybrid retrieval = combine meaning-based (embedding) search with BM25 keyword search (classic exact-word matching), then rerank. Better recall than either alone — embedding catches paraphrases, BM25 catches exact terms / code / names."><input id="s-hybrid-enabled" type="checkbox" checked> Hybrid</label>
     </div>
     <div class="col-span-2">
-      <button onclick="saveSettings()" class="btn primary" style="width:100%;">Save</button>
+      <button onclick="saveSettings()" class="btn primary w-full">Save</button>
     </div>
   </div>
 </details>
@@ -317,7 +317,7 @@
       <input id="bundle-pass" type="password" autocomplete="new-password" class="input" placeholder="min 8 characters">
     </div>
     <div class="col-span-2">
-      <button id="bundle-btn" onclick="startBundleDownload()" class="btn primary" style="width:100%;" title="Encrypt the index into a single .ftsrag file you can move to another studio.">Export</button>
+      <button id="bundle-btn" onclick="startBundleDownload()" class="btn primary w-full" title="Encrypt the index into a single .ftsrag file you can move to another studio.">Export</button>
     </div>
   </div>
   <div class="grid grid-12 gap-3 items-end mb-3">
@@ -330,7 +330,7 @@
       <input id="bundle-import-pass" aria-label="Bundle passphrase" type="password" autocomplete="off" class="input">
     </div>
     <div class="col-span-2">
-      <button id="bundle-import-btn" onclick="startBundleImport()" class="btn" style="width:100%;" title="Replaces this project's index.">Import</button>
+      <button id="bundle-import-btn" onclick="startBundleImport()" class="btn w-full" title="Replaces this project's index.">Import</button>
     </div>
   </div>
   <div class="mt-3" id="mcp-pkg-panel">

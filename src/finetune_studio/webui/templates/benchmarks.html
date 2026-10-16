@@ -217,7 +217,7 @@
     <div class="grid grid-2 gap-2 mt-2 mb-3">
       <label>
         <span class="block text-xs muted mb-1">Run A (baseline)</span>
-        <select id="cmp-run-a" class="select" style="width:100%;">
+        <select id="cmp-run-a" class="select w-full">
           <option value="">— pick run A —</option>
           {% for run in runs %}
           <option value="{{ run.id }}" {% if run.id == cmp_default_a %}selected{% endif %}>
@@ -228,7 +228,7 @@
       </label>
       <label>
         <span class="block text-xs muted mb-1">Run B</span>
-        <select id="cmp-run-b" class="select" style="width:100%;">
+        <select id="cmp-run-b" class="select w-full">
           <option value="">— pick run B —</option>
           {% for run in runs %}
           <option value="{{ run.id }}" {% if run.id == cmp_default_b %}selected{% endif %}>
