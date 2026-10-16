@@ -20,13 +20,13 @@ def test_css_pins():
     assert "var(--bg-nav)" in css
     assert ':root[data-theme="light"]' in tokens
     assert ':root[data-theme="light"]' not in base
-    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=2") < base.index("layout.css?v=1") < base.index("app.css?v=112") < base.index("typography.css?v=1")
+    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=2") < base.index("layout.css?v=1") < base.index("app.css?v=113") < base.index("typography.css?v=1")
     assert ".hf-card .meta .stat" in css
     assert "min-width: 40rem" in css or "min-width:40rem" in css
 
 
 def test_base_cache_bust():
-    assert "app.css?v=112" in _r("templates/base.html")
+    assert "app.css?v=113" in _r("templates/base.html")
 
 
 def test_project_data_modals_use_hidden_state():
@@ -193,3 +193,9 @@ def test_data_prep_inline_styles_only_for_data_driven_widths():
 
 def test_settings_page_has_no_inline_styles():
     assert 'style="' not in _r("templates/settings.html")
+
+
+def test_training_inline_style_only_for_js_progress_width():
+    lines = [ln.strip() for ln in _r("templates/project_training.html").splitlines() if 'style="' in ln]
+    assert lines == ['<div class="bar mt-3"><div class="fill" id="train-progress-bar" style="width:0%"></div></div>'], lines
+    assert "sev-warning" in _r("templates/project_training.html") and ".sev-warning" in _r("static/css/app.css")

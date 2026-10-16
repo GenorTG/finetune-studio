@@ -3189,14 +3189,37 @@
   line-height: 1.5;
 }
 .run-detail .run-error {
-  background: rgba(255, 80, 80, 0.08);
-  border: 1px solid var(--err, #f55);
-  color: var(--err, #f55);
+  background: var(--bg-app);
+  border: 1px solid var(--border);
+  color: var(--err);
   padding: 8px 10px;
   border-radius: var(--radius-sm);
   font-size: 11px;
   white-space: pre-wrap;
 }
+.run-error-head { color: var(--err); }
+.run-debug-json { max-height: 200px; overflow: auto; white-space: pre-wrap; margin: 6px 0 0; }
+#preset-note { color: var(--text-dim); }
+#preset-advisory { margin-top: 8px; padding: 10px 12px; font-size: 12px; }
+#train-log {
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  background: var(--bg-app);
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  max-height: 220px;
+  min-height: 3.5em;
+  overflow-y: auto;
+  margin: 0;
+}
+.btn.is-disabled { pointer-events: none; opacity: 0.5; }
+.sev-error { color: var(--err); }
+.sev-warning { color: var(--warn); }
+.sev-ok { color: var(--ok); }
+.sev-info { color: var(--muted, inherit); }
+.health-list { list-style: none; padding-left: 0; }
 .row-active td { background: rgba(0, 255, 102, 0.06); }
 .flex.wrap { flex-wrap: wrap; }
 

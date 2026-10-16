@@ -85,8 +85,8 @@
       <div class="text-xs">{{ detail_run.notes }}</div>
       {% endif %}
       {% if detail_run.error %}
-      <h4 class="text-xs muted mb-1 mt-3" style="color:var(--err)">Error</h4>
-      <div class="text-xs run-error" role="status" style="white-space:pre-wrap;color:var(--err);border:1px solid var(--border);padding:8px 10px;border-radius:var(--radius-sm);background:var(--bg-app);">{{ detail_run.error }}</div>
+      <h4 class="text-xs muted mb-1 mt-3 run-error-head">Error</h4>
+      <div class="text-xs run-error" role="status">{{ detail_run.error }}</div>
       {% endif %}
     </div>
   </div>
@@ -104,7 +104,7 @@
   </div>
   <details class="mt-3">
     <summary class="text-xs muted">Debug JSON</summary>
-    <pre class="mono text-xs" style="max-height:200px;overflow:auto;white-space:pre-wrap;margin:6px 0 0;">{{ detail_run | tojson(indent=2) }}</pre>
+    <pre class="mono text-xs run-debug-json">{{ detail_run | tojson(indent=2) }}</pre>
   </details>
 </div>
 {% endif %}
@@ -276,8 +276,8 @@
         <option value="precision">🎯 Precision — very good for factual/domain recall</option>
         <option value="overkill">💀 Overkill — probably unnecessary; only for stubborn domains</option>
       </select>
-      <span class="block text-xs mt-1" id="preset-note" role="status" style="color:var(--text-dim);">Pick a preset to prefill epochs, rank, LR, batch. Values stay editable — the preset is a starting point, not a cage.</span>
-      <div id="preset-advisory" class="card" hidden style="margin-top:8px;padding:10px 12px;font-size:12px;"></div>
+      <span class="block text-xs mt-1" id="preset-note" role="status">Pick a preset to prefill epochs, rank, LR, batch. Values stay editable — the preset is a starting point, not a cage.</span>
+      <div id="preset-advisory" class="card" hidden></div>
     </label>
     <label>
       <span class="block text-xs muted mb-1" title="How many trainable parameters the LoRA adapter has. Higher rank = more expressive but slower to train and bigger adapter file. Typical range: 8–64. 64 is a good default; 8 if you're memory-constrained.">LoRA Rank <span class="dim">?</span></span>
@@ -367,7 +367,7 @@
   <div id="train-pref-metrics" class="text-sm mono mt-2" aria-live="polite" hidden
        title="Preference training: share of pairs where the model ranks the chosen answer above the rejected one (accuracy) and by how much (margin), measured against the starting model. Accuracy 0.5 with margin 0 means nothing has changed yet."></div>
   <div class="text-xs muted mt-3 mb-1">Step log</div>
-  <pre id="train-log" class="text-xs mono" role="log" aria-live="polite" style="font-size:11px;line-height:1.5;white-space:pre-wrap;background:var(--bg-app);padding:10px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);max-height:220px;min-height:3.5em;overflow-y:auto;margin:0;">(no log lines yet)</pre>
+  <pre id="train-log" class="text-xs mono" role="log" aria-live="polite">(no log lines yet)</pre>
 </div>
 
 <div class="card">
@@ -423,7 +423,7 @@
           {% if can_act %}
           <a class="btn sm" href="/projects/{{ pid }}/export?run={{ run.id }}" data-link title="Export this run">⬇ Export</a>
           {% else %}
-          <a class="btn sm" href="#" aria-disabled="true" tabindex="-1" style="pointer-events:none;opacity:0.5;" title="Export requires a finished run with output">⬇ Export</a>
+          <a class="btn sm is-disabled" href="#" aria-disabled="true" tabindex="-1" title="Export requires a finished run with output">⬇ Export</a>
           {% endif %}
         </td>
       </tr>
@@ -590,7 +590,7 @@
         lines.push(`Proposed: ${d.num_epochs} epochs · rank ${d.lora_rank} (α ${d.lora_alpha}) · LR ${d.learning_rate} · batch ${d.batch_size}×${d.gradient_accumulation_steps}`);
         lines.push(`Step math: ${d.pair_count} × ${d.num_epochs} / ${d.effective_batch} = ~${d.optimizer_steps} optimizer steps (tier floor ${d.steps_floor || "—"})`);
         if (d.notes) lines.push(d.notes.map((n) => "• " + n).join("<br>"));
-        if (d.warnings && d.warnings.length) lines.push(`<span style="color:var(--warn)">⚠ ${d.warnings.map((w) => "" + w).join("<br>⚠ ")}</span>`);
+        if (d.warnings && d.warnings.length) lines.push(`<span class="sev-warning">⚠ ${d.warnings.map((w) => "" + w).join("<br>⚠ ")}</span>`);
         adv.innerHTML = lines.join("<br>");
         adv.hidden = false;
         if (presetNote && PRESETS[tier]) presetNote.textContent = PRESETS[tier].note;
@@ -622,7 +622,7 @@
   const healthEl = document.getElementById("dataset-health");
   const healthApi = (did, what) => `/api/projects/{{ pid }}/datasets/${encodeURIComponent(did)}/${what}`;
   const escHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const SEV = { error: ["✕", "var(--err)"], warning: ["⚠", "var(--warn)"], info: ["ℹ", "var(--muted, inherit)"] };
+  const SEV = { error: ["✕", "sev-error"], warning: ["⚠", "sev-warning"], info: ["ℹ", "sev-info"] };
 
   async function loadHealth(did) {
     if (!healthEl) return;
@@ -637,16 +637,16 @@
       const head = `<b>Dataset check:</b> ${d.trainable} of ${d.examples} examples usable · ${d.holdout} held out for validation` +
         (d.stats.avg_answer_words ? ` · answers average ${d.stats.avg_answer_words} words` : "");
       if (!d.issues.length) {
-        healthEl.innerHTML = `${head}<br><span style="color:var(--ok)">✓ No problems found.</span>`;
+        healthEl.innerHTML = `${head}<br><span class="sev-ok">✓ No problems found.</span>`;
         return;
       }
       const items = d.issues.map((i) => {
-        const [icon, color] = SEV[i.severity] || SEV.info;
+        const [icon, sevClass] = SEV[i.severity] || SEV.info;
         const lines = i.lines && i.lines.length ? ` <span class="muted">(line${i.lines.length > 1 ? "s" : ""} ${i.lines.join(", ")}${i.count > i.lines.length ? ", …" : ""})</span>` : "";
         const fix = i.action === "dedup" ? ` <button type="button" class="btn sm" data-health-dedup="${escHtml(did)}">Remove ${i.count} duplicate${i.count > 1 ? "s" : ""} (saves a copy)</button>` : "";
-        return `<li><span style="color:${color}">${icon} <b>${escHtml(i.title)}</b></span> — ${escHtml(i.detail)}${lines}${fix}</li>`;
+        return `<li><span class="${sevClass}">${icon} <b>${escHtml(i.title)}</b></span> — ${escHtml(i.detail)}${lines}${fix}</li>`;
       }).join("");
-      healthEl.innerHTML = `${head}<ul class="mt-1" style="list-style:none;padding-left:0">${items}</ul>` +
+      healthEl.innerHTML = `${head}<ul class="mt-1 health-list">${items}</ul>` +
         `<a href="${editorHref}" data-link>Open in Data Editor</a> to fix individual rows.`;
     } catch (e) {
       healthEl.textContent = "Dataset check failed: " + (e.message || e);
@@ -885,7 +885,7 @@
       const overlay = document.createElement("div");
       overlay.className = "modal-overlay";
       overlay.innerHTML =
-        '<div class="modal-dialog" style="max-width:420px;">' +
+        '<div class="modal-dialog">' +
         '<div class="modal-head">Confirm</div>' +
         '<div class="modal-body"><p class="text-sm">' + message + "</p></div>" +
         '<div class="modal-actions">' +
@@ -939,7 +939,7 @@
       const exportBtn = canAct
         ? '<a class="btn sm" href="/projects/' + esc(PID) + "/export?run=" + esc(id) +
           '" data-link title="Export this run">⬇ Export</a>'
-        : '<a class="btn sm" href="#" aria-disabled="true" tabindex="-1" style="pointer-events:none;opacity:0.5;" title="Export requires a finished run with output">⬇ Export</a>';
+        : '<a class="btn sm is-disabled" href="#" aria-disabled="true" tabindex="-1" title="Export requires a finished run with output">⬇ Export</a>';
       const active = DETAIL_RUN_ID && DETAIL_RUN_ID === id ? " row-active" : "";
       return (
         '<tr class="row-hover' + active + '" data-run-id="' + esc(id) + '" data-run-name="' + esc(name) + '"' +
