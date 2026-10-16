@@ -57,17 +57,35 @@ def readiness(pid: str) -> dict[str, Any]:
               for status in ("pending", "approved", "rejected")}
     datasets = db.list_datasets(pid)
     indexes = db.list_brain_indexes(pid)
+    runs = db.list_runs(pid)
+    done = [run for run in runs if run.get("status") == "done"]
+    tests = db.list_benchmarks_for_project(pid)
+    exports = db.list_exports_for_project(pid)
     parsed_sources = sum(1 for source in sources if source.ready)
-    next_step = (
-        "Review pending Q&A pairs." if counts["pending"] else
-        "Export approved Q&A pairs." if counts["approved"] and not datasets else
-        "Choose SFT or DPO on Training based on the data you have." if datasets else
-        "Upload and parse source files."
-    )
+    # The pipeline order: a finished run moves the next step past data prep (pending pairs are then for the next run).
+    if done and not tests:
+        next_step = f"Test the trained model (run {done[0].get('id')}) on the Testing page."
+    elif done:
+        next_step = "Use the trained model: load it in Chat, or export a GGUF on Export."
+        if counts["pending"]:
+            next_step += f" {counts['pending']} pending Q&A pair(s) can be reviewed for the next run."
+    elif counts["pending"]:
+        next_step = "Review pending Q&A pairs."
+    elif counts["approved"] and not datasets:
+        next_step = "Export approved Q&A pairs."
+    elif datasets:
+        next_step = "Choose SFT or DPO on Training based on the data you have."
+    elif parsed_sources:
+        next_step = "Mine Q&A pairs from the parsed files on the Pairs page."
+    else:
+        next_step = "Upload and parse source files."
+    latest = f", latest done {done[0].get('id')}" if done else ""
     summary = (
         f"{len(sources)} source(s), {parsed_sources} parsed; {counts['approved']} approved, "
         f"{counts['pending']} pending, and {counts['rejected']} rejected Q&A pair(s); "
-        f"{len(datasets)} dataset(s); {len(indexes)} RAG corpus/corpora. Next: {next_step}"
+        f"{len(datasets)} dataset(s); {len(indexes)} RAG corpus/corpora; "
+        f"{len(runs)} training run(s) ({len(done)} done{latest}); {len(tests)} test run(s); "
+        f"{len(exports)} model export(s). Next: {next_step}"
     )
     return {
         "summary": summary,
@@ -76,6 +94,9 @@ def readiness(pid: str) -> dict[str, Any]:
         "qa_pairs": {"total": len(pairs), **counts},
         "datasets": [{"name": ds.get("name"), "rows": ds.get("qa_count", 0)} for ds in datasets],
         "brain_indexes": [{"name": idx.get("name"), "chunks": idx.get("chunk_count", 0)} for idx in indexes],
+        "training_runs": {"count": len(runs), "done": len(done), "latest_done": done[0].get("id") if done else None},
+        "test_runs": len(tests),
+        "model_exports": len(exports),
         "next_step": next_step,
     }
 

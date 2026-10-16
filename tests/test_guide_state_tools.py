@@ -186,3 +186,18 @@ def test_tools_dispatch_through_run_tool(project: dict) -> None:
     # project-scoped tools refuse to run with no active project
     assert "no active project" in run_tool(ToolContext(), "list_sources", {})["error"]
     assert "no active project" in run_tool(ToolContext(), "inspect_project_readiness", {})["error"]
+
+
+def test_readiness_moves_past_data_prep_once_a_run_is_done(project: dict) -> None:
+    # Live Track A: a trained, exported, tested run was invisible; the Guide still said "Review pending Q&A pairs".
+    pid = project["pid"]
+    run = db.create_run(pid, "sft-1", base_model="Qwen3.5-9B", data_path=project["path"])
+    db.update_run(run["id"], status="done", output_path="output/x", final_loss=0.48)
+    ready = state.readiness(pid)
+    assert ready["training_runs"] == {"count": 1, "done": 1, "latest_done": run["id"]}
+    assert f"1 training run(s) (1 done, latest done {run['id']}); 0 test run(s)" in ready["summary"]
+    assert ready["next_step"] == f"Test the trained model (run {run['id']}) on the Testing page."
+    db.create_benchmark(run["id"], "quiz", {})
+    ready = state.readiness(pid)
+    assert "1 test run(s)" in ready["summary"]
+    assert ready["next_step"].startswith("Use the trained model") and "1 pending Q&A pair(s)" in ready["next_step"]

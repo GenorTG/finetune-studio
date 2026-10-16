@@ -29,12 +29,16 @@ class TestChatTools:
         ])
         monkeypatch.setattr(db, "list_datasets", lambda _pid: [{"name": "dataset", "qa_count": 6}])
         monkeypatch.setattr(db, "list_brain_indexes", lambda _pid: [])
+        monkeypatch.setattr(db, "list_runs", lambda _pid: [])
+        monkeypatch.setattr(db, "list_benchmarks_for_project", lambda _pid: [])
+        monkeypatch.setattr(db, "list_exports_for_project", lambda _pid: [])
 
         result = _run_tool("example", "inspect_project_readiness", {})
 
         assert result["summary"] == (
             "2 source(s), 1 parsed; 3 approved, 3 pending, and 0 rejected Q&A pair(s); "
-            "1 dataset(s); 0 RAG corpus/corpora. Next: Review pending Q&A pairs."
+            "1 dataset(s); 0 RAG corpus/corpora; 0 training run(s) (0 done); 0 test run(s); 0 model export(s). "
+            "Next: Review pending Q&A pairs."
         )
         assert result["sources"] == {"count": 2, "parsed": 1}
         assert result["qa_pairs"] == {"total": 6, "pending": 3, "approved": 3, "rejected": 0}
