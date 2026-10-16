@@ -217,7 +217,8 @@ def test_approve_all_pending_follows_the_file_filter_and_asks_first() -> None:
 
 def test_checklist_rows_wrap_instead_of_clipping_and_offer_proposals() -> None:
     src = _TEMPLATE.read_text(encoding="utf-8")
-    assert ".dp-items-table td { vertical-align: top; white-space: normal; overflow: visible;" in src
+    css = (Path(__file__).parents[1] / "src/finetune_studio/webui/static/css/app.css").read_text(encoding="utf-8")
+    assert ".dp-items-table td { vertical-align: top; white-space: normal; overflow: visible;" in css
     for needle in ('data-dp-filter-items="', "'proposed'", 'data-dp-item="confirm"', 'data-dp-item="confirm-all"',
                    "/proposals/confirm"):
         assert needle in src, needle
