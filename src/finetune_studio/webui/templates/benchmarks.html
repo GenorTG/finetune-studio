@@ -102,7 +102,7 @@
           <form data-api="/api/benchmarks/projects/{{ pid }}/runs/{{ run.id }}/run"
                 data-reload="true" class="bench-run-form">
             <input type="hidden" name="suite_name" value="{{ suites[0].name if suites else 'default' }}">
-            <select name="suite_path" aria-label="Question suite" class="select" style="min-width:220px;font-size:11px;"
+            <select name="suite_path" aria-label="Question suite" class="select bench-suite-select"
                     onchange="var o=this.options[this.selectedIndex]; this.form.elements.suite_name.value=o.getAttribute('data-name')||o.text; var r=this.form.querySelector('[name=num_samples]'); if(r){ r.style.display=(o.getAttribute('data-type')==='real')?'inline-block':'none'; }">
               {% for s in suites %}
               <option value="{{ s.path if s.path is defined else s }}"
@@ -111,7 +111,7 @@
                       data-source="{{ s.source if s.source is defined else '' }}">{{ s.label if s.label is defined else (s.name if s.name is defined else s) }}</option>
               {% endfor %}
             </select>
-            <select name="num_samples" class="select" style="min-width:90px;font-size:11px;{% if not suites or (suites[0].suite_type|default('')) != 'real' %}display:none;{% endif %}"
+            <select name="num_samples" class="select bench-samples-select"{% if not suites or (suites[0].suite_type|default('')) != 'real' %} style="display:none"{% endif %}
                     title="How many questions to run from the official test set. More = more reliable score, but slower.">
               <option value="20">20</option>
               <option value="50" selected>50</option>
@@ -140,7 +140,7 @@
           <form data-api="/api/benchmarks/projects/{{ pid }}/base/run"
                 data-reload="true" class="bench-run-form" id="bench-base-form">
             <input type="hidden" name="suite_name" value="{{ suites[0].name if suites else 'default' }}">
-            <select name="suite_path" aria-label="Question suite" class="select" style="min-width:220px;font-size:11px;"
+            <select name="suite_path" aria-label="Question suite" class="select bench-suite-select"
                     onchange="var o=this.options[this.selectedIndex]; this.form.elements.suite_name.value=o.getAttribute('data-name')||o.text; var r=this.form.querySelector('[name=num_samples]'); if(r){ r.style.display=(o.getAttribute('data-type')==='real')?'inline-block':'none'; }">
               {% for s in suites %}
               <option value="{{ s.path if s.path is defined else s }}"
@@ -149,7 +149,7 @@
                       data-source="{{ s.source if s.source is defined else '' }}">{{ s.label if s.label is defined else (s.name if s.name is defined else s) }}</option>
               {% endfor %}
             </select>
-            <select name="num_samples" class="select" style="min-width:90px;font-size:11px;{% if not suites or (suites[0].suite_type|default('')) != 'real' %}display:none;{% endif %}"
+            <select name="num_samples" class="select bench-samples-select"{% if not suites or (suites[0].suite_type|default('')) != 'real' %} style="display:none"{% endif %}
                     title="How many questions to run from the official test set. More = more reliable score, but slower.">
               <option value="20">20</option>
               <option value="50" selected>50</option>
@@ -168,7 +168,7 @@
 
   {# QABUG-012: per-case detail table — empty placeholder must leave the DOM
      when cases exist so NO_DATA markers cannot linger beside results. #}
-  <div class="flex items-center gap-2 mt-6 mb-2" style="flex-wrap:wrap">
+  <div class="flex items-center gap-2 mt-6 mb-2 wrap">
     <h3 class="m-0">Case results{% if selected_bench %}
       <span class="text-sm dim">— {{ selected_bench._run_name }} · {{ selected_bench.suite_name or '—' }} · {{ selected_bench._ran_at_str }}</span>{% endif %}</h3>
     {% if selected_bench %}

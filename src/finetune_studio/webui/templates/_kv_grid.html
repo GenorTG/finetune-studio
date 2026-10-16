@@ -7,7 +7,7 @@
   <tbody>
     {% for k, v in _rows.items() %}
     <tr>
-      <td class="meta muted" style="width:40%;">{{ k }}</td>
+      <td class="meta muted kv-key">{{ k }}</td>
       <td class="mono">
         {%- if v is mapping -%}
           {{ v|tojson }}

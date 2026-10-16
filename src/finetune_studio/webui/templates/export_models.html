@@ -36,7 +36,7 @@
              data-base-model="{{ run.base_model or '' }}"
              data-has-merged="{{ '1' if run.has_merged else '0' }}"
              data-has-adapter="{{ '1' if run.has_adapter else '0' }}">
-          <div class="row items-center gap-3 p-2 export-run-pick" style="border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
+          <div class="row items-center gap-3 p-2 export-run-pick export-opt">
             <input type="radio" name="export-run" value="{{ run.id }}" class="export-run-radio">
             <div class="flex-1">
               <div class="text-sm font-bold">{{ run.name or run.id[:8] }}</div>
@@ -94,7 +94,7 @@
     {% endif %}
   </div>
   <div class="grid grid-2 gap-3 p-2">
-    <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);{% if not caps.gguf %}opacity:0.55;cursor:not-allowed;{% else %}cursor:pointer;{% endif %}">
+    <label class="flex items-start gap-2 p-2 export-opt{% if not caps.gguf %} is-unavailable{% endif %}">
       <input type="checkbox" name="export-format" value="gguf" class="mt-1"
              {% if caps.gguf %}checked{% else %}disabled title="{{ caps.gguf_hint }}"{% endif %}>
       <div>
@@ -102,7 +102,7 @@
         <div class="text-xs dim">For llama.cpp, Ollama, LM Studio. Most compatible.</div>
       </div>
     </label>
-    <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
+    <label class="flex items-start gap-2 p-2 export-opt">
       <input type="checkbox" name="export-format" value="abliterated" class="mt-1"
              {% if not caps.gguf %}checked{% endif %}>
       <div>
@@ -110,7 +110,7 @@
         <div class="text-xs dim">Removes the model&rsquo;s built-in refusal behaviour (full model, safetensors). Warning: it can also make the model comply with harmful requests.</div>
       </div>
     </label>
-    <label class="flex items-start gap-2 p-2" style="border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">
+    <label class="flex items-start gap-2 p-2 export-opt">
       <input type="checkbox" name="export-format" value="merged" class="mt-1">
       <div>
         <div class="text-sm font-bold">Merged</div>

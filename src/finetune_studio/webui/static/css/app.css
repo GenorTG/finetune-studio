@@ -4408,6 +4408,41 @@
   color: var(--text-dim, #888);
   font-style: italic;
 }
+/* Hugging Face models */
+#filter-bar { position: sticky; top: var(--header-h); z-index: 10; backdrop-filter: blur(8px); background: var(--bg-card-translucent); }
+#hf-task { max-width: 220px; }
+#hf-sort { max-width: 160px; }
+.grid.hf-detail-grid { grid-template-columns: 1fr 1fr; gap: 14px; }
+.hf-desc { line-height: 1.6; }
+
+/* Overview, benchmarks, testing, inference, export, settings */
+.v-middle { vertical-align: middle; }
+.grid.gap-10 { gap: 10px; }
+.mt-12 { margin-top: 12px; }
+.bench-suite-select { min-width: 220px; font-size: 11px; }
+.bench-samples-select { min-width: 90px; font-size: 11px; }
+.judge-select { max-width: 340px; }
+#rv-search { max-width: 260px; }
+.model-info-box { border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; }
+.grid.grid-cols-auto { grid-template-columns: auto 1fr; }
+.card.inference-chat-card { display: flex; flex-direction: column; overflow: hidden; }
+.run-kv-table .kv-key { width: 40%; }
+#log-tail {
+  max-height: 320px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--bg-elevated, #0a0a0a);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+.export-opt { border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; }
+.export-opt.is-unavailable { opacity: 0.55; cursor: not-allowed; }
+
 /* Projects */
 .proj-new-grid { grid-template-columns: 1fr 1fr; }
 #proj-search { max-width: 280px; }

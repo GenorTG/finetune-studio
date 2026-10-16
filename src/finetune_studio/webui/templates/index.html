@@ -32,7 +32,7 @@
   <div class="stat">
     <div class="label">Training</div>
     <div class="value" id="dash-training-status" data-poll="/api/training/status-text" data-interval="3000">
-      <span class="spinner" style="vertical-align:middle;"></span>
+      <span class="spinner v-middle"></span>
     </div>
     <div class="delta" id="dash-training-progress" data-poll="/api/training/progress-text" data-interval="3000"></div>
   </div>
@@ -53,7 +53,7 @@
       <div class="card-sub">Most common workflows, one click away.</div>
     </div>
   </div>
-  <div class="grid grid-4" style="gap:10px;">
+  <div class="grid grid-4 gap-10">
     <a href="/projects" class="btn lg" data-link><span>＋</span> New project</a>
     <a href="/models/explore" class="btn lg" data-link><span>⬇</span> Download model</a>
     <a href="/inference" class="btn lg primary" data-link><span>▶</span> Load & chat</a>
@@ -75,7 +75,7 @@
     <div class="empty">
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7h18M3 12h18M3 17h18"/></svg>
       <div class="mt-1.5">No projects yet.</div>
-      <a href="/projects" class="btn primary" data-link style="margin-top:12px;">Create your first project</a>
+      <a href="/projects" class="btn primary mt-12" data-link>Create your first project</a>
     </div>
   {% else %}
     <div class="proj-list">

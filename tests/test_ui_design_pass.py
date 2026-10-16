@@ -1,4 +1,5 @@
 """Regression pins for the design/usability pass (static template/CSS checks)."""
+import re
 from pathlib import Path
 
 W = Path(__file__).resolve().parents[1] / "src" / "finetune_studio" / "webui"
@@ -20,13 +21,13 @@ def test_css_pins():
     assert "var(--bg-nav)" in css
     assert ':root[data-theme="light"]' in tokens
     assert ':root[data-theme="light"]' not in base
-    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=2") < base.index("layout.css?v=1") < base.index("app.css?v=115") < base.index("typography.css?v=1")
+    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=2") < base.index("layout.css?v=1") < base.index("app.css?v=116") < base.index("typography.css?v=1")
     assert ".hf-card .meta .stat" in css
     assert "min-width: 40rem" in css or "min-width:40rem" in css
 
 
 def test_base_cache_bust():
-    assert "app.css?v=115" in _r("templates/base.html")
+    assert "app.css?v=116" in _r("templates/base.html")
 
 
 def test_project_data_modals_use_hidden_state():
@@ -191,9 +192,29 @@ def test_data_prep_inline_styles_only_for_data_driven_widths():
     assert len(lines) == 1 and "style=\"width:' +" in lines[0], lines
 
 
-def test_settings_chat_brain_pages_have_no_inline_styles():
-    for name in ("settings", "chat_v2", "brain", "projects", "data_editor", "project_wizard", "project"):
-        assert 'style="' not in _r(f"templates/{name}.html"), name
+def test_template_inline_styles_are_only_data_driven():
+    """Inline styles silently beat app.css; only runtime values may stay inline.
+
+    The allowlist only shrinks: progress widths computed at runtime, the compare
+    grid's column count, and the benchmark sample picker that JS shows/hides.
+    """
+    allowed = {
+        ("benchmarks.html", 'style="display:none"'): 2,
+        ("data_prep.html", "style=\"width:' + (100 * c[k] / n).toFixed(1) + '%\""): 1,
+        ("inference.html", 'style="width:0%"'): 1,
+        ("project_compare.html", "style=\"grid-template-columns:' + cols + '\""): 1,
+        ("project_testing.html", "style=\"width:' + w + '%\""): 1,
+        ("project_training.html", 'style="width:0%"'): 1,
+        ("_resources.html", 'style="width:0%"'): 1,
+        ("_resources.html", 'style="width:${Math.min(100, g.pct)}%"'): 1,
+    }
+    found: dict = {}
+    for path in sorted((W / "templates").rglob("*.html")):
+        for m in re.finditer(r'style="[^"]*"', path.read_text(encoding="utf-8")):
+            key = (path.name, m.group(0))
+            found[key] = found.get(key, 0) + 1
+    assert found == allowed
+
 
 
 def test_training_inline_style_only_for_js_progress_width():

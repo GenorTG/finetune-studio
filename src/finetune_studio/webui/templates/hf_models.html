@@ -14,13 +14,13 @@
 </div>
 
 {# Filters bar — sticky #}
-<div class="card mb-4" id="filter-bar" style="position:sticky;top:var(--header-h);z-index:10;backdrop-filter:blur(8px);background:var(--bg-card-translucent);">
+<div class="card mb-4" id="filter-bar">
   <div class="flex gap-3 items-center">
     <input id="hf-q" class="input flex-1" placeholder="Search qwen, llama, polish embed…"
            autofocus
            oninput="onHfQueryInput()"
            onkeydown="if(event.key==='Enter'){event.preventDefault();doSearch();}">
-    <select id="hf-task" class="select" style="max-width:220px;">
+    <select id="hf-task" class="select">
       <option value="text-generation" selected>text-generation</option>
       <option value="image-text-to-text">image-text-to-text (vision)</option>
       <option value="feature-extraction">feature-extraction (embed)</option>
@@ -30,7 +30,7 @@
       <option value="automatic-speech-recognition">automatic-speech-recognition</option>
       <option value="">— any —</option>
     </select>
-    <select id="hf-sort" class="select" style="max-width:160px;">
+    <select id="hf-sort" class="select">
       <option value="downloads" selected>Downloads</option>
       <option value="likes">Likes</option>
       <option value="trending">Trending</option>
@@ -221,14 +221,14 @@ async function showInfo(repo, btn) {
   try {
     const d = await fts.api.get(`/api/hf/info/${encodeURIComponent(repo)}`);
     document.getElementById('hf-modal-body').innerHTML = `
-      <div class="grid" style="grid-template-columns:1fr 1fr;gap:14px;">
+      <div class="grid hf-detail-grid">
         <div><span class="dim text-xs">Downloads</span><div class="text-2xl mono">${fmtM(d.downloads || 0)}</div></div>
         <div><span class="dim text-xs">Likes</span><div class="text-2xl mono">${fmtK(d.likes || 0)}</div></div>
         <div><span class="dim text-xs">Pipeline</span><div>${esc(d.pipeline_tag || '—')}</div></div>
         <div><span class="dim text-xs">License</span><div>${esc(d.card_data?.license || '—')}</div></div>
       </div>
       <div class="divider"></div>
-      <div class="text-sm" style="line-height:1.6;">${esc((d.card_data?.description || 'No description.').slice(0, 600))}</div>
+      <div class="text-sm hf-desc">${esc((d.card_data?.description || 'No description.').slice(0, 600))}</div>
       <div class="divider"></div>
       <div class="text-xs dim">Last updated: ${esc(d.last_modified || 'unknown')}</div>
     `;
