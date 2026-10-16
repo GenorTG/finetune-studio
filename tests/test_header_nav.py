@@ -75,7 +75,7 @@ def test_header_nav_overflow_affordance_markup() -> None:
     assert "nav_overflow.js" in base
     assert "☰" in base
     assert "components.css?v=2" in base
-    assert "app.css?v=105" in base
+    assert "app.css?v=106" in base
     assert "{{ release_channel }}" in base
     assert "· {{ release_channel }}</title>" in base
     assert "spa.js?v=19" in base
@@ -118,6 +118,16 @@ def test_header_nav_css_overflow_contract() -> None:
     mobile = css[mobile_start : mobile_start + 1200]
     assert ".sb-tabs { display: none; }" in mobile
     assert ".sb-nav-more-btn" in mobile
+
+
+def test_desktop_tools_group_shares_navigation_row() -> None:
+    """Global tools should not force a third sticky-header row on wide screens."""
+    css = _CSS.read_text(encoding="utf-8")
+    tools_group = css.split(".sb-group-tools {", 1)[1].split("}", 1)[0]
+
+    assert "flex-basis: 100%" not in tools_group
+    assert "flex: 0 0 auto" in tools_group
+    assert "border-top: none" in tools_group
 
 
 def test_header_nav_js_module_present() -> None:
@@ -198,7 +208,7 @@ def test_project_pages_serve_nav_affordance(client: TestClient) -> None:
 def test_css_cache_bust_header_nav() -> None:
     base = _BASE.read_text(encoding="utf-8")
     assert "components.css?v=2" in base
-    assert "app.css?v=105" in base
+    assert "app.css?v=106" in base
     assert "nav_overflow.js?v=2" in base
 
 
