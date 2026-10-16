@@ -16,7 +16,7 @@
 {# Filters bar — sticky #}
 <div class="card mb-4" id="filter-bar" style="position:sticky;top:var(--header-h);z-index:10;backdrop-filter:blur(8px);background:var(--bg-card-translucent);">
   <div class="flex gap-3 items-center">
-    <input id="hf-q" class="input" placeholder="Search qwen, llama, polish embed…" style="flex:1;"
+    <input id="hf-q" class="input flex-1" placeholder="Search qwen, llama, polish embed…"
            autofocus
            oninput="onHfQueryInput()"
            onkeydown="if(event.key==='Enter'){event.preventDefault();doSearch();}">
@@ -160,7 +160,7 @@ function renderResults(results) {
       <div class="hf-card">
         <div class="head">
           <div class="icon">${esc(((repo.split('/').slice(-1)[0] || repo)[0] || '?').toUpperCase())}</div>
-          <div style="flex:1;min-width:0;">
+          <div class="flex-1 min-w-0">
             <div class="name truncate" title="${esc(repo)}">${esc(repo)}</div>
             <div class="text-xs dim mono truncate">${esc(r.id || '')}</div>
           </div>

@@ -109,7 +109,7 @@
     <div class="col-span-2 flex gap-2">
       <button onclick="quickIndex()" id="quick-index-btn" class="btn primary"
               title="⚡ One click: turn every library file that is not parsed yet into text (raw → parsed + chunks), then build the index from all parsed text. This is the quick flow — the controls below stay for fine-tuning.">⚡ Quick index</button>
-      <button onclick="buildIndex(false)" id="build-btn" class="btn" style="flex:1;"
+      <button onclick="buildIndex(false)" id="build-btn" class="btn flex-1"
               title="Build the Smart Brain index: chunk your sources, embed each chunk, index for fast retrieval. First build downloads the embedder (~2.2 GB) which takes a few minutes.">Build</button>
       <button onclick="buildIndex(true)" id="rebuild-btn" class="btn"
               title="Wipe the existing index and rebuild from scratch. Use this when you change the embedder — the existing vectors are no longer valid.">⟲ Rebuild from scratch</button>
@@ -261,7 +261,7 @@
   </div>
   <div class="flex gap-2">
     <input id="q-text" type="text" placeholder="Ask a question about this project's documents…"
-           class="input" style="flex:1;"
+           class="input flex-1"
            onkeydown="if(event.key==='Enter'){event.preventDefault();runQuery();}"
            title="Run a retrieval-only query (no LLM generation). Shows the top-K chunks the system would feed to the chat model, with their retrieval scores. Useful for tuning chunk size / overlap / embedder before training.">
     <button onclick="runQuery()" id="q-btn" class="btn primary"
@@ -286,7 +286,7 @@
   <div id="chat-messages" class="flex flex-col gap-2 mb-3" style="min-height:120px;max-height:360px;overflow-y:auto;background:var(--bg-app);border:1px solid var(--border);border-radius:var(--radius);padding:12px;"></div>
   <div class="flex gap-2">
     <input id="chat-input" type="text" placeholder="Ask anything — model uses the retrieved documents as context…"
-           class="input" style="flex:1;"
+           class="input flex-1"
            title="A retrieval-augmented chat: your question is embedded, top-K matching chunks are pulled from the index, and the model is asked to answer using those chunks as context. Reduces hallucination and lets the model cite sources."
            onkeydown="if(event.key==='Enter'){event.preventDefault();sendChat();}">
     <button onclick="sendChat()" id="chat-btn" class="btn primary"

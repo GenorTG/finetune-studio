@@ -82,7 +82,7 @@
       {% for p in projects %}
       <a class="proj-card" href="/projects/{{ p.id }}" data-link>
         <div class="icon ph-icon">{{ p.name[0]|upper }}</div>
-        <div style="flex:1;min-width:0;">
+        <div class="flex-1 min-w-0">
           <div class="name truncate">{{ p.name }}</div>
           <div class="desc truncate" title="{{ p.description or 'No description' }}">{{ p.description or 'No description' }}</div>
         </div>

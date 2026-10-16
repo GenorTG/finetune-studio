@@ -225,7 +225,7 @@
     {% for ev in activity %}
     <li style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border);">
       <span class="mono" style="width:1.5em;text-align:center;color:var(--accent);flex-shrink:0;" title="{{ ev.kind }}">{{ ev.icon }}</span>
-      <div style="flex:1;min-width:0;">
+      <div class="flex-1 min-w-0">
         <div>{{ ev.message }}</div>
         <div class="dim text-xs mono">{{ ev.when }}</div>
       </div>

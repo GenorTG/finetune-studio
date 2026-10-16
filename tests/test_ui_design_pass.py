@@ -80,6 +80,15 @@ def test_templates_use_spacing_utilities_for_static_margins():
     assert "dp-items-scroll mt-2" in _r("templates/data_prep.html")
 
 
+def test_templates_use_shared_flex_utilities():
+    css = _r("static/css/app.css")
+    assert ".flex-1 { flex: 1; }" in css
+    assert ".min-w-0 { min-width: 0; }" in css
+    for name in ("projects", "hf_models", "project", "index", "inference", "brain"):
+        template = _r(f"templates/{name}.html")
+        assert "style=\"flex:1;" not in template
+
+
 def test_project_overview_no_duplicate_topbar():
     assert "block topbar_right" not in _r("templates/project.html")
 
