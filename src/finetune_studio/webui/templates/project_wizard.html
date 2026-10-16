@@ -520,10 +520,10 @@
       set("wiz-brain", "building the index — the first build downloads the embedding model and can take a minute or two. It keeps going if you leave this page.");
       line("Smart Brain quick build: parsing every unparsed file + building the index…");
       var d = await post("/api/projects/" + PID + "/brain/quick", {});
-      line("Smart Brain: " + (d.promoted ? d.promoted + " file(s) newly promoted, " : "") + "index build started…");
+      line("Smart Brain: " + (d.pending_parses ? d.pending_parses + " file(s) to parse first, " : "") + "index build started…");
       var b = await wizWaitBuild((d.build || {}).build_id || d.build_id);
-      line("Smart Brain ready: " + b.documents + " docs / " + b.chunks + " chunks"
-           + (d.failed && d.failed.length ? " · " + d.failed.length + " file(s) could not parse (see the Smart Brain page)" : ""));
+      line("Smart Brain ready: " + (b.promoted ? b.promoted + " file(s) newly parsed, " : "") + b.documents + " docs / " + b.chunks + " chunks"
+           + (b.failed && b.failed.length ? " · " + b.failed.length + " file(s) could not parse (see the Smart Brain page)" : ""));
       await wizRefresh("brain");
       return true;
     } catch (e) {

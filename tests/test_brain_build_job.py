@@ -4,6 +4,7 @@ alone, and a build job that died without finishing its row is reported as failed
 process boundary (the rest of the suite runs jobs in-process, ``jobs.launch``)."""
 from __future__ import annotations
 
+import json
 import os
 import threading
 from pathlib import Path
@@ -88,13 +89,81 @@ def test_quick_answers_202_with_the_build_and_a_build_that_cannot_start_is_build
     pid = _project(client)
     r = client.post(f"/api/projects/{pid}/brain/quick", json={})
     assert r.status_code == 400 and r.json()["code"] == "build_failed", r.text
-    assert "no parsed files" in r.json()["detail"]
+    assert "no readable files" in r.json()["detail"]
     add_source(pid, "a.txt", "File A says the gate closes at 22:00.")
     gated.gate.set()
     r = client.post(f"/api/projects/{pid}/brain/quick", json={})
     assert r.status_code == 202, r.text
     assert r.json()["build"]["build_id"] == r.json()["build_id"]
     assert wait_build(client, pid, r)["ok"]
+
+
+def test_quick_parses_pending_files_inside_the_job_and_reports_them(client, gated) -> None:
+    """The parse step of the quick index runs in the build job, not in the request (2026-10-16): the 202 counts
+    the pending files, the progress snapshot shows ``parsing`` while they parse, the finished build lists them."""
+    pid = _project(client)
+    add_source(pid, "ready.txt", "File R was parsed at upload time.")
+    add_source(pid, "later.txt", "File L waits for the quick index to parse it.", parse=False)
+    add_source(pid, "empty.txt", "  \n  \n", parse=False)             # parses to nothing: this file's error
+    r = client.post(f"/api/projects/{pid}/brain/quick", json={})
+    assert r.status_code == 202, r.text
+    body = r.json()
+    assert body["pending_parses"] == 2 and body["build"]["queued_files"] == 3, body
+    gated.gate.set()
+    done = wait_build(client, pid, r)
+    assert done["ok"] and done["mode"] == "quick", done
+    assert done["documents"] == 2, "the ready file + the one parsed in the job; the empty one has no text"
+    assert done["promoted"] == 2 and sorted(f["name"] for f in done["promoted_files"]) == ["empty.txt", "later.txt"]
+    assert [f["name"] for f in done["failed"]] == ["empty.txt"] and "no text" in done["failed"][0]["error"]
+
+
+def test_quick_on_files_that_all_parse_to_nothing_is_a_failed_build_that_says_so(client, gated) -> None:
+    pid = _project(client)
+    add_source(pid, "empty.txt", "  \n  \n", parse=False)
+    gated.gate.set()
+    r = client.post(f"/api/projects/{pid}/brain/quick", json={})
+    assert r.status_code == 202, r.text
+    done = wait_build(client, pid, r)
+    assert done["ok"] is False and "no file could be parsed" in done["error"] and "empty.txt" in done["error"]
+
+
+def test_rebuild_vectors_is_a_build_job_that_keeps_the_documents(client, monkeypatch) -> None:
+    """``POST /brain/rebuild-vectors`` re-embeds in a job (mode ``re-embed``): 202 + build id, the finished build
+    names the embedder; 404 before any index exists."""
+    pid = _project(client)
+    assert client.post(f"/api/projects/{pid}/brain/rebuild-vectors", json={}).status_code == 404
+    add_source(pid, "a.txt", "File A says the gate closes at 22:00.")
+    calls: list[str | None] = []
+
+    class _Index:
+        def __init__(self, d: Path) -> None:
+            self.dir = Path(d)
+            self.manifest_path = self.dir / "manifest.json"
+
+        def exists(self) -> bool:
+            return self.manifest_path.exists()
+
+        def build_from_documents(self, docs, **_kw: object) -> dict:
+            self.dir.mkdir(parents=True, exist_ok=True)
+            self.manifest_path.write_text(json.dumps({"name": "t", "documents": len(docs), "chunks": 3,
+                                                      "extra": {"fact_cards": False}}))
+            return {"documents": len(docs), "chunks": 3, "vector_dim": 8, "skipped": 0}
+
+        def rebuild_vectors(self, embedder: str | None = None, device: str = "auto") -> dict:
+            calls.append(embedder)
+            return {"chunks": 3, "vector_dim": 16, "embedder": embedder or "settings-embedder"}
+
+    monkeypatch.setattr("finetune_studio.smart_brain.BrainIndex", _Index)
+    built = wait_build(client, pid, client.post(f"/api/projects/{pid}/brain/build", json={}))
+    assert built["ok"]
+    r = client.post(f"/api/projects/{pid}/brain/rebuild-vectors", json={})
+    assert r.status_code == 202 and r.json()["mode"] == "re-embed" and r.json()["queued_files"] == 1, r.text
+    done = wait_build(client, pid, r)
+    assert done["ok"] and done["mode"] == "re-embed" and done["embedder"] == "settings-embedder"
+    assert done["documents"] == 1 and done["chunks"] == 3 and done["vector_dim"] == 16
+    r = client.post(f"/api/projects/{pid}/brain/rebuild-vectors", json={"embedder": "other"})
+    assert wait_build(client, pid, r)["embedder"] == "other" and calls == [None, "other"]
+    assert len(db.brain_builds.latest_for_project(pid)) and db.brain_builds.latest_for_project(pid)["status"] == "done"
 
 
 def test_a_gpu_busy_rejection_fails_the_row_and_answers_409(client, monkeypatch) -> None:

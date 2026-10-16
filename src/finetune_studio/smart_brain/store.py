@@ -856,11 +856,15 @@ fts brain rebuild-vectors --corpus /path/to/corpus [--embedder NEW_MODEL]
         return sources
 
     def rebuild_vectors(self, embedder: str | None = None, device: str = "auto") -> dict:
+        """Re-embed every chunk (and rebuild BM25); the documents and chunks stay.
+
+        No ``embedder`` = the one the settings ask for (``rag_settings.embedder``: a settings change writes it there
+        and says "rebuild vectors afterwards"), else the one the vectors were built with."""
         if not self.exists():
             raise FileNotFoundError(self.dir)
         pd = try_import_pandas()
         manifest = Manifest.from_json(read_json(self.manifest_path))
-        new_name = embedder or manifest.embedding_model.name
+        new_name = embedder or manifest.rag_settings.embedder or manifest.embedding_model.name
         new_name = resolve_model_ref(new_name, "embedder")
         encode, new_info = get_embedder(name=new_name, device=device)
         chunks_df = pd.read_parquet(self.chunks_path)

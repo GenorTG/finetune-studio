@@ -49,42 +49,36 @@ def _sha_dir(root: Path, sha: str, original: str, body: str) -> Path:
     return d
 
 
-@pytest.mark.asyncio
-async def test_rebuild_vectors_applies_pending_embedder_from_settings_patch(
-    tmp_path: Path, patched_embedder: None, monkeypatch: pytest.MonkeyPatch
+def test_rebuild_vectors_applies_pending_embedder_from_settings_patch(
+    tmp_path: Path, patched_embedder: None, client,
 ) -> None:
-    """routes/rag.py:rag_rebuild_vectors must not silently drop an embedder
-    change made via POST /brain/settings when the rebuild call omits embedder.
+    """A re-embed must not silently drop an embedder change made via POST /brain/settings when the rebuild call
+    omits the embedder.
 
-    Before the fix: rebuild_vectors(embedder=None) falls back to the manifest's
-    *old* embedding_model.name (store.py), so a settings-patched embedder was
-    silently discarded on the very call the settings endpoint's own docstring
-    says is required to apply it (rag.py's rag_patch_settings docstring).
+    Before the fix: rebuild_vectors(embedder=None) fell back to the manifest's *old* embedding_model.name
+    (store.py), so a settings-patched embedder was silently discarded on the very call the settings endpoint's
+    own docstring says is required to apply it. The default now lives in ``BrainIndex.rebuild_vectors`` itself
+    (``rag_settings.embedder`` first), so the CLI gets it too; the route runs it as a build job (2026-10-16).
     """
-    from finetune_studio.webui.routes import brain as rag_routes
+    from finetune_studio.data.fs.paths import brain_index_dir
+    from tests.knowledge_helpers import wait_build
 
+    pid = client.post("/api/projects", json={"name": "rebuild-embedder-test"}).json()["id"]
     src = tmp_path / "files"
-    corpus_root = tmp_path / "corpora"
-    monkeypatch.setattr(rag_routes, "_corpus_dir", lambda pid: corpus_root / pid)
-
     _sha_dir(src, "aaa111bbb222", "doc.txt", "some document body " * 20)
-
-    pid = "proj1"
-    rag = BrainIndex(corpus_root / pid)
+    rag = BrainIndex(brain_index_dir(pid))
     rag.build_from_directory(
         src, name="rebuild-embedder-test", embedder="embedder-a",
         chunk_size=80, overlap=10, extensions=[".txt"],
     )
-    manifest_path = corpus_root / pid / "manifest.json"
+    manifest_path = brain_index_dir(pid) / "manifest.json"
     before = json.loads(manifest_path.read_text())
     assert before["embedding_model"]["name"] == "embedder-a"
     assert before["rag_settings"]["embedder"] == "embedder-a"
 
     # Patch settings to request a different embedder — no rebuild yet.
-    patch_result = await rag_routes.brain_patch_settings(
-        pid, rag_routes.SettingsPatch(embedder="embedder-b"),
-    )
-    assert patch_result["ok"] is True
+    r = client.post(f"/api/projects/{pid}/brain/settings", json={"embedder": "embedder-b"})
+    assert r.status_code == 200 and r.json()["ok"] is True, r.text
     mid = json.loads(manifest_path.read_text())
     assert mid["rag_settings"]["embedder"] == "embedder-b"
     # Vectors not yet rebuilt — embedding_model.name still the old one.
@@ -92,12 +86,15 @@ async def test_rebuild_vectors_applies_pending_embedder_from_settings_patch(
 
     # Caller rebuilds WITHOUT explicitly naming the embedder (as the settings
     # endpoint's docstring instructs: "caller must rebuild vectors afterwards").
-    rebuild_result = await rag_routes.brain_rebuild_vectors(
-        pid, rag_routes.RebuildVectorsRequest(embedder=None),
-    )
-    assert rebuild_result["ok"] is True
-    assert rebuild_result["embedder"] == "embedder-b"
+    r = client.post(f"/api/projects/{pid}/brain/rebuild-vectors", json={})
+    done = wait_build(client, pid, r)
+    assert done["ok"] is True and done["mode"] == "re-embed", done
+    assert done["embedder"] == "embedder-b"
 
     after = json.loads(manifest_path.read_text())
     assert after["embedding_model"]["name"] == "embedder-b"
     assert after["rag_settings"]["embedder"] == "embedder-b"
+
+    # The store's own default: the settings' embedder wins over the vectors' one; an explicit name wins over both.
+    assert rag.rebuild_vectors()["embedder"] == "embedder-b"
+    assert rag.rebuild_vectors(embedder="embedder-c")["embedder"] == "embedder-c"

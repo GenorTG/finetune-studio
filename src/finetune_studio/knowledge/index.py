@@ -16,6 +16,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import shutil
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -132,12 +133,55 @@ def state(pid: str) -> IndexState:
     return st
 
 
-def prepare(pid: str, *, fact_cards: bool | None = None) -> dict[str, Any]:
+def pending_parses(pid: str, file_ids: list[str] | None = None) -> list[tuple[str, str]]:
+    """``(file id, name)`` of the library files a parser can read that are not parsed yet (``file_ids`` restricts).
+
+    Staging is cheap and idempotent (``sources.stage``): a file never staged gets its queued row here."""
+    from finetune_studio.data.fs import file_library as fl
+
+    out = []
+    for f in fl.list_files(pid):
+        if (file_ids and f["id"] not in file_ids) or not sources.is_parseable(f["original_name"]):
+            continue
+        if not sources.stage(pid, f["id"]).ready:
+            out.append((f["id"], str(f["original_name"])))
+    return out
+
+
+def parse_pending(pid: str, file_ids: list[str] | None = None, *,
+                  progress: Callable[[int, int], None] | None = None) -> dict[str, Any]:
+    """Parse every pending library file (the Quick index's first step; runs in the build job).
+
+    Returns ``promoted`` (one entry per file parsed now, with its final ``status``) and ``failed`` (the ones whose
+    parse found no text, with the reason). A parse never raises for a bad file: it is this file's error.
+    """
+    pending = pending_parses(pid, file_ids)
+    promoted: list[dict[str, Any]] = []
+    failed: list[dict[str, Any]] = []
+    for i, (fid, _name) in enumerate(pending, 1):
+        src = sources.parse(pid, sources.stage(pid, fid).id)
+        promoted.append({"file_id": fid, "name": src.filename, "source_id": src.id, "status": src.status})
+        if not src.ready:
+            failed.append({"name": src.filename, "error": src.error or "parse incomplete"})
+        if progress is not None:
+            progress(i, len(pending))
+    return {"promoted": promoted, "failed": failed}
+
+
+def _index_row_id(pid: str, project_name: str) -> str:
+    corpus = brain_index_dir(pid)
+    rows = db.list_brain_indexes(pid)
+    return (rows[0] if rows else db.create_brain_index(pid, project_name, store_path=str(corpus)))["id"]
+
+
+def prepare(pid: str, *, fact_cards: bool | None = None, parse_first: bool = False,
+            file_ids: list[str] | None = None) -> dict[str, Any]:
     """Check a build can run and record it (a ``queued`` build row). Raises IndexBuildError (404 / 400).
 
-    Returns ``build_id``, ``queued_files`` (parsed files to index) and the resolved ``fact_cards`` choice
-    (None keeps what the last build used; off for a first build). ``run`` does the work (a job process in the web
-    app: ``webui.brain_build_jobs``).
+    Returns ``build_id``, ``queued_files`` (files the build will index), ``pending_parses`` (files it parses
+    first; only with ``parse_first``, the Quick index) and the resolved ``fact_cards`` choice (None keeps what the
+    last build used; off for a first build). ``run`` does the work (a job process in the web app:
+    ``webui.brain_build_jobs``).
     """
     project = db.get_project(pid)
     if not project:
@@ -146,27 +190,41 @@ def prepare(pid: str, *, fact_cards: bool | None = None) -> dict[str, Any]:
         fact_cards = bool((_manifest_extra(pid) or {}).get("fact_cards"))
     docs = documents(pid, fact_cards=fact_cards)
     queued = sum(1 for d in docs if not d.document_id.endswith(FACTS_SUFFIX))
-    if not queued:
+    pending = len(pending_parses(pid, file_ids)) if parse_first else 0
+    if not queued and not pending:
+        if parse_first:
+            raise IndexBuildError("no readable files in this project yet: upload files first", 400)
         raise IndexBuildError("no parsed files in this project yet: upload files and let them parse first", 400)
-    corpus = brain_index_dir(pid)
-    rows = db.list_brain_indexes(pid)
-    index_id = (rows[0] if rows else db.create_brain_index(pid, project["name"], store_path=str(corpus)))["id"]
-    run_row = db.create_brain_build(pid, index_id)
-    return {"build_id": run_row["id"], "queued_files": queued, "fact_cards": fact_cards}
+    run_row = db.create_brain_build(pid, _index_row_id(pid, project["name"]))
+    return {"build_id": run_row["id"], "queued_files": queued + pending, "pending_parses": pending,
+            "fact_cards": fact_cards}
 
 
 def run(pid: str, build_id: str, *, embedder: str | None = None, reset: bool = False,
-        fact_cards: bool = False) -> dict[str, Any]:
+        fact_cards: bool = False, parse_first: bool = False, file_ids: list[str] | None = None,
+        progress: Callable[[str, int, int], None] | None = None) -> dict[str, Any]:
     """Embed every ready source into the project index for a ``prepare``d build row; the row ends done or error
-    (with the real error, then re-raised)."""
+    (with the real error, then re-raised).
+
+    ``parse_first`` (the Quick index) parses the pending library files before embedding: the result then carries
+    ``promoted`` / ``failed`` (``parse_pending``). ``progress(phase, done, total)`` reports the parse step.
+    """
     from finetune_studio.smart_brain import DEFAULT_EMBEDDER, BrainIndex
 
     db.mark_brain_build_running(build_id)
+    parsed: dict[str, Any] = {"promoted": [], "failed": []}
     try:
         project = db.get_project(pid)
         if not project:
             raise IndexBuildError(f"project {pid} not found", 404)
+        if parse_first:
+            parsed = parse_pending(pid, file_ids, progress=(lambda d, t: progress("parsing", d, t)) if progress
+                                   else None)
         docs = documents(pid, fact_cards=fact_cards)
+        if not any(not d.document_id.endswith(FACTS_SUFFIX) for d in docs):
+            why = "; ".join(f"{f['name']}: {f['error']}" for f in parsed["failed"][:5])
+            raise IndexBuildError("no file could be parsed into text" + (f" ({why})" if why else "")
+                                  + ": nothing to index", 400)
         corpus = brain_index_dir(pid)
         if reset and corpus.exists():
             shutil.rmtree(corpus)
@@ -185,7 +243,55 @@ def run(pid: str, build_id: str, *, embedder: str | None = None, reset: bool = F
     db.mark_brain_build_done(build_id, doc_count=n_docs, chunk_count=n_chunks)
     db.ensure_brain_index(pid, str(corpus), name=project["name"], doc_count=n_docs, chunk_count=n_chunks)
     return {**result, "corpus_dir": str(corpus), "build_id": build_id, "fact_cards": fact_cards,
-            "fact_card_count": sum(len(d.chunks) for d in docs if d.document_id.endswith(FACTS_SUFFIX))}
+            "fact_card_count": sum(len(d.chunks) for d in docs if d.document_id.endswith(FACTS_SUFFIX)),
+            "promoted": len(parsed["promoted"]), "promoted_files": parsed["promoted"], "failed": parsed["failed"]}
+
+
+def prepare_rebuild_vectors(pid: str) -> dict[str, Any]:
+    """Check a re-embed can run and record it (a ``queued`` build row). Raises IndexBuildError (404).
+
+    A re-embed keeps the index's documents and chunks and replaces the vectors (``BrainIndex.rebuild_vectors``):
+    the current ``rag_settings.embedder`` when none is given. Returns ``build_id`` and ``queued_files`` (the
+    documents in the index).
+    """
+    from finetune_studio.smart_brain import BrainIndex, Manifest, read_json
+
+    project = db.get_project(pid)
+    if not project:
+        raise IndexBuildError(f"project {pid} not found", 404)
+    corpus = brain_index_dir(pid)
+    store = BrainIndex(corpus)
+    if not store.exists():
+        raise IndexBuildError("no index to re-embed yet: build it first", 404)
+    manifest = Manifest.from_json(read_json(store.manifest_path))
+    run_row = db.create_brain_build(pid, _index_row_id(pid, project["name"]))
+    return {"build_id": run_row["id"], "queued_files": int(manifest.documents or 0), "pending_parses": 0,
+            "fact_cards": bool((manifest.extra or {}).get("fact_cards"))}
+
+
+def run_rebuild_vectors(pid: str, build_id: str, *, embedder: str | None = None) -> dict[str, Any]:
+    """Re-embed the project index for a ``prepare_rebuild_vectors``'d build row; the row ends done or error."""
+    from finetune_studio.smart_brain import BrainIndex, Manifest, read_json
+
+    db.mark_brain_build_running(build_id)
+    try:
+        project = db.get_project(pid)
+        if not project:
+            raise IndexBuildError(f"project {pid} not found", 404)
+        corpus = brain_index_dir(pid)
+        store = BrainIndex(corpus)
+        if not store.exists():
+            raise IndexBuildError("no index to re-embed yet: build it first", 404)
+        result = store.rebuild_vectors(embedder=embedder)
+        n_docs = int(Manifest.from_json(read_json(store.manifest_path)).documents or 0)
+    except Exception as e:
+        log.exception("re-embed failed for %s", pid)
+        db.mark_brain_build_failed(build_id, error=str(e) or type(e).__name__)
+        raise
+    n_chunks = int(result.get("chunks") or 0)
+    db.mark_brain_build_done(build_id, doc_count=n_docs, chunk_count=n_chunks)
+    db.ensure_brain_index(pid, str(corpus), name=project["name"], doc_count=n_docs, chunk_count=n_chunks)
+    return {**result, "documents": n_docs, "corpus_dir": str(corpus), "build_id": build_id}
 
 
 def build(pid: str, *, embedder: str | None = None, reset: bool = False,

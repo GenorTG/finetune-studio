@@ -922,9 +922,10 @@
       };
       const applyProgress = function (p) {
         if (!p || typeof p !== 'object' || ended) return;
-        if (p.phase === 'queued' || p.phase === 'embedding') {
-          fill.style.width = p.phase === 'embedding' ? '50%' : '5%';
-          progText.textContent = p.phase.toUpperCase() + ' ' + (p.files_total || 0) + ' files  ' +
+        if (p.phase === 'queued' || p.phase === 'parsing' || p.phase === 'embedding') {
+          fill.style.width = p.phase === 'embedding' ? '50%' : (p.phase === 'parsing' ? '25%' : '5%');
+          const files = p.phase === 'parsing' ? (p.files_done || 0) + '/' + (p.files_total || 0) : (p.files_total || 0);
+          progText.textContent = p.phase.toUpperCase() + ' ' + files + ' files  ' +
             (p.elapsed_s != null ? p.elapsed_s + 's' : '');
           return;
         }
@@ -959,17 +960,20 @@
   window.quickIndex = async function () {
     const status = document.getElementById('build-status');
     setBuildBusy(true);
-    status.textContent = 'Quick index: converting unparsed files to text… (first build downloads the embedder ~2.2 GB)';
+    status.textContent = 'Quick index: starting… (first build downloads the embedder ~2.2 GB)';
     try {
-      // A build that cannot start is a 4xx/5xx whose detail says how many files were converted first.
+      // The parse step and the build run in one job (it runs on its own: you can leave this page). A job that
+      // cannot start is a 4xx/5xx whose detail says why.
       const r = await api().post('/api/projects/' + PID + '/brain/quick', {});
-      const failed = (r.failed || []).length;
-      const converted = '⚡ Converted ' + (r.promoted || 0) + ' new file(s)' +
-        (failed ? ' (' + failed + ' failed to parse)' : '');
-      status.textContent = converted + ' · building the index (it runs on its own: you can leave this page)…';
+      const pending = r.pending_parses || 0;
+      status.textContent = (pending ? 'Converting ' + pending + ' unparsed file(s) to text, then ' : '') +
+        'building the index (it runs on its own: you can leave this page)…';
       const b = await followBuild((r.build || {}).build_id || r.build_id);
+      const failed = (b.failed || []).length;
+      const converted = '⚡ Converted ' + (b.promoted || 0) + ' new file(s)' +
+        (failed ? ' (' + failed + ' failed to parse)' : '');
       status.textContent = converted + ' · index: ' + buildDone(b) + '.';
-      notify('Quick index done: ' + (r.promoted || 0) + ' converted · ' + b.chunks + ' chunks', 'success');
+      notify('Quick index done: ' + (b.promoted || 0) + ' converted · ' + b.chunks + ' chunks', 'success');
     } catch (e) {
       status.textContent = 'Failed: ' + e.message;
       notify('Quick index failed: ' + e.message, 'error');
@@ -1012,7 +1016,7 @@
   async function resumeBuild() {
     let p;
     try { p = await api().get('/api/projects/' + PID + '/brain/build/status'); } catch (_e) { return; }
-    if (!p || !p.build_id || (p.phase !== 'queued' && p.phase !== 'embedding')) return;
+    if (!p || !p.build_id || (p.phase !== 'queued' && p.phase !== 'parsing' && p.phase !== 'embedding')) return;
     const status = document.getElementById('build-status');
     setBuildBusy(true);
     status.textContent = 'An index build is running…';

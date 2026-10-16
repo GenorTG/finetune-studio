@@ -130,33 +130,35 @@ def test_pipeline_flags(fts_root: Path, client) -> None:
 
 
 def test_brain_quick_promotes_then_builds(fts_root: Path, client, monkeypatch) -> None:
-    from finetune_studio.webui.routes import brain as rag_mod
+    """The quick index is one build job in mode ``quick``: the parse step runs in the job (2026-10-16), the
+    finished build reports ``promoted`` / ``failed``."""
+    from tests.knowledge_helpers import wait_build
 
-    calls: dict = {}
+    class _Index:
+        def __init__(self, d: Path) -> None:
+            self.dir = Path(d)
 
-    async def fake_build(pid: str, req):
-        calls["pid"] = pid
-        calls["reset"] = req.reset
-        return {"ok": True, "documents": 3, "chunks": 12}
+        def build_from_documents(self, docs, **_kw: object) -> dict:
+            return {"documents": len(docs), "chunks": 12, "vector_dim": 8, "skipped": 0}
 
-    monkeypatch.setattr(rag_mod, "brain_build", fake_build)
+    monkeypatch.setattr("finetune_studio.smart_brain.BrainIndex", _Index)
 
     pid = _project(client)
     # Upload already staged and parsed the CSV; quick RAG can build directly.
     fid = _upload(client, pid, f"quick-{secrets.token_hex(3)}.csv",
                   b"question,answer\n" + _doc("quick"))
     r = client.post(f"/api/projects/{pid}/brain/quick", json={})
+    assert r.status_code == 202, r.text
     body = r.json()
-    assert body["ok"] is True, body
-    assert body["promoted"] == 0
-    assert body["promoted_files"] == []
-    assert body["build"]["chunks"] == 12
+    assert body["ok"] is True and body["pending_parses"] == 0 and body["build"]["mode"] == "quick", body
+    done = wait_build(client, pid, r)
+    assert done["ok"] and done["mode"] == "quick" and done["chunks"] == 12
+    assert done["promoted"] == 0 and done["promoted_files"] == [] and done["failed"] == []
     assert client.get(f"/api/projects/{pid}/files/{fid}/usage").json()["source"]
-    assert calls["pid"] == pid
 
     # second run: already a source → nothing left to promote
-    body2 = client.post(f"/api/projects/{pid}/brain/quick", json={}).json()
-    assert body2["promoted"] == 0
+    r2 = client.post(f"/api/projects/{pid}/brain/quick", json={})
+    assert r2.json()["pending_parses"] == 0 and wait_build(client, pid, r2)["promoted"] == 0
 
 
 def test_parsed_put_validation(fts_root: Path, client) -> None:

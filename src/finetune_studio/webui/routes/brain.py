@@ -183,23 +183,18 @@ async def brain_patch_settings(pid: str, req: SettingsPatch):
     return {"ok": True, "updated": req.model_dump(exclude_none=True)}
 
 
-@router.post("/{pid}/brain/build")
-async def brain_build(pid: str, req: BuildRequest):
-    """Start a (re)build of the project's index from every parsed source: a job process
-    (``webui.brain_build_jobs``), so a web restart does not end it. Answers 202 with the ``build_id``; poll
-    ``GET …/brain/builds/{build_id}`` until ``finished`` (``ok`` false = failed, ``error`` says why).
+async def _start_build(pid: str, *, mode: str, embedder: str | None = None, reset: bool = False,
+                       fact_cards: bool | None = None, file_ids: list[str] | None = None) -> JSONResponse:
+    """Start a build job in ``mode`` (``webui.brain_build_jobs``) and answer 202 with its ``build_id``.
 
-    404 unknown project, 400 nothing parsed yet, 409 a build of this project is running or the GPU is busy.
-    """
+    Raises ApiError: 409 a build of this project is running (``build_running``) or the GPU is busy
+    (``gpu_busy``); the IndexBuildError 404/400 of the plan step pass through (the app's error handler)."""
     from finetune_studio.jobs import launch
     from finetune_studio.webui import brain_build_jobs
 
-    missing = _project_404(pid)
-    if missing is not None:
-        return missing
     try:
-        plan = await asyncio.to_thread(brain_build_jobs.start, pid, embedder=req.embedder, reset=req.reset,
-                                       fact_cards=req.fact_cards)
+        plan = await asyncio.to_thread(brain_build_jobs.start, pid, embedder=embedder, reset=reset,
+                                       fact_cards=fact_cards, mode=mode, file_ids=file_ids)
     except brain_build_jobs.BuildBusy as e:
         raise ApiError(409, str(e), code="build_running", build_id=e.build_id) from e
     except launch.JobRejected as e:
@@ -213,11 +208,28 @@ async def brain_build(pid: str, req: BuildRequest):
         "status": "queued",
         "status_url": f"/api/projects/{pid}/brain/builds/{bid}",
         "corpus_dir": str(_corpus_dir(pid)),
+        "mode": plan["mode"],
         "queued_files": plan["queued_files"],
-        "reset": bool(req.reset),
+        "pending_parses": plan.get("pending_parses", 0),
+        "reset": bool(reset),
         "fact_cards": bool(plan["fact_cards"]),
         "gpu": bool(plan["gpu"]),
     })
+
+
+@router.post("/{pid}/brain/build")
+async def brain_build(pid: str, req: BuildRequest):
+    """Start a (re)build of the project's index from every parsed source: a job process
+    (``webui.brain_build_jobs``), so a web restart does not end it. Answers 202 with the ``build_id``; poll
+    ``GET …/brain/builds/{build_id}`` until ``finished`` (``ok`` false = failed, ``error`` says why).
+
+    404 unknown project, 400 nothing parsed yet, 409 a build of this project is running or the GPU is busy.
+    """
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    return await _start_build(pid, mode="build", embedder=req.embedder, reset=req.reset,
+                              fact_cards=req.fact_cards)
 
 
 @router.get("/{pid}/brain/builds/{build_id}")
@@ -242,58 +254,34 @@ class QuickRequest(BaseModel):
 
 @router.post("/{pid}/brain/quick")
 async def brain_quick(pid: str, req: QuickRequest):
-    """⚡ Quick index: parse every readable library file that is not parsed yet, then start the index build from all
-    parsed text — one click, no leaving the page. ``file_ids`` restricts the parse step. Answers 202 with the
-    started build (``build.build_id``: poll it like ``/brain/build``); a build that cannot start is a
-    ``build_failed`` error that says how many files were converted first.
+    """⚡ Quick index: parse every readable library file that is not parsed yet, then build the index from all
+    parsed text — one click, no leaving the page. Both steps run in the build job (the parse step used to run in
+    this request: a long one, ended by a web restart). ``file_ids`` restricts the parse step. Answers 202 with the
+    started build (``build.build_id``: poll it like ``/brain/build``; the finished build reports ``promoted`` /
+    ``failed`` for the parse step and, while parsing, ``parsing: {done, total}``). A build that cannot start is a
+    ``build_failed`` error with the reason.
     """
-    from finetune_studio import db
-    from finetune_studio.data.fs import file_library as fl
-    from finetune_studio.knowledge import sources
-
-    if not db.get_project(pid):
-        return JSONResponse({"detail": "project not found"}, status_code=404)
-
-    promoted: list[dict] = []
-    failed: list[dict] = []
-    if req.promote_missing:
-        for f in fl.list_files(pid):
-            if (req.file_ids and f["id"] not in req.file_ids) or not sources.is_parseable(f["original_name"]):
-                continue
-            src = sources.stage(pid, f["id"])
-            if src.ready:
-                continue
-            src = await asyncio.to_thread(sources.parse, pid, src.id)
-            promoted.append({"file_id": f["id"], "name": src.filename, "source_id": src.id, "status": src.status})
-            if not src.ready:
-                failed.append({"name": src.filename, "error": src.error or "parse incomplete"})
-
-    def _failed(status: int, reason: str) -> ApiError:
-        # The parse step's work is kept; the build failure still answers with the build's own status.
-        return ApiError(status, f"converted {len(promoted)} file(s), then the index build failed: {reason}",
-                        code="build_failed", promoted=len(promoted), promoted_files=promoted, failed=failed)
-
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
     try:
-        build = await brain_build(pid, BuildRequest())
+        build = await _start_build(pid, mode="quick" if req.promote_missing else "build", file_ids=req.file_ids)
     except ApiError as e:
-        raise _failed(e.status_code, str(e.detail)) from e
+        raise ApiError(e.status_code, f"the index build could not start: {e.detail}", code="build_failed",
+                       **{k: v for k, v in e.extra.items() if k != "code"}) from e
     except KnowledgeError as e:
-        raise _failed(e.status, str(e)) from e
-    if isinstance(build, JSONResponse):
-        body = json.loads(build.body)
-        if build.status_code >= 400:
-            raise _failed(build.status_code, body.get("detail") or "index build failed")
-        build = body
+        raise ApiError(e.status, f"the index build could not start: {e}", code="build_failed") from e
+    body = json.loads(build.body)
     return JSONResponse(status_code=202, content={
-        "ok": True, "promoted": len(promoted), "promoted_files": promoted, "failed": failed, "build": build,
-        "build_id": build.get("build_id")})
+        "ok": True, "pending_parses": body["pending_parses"], "build": body, "build_id": body["build_id"]})
 
 
 def _build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
     """One progress snapshot for SSE frames and the /build/status poll, from the project's latest build row.
 
-    ``phase``: queued | embedding (a build job is at work) | done (an index exists, no build running) | error (the
-    latest build failed; ``message`` says why) | idle (never built)."""
+    ``phase``: queued | parsing (the quick index's parse step: ``files_done`` / ``files_total`` count its files) |
+    embedding (a build job is at work) | done (an index exists, no build running) | error (the latest build
+    failed; ``message`` says why) | idle (never built)."""
     from finetune_studio import db
     from finetune_studio.knowledge.sources import list_sources
     from finetune_studio.webui import brain_build_jobs
@@ -315,6 +303,9 @@ def _build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
     if active is not None:
         phase = "queued" if active.get("status") == "queued" else "embedding"
         files_done = chunks_count = 0
+        parsing = (brain_build_jobs.status(pid, active["id"]) or {}).get("parsing")
+        if parsing:
+            phase, files_done, total_files = "parsing", int(parsing["done"]), int(parsing["total"])
     elif latest is not None and latest.get("status") in ("error", "failed"):
         phase, message = "error", str(latest.get("error") or "the index build failed")
     elif manifest.exists():
@@ -348,7 +339,7 @@ async def brain_build_progress(pid: str):
     """Server-Sent Events stream that reports corpus build progress.
 
     Emits JSON events:
-        {"phase":"queued|embedding|done|error|idle|timeout",
+        {"phase":"queued|parsing|embedding|done|error|idle|timeout",
          "files_done":N,"files_total":M,"chunks":K,"elapsed_s":S,"build_id":...}
     Stream terminates once ``phase`` is ``done``, ``error``, ``idle`` or ``timeout``,
     or after 10 min. Prefer this over polling; clients may fall back to
@@ -384,32 +375,16 @@ async def brain_build_progress(pid: str):
 
 @router.post("/{pid}/brain/rebuild-vectors")
 async def brain_rebuild_vectors(pid: str, req: RebuildVectorsRequest):
-    """Re-embed with (possibly new) embedder. Loads + replaces vectors.npy."""
-    from finetune_studio.smart_brain import BrainIndex, Manifest
-    index = BrainIndex(_corpus_dir(pid))
-    if not index.exists():
-        return JSONResponse({"detail": "no corpus"}, status_code=404)
-    embedder = req.embedder
-    if not embedder:
-        # ``POST /brain/settings`` writes a changed embedder to
-        # ``rag_settings.embedder`` only (see brain_patch_settings) — the
-        # active vectors still carry the OLD embedder in
-        # ``embedding_model.name`` until a rebuild runs. Without this
-        # fallback, rebuild_vectors(embedder=None) defaults to
-        # ``embedding_model.name`` (store.py), so a settings-patched
-        # embedder change is silently dropped on the very rebuild call
-        # the settings endpoint's docstring says is required to apply it.
-        try:
-            m = Manifest.from_json(json.loads((_corpus_dir(pid) / "manifest.json").read_text()))
-            embedder = m.rag_settings.embedder or None
-        except Exception:  # noqa: BLE001
-            embedder = None
-    try:
-        result = await asyncio.to_thread(index.rebuild_vectors, embedder=embedder)
-        return {"ok": True, **result}
-    except Exception as e:
-        log.exception("rebuild failed")
-        return JSONResponse({"ok": False, "detail": str(e)}, status_code=400)
+    """Re-embed the index with the (possibly new) embedder: the documents and chunks stay, the vectors are
+    replaced. A build job like ``/brain/build`` (the embedder loads in the job process, never here): 202 with the
+    ``build_id``; the finished build reports the ``embedder`` used. No ``embedder`` = the one the settings ask for
+    (``POST /brain/settings`` writes it to ``rag_settings.embedder``; the vectors carry the old one until this
+    runs). 404 no index yet, 409 a build is running or the GPU is busy.
+    """
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    return await _start_build(pid, mode="re-embed", embedder=req.embedder or None)
 
 
 _STOP = frozenset(["what", "which", "when", "where", "whom", "whose", "does", "that", "this", "with", "from", "have", "about", "tell", "there", "their", "into"])

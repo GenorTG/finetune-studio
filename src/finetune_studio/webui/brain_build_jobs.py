@@ -61,25 +61,53 @@ def running_build_ids() -> set[str]:
     return {b["build_id"] for b in _running()}
 
 
+MODE_BUILD, MODE_QUICK, MODE_REEMBED = "build", "quick", "re-embed"
+MODES = frozenset({MODE_BUILD, MODE_QUICK, MODE_REEMBED})
+# What a finished build reports (the job result -> ``status``): counts, the parse step's outcome (quick), the
+# embedder a re-embed used.
+RESULT_KEYS = ("documents", "chunks", "vector_dim", "skipped", "fact_cards", "fact_card_count", "corpus_dir",
+               "promoted", "promoted_files", "failed", "embedder")
+
+
+def _title(mode: str, reset: bool) -> str:
+    if mode == MODE_QUICK:
+        return "Smart Brain quick index (parse, then build)"
+    if mode == MODE_REEMBED:
+        return "Smart Brain re-embed"
+    return "Smart Brain index " + ("rebuild" if reset else "build")
+
+
 def start(pid: str, *, embedder: str | None = None, reset: bool = False,
-          fact_cards: bool | None = None) -> dict[str, Any]:
-    """Record the build and launch its job; returns ``build_id``, ``queued_files``, ``fact_cards``, ``gpu``.
+          fact_cards: bool | None = None, mode: str = MODE_BUILD,
+          file_ids: list[str] | None = None) -> dict[str, Any]:
+    """Record the build and launch its job; returns ``build_id``, ``queued_files``, ``pending_parses``,
+    ``fact_cards``, ``gpu``, ``mode``.
+
+    ``mode``: ``build`` embeds every parsed file; ``quick`` parses the pending library files first (``file_ids``
+    restricts that step), then builds; ``re-embed`` keeps the documents and replaces the vectors (the current
+    settings' embedder when none is given). All three are the one job kind: every step that loads the embedder
+    runs in the job process, never in the web process.
 
     Raises IndexBuildError (404 / 400), :class:`BuildBusy`, or ``launch.JobRejected`` (409 when the GPU is busy).
     """
     from finetune_studio.knowledge import index
 
+    if mode not in MODES:
+        raise ValueError(f"unknown build mode {mode!r}")
     busy = next((b for b in _running() if b["project_id"] == pid), None)
     if busy:
         raise BuildBusy(busy["build_id"])
-    plan = index.prepare(pid, fact_cards=fact_cards)
+    if mode == MODE_REEMBED:
+        plan = index.prepare_rebuild_vectors(pid)
+    else:
+        plan = index.prepare(pid, fact_cards=fact_cards, parse_first=mode == MODE_QUICK, file_ids=file_ids)
     bid = plan["build_id"]
     gpu = _embedder_on_gpu()
     spec = store.JobSpec(
         id=job_id(bid), kind=KIND, gpu=gpu, stop_grace_s=STOP_GRACE_S, project_id=pid,
-        title="Smart Brain index " + ("rebuild" if reset else "build"),
+        title=_title(mode, reset),
         params={"build_id": bid, "project_id": pid, "embedder": embedder or "", "reset": bool(reset),
-                "fact_cards": bool(plan["fact_cards"])},
+                "fact_cards": bool(plan["fact_cards"]), "mode": mode, "file_ids": list(file_ids or [])},
     )
     try:
         launch.start(spec)
@@ -90,7 +118,7 @@ def start(pid: str, *, embedder: str | None = None, reset: bool = False,
         # GPU work starts: the web process's cached search models go (AGENTS.md: release_brain_models first).
         from finetune_studio.smart_brain.model_cache import release_brain_models
         release_brain_models("index build job")
-    return {**plan, "gpu": gpu}
+    return {**plan, "gpu": gpu, "mode": mode}
 
 
 def _job(build_id: str) -> dict[str, Any] | None:
@@ -132,9 +160,16 @@ def status(pid: str, build_id: str) -> dict[str, Any] | None:
         "created_at": row.get("created_at"), "started_at": row.get("started_at"),
         "finished_at": row.get("finished_at"), "duration_ms": row.get("duration_ms"),
     }
-    for k in ("vector_dim", "skipped", "fact_cards", "fact_card_count", "corpus_dir"):
+    for k in RESULT_KEYS:
         if k in result:
             out[k] = result[k]
+    try:
+        out["mode"] = str(store.read_spec(job_id(build_id)).params.get("mode") or MODE_BUILD)
+    except (FileNotFoundError, ValueError):
+        out["mode"] = MODE_BUILD
+    state = (job or {}).get("state") or {}
+    if running and state.get("phase") == "parsing":
+        out["parsing"] = {"done": int(state.get("done") or 0), "total": int(state.get("total") or 0)}
     return out
 
 
@@ -158,14 +193,22 @@ def on_finished(job: dict[str, Any]) -> None:
         _settle(row, _job(bid))
 
 
-def run_in_job(params: dict[str, Any], release_gpu: Any = lambda: None) -> dict[str, Any]:
-    """The job process side: run the build; the row records the outcome (``knowledge.index.run``)."""
+def run_in_job(params: dict[str, Any], release_gpu: Any = lambda: None,
+               progress: Any = None) -> dict[str, Any]:
+    """The job process side: run the build in its ``mode``; the row records the outcome (``knowledge.index``).
+
+    ``progress(phase, done, total)`` publishes the quick index's parse step for the pages."""
     from finetune_studio.knowledge import index
 
+    pid, bid = str(params["project_id"]), str(params["build_id"])
+    mode = str(params.get("mode") or MODE_BUILD)
     try:
-        result = index.run(str(params["project_id"]), str(params["build_id"]), embedder=params.get("embedder") or None,
-                           reset=bool(params.get("reset")), fact_cards=bool(params.get("fact_cards")))
+        if mode == MODE_REEMBED:
+            result = index.run_rebuild_vectors(pid, bid, embedder=params.get("embedder") or None)
+        else:
+            result = index.run(pid, bid, embedder=params.get("embedder") or None, reset=bool(params.get("reset")),
+                               fact_cards=bool(params.get("fact_cards")), parse_first=mode == MODE_QUICK,
+                               file_ids=list(params.get("file_ids") or []) or None, progress=progress)
     finally:
         release_gpu()
-    keep = ("documents", "chunks", "vector_dim", "skipped", "fact_cards", "fact_card_count", "corpus_dir")
-    return {k: result[k] for k in keep if k in result}
+    return {k: result[k] for k in RESULT_KEYS if k in result}
