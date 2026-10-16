@@ -514,6 +514,9 @@ async def main():
         ctx = await browser.new_context(
             viewport={"width": 1440, "height": 900},
             ignore_https_errors=True,
+            # Password-protected instance: ``fts auth token create <name>`` -> FTS_API_TOKEN (pages accept Bearer too).
+            extra_http_headers=({"Authorization": f"Bearer {os.environ['FTS_API_TOKEN']}"}
+                                if os.environ.get("FTS_API_TOKEN") else {}),
         )
 
         for path, name in [
