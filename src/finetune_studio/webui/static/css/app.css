@@ -3,7 +3,8 @@
    phosphor green · amber · CRT scanlines · brutalist
    ============================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Share+Tech+Mono&family=VT323&family=Press+Start+2P&display=swap');
+/* Fonts are vendored (static/fonts, fonts.css): no page load calls Google, offline installs render the real faces. */
+@import url('fonts.css');
 
 :root {
   --bg-app:        #060a07;

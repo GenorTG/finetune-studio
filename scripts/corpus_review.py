@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import os
 import sys
 import time
 import urllib.request
@@ -36,7 +37,10 @@ BASE = "http://127.0.0.1:7860"
 
 def call(path: str, method: str = "GET", body: dict | None = None):
     data = json.dumps(body).encode() if body is not None else None
-    req = urllib.request.Request(BASE + path, data=data, method=method, headers={"Content-Type": "application/json"} if data else {})
+    headers = {"Content-Type": "application/json"} if data else {}
+    if os.environ.get("FTS_API_TOKEN"):      # password-protected instance: ``fts auth token create <name>``
+        headers["Authorization"] = f"Bearer {os.environ['FTS_API_TOKEN']}"
+    req = urllib.request.Request(BASE + path, data=data, method=method, headers=headers)
     with urllib.request.urlopen(req, timeout=60) as r:
         return json.loads(r.read() or b"{}")
 
