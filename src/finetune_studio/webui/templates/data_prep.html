@@ -96,7 +96,7 @@
             </tr>
           </thead>
           <tbody id="fl-files-body">
-            <tr><td colspan="7" class="dim text-xs" style="text-align:center;padding:32px">Loading…</td></tr>
+            <tr><td colspan="7" class="dim text-xs center p-8">Loading…</td></tr>
           </tbody>
         </table>
         </div>
@@ -716,7 +716,7 @@ function flRenderFiles() {
     return true;
   });
   if (!_visible.length) {
-    tbody.innerHTML = '<tr class="empty-row"><td colspan="7" class="dim text-xs" style="text-align:center;padding:32px">' +
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="7" class="dim text-xs center p-8">' +
       (_q ? 'No files match your search.' : 'No files yet. ' + (_flCurrentFolder ? 'Pick a different folder, or ' : '') + 'drop files above or click ⬆ Upload.') +
       '</td></tr>';
     if (footer) footer.textContent = '';
@@ -1058,7 +1058,7 @@ function flBuildRawInner(fid, name, mime) {
     return '<pre id="fl-preview-content" class="mono text-xs" style="max-height:70vh;overflow:auto;padding:12px;background:var(--surface,var(--bg-panel));border:1px solid var(--border);border-radius:4px;">Loading…</pre>';
   }
   const size = ((_flFiles || []).find((x) => x.id === fid) || {}).size_bytes;
-  return '<div class="dim" style="padding:24px;text-align:center">' +
+  return '<div class="dim center p-6">' +
     'No inline preview for this type.<br><br>' +
     '<a class="btn primary" href="/api/projects/' + _flPid + '/files/' + encodeURIComponent(fid) +
     '/raw" download="' + escapeHtml(name) + '">⬇ Download raw</a>' +

@@ -20,13 +20,13 @@ def test_css_pins():
     assert "var(--bg-nav)" in css
     assert ':root[data-theme="light"]' in tokens
     assert ':root[data-theme="light"]' not in base
-    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=1") < base.index("layout.css?v=1") < base.index("app.css?v=103") < base.index("typography.css?v=1")
+    assert base.index("tokens.css?v=1") < base.index("base.css?v=1") < base.index("components.css?v=1") < base.index("layout.css?v=1") < base.index("app.css?v=104") < base.index("typography.css?v=1")
     assert ".hf-card .meta .stat" in css
     assert "min-width: 40rem" in css or "min-width:40rem" in css
 
 
 def test_base_cache_bust():
-    assert "app.css?v=103" in _r("templates/base.html")
+    assert "app.css?v=104" in _r("templates/base.html")
 
 
 def test_project_data_modals_use_hidden_state():
@@ -110,6 +110,18 @@ def test_data_prep_reuses_bottom_margin_utility():
     assert ".mb-2 { margin-bottom: 8px; }" in css
     assert 'style="margin-bottom:8px' not in template
     assert 'class="text-xs dim mb-2" id="dp-grounded-note"' in template
+
+
+def test_templates_reuse_empty_state_spacing():
+    css = _r("static/css/app.css")
+    assert ".center { text-align: center; }" in css
+    assert ".p-5   { padding: 1.25rem; }" in css
+    assert ".p-6   { padding: 1.5rem; }" in css
+    assert ".p-8   { padding: 2rem; }" in css
+    for name in ("project", "project_data", "data_prep", "data_editor", "models_index"):
+        template = _r(f"templates/{name}.html")
+        assert 'style="text-align:center;padding:' not in template
+        assert 'style="padding:24px;text-align:center' not in template
 
 
 def test_project_overview_no_duplicate_topbar():

@@ -206,7 +206,7 @@
       </tr>
     </thead>
     <tbody id="dash-files-body">
-      <tr><td colspan="7" class="dim text-xs" style="text-align:center;padding:20px">Loading files…</td></tr>
+      <tr><td colspan="7" class="dim text-xs center p-5">Loading files…</td></tr>
     </tbody>
   </table>
   </div>
@@ -484,7 +484,7 @@
           '</tr>';
       }).join('');
     } catch (e) {
-      tbody.innerHTML = '<tr><td colspan="7" class="err text-xs" style="text-align:center;padding:20px">Failed to load files: ' + esc(e.message) + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="err text-xs center p-5">Failed to load files: ' + esc(e.message) + '</td></tr>';
     }
   }
 

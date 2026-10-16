@@ -73,7 +73,7 @@
       </tr>
     </thead>
     <tbody id="de-tbody">
-      <tr><td colspan="6" class="dim text-xs" style="text-align:center;padding:24px">Loading…</td></tr>
+      <tr><td colspan="6" class="dim text-xs center p-6">Loading…</td></tr>
     </tbody>
   </table>
   </div>
@@ -279,7 +279,7 @@
     const rows = visibleRows();
     const tbody = document.getElementById('de-tbody');
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="6" class="dim text-xs" style="text-align:center;padding:24px">' +
+      tbody.innerHTML = '<tr><td colspan="6" class="dim text-xs center p-6">' +
         (cache.length ? 'No rows match this filter.' : 'No rows loaded.') + '</td></tr>';
     } else {
       tbody.innerHTML = rows.map((r) =>
@@ -343,7 +343,7 @@
     } catch (e) {
       notify('Preview failed: ' + (e.message || e), 'error');
       document.getElementById('de-tbody').innerHTML =
-        '<tr><td colspan="6" class="dim text-xs" style="text-align:center;padding:24px;color:var(--err)">' +
+        '<tr><td colspan="6" class="err text-xs center p-6">' +
         esc(e.message || String(e)) + '</td></tr>';
     } finally {
       loading = false;

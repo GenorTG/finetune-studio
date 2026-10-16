@@ -160,7 +160,7 @@
       </tr>
     </thead>
     <tbody id="fb-tbody">
-      <tr class="empty-row"><td colspan="9" class="dim text-xs" style="text-align:center;padding:24px">Loading…</td></tr>
+      <tr class="empty-row"><td colspan="9" class="dim text-xs center p-6">Loading…</td></tr>
     </tbody>
   </table>
   </div>
@@ -572,7 +572,7 @@
     } catch (e) {
       const tbody = document.getElementById('fb-tbody');
       if (tbody) {
-        tbody.innerHTML = '<tr><td colspan="9" class="err text-xs" style="text-align:center;padding:20px">Failed: ' + esc(e.message) + '</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="err text-xs center p-5">Failed: ' + esc(e.message) + '</td></tr>';
       }
     }
   }
@@ -1171,7 +1171,7 @@
         if (el) el.textContent = 'Failed to load original.';
       });
     } else {
-      pane.innerHTML = '<div class="dim" style="padding:24px;text-align:center">No inline preview for this type.<br><br>' +
+      pane.innerHTML = '<div class="dim center p-6">No inline preview for this type.<br><br>' +
         '<a class="btn primary" href="' + rawUrl + '" download="' + esc(f.original_name || '') + '">⬇ Download raw</a></div>';
     }
 
