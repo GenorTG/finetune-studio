@@ -83,7 +83,7 @@
       <button class="btn sm" type="button" data-fb-view="all" id="fb-view-all">All</button>
     </div>
     <label class="text-xs dim flex items-center gap-1 cursor-pointer" title="Search the knowledge, not just filenames: mined facts (Q&amp;A pairs) and the parsed text of every file. Press Enter.">
-      <input type="checkbox" id="fb-content-toggle"> in knowledge
+      <input type="checkbox" id="fb-content-toggle"> search inside files
     </label>
     <div class="fb-cols-anchor">
       <button class="btn sm" type="button" id="fb-cols-btn" title="Show / hide columns">Columns ▾</button>
@@ -1378,6 +1378,8 @@
     const contentBackBtn = document.getElementById('fb-content-back');
     if (contentBackBtn) contentBackBtn.addEventListener('click', contentBack);
     if (contentToggle) contentToggle.addEventListener('change', () => {
+      // Say which search the box runs: filenames, or the parsed text and mined facts (Enter).
+      if (search) search.placeholder = contentToggle.checked ? 'Search inside files and facts… (Enter)' : 'Search filename / tag…';
       if (!contentToggle.checked) contentBack();
       else if (search && search.value.trim().length >= 2) runContentSearch();
     });

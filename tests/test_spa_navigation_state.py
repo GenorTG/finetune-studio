@@ -62,3 +62,9 @@ def test_saved_comparisons_show_answering_progress() -> None:
     page = _r("templates/project_compare.html")
     groups = page.split("async function loadGroups()", 1)[1].split("catch (e)", 1)[0]
     assert "'answering ' + done + '/' + total" in groups and "'answering ' + (m.progress_done || 0)" in groups
+
+
+def test_files_content_search_is_named_for_what_it_does() -> None:
+    page = _r("templates/project_data.html")
+    assert 'id="fb-content-toggle"> search inside files' in page
+    assert "'Search inside files and facts… (Enter)'" in page

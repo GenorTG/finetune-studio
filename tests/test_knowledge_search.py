@@ -61,6 +61,6 @@ def test_a_fact_found_by_search_is_edited_in_place(pid: str, client) -> None:
 def test_files_page_searches_the_knowledge_and_edits_facts(client) -> None:
     pid = db.create_project(name="search-ui", description="")["id"]
     body = client.get(f"/projects/{pid}/data").text
-    assert "in knowledge" in body and "/knowledge/search?limit=40&q=" in body
+    assert "search inside files" in body and "/knowledge/search?limit=40&q=" in body
     assert "window.knSave" in body and "/data-prep/qa/" in body and "Edit parsed text" in body
     assert "/files/search-content" not in body
