@@ -27,6 +27,9 @@ Verdict = Literal["pass", "fail", "partial", ""]
 VERDICTS = ("pass", "partial", "fail")
 JUDGE_PROMPT_VERSION = "4"
 JUDGE_MAX_TOKENS = 800
+# Per API call: a verdict is short, and the provider default (300 s) let one hung connection stall a 56-case
+# judge for five minutes (2026-10-17). A retry after the timeout usually answers at once.
+JUDGE_TIMEOUT_S = 90.0
 JUDGE_PARALLEL_API = 4  # concurrent requests to an API provider; a local GGUF is one GPU and runs one at a time
 
 ChatFn = Callable[[list[dict]], str]
@@ -338,7 +341,8 @@ def open_judge(provider_id: str) -> Iterator[LoadedJudge]:
         raise JudgeUnavailable(f"could not load judge '{row.get('label') or provider_id}': {exc}") from exc
     try:
         yield LoadedJudge(
-            chat=lambda messages: mgr.chat(messages, max_tokens=JUDGE_MAX_TOKENS, temperature=0.0),
+            chat=lambda messages: mgr.chat(messages, max_tokens=JUDGE_MAX_TOKENS, temperature=0.0,
+                                           timeout=JUDGE_TIMEOUT_S),
             provider_id=provider_id,
             model=str(row.get("model_id") or row.get("name") or provider_id),
             label=str(row.get("label") or provider_id),

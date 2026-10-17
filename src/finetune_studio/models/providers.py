@@ -287,12 +287,12 @@ class OpenAICompatProvider(ModelProvider):
         self._loaded_at = 0.0
         log.info("OpenAICompatProvider %s closed", self.config.id)
 
-    def _post(self, path: str, body: dict) -> dict:
+    def _post(self, path: str, body: dict, *, timeout: float | None = None) -> dict:
         import requests
 
         url = (self.config.base_url or "https://api.openai.com/v1").rstrip("/") + path
         body = {**(self.config.extra.get("body") or {}), **body}
-        timeout = float(self.config.extra.get("timeout", 300))
+        timeout = float(timeout or self.config.extra.get("timeout", 300))
         attempts = 1 + max(0, int(self.config.extra.get("retries", 3)))
         last = "no attempt made"
         for attempt in range(attempts):
@@ -334,7 +334,7 @@ class OpenAICompatProvider(ModelProvider):
         # A reasoning model counts its hidden thinking against max_tokens. When that eats the whole budget the
         # answer is empty (``finish_reason == "length"``); retry once with room for the thinking before failing.
         for budget in (body["max_tokens"], min(max(body["max_tokens"] * 4, REASONING_RETRY_MIN), REASONING_RETRY_CAP)):
-            data = self._post("/chat/completions", {**body, "max_tokens": budget})
+            data = self._post("/chat/completions", {**body, "max_tokens": budget}, timeout=gen.get("timeout"))
             try:
                 choice = data["choices"][0]
             except (KeyError, IndexError, TypeError):
