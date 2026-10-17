@@ -381,6 +381,8 @@ def discover_suites(project_id: str | None = None) -> list[dict[str, Any]]:
         from finetune_studio.testing.suite_import import suites_dir
 
         for f in sorted(suites_dir(project_id).glob("*.json")) if suites_dir(project_id).is_dir() else []:
+            if any(e.get("path") == str(f) for e in found.values()):
+                continue   # the full-corpus suite is written into this folder too: listed once, above
             found[f"project_import:{f.stem}"] = SuiteDefinition(
                 name=f.stem,
                 path=str(f),

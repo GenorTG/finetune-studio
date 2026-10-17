@@ -291,3 +291,18 @@ def test_discover_suites_keeps_auto_and_local(
         s.get("name") == FULL_CORPUS_SUITE_NAME and s.get("source") == "project_qa"
         for s in suites
     )
+
+
+def test_full_corpus_suite_is_listed_once_not_again_as_an_import(project_fs: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Live Testing page 2026-10-17: "full-ingested-corpus" and "full-ingested-corpus (56 cases)" — the suite file sits
+    # in suites/, the folder imported quizzes are read from.
+    from finetune_studio.testing import suite_import
+
+    monkeypatch.setattr(suite_import, "project_dir", paths_mod.project_dir)
+    pid = db.create_project(name="dup-proj", base_model="x/y")["id"]
+    _write_pair(project_fs, pid, "qa0", question="Q0?", answer="A0", source_id="src-0")
+    (project_fs / pid / "suites").mkdir(parents=True, exist_ok=True)
+    (project_fs / pid / "suites" / "my-quiz.json").write_text(json.dumps({"cases": [{"question": "q", "correct_answer": "a"}]}))
+    names = [s["name"] for s in discover_suites(pid)]
+    assert names.count(FULL_CORPUS_SUITE_NAME) == 1
+    assert "my-quiz" in names                     # real imports still listed
