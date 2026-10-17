@@ -87,7 +87,7 @@
         if (innerHTML != null) el.innerHTML = innerHTML;
         el.hidden = false;
       } else {
-        const after = document.getElementById(afterId);
+        const after = typeof afterId === "function" ? afterId() : document.getElementById(afterId);
         if (after) after.insertAdjacentHTML("afterend", outerHTML);
       }
     } else if (el) {
@@ -208,9 +208,12 @@
       );
       // Prefer inserting after breadcrumb; fall back to session-bar if the
       // crumb node is still missing (should not happen when pid is set).
-      const wsAfter = document.getElementById("project-breadcrumb")
-        ? "project-breadcrumb"
-        : "session-bar";
+      // Same place as the server render: its own row after the crumb row (.sb-active-bar), not inside it,
+      // where the flex row squeezed the breadcrumb to "dashboard / project-".
+      const wsAfter = () => {
+        const crumb = document.getElementById("project-breadcrumb");
+        return (crumb && crumb.closest(".sb-active-bar")) || crumb || document.getElementById("session-bar");
+      };
       syncShellNav(
         "workspace-subnav",
         ext.workspacePresent,
@@ -240,6 +243,7 @@
       renderedKey = pageKey();
       // Scroll to top on new page
       c.scrollTo({ top: 0, behavior: "instant" });
+      window.scrollTo({ top: 0, behavior: "instant" });   // the page scrolls on the window: keep no stale offset
       document.dispatchEvent(new CustomEvent("fts:navigated", {
         detail: { url: location.href },
       }));

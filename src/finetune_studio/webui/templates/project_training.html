@@ -220,7 +220,7 @@
             <option value="">— pick a dataset —</option>
             {% for ds in project.datasets %}
             <option value="{{ ds.id }}" data-path="{{ ds.data_path }}" title="A Q&A pair is one training example: a user question + an assistant answer. qa_count is how many pairs this file contains.">
-              {{ ds.name }} · {{ ds.qa_count }} rows · {{ (ds.size_bytes / 1024)|round(1) }} KB
+              {{ ds.name }}{% if ' rows' not in ds.name %} · {{ ds.qa_count }} rows{% endif %} · {{ (ds.size_bytes / 1024)|round(1) }} KB
               {% if ds.source == 'data-prep-export' %} · (from data-prep){% endif %}
             </option>
             {% endfor %}
@@ -1228,7 +1228,9 @@
     }
     arm();
     loadFailure(0);
-    document.addEventListener("fts:navigated", () => {
+    // Tear down when LEAVING: spa.js fires fts:navigated after this page's own scripts ran, so a once-listener
+    // on it unsubscribed the live panel the moment it armed (stuck on IDLE after in-app navigation).
+    document.addEventListener("fts:beforeNavigate", () => {
       if (unsub) { unsub(); unsub = null; }
     }, { once: true });
   })();

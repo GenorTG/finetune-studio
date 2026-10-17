@@ -350,7 +350,7 @@ def test_testing_page_styles_live_in_versioned_stylesheet() -> None:
     assert "<style>" not in template
     assert ".tp-seg" in css and ".tp-runs" in css and ".rv-main" in css
     assert 'app.css?v=118' in base
-    assert "spa.js?v=19" in base
+    assert "spa.js?v=20" in base
 
 
 def test_workflow_steps_vertical_at_desktop() -> None:

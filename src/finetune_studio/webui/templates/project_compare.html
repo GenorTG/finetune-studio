@@ -180,9 +180,18 @@
       const groups = await jreq('GET', API + '/groups');
       $('cp-groups').innerHTML = groups.length ? '<table class="table"><thead><tr><th>Quiz</th><th>Models</th><th>State</th><th></th></tr></thead><tbody>'
         + groups.map(function(g) {
-          const state = g.status.run === 'running' ? 'answering…' : g.status.judge === 'running' ? 'judging…' : g.status.run;
+          // Show where a long comparison is (a 9B base writing 512-token answers takes ~15 min per model).
+          const done = g.models.reduce(function(n, m) { return n + (m.progress_done || 0); }, 0);
+          const total = g.models.reduce(function(n, m) { return n + (m.progress_total || 0); }, 0);
+          const state = g.status.run === 'running' ? 'answering ' + done + '/' + total
+            : g.status.judge === 'running' ? 'judging…' : g.status.run;
+          const modelState = function(m) {
+            if (m.status === 'running') return 'answering ' + (m.progress_done || 0) + '/' + (m.progress_total || 0);
+            if (m.status === 'queued') return 'queued';
+            return pct(m.scores.pass_rate);
+          };
           return '<tr><td class="mono cell-wrap">' + esc(g.suite_name) + '</td><td class="cell-wrap">'
-            + g.models.map(function(m) { return esc(m.label) + ' <span class="dim">(' + esc(pct(m.scores.pass_rate)) + ')</span>'; }).join('<br>')
+            + g.models.map(function(m) { return esc(m.label) + ' <span class="dim">(' + esc(modelState(m)) + ')</span>'; }).join('<br>')
             + '</td><td>' + esc(state) + '</td><td><button class="btn sm" data-open="' + esc(g.group_id) + '">Open</button></td></tr>';
         }).join('') + '</tbody></table>'
         : '<div class="empty small">No comparisons yet. Pick models and a quiz above.</div>';

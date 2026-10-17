@@ -1265,7 +1265,7 @@ async function dpRefreshExportedDatasets() {
         (d.source ? ' · <span class="dim">' + escapeHtml(d.source) + '</span>' : '') +
         '</span>' +
         editor +
-        '<a class="btn sm primary" href="/projects/' + encodeURIComponent(_prepPid) + '/training" data-link>Select in Training</a>' +
+        '<a class="btn sm primary" href="/projects/' + encodeURIComponent(_prepPid) + '/training?dataset=' + encodeURIComponent(d.id) + '" data-link>Select in Training</a>' +
         '</div>';
     }).join('');
     panel.innerHTML = '<div class="text-xs muted mb-1">Project datasets ready for Training</div>' + rows;

@@ -343,7 +343,10 @@
       status.textContent = 'Error: ' + e.message;
       notify(e.message, 'error');
     } finally {
+      // Keep the "Started — …" / "Error: …" line: syncRunButton would replace it with "Ready — …" at once.
+      const said = status.textContent;
       S.busy = false; delete status.dataset.busy; syncRunButton();
+      status.textContent = said;
     }
   };
 
