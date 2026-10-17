@@ -758,7 +758,7 @@ def test_linear_attention_kernels_are_planned_for_nvidia_sm75_plus_only(monkeypa
 
 
 def test_causal_conv1d_nvcc_must_match_torch_cuda_major(monkeypatch) -> None:
-    # genorbox1: /usr/bin/nvcc 11.8 (targets the 1070) next to CUDA 13.4; torch is cu130 -> only 13.4 may build it.
+    # A host with an old /usr/bin/nvcc 11.8 (targets a GTX 1070) next to CUDA 13.4 and a cu130 torch: only 13.4 may build it.
     monkeypatch.setattr(ap, "_nvcc_candidates", lambda: {"/usr/bin/nvcc": (11, 8), "/usr/local/cuda-13.4/bin/nvcc": (13, 4)})
     assert ap.nvcc_for_torch("13.0", 8.6) == "/usr/local/cuda-13.4/bin/nvcc"
     assert ap.nvcc_for_torch("12.6", 8.6) == ""
