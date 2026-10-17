@@ -266,8 +266,11 @@ async def brain_quick(pid: str, req: QuickRequest):
         return missing
     try:
         build = await _start_build(pid, mode="quick" if req.promote_missing else "build", file_ids=req.file_ids)
-    except ApiError as e:
-        raise ApiError(e.status_code, f"the index build could not start: {e.detail}", code="build_failed",
+    except ApiError as e:   # _start_build already says "the index build could not start: ..." where it applies
+        detail = str(e.detail)
+        if not detail.startswith("the index build could not start"):
+            detail = f"the index build could not start: {detail}"
+        raise ApiError(e.status_code, detail, code="build_failed",
                        **{k: v for k, v in e.extra.items() if k != "code"}) from e
     except KnowledgeError as e:
         raise ApiError(e.status, f"the index build could not start: {e}", code="build_failed") from e

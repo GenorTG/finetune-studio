@@ -30,6 +30,7 @@
             title="⚡ One click: parse any library files that are not ready yet, then build the index.">⚡ Quick index</button>
     <a href="/projects/{{ pid }}/data" class="btn" data-link
        id="brain-cta-data">⬆ Files &amp; Knowledge (step 1)</a>
+    <span id="quick-index-status" class="text-xs dim self-center" role="status" aria-live="polite"></span>
   </div>
 </div>
 
@@ -958,7 +959,10 @@
   }
 
   window.quickIndex = async function () {
-    const status = document.getElementById('build-status');
+    // The button sits at the top of the page; section 2's #build-status is below the fold: say it in both places.
+    const lower = document.getElementById('build-status');
+    const near = document.getElementById('quick-index-status');
+    const status = { set textContent(t) { lower.textContent = t; if (near) near.textContent = t; } };
     setBuildBusy(true);
     status.textContent = 'Quick index: starting… (first build downloads the embedder ~2.2 GB)';
     try {
@@ -970,7 +974,7 @@
         'building the index (it runs on its own: you can leave this page)…';
       const b = await followBuild((r.build || {}).build_id || r.build_id);
       const failed = (b.failed || []).length;
-      const converted = '⚡ Converted ' + (b.promoted || 0) + ' new file(s)' +
+      const converted = (b.promoted ? '⚡ Converted ' + b.promoted + ' new file(s)' : '⚡ Every file was already parsed') +
         (failed ? ' (' + failed + ' failed to parse)' : '');
       status.textContent = converted + ' · index: ' + buildDone(b) + '.';
       notify('Quick index done: ' + (b.promoted || 0) + ' converted · ' + b.chunks + ' chunks', 'success');

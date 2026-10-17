@@ -226,3 +226,29 @@ def test_a_build_runs_in_its_own_process_and_reports_its_real_error(client, tmp_
     assert b["finished"] and b["ok"] is False and b["error"], b
     assert "no-such-embedder" in b["error"] or "offline" in b["error"].lower(), b
     assert not (tmp_path / "data").exists(), "the job used a cwd-relative DB instead of the web app's"
+
+
+def test_quick_rejected_for_a_busy_gpu_says_why_once(client, gated, monkeypatch) -> None:
+    # Live walkthrough 2026-10-17: "the index build could not start: the index build could not start: the GPU is busy".
+    from finetune_studio.jobs import launch
+    from finetune_studio.webui import brain_build_jobs
+
+    def busy(*_a, **_k):
+        raise launch.JobRejected(409, "not started: the GPU is busy with training job t-1; wait for it or stop it", "gpu_busy")
+
+    monkeypatch.setattr(brain_build_jobs, "start", busy)
+    pid = _project(client)
+    add_source(pid, "a.txt", "File A says the gate closes at 22:00.")
+    r = client.post(f"/api/projects/{pid}/brain/quick", json={})
+    assert r.status_code == 409 and r.json()["code"] == "build_failed", r.text
+    assert r.json()["detail"].count("the index build could not start") == 1
+    assert "the GPU is busy with training job t-1" in r.json()["detail"]
+
+
+def test_quick_index_status_is_shown_next_to_its_button() -> None:
+    from pathlib import Path
+
+    page = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/brain.html").read_text()
+    actions = page.split('id="quick-index-btn"', 1)[1].split("</div>", 1)[0]
+    assert 'id="quick-index-status"' in actions
+    assert "getElementById('quick-index-status')" in page
