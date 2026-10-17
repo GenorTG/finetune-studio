@@ -284,6 +284,10 @@
       <input type="number" name="lora_rank" value="64" class="input">
     </label>
     <label>
+      <span class="block text-xs muted mb-1" title="How strongly the adapter's changes are applied (scale = alpha / rank). Twice the rank is the usual choice; presets set it for you.">LoRA Alpha <span class="dim">?</span></span>
+      <input type="number" name="lora_alpha" value="128" min="1" class="input">
+    </label>
+    <label>
       <span class="block text-xs muted mb-1" title="Step size for each gradient update. Higher = faster learning but risk of overshooting. For LoRA, 1e-4 to 2e-4 is typical; 8e-5 is a safe default.">Learning Rate <span class="dim">?</span></span>
       <input type="text" name="learning_rate" value="8e-5" class="input">
     </label>
@@ -305,7 +309,7 @@
     </label>
     <label>
       <span class="block text-xs muted mb-1" for="warmup-steps">Warmup steps</span>
-      <input type="number" name="warmup_steps" id="warmup-steps" value="100" min="0" class="input" title="Learning rate warmup steps. Helps stabilize early training.">
+      <input type="number" name="warmup_steps" id="warmup-steps" value="100" min="0" class="input" title="Learning rate warmup steps. Helps stabilize early training. Capped at 10% of the run's steps, so a short run still trains at the chosen rate.">
     </label>
     <label class="flex items-center gap-2 mt-1 grid-full" title="Unsloth loads the model in 4-bit (QLoRA) with faster kernels: roughly half the VRAM and noticeably quicker. Falls back to standard training if Unsloth is not installed.">
       <input type="hidden" name="unsloth" value="0">

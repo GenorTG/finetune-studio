@@ -34,6 +34,12 @@ SETTING_HELP: dict[str, dict[str, str]] = {
         "pitfall": "High rank on a small dataset adds capacity you cannot fill.",
         "kb": "training-settings",
     },
+    "lora_alpha": {
+        "meaning": "How strongly the LoRA adapter's changes are applied (scale = alpha / rank).",
+        "guidance": "Twice the rank is the usual choice and what the advisor proposes; keep the ratio when you change the rank.",
+        "pitfall": "Raising the rank without the alpha weakens every update (the scale falls).",
+        "kb": "training-settings",
+    },
     "learning_rate": {
         "meaning": "Step size of each weight update.",
         "guidance": "For LoRA 1e-4 to 2e-4 is typical; the advisor uses 2e-4 up to 7B, 1e-4 up to 15B, 8e-5 above. DPO uses 1e-6.",
@@ -60,8 +66,8 @@ SETTING_HELP: dict[str, dict[str, str]] = {
     },
     "warmup_steps": {
         "meaning": "Steps over which the learning rate ramps up from zero.",
-        "guidance": "The advisor uses about 8% of the run (1–100). The form default is 100; DPO uses 0.",
-        "pitfall": "A fixed 100 swallows most of a short run.",
+        "guidance": "The advisor uses about 8% of the run (1–100). The form default is 100; training caps any value at 10% of the run's steps (noted in the step log). DPO uses 0.",
+        "pitfall": "Without the cap a fixed 100 would swallow most of a short run.",
         "kb": "training-settings",
     },
     "eval_steps": {
@@ -157,7 +163,7 @@ SETTING_HELP: dict[str, dict[str, str]] = {
 }
 
 _ALIASES = {
-    "lr": "learning_rate", "rank": "lora_rank", "lora": "lora_rank", "epochs": "num_epochs",
+    "lr": "learning_rate", "rank": "lora_rank", "alpha": "lora_alpha", "lora": "lora_rank", "epochs": "num_epochs",
     "epoch": "num_epochs", "batch": "batch_size", "accumulation": "gradient_accumulation_steps",
     "grad_accum": "gradient_accumulation_steps", "sequence": "max_seq_length", "max_seq": "max_seq_length",
     "max_sequence": "max_seq_length", "route": "training_mode", "mode": "training_mode",

@@ -669,7 +669,7 @@ class TrainingEngine:
             "gradient_accumulation_steps": cfg.gradient_accumulation_steps,
             "num_train_epochs": cfg.num_epochs,
             "learning_rate": cfg.learning_rate,
-            "warmup_steps": cfg.warmup_steps,
+            "warmup_steps": self._warmup_for(total),
             "weight_decay": cfg.weight_decay,
             # Preference runs are short: log often enough that the live panel shows
             # rewards/accuracies and margins move instead of one point at the end.
@@ -883,6 +883,22 @@ class TrainingEngine:
             _status(why)
         return load_causal_lm(model_path, force_4bit=force_4bit, on_status=_status)
 
+    # Warmup longer than this share of the run means most of a short run never reaches the chosen learning
+    # rate (the form's 100 steps swallowed a whole 56-row run, 2026-10-17).
+    MAX_WARMUP_SHARE = 0.1
+
+    def _warmup_for(self, total_steps: int) -> int:
+        """``config.warmup_steps`` capped at ``MAX_WARMUP_SHARE`` of the run; a cap is noted in the step log."""
+        asked = max(0, int(self.config.warmup_steps))
+        cap = max(1, round(total_steps * self.MAX_WARMUP_SHARE)) if total_steps > 0 else asked
+        if asked <= cap:
+            return asked
+        self.state.log_lines.append(
+            f"Warmup {asked} -> {cap} steps: a warmup over {self.MAX_WARMUP_SHARE:.0%} of this "
+            f"{total_steps}-step run would keep most of it below the chosen learning rate."
+        )
+        return cap
+
     def _build_sft_args(self, has_eval: bool) -> Any:
         """``SFTConfig`` whose precision / optimizer / device follow the accelerator plan."""
         from finetune_studio.training.accel_plan import resolve_train_plan
@@ -900,7 +916,7 @@ class TrainingEngine:
             output_dir=cfg.output_dir, num_train_epochs=cfg.num_epochs,
             per_device_train_batch_size=cfg.batch_size,
             gradient_accumulation_steps=cfg.gradient_accumulation_steps,
-            learning_rate=cfg.learning_rate, warmup_steps=cfg.warmup_steps,
+            learning_rate=cfg.learning_rate, warmup_steps=self._warmup_for(self.state.total_steps),
             weight_decay=cfg.weight_decay, logging_steps=cfg.logging_steps,
             save_steps=extra.pop("save_steps", cfg.save_steps),
             bf16=plan.bf16, optim=plan.optim, **extra,
