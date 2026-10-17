@@ -4973,6 +4973,8 @@ details.card:not([open]) > summary.card-head { margin-bottom: 0; border-bottom: 
 .next-step { margin: 28px 0 8px; padding: 14px 16px; border: 1px dashed var(--border); display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
 .next-step .next-step-label { font-family: "Share Tech Mono", monospace; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); font-size: 11px; }
 .next-step .next-step-why { color: var(--text-muted); font-size: 12px; flex: 1 1 18rem; }
+/* A next step on the current page (flow_next href ""): text in the link colour, nothing to click. */
+.next-step .next-step-here { color: var(--accent); }
 .workspace-subnav > .next-step {
   flex: 0 1 auto;
   min-width: 0;

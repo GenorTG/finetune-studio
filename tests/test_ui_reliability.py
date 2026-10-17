@@ -65,7 +65,8 @@ def test_project_file_page_points_to_the_next_workflow_step(client: TestClient) 
     flow = response.text.split('id="workspace-subnav"', 1)[1].split("</nav>", 1)[0]
     assert 'aria-label="Next step"' in flow
     assert f'href="/projects/{pid}/data-prep"' in response.text
-    assert "Review question-answer pairs" in response.text
+    # An empty project's next step is the upload on this page (flow_next), not pair review.
+    assert "Upload your files" in flow and "Review question-answer pairs" not in flow
 
 
 def test_project_home_shows_live_checklist_and_single_primary_action(client: TestClient) -> None:
@@ -329,7 +330,7 @@ def test_card_head_stacks_below_700() -> None:
 
 def test_css_cache_bust_bumped() -> None:
     base = _BASE.read_text(encoding="utf-8")
-    assert "app.css?v=118" in base
+    assert "app.css?v=119" in base
     assert "sprites.js?v=20" in base
     assert "nav_overflow.js?v=2" in base
 
@@ -340,7 +341,7 @@ def test_data_prep_styles_live_in_versioned_stylesheet() -> None:
     base = _BASE.read_text(encoding="utf-8")
     assert "<style>" not in template
     assert ".dp-review-toolbar" in css and ".dp-points-col" in css and ".fl-tree" in css
-    assert "app.css?v=118" in base
+    assert "app.css?v=119" in base
 
 
 def test_testing_page_styles_live_in_versioned_stylesheet() -> None:
@@ -349,7 +350,7 @@ def test_testing_page_styles_live_in_versioned_stylesheet() -> None:
     base = _BASE.read_text(encoding="utf-8")
     assert "<style>" not in template
     assert ".tp-seg" in css and ".tp-runs" in css and ".rv-main" in css
-    assert 'app.css?v=118' in base
+    assert 'app.css?v=119' in base
     assert "spa.js?v=20" in base
 
 
