@@ -356,3 +356,31 @@ CPU (`4ff2ff6`); the Guide's readiness summary had no runs (`419b359`); job-run 
 (`778cd24`). Harness: token for pages/scripts, folded DPO card and routes, Smart Brain mode renamed from rag (`22865ac`).
 Not changed: Qwen3.5's linear-attention layers run on transformers' PyTorch fallback (`flash-linear-attention` / `causal_conv1d`
 not installed), so HF training and generation are slower than they need to be.
+
+## 16. Agent browser walkthrough of every feature (2026-10-17, throwaway project `agent-qa-1017` 95061854, deleted after)
+
+One agent drove the live service (0.1.0.413 -> 0.1.0.422) in a real browser, password on, 1440x900. No test scripts: six mixed Korvane
+files (pptx, chat export, xlsx, scanned PDF, RTF, eml) were uploaded through Files, mined, reviewed on Pairs, exported, trained on
+Training, quizzed on Testing, indexed on Smart Brain, and asked to the Guide. Qwen3.5-9B, preset defaults, 56 approved pairs.
+
+| Step | Result |
+|---|---|
+| Upload + parse (6 files) | all parsed in < 15 s; scanned CAR form read by the Vision reader (KC-CAR-24-088 complete) |
+| Mining (6 files) | 1,003 pairs in < 2.5 min; review UI, reasons, edit+approve, export of 56 approved pairs |
+| SFT, full-sequence loss (as shipped) | reported loss 0.046, answer-token loss 0.65 (base 3.21); quiz on its own 56 training questions **16/56 = 28.6 %** |
+| SFT, completion-only loss (`fb914ea`) | same data, preset, judge: **30/56 = 53.6 %** |
+| Same model, quiz under the trained system prompt (`c4a8626`) | **48/56 = 85.7 %** (2 partial, 6 fail); recall probe 13/16 with the baked prompt vs 4/16 without |
+| Merge check | merged weights differ ~0.3 % from base; merged and adapter-on-4-bit recall equal (13/16) |
+| Judge | deepseek-v4.1-flash; one call hung 5 min at 21/56 -> 90 s judge timeout (`fd94193`) |
+| Smart Brain Quick index during training | correctly refused (GPU busy); message now next to the button, once (`a4362ac`) |
+| Guide | tool calls (runs, status, readiness), navigated to Smart Brain and highlighted Build |
+
+Bugs fixed: SPA navigation squeezed the project header and kept the old scroll (`a2fe03d`), Training live panel unsubscribed itself
+after SPA navigation (`a2fe03d`), "Select in Training" opened without the dataset (`a2fe03d`), "56 rows · 56 rows" label, Training
+template prompt, Testing/Compare progress lines (`a2fe03d`), knowledge search hidden behind "in knowledge" (`2be859b`), full-corpus
+quiz listed twice (`2bca201`), full-sequence SFT loss (`fb914ea`), quiz asked without the trained prompt (`c4a8626`), judge timeout
+(`fd94193`), Pairs page dead after SPA navigation because the DPO card closed `<details>` with `</div>` (`104b7d1`, plus a tag-balance
+test over every template), review list scrolled the whole page (`104b7d1`), activity drawer covered the Training live panel (`2be7045`).
+Open: header NEXT link is per page, not per state; mining attributes a chunk that starts mid-record to the whole document (two CAR
+pairs) and inverted one board-pack fact (beat -> missed budget), both caught only by human review; warmup 100 steps on a ~100-step
+run; export also downloads the JSONL unannounced; Guide reports "no loss recorded yet" mid-run; adapter alpha 128 vs advisor's 256.
