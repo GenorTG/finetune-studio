@@ -227,6 +227,18 @@ def _load_model(model_path: str) -> None:
     engine.load(model_path)
 
 
+def trained_system_prompt(owner_run_id: str) -> str:
+    """The system prompt the model under test was trained with ('' for the base model or mode ``none``).
+
+    Quiz cases without their own prompt are asked under it, as Chat does: a run trained with a baked project prompt
+    recalled 13/16 of its own answers with it and 4/16 without (2026-10-17), so a quiz without it measured a
+    condition the model never saw."""
+    run = db.get_run(owner_run_id) if owner_run_id else None
+    if not run or (run.get("system_prompt_mode") or "bake") == "none":
+        return ""
+    return str(run.get("system_prompt") or "")
+
+
 def _execute_run(spec: RunSpec, bid: str, owner_run_id: str, stop: threading.Event) -> dict[str, Any]:
     """Blocking body of a test run (job process): load, ask, save each case.
 
@@ -285,10 +297,11 @@ def _execute_run(spec: RunSpec, bid: str, owner_run_id: str, stop: threading.Eve
         run_store.save_case(bid, owner_run_id, r)
         progress()
 
+    trained_prompt = trained_system_prompt(owner_run_id)
     run_suite(engine, spec.cases, max_tokens=spec.max_tokens, temperature=spec.temperature,
-              on_result=on_case, should_stop=should_stop)
+              on_result=on_case, should_stop=should_stop, system_prompt=trained_prompt)
     check_swap()
-    return {}
+    return {"trained_system_prompt": trained_prompt} if trained_prompt else {}
 
 
 async def start_run_job(spec: RunSpec) -> dict[str, Any]:

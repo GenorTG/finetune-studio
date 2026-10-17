@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -594,3 +595,34 @@ async def test_judge_progress_is_persisted_on_the_run_row(monkeypatch: pytest.Mo
     assert seen[0] == ("running", 3, 0) and all(s[:2] == ("running", 3) for s in seen)
     assert (done["judge_done"], done["judge_total"], done["judge_model"]) == (3, 3, "fake-judge")
     assert jdb.list_judgements(benchmark_id=bid)[0]["reasoning"] == "judged pass"
+
+
+@pytest.mark.asyncio
+async def test_quiz_cases_are_asked_under_the_system_prompt_the_model_was_trained_with(
+    monkeypatch: pytest.MonkeyPatch, _isolated_jobs: list[str],
+) -> None:
+    # Browser walkthrough 2026-10-17: a run trained with a baked project prompt recalled 13/16 of its own answers
+    # with it and 4/16 without; the Testing page asked without it.
+    pid = db.create_project(name=f"p-{time.time_ns()}")["id"]
+    rid = db.create_run(pid, "train", system_prompt="Answer from the Korvane documents.")["id"]
+    seen: list[list[dict]] = []
+
+    class Recording(FakeEngine):
+        def generate(self, messages: list[dict], **kw: Any) -> str:
+            seen.append(messages)
+            return super().generate(messages, **kw)
+
+    install_engine(monkeypatch, Recording())
+    install_judge(monkeypatch)
+    row = await start_run_job(_spec(pid, 2, run_id=rid))
+    done = await await_finished(row["id"])
+    assert done["status"] == "done"
+    assert all(m[0] == {"role": "system", "content": "Answer from the Korvane documents."} for m in seen), seen
+    assert done["scores"]["trained_system_prompt"] == "Answer from the Korvane documents."
+
+
+def test_trained_system_prompt_is_empty_for_mode_none_and_unknown_runs() -> None:
+    pid = db.create_project(name=f"p-{time.time_ns()}")["id"]
+    none_rid = db.create_run(pid, "t", system_prompt="X", system_prompt_mode="none")["id"]
+    assert testing_jobs.trained_system_prompt(none_rid) == ""
+    assert testing_jobs.trained_system_prompt("") == "" and testing_jobs.trained_system_prompt("nope") == ""
