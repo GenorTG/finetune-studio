@@ -263,6 +263,8 @@ def get_accelerator(refresh: bool = False) -> Accelerator:
     with _lock:
         if _cached is None or refresh:
             _cached = _detect()
+            from finetune_studio.accel.kernels import guard_linear_attention
+            guard_linear_attention(_cached)
             if _cached.is_gpu:
                 log.info("accel: %s on %s (%.1f GiB, %s)", _cached.torch_device,
                          _cached.name, _cached.total_gb, _cached.runtime)

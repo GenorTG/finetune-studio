@@ -378,7 +378,7 @@ install_llama_cpp_cli
 
 # ── Optional-but-recommended packages (the app still works if these fail) ──
 install_optional_packages() {
-    log "Installing optional packages (bitsandbytes, numpy, scipy, unsloth)..."
+    log "Installing optional packages (bitsandbytes, numpy, scipy, unsloth, Qwen3.5 kernels)..."
     # bitsandbytes ships one wheel with CUDA, ROCm and XPU backends
     accel install bitsandbytes --venv "$VENV_DIR" \
         || warn "bitsandbytes install failed — 4-bit/8-bit loading unavailable."
@@ -389,6 +389,10 @@ install_optional_packages() {
     # installed torch/transformers/trl (else skipped with a note, never a downgrade)
     accel install unsloth --venv "$VENV_DIR" \
         || warn "unsloth install failed — will use standard training."
+    # Qwen3.5 / Qwen3-Next linear-attention kernels (flash-linear-attention, causal-conv1d): NVIDIA sm_75+,
+    # each probed on the GPU and removed if it does not run; FTS_LINEAR_ATTN=0 skips them.
+    accel install linear-attn --venv "$VENV_DIR" \
+        || warn "Qwen3.5 kernels not installed — Qwen3.5 uses the slower PyTorch path."
 }
 install_optional_packages
 

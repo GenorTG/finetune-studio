@@ -70,6 +70,7 @@ REM 4. Optional extras
 uv pip install %CONSTRAINTS% "numpy>=1.24.0" "scipy>=1.10.0"
 %VENV_PY% scripts\accel_plan.py install bitsandbytes %ACCEL_FLAGS% --venv .venv
 %VENV_PY% scripts\accel_plan.py install unsloth %ACCEL_FLAGS% --venv .venv
+%VENV_PY% scripts\accel_plan.py install linear-attn %ACCEL_FLAGS% --venv .venv
 
 REM 5. llama.cpp CLI (needs git + cmake + Visual Studio Build Tools)
 %VENV_PY% scripts\accel_plan.py build-llama-cli %ACCEL_FLAGS% --venv .venv

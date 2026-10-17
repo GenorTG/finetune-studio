@@ -77,10 +77,12 @@ if (-not $NoGguf) {
 Write-Host "Installing packages..."
 uv pip install @constraints -e ".[parsers]"
 
-# 4. Optional extras: bitsandbytes (CUDA/XPU backends), unsloth when a compatible release exists
+# 4. Optional extras: bitsandbytes (CUDA/XPU backends), unsloth when a compatible release exists,
+#    Qwen3.5 linear-attention kernels (skipped on Windows: no official Triton build; the plan prints why)
 uv pip install @constraints "numpy>=1.24.0" "scipy>=1.10.0"
 Invoke-Accel install @("bitsandbytes") | Out-Null
 Invoke-Accel install @("unsloth") | Out-Null
+Invoke-Accel install @("linear-attn") | Out-Null
 
 # 5. llama.cpp CLI (convert_hf_to_gguf.py + llama-quantize + llama-cli) with the same backend.
 #    Needs git + cmake + Visual Studio Build Tools (and the CUDA toolkit for the CUDA backend).

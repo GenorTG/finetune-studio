@@ -29,6 +29,12 @@ def format_report(d: dict, llama_warnings: list[str] | None = None) -> list[str]
             lines.append(f"DEGRADED    : llama.cpp — {w}")
     else:
         lines.append("llama.cpp   : not installed")
+    la = d.get("linear_attention") or {}
+    if la.get("installed"):
+        pkgs = " · ".join(f"{k} {v}" for k, v in la["installed"].items())
+        lines.append(f"Qwen3.5 kern: {pkgs} · {'active' if la.get('active') else 'disabled on this device (PyTorch path)'}")
+    elif acc.get("is_gpu"):
+        lines.append("Qwen3.5 kern: not installed (Qwen3.5 uses the slower PyTorch path; bash install.sh --repair)")
     lines.append("Hardware    : " + (", ".join(d["hardware"]) or "no GPU found"))
     if d["policy"]:
         lines.append("Policy env  : " + " ".join(f"{k}={v}" for k, v in d["policy"].items()))

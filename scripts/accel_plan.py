@@ -324,9 +324,8 @@ def _nvcc_targets(version: tuple[int, int], cc: float) -> bool:
     return cc * 10 >= NVCC_MIN_SM.get(version[0], 50)
 
 
-def _find_nvcc(cuda_max: tuple[int, int], ccs: Sequence[float] = ()) -> tuple[str, str]:
-    """Best nvcc: one that can target every visible GPU first (a CUDA 12.x toolkit next to
-    nvcc 13 for a Pascal card), then the driver's CUDA major, else the newest <= it."""
+def _nvcc_candidates() -> dict[str, tuple[int, int]]:
+    """Every runnable nvcc on the box (CUDACXX, PATH, the usual toolkit dirs) -> its release."""
     cands: list[str] = []
     for src in (_env("CUDACXX"), _which("nvcc")):
         if src:
@@ -342,6 +341,13 @@ def _find_nvcc(cuda_max: tuple[int, int], ccs: Sequence[float] = ()) -> tuple[st
         m = re.search(r"release (\d+\.\d+)", out)
         if rc == 0 and m:
             seen[c] = _ver(m.group(1))
+    return seen
+
+
+def _find_nvcc(cuda_max: tuple[int, int], ccs: Sequence[float] = ()) -> tuple[str, str]:
+    """Best nvcc: one that can target every visible GPU first (a CUDA 12.x toolkit next to
+    nvcc 13 for a Pascal card), then the driver's CUDA major, else the newest <= it."""
+    seen = _nvcc_candidates()
     if not seen:
         return "", ""
     want = cuda_max[0]
@@ -755,6 +761,8 @@ class Plan:
     warnings: list[str]
     info: GpuInfo
     torch_pin: str = ""             # version suffix for the torch spec ("<2.12" on macOS < 14)
+    linear_attn: bool = False       # install the Qwen3.5 / Qwen3-Next linear-attention kernels (optional)
+    linear_attn_note: str = ""      # why they are skipped on this host ("" when planned)
 
 
 def build_plan(gpu: GpuInfo, *, unsloth: str = "") -> Plan:
@@ -812,9 +820,81 @@ def build_plan(gpu: GpuInfo, *, unsloth: str = "") -> Plan:
     # unsloth: NVIDIA CUDA only (AMD/Intel/mac paths are not supported by its kernels here)
     want = (unsloth or _env("FTS_UNSLOTH", "auto")).lower()
     unsloth_ok = gpu.vendor == "nvidia" and want not in ("0", "off", "no", "false")
+    linear_attn, linear_note = linear_attn_plan(gpu)
     return Plan(gpu.vendor, gpu.name, gpu.driver_version, tag, idx, backend, fallbacks,
                 bnb=gpu.vendor in ("nvidia", "amd", "intel", "apple") and not torch_pin, unsloth_ok=unsloth_ok,
-                llama_backends=llama_backends(gpu), wheel_index=wheel, warnings=warn, info=gpu, torch_pin=torch_pin)
+                llama_backends=llama_backends(gpu), wheel_index=wheel, warnings=warn, info=gpu, torch_pin=torch_pin,
+                linear_attn=linear_attn, linear_attn_note=linear_note)
+
+
+# ── Qwen3.5 / Qwen3-Next linear attention (Gated DeltaNet) kernels ───────
+# transformers runs these layers through `fla` (flash-linear-attention, Triton) and `causal_conv1d` (CUDA
+# extension) when they import, else through a PyTorch reference several times slower (training and HF
+# inference of every Qwen3.5 model). Both are optional: a failed install or probe never fails the installer.
+LINEAR_ATTN_SPEC = "flash-linear-attention>=0.5.2"
+CAUSAL_CONV1D_SPEC = "causal-conv1d>=1.7.0"
+LINEAR_ATTN_MIN_CC = 7.5   # fla's Triton kernels and causal-conv1d's fixed SM list (sm_75 .. sm_121) start here
+CAUSAL_CONV1D_MIN_NVCC = (11, 6)
+
+
+def linear_attn_plan(gpu: GpuInfo) -> tuple[bool, str]:
+    """(install the kernels?, why not). FTS_LINEAR_ATTN=0 opts out; default: NVIDIA sm_75+."""
+    if _env("FTS_LINEAR_ATTN", "auto").lower() in ("0", "off", "no", "false"):
+        return False, "Qwen3.5 linear-attention kernels: skipped (FTS_LINEAR_ATTN=0)."
+    if gpu.vendor != "nvidia":
+        return False, "Qwen3.5 linear-attention kernels: NVIDIA only; Qwen3.5 uses the slower PyTorch path here."
+    if _on_windows():
+        return False, ("Qwen3.5 linear-attention kernels: skipped on Windows (no official Triton build); "
+                       "Qwen3.5 uses the slower PyTorch path. Use Linux or WSL2 for the fast kernels.")
+    newest = float(gpu.compute_cap) if gpu.compute_cap else 0.0
+    if newest and newest < LINEAR_ATTN_MIN_CC:
+        return False, (f"Qwen3.5 linear-attention kernels need sm_75 or newer (newest GPU here: sm_{int(newest * 10)}); "
+                       "Qwen3.5 uses the slower PyTorch path.")
+    return True, ""
+
+
+def nvcc_for_torch(torch_cuda: str, newest_cc: float = 0.0) -> str:
+    """nvcc whose CUDA major equals torch's (PyTorch refuses to build an extension across majors) and that can
+    target the newest GPU; '' when there is none."""
+    major = _ver(torch_cuda)[0]
+    ok = [(v, c) for c, v in _nvcc_candidates().items()
+          if v[0] == major and v >= CAUSAL_CONV1D_MIN_NVCC and (not newest_cc or _nvcc_targets(v, newest_cc))]
+    return max(ok)[1] if ok else ""
+
+
+# Runs in the venv on the newest GPU: both fla kernels must run and agree, then causal_conv1d (when present) must
+# match a depthwise torch conv. Exit 2 = fla failed, 3 = causal_conv1d failed.
+LINEAR_ATTN_PROBE = r"""
+import sys, torch
+import torch.nn.functional as F
+dev = max(range(torch.cuda.device_count()), key=torch.cuda.get_device_capability)
+torch.cuda.set_device(dev)
+want_conv = len(sys.argv) > 1 and sys.argv[1] == "conv"
+try:
+    from fla.ops.gated_delta_rule import chunk_gated_delta_rule, fused_recurrent_gated_delta_rule
+    torch.manual_seed(0)
+    B, T, H, K = 1, 64, 2, 64
+    q = torch.randn(B, T, H, K, device="cuda", dtype=torch.bfloat16)
+    k = F.normalize(torch.randn(B, T, H, K, device="cuda"), dim=-1).bfloat16()
+    v = torch.randn(B, T, H, K, device="cuda", dtype=torch.bfloat16)
+    g = F.logsigmoid(torch.randn(B, T, H, device="cuda"))
+    beta = torch.rand(B, T, H, device="cuda").sigmoid().bfloat16()
+    a, _ = chunk_gated_delta_rule(q, k, v, g=g, beta=beta)
+    b, _ = fused_recurrent_gated_delta_rule(q, k, v, g=g, beta=beta)
+    assert torch.isfinite(a).all() and (a.float() - b.float()).abs().max().item() < 0.05
+except Exception as exc:
+    print("fla probe failed:", exc); sys.exit(2)
+if want_conv:
+    try:
+        from causal_conv1d import causal_conv1d_fn
+        x = torch.randn(1, 32, 48, device="cuda")
+        w = torch.randn(32, 4, device="cuda")
+        ref = F.conv1d(x, w.unsqueeze(1), padding=3, groups=32)[..., :48]
+        assert (causal_conv1d_fn(x, w) - ref).abs().max().item() < 1e-3
+    except Exception as exc:
+        print("causal_conv1d probe failed:", exc); sys.exit(3)
+print("ok")
+"""
 
 
 def pick_abetlen_wheel(gpu: GpuInfo) -> str:
@@ -1102,6 +1182,57 @@ def install_unsloth(plan: Plan, venv: Path, *, profile: bool = False, runner=_ex
     return runner(cmd) == 0
 
 
+def _uv_uninstall(py: str, *names: str) -> list[str]:
+    return ["uv", "pip", "uninstall", "--python", py, *names]
+
+
+def install_linear_attn(plan: Plan, venv: Path, *, runner=_exec) -> bool:
+    """Optional Qwen3.5 kernels: fla (Triton, no build), then causal-conv1d built with an nvcc of torch's CUDA major.
+    Each is probed on the GPU and removed again if it does not run there (transformers would call it and crash).
+    Always returns True: the PyTorch path keeps working without them."""
+    if not plan.linear_attn:
+        if plan.linear_attn_note:
+            _say(plan.linear_attn_note)
+        return True
+    py = venv_python(venv)
+    _say("Qwen3.5 linear-attention kernels: installing flash-linear-attention (Triton)...")
+    if runner(uv_pip(py, *constraint_args(venv), LINEAR_ATTN_SPEC)) != 0:
+        _say("WARN: flash-linear-attention did not install; Qwen3.5 uses the slower PyTorch path.")
+        return True
+    if runner([py, "-c", LINEAR_ATTN_PROBE]) != 0:
+        _say("WARN: flash-linear-attention does not run on this GPU; removing it (Qwen3.5 uses the PyTorch path).")
+        runner(_uv_uninstall(py, "flash-linear-attention", "fla-core"))
+        return True
+    have = _run([py, "-c", "import importlib.metadata as m; print(m.version('causal-conv1d'))"], timeout=60)[0] == 0
+    if have:
+        if runner([py, "-c", LINEAR_ATTN_PROBE, "conv"]) == 0:
+            _say("causal-conv1d: installed and working.")
+            return True
+        _say("causal-conv1d: the installed build does not run with this torch/GPU; rebuilding it.")
+        runner(_uv_uninstall(py, "causal-conv1d"))
+    rc, out = _run([py, "-c", "import torch; print(torch.version.cuda or '')"], timeout=120)
+    newest = float(plan.info.compute_cap) if plan.info.compute_cap else 0.0
+    nvcc = nvcc_for_torch(out.strip(), newest) if rc == 0 and out.strip() else ""
+    if not nvcc:
+        _say(f"causal-conv1d: skipped -- building it needs an nvcc of torch's CUDA major ({out.strip() or '?'}) "
+             "that can target this GPU. fla already covers the main kernel; install that CUDA toolkit and re-run "
+             f"`{_repair_cmd()}` for the convolution kernel too.")
+        return True
+    cuda_home = str(Path(nvcc).resolve().parent.parent)
+    env = {"CUDA_HOME": cuda_home, "PATH": f"{cuda_home}/bin:{os.environ.get('PATH', '')}",
+           "MAX_JOBS": _env("MAX_JOBS", str(max(1, min(8, (os.cpu_count() or 2) // 2))))}
+    _say(f"causal-conv1d: building with {nvcc} (several minutes; a prebuilt wheel is used when one matches)...")
+    runner(uv_pip(py, *constraint_args(venv), "ninja"))
+    build = uv_pip(py, *constraint_args(venv), "--no-build-isolation", "--no-cache", CAUSAL_CONV1D_SPEC)
+    if runner(build, env) != 0:
+        _say("WARN: causal-conv1d did not build; Qwen3.5 keeps the fla kernel and the PyTorch convolution.")
+        return True
+    if runner([py, "-c", LINEAR_ATTN_PROBE, "conv"]) != 0:
+        _say("WARN: causal-conv1d does not run on this GPU; removing it.")
+        runner(_uv_uninstall(py, "causal-conv1d"))
+    return True
+
+
 def build_llama_cli(plan: Plan, root: Path, venv: Path, *, rebuild: bool = False,
                     only: bool = False, runner=_exec) -> bool:
     """Clone + build llama.cpp (convert_hf_to_gguf.py, llama-quantize, llama-cli) with the
@@ -1164,6 +1295,7 @@ def _shell_vars(plan: Plan) -> str:
         "TORCH_TAG": plan.torch_tag, "TORCH_INDEX": plan.torch_index, "TORCH_BACKEND": plan.torch_backend,
         "LLAMA_BACKEND": best.name, "LLAMA_CMAKE_ARGS": " ".join(best.cmake_args),
         "LLAMA_WHEEL_INDEX": plan.wheel_index, "NVCC": g.nvcc, "ROCM_VERSION": g.rocm_version,
+        "LINEAR_ATTN": "1" if plan.linear_attn else "0",
         "DRIVER_READY": "1" if g.driver_ready else "0",
         "PLAN_WARNINGS": "\n".join(plan.warnings + msgs),
     }
@@ -1178,7 +1310,8 @@ def plan_to_dict(plan: Plan) -> dict:
         "driver_ready": g.driver_ready, "cuda_max": g.cuda_max, "compute_caps": g.compute_caps,
         "torch_tag": plan.torch_tag, "torch_index": plan.torch_index, "torch_backend": plan.torch_backend,
         "torch_fallback_tags": plan.torch_fallback_tags, "bitsandbytes": plan.bnb,
-        "unsloth": plan.unsloth_ok, "llama_backend": best.name,
+        "unsloth": plan.unsloth_ok, "linear_attn": plan.linear_attn, "linear_attn_note": plan.linear_attn_note,
+        "llama_backend": best.name,
         "llama_cmake_args": best.cmake_args, "llama_wheel_index": plan.wheel_index,
         "llama_backends": [{"name": b.name, "missing": b.missing} for b in plan.llama_backends],
         "nvcc": g.nvcc, "nvcc_version": g.nvcc_version, "rocm_version": g.rocm_version,
@@ -1199,7 +1332,7 @@ def main(argv: list[str]) -> int:
         if name == "plan":
             p.add_argument("--shell", action="store_true", help="emit KEY='value' lines for eval")
         if name == "install":
-            p.add_argument("what", choices=["torch", "llama-cpp-python", "bitsandbytes", "unsloth", "all"])
+            p.add_argument("what", choices=["torch", "llama-cpp-python", "bitsandbytes", "unsloth", "linear-attn", "all"])
             p.add_argument("--dry-run", action="store_true", help="print commands only")
         if name == "build-llama-cli":
             p.add_argument("--dir", default=str(Path(__file__).resolve().parent.parent / ".llama.cpp"))
@@ -1242,6 +1375,8 @@ def main(argv: list[str]) -> int:
         ok = install_bitsandbytes(plan, venv, runner=runner) and ok
     if a.what in ("unsloth", "all") and ok:
         ok = install_unsloth(plan, venv, profile=unsloth_profile, runner=runner) and ok
+    if a.what in ("linear-attn", "all") and ok:
+        ok = install_linear_attn(plan, venv, runner=runner) and ok
     return 0 if ok else 1
 
 

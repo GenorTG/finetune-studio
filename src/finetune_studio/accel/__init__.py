@@ -16,6 +16,7 @@ from finetune_studio.accel.device import (
     reset_cache,
 )
 from finetune_studio.accel.env import apply_device_policy, isolated_env
+from finetune_studio.accel.kernels import linear_attention_status
 from finetune_studio.accel.llama import LlamaSupport, llama_gpu_kwargs, llama_support
 from finetune_studio.accel.ops import (
     activate,
@@ -53,6 +54,7 @@ def describe() -> dict[str, Any]:
         "accelerator": acc.to_dict(),
         "torch": torch_info,
         "llama_cpp": llama.to_dict(),
+        "linear_attention": linear_attention_status(acc),
         "hardware": hardware_vendors(),
         "policy": {k: os.environ[k] for k in
                    ("FTS_DEVICE", "FTS_GPU_DEVICES", "FTS_GPU_EXCLUDE", "CUDA_VISIBLE_DEVICES",

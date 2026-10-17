@@ -741,3 +741,101 @@ def test_windows_intel_without_runtime_points_at_the_graphics_driver(monkeypatch
     gpu = ap.detect()
     assert gpu.vendor == "intel" and not gpu.driver_ready
     assert "Graphics driver" in gpu.hint and "apt" not in gpu.hint
+
+
+# ── Qwen3.5 linear-attention kernels (optional) ──────────────────────────
+
+def test_linear_attention_kernels_are_planned_for_nvidia_sm75_plus_only(monkeypatch, tmp_path) -> None:
+    assert _plan_for(monkeypatch, tmp_path, **nvidia([R3090], "580.1", "13.0")).linear_attn
+    mixed = _plan_for(monkeypatch, tmp_path, **nvidia([R3090, G1070], "580.1", "13.0"))
+    assert mixed.linear_attn                     # the app picks the card at run time; accel/kernels.py guards the 1070
+    pascal = _plan_for(monkeypatch, tmp_path, **nvidia([G1070], "580.1", "13.0"))
+    assert not pascal.linear_attn and "sm_61" in pascal.linear_attn_note
+    assert not _plan_for(monkeypatch, tmp_path).linear_attn          # CPU host
+    monkeypatch.setenv("FTS_LINEAR_ATTN", "0")
+    assert not _plan_for(monkeypatch, tmp_path, **nvidia([R3090], "580.1", "13.0")).linear_attn
+    assert ap.plan_to_dict(pascal)["linear_attn"] is False
+
+
+def test_causal_conv1d_nvcc_must_match_torch_cuda_major(monkeypatch) -> None:
+    # genorbox1: /usr/bin/nvcc 11.8 (targets the 1070) next to CUDA 13.4; torch is cu130 -> only 13.4 may build it.
+    monkeypatch.setattr(ap, "_nvcc_candidates", lambda: {"/usr/bin/nvcc": (11, 8), "/usr/local/cuda-13.4/bin/nvcc": (13, 4)})
+    assert ap.nvcc_for_torch("13.0", 8.6) == "/usr/local/cuda-13.4/bin/nvcc"
+    assert ap.nvcc_for_torch("12.6", 8.6) == ""
+    assert ap.nvcc_for_torch("13.0", 6.1) == ""          # nvcc 13 cannot target Pascal
+
+
+def _fake_run(conv_installed: bool):
+    def run(cmd, timeout=15):
+        if "causal-conv1d" in cmd[-1]:                 # "is it installed?" metadata check
+            return (0, "1.7.0\n") if conv_installed else (1, "")
+        return 0, "13.0\n"                             # torch.version.cuda
+    return run
+
+
+def _linear_attn_runner(fail: str = ""):
+    ran: list[tuple[list[str], dict]] = []
+
+    def runner(cmd, env=None, shell_prefix=""):
+        ran.append((cmd, env or {}))
+        if fail == "fla-probe" and cmd[-1] == ap.LINEAR_ATTN_PROBE:
+            return 2
+        if fail == "conv-probe" and cmd[-1] == "conv":
+            return 3
+        return 0
+    return runner, ran
+
+
+def test_linear_attention_install_builds_conv1d_with_the_matching_toolkit(monkeypatch, tmp_path) -> None:
+    plan = _plan_for(monkeypatch, tmp_path, **nvidia([R3090], "580.1", "13.0"))
+    monkeypatch.setattr(ap, "_run", _fake_run(conv_installed=False))
+    monkeypatch.setattr(ap, "nvcc_for_torch", lambda cuda, cc: "/usr/local/cuda-13.4/bin/nvcc")
+    runner, ran = _linear_attn_runner()
+    assert ap.install_linear_attn(plan, tmp_path, runner=runner) is True
+    cmds = [" ".join(c) for c, _ in ran]
+    assert ap.LINEAR_ATTN_SPEC in cmds[0] and ran[1][0][-1] == ap.LINEAR_ATTN_PROBE
+    build = next((c, e) for c, e in ran if ap.CAUSAL_CONV1D_SPEC in c)
+    assert "--no-build-isolation" in build[0] and "--no-cache" in build[0]
+    assert build[1]["CUDA_HOME"].endswith("cuda-13.4")
+    assert ran[-1][0][-1] == "conv" and not any("uninstall" in c for c in cmds)
+
+
+def test_kernels_that_do_not_run_are_removed_and_never_fail_the_install(monkeypatch, tmp_path) -> None:
+    plan = _plan_for(monkeypatch, tmp_path, **nvidia([R3090], "580.1", "13.0"))
+    runner, ran = _linear_attn_runner("fla-probe")
+    assert ap.install_linear_attn(plan, tmp_path, runner=runner) is True
+    assert ran[-1][0][:3] == ["uv", "pip", "uninstall"] and "flash-linear-attention" in ran[-1][0]
+    assert not any(ap.CAUSAL_CONV1D_SPEC in c for c, _ in ran)
+
+    monkeypatch.setattr(ap, "_run", _fake_run(conv_installed=False))
+    monkeypatch.setattr(ap, "nvcc_for_torch", lambda cuda, cc: "")          # no CUDA 13 toolkit: fla only
+    runner, ran = _linear_attn_runner()
+    assert ap.install_linear_attn(plan, tmp_path, runner=runner) is True
+    assert not any(ap.CAUSAL_CONV1D_SPEC in c for c, _ in ran)
+
+    monkeypatch.setattr(ap, "nvcc_for_torch", lambda cuda, cc: "/usr/local/cuda-13.4/bin/nvcc")
+    runner, ran = _linear_attn_runner("conv-probe")
+    assert ap.install_linear_attn(plan, tmp_path, runner=runner) is True
+    assert ran[-1][0] == ["uv", "pip", "uninstall", "--python", ap.venv_python(tmp_path), "causal-conv1d"]
+
+
+def test_installed_conv1d_is_kept_when_it_works_and_rebuilt_when_torch_broke_it(monkeypatch, tmp_path) -> None:
+    plan = _plan_for(monkeypatch, tmp_path, **nvidia([R3090], "580.1", "13.0"))
+    monkeypatch.setattr(ap, "_run", _fake_run(conv_installed=True))
+    monkeypatch.setattr(ap, "nvcc_for_torch", lambda cuda, cc: "/usr/local/cuda-13.4/bin/nvcc")
+    runner, ran = _linear_attn_runner()
+    assert ap.install_linear_attn(plan, tmp_path, runner=runner) is True
+    assert not any(ap.CAUSAL_CONV1D_SPEC in c for c, _ in ran)               # update.sh: no 12-minute rebuild
+
+    broken = {"n": 0}
+
+    def runner2(cmd, env=None, shell_prefix=""):
+        ran.append((cmd, env or {}))
+        if cmd[-1] == "conv":
+            broken["n"] += 1
+            return 3 if broken["n"] == 1 else 0                                # stale build fails, the rebuild runs
+        return 0
+    ran.clear()
+    assert ap.install_linear_attn(plan, tmp_path, runner=runner2) is True
+    cmds = [" ".join(c) for c, _ in ran]
+    assert any("uninstall" in c and "causal-conv1d" in c for c in cmds) and any(ap.CAUSAL_CONV1D_SPEC in c for c in cmds)

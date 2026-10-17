@@ -27,7 +27,12 @@ Windows PowerShell uses `install.ps1`; Command Prompt uses `install.bat`. Both l
    CUDA-13 drivers, cu128 for Blackwell on 12.8-12.9 drivers, cu126 for Pascal and older,
    cu124/cu121/cu118 on older drivers; AMD rocm7.2…rocm6.2 by installed ROCm; Intel xpu), pinned
    in `.venv/torch-constraints.txt`, then `pip install -e .[parsers]`, bitsandbytes, and unsloth
-   only when a release resolves against the installed stack.
+   only when a release resolves against the installed stack. On NVIDIA sm_75+ (Linux) it also adds the
+   Qwen3.5 / Qwen3-Next linear-attention kernels: `flash-linear-attention` (Triton, no build) and
+   `causal-conv1d`, built (~12 min) with an nvcc of torch's CUDA major when one is installed. Each is run on
+   the GPU and removed again if it fails; without them Qwen3.5 still works on a slower PyTorch path
+   (measured on an RTX 3090 with Qwen3.5-9B: training steps -24 %, 2.9 GiB less VRAM, generation +15 %).
+   `FTS_LINEAR_ATTN=0` skips them; `fts accel` shows whether they are active.
 3. `llama-cpp-python` with GPU offload: the abetlen prebuilt CUDA wheel when its runtime libs
    exist, else a source build with `GGML_CUDA` (arch from compute capability) / `GGML_HIP` /
    `GGML_SYCL` / `GGML_VULKAN` / `GGML_METAL`. CPU build only as a loudly-warned last resort.

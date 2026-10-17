@@ -177,7 +177,7 @@ if [ "$CHECK_MODE" = "0" ]; then
     # Every extra install.sh installs, so updated hosts match fresh ones:
     # bitsandbytes (CUDA/ROCm/XPU backends in one wheel), numpy/scipy (abliteration),
     # unsloth (NVIDIA only; skipped unless a release resolves against the installed stack).
-    log "Syncing optional packages (bitsandbytes, numpy, scipy, unsloth)..."
+    log "Syncing optional packages (bitsandbytes, numpy, scipy, unsloth, Qwen3.5 kernels)..."
     accel install bitsandbytes --venv "$VENV_DIR" 2>&1 | tail -3 \
         || warn "bitsandbytes sync failed"
     # shellcheck disable=SC2046
@@ -185,6 +185,9 @@ if [ "$CHECK_MODE" = "0" ]; then
         || warn "numpy/scipy sync failed"
     accel install unsloth --venv "$VENV_DIR" 2>&1 | tail -3 \
         || warn "unsloth sync failed"
+    # Qwen3.5 linear-attention kernels: re-probed on every update (a torch change can break a built extension)
+    accel install linear-attn --venv "$VENV_DIR" 2>&1 | tail -4 \
+        || warn "Qwen3.5 kernel sync failed"
 else
     log "check mode: skipping pip install"
 fi
