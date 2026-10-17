@@ -282,7 +282,10 @@
     [/opendocument\.text/, 'ODT'], [/opendocument\.spreadsheet/, 'ODS'], [/opendocument\.presentation/, 'ODP'],
     [/epub/, 'EPUB'], [/rtf/, 'RTF'],
   ];
-  function mimeBadge(mime) {
+  // The file's own extension is what people recognise ("TXT", "EML"), not the MIME subtype ("PLAIN", "RFC822").
+  function mimeBadge(mime, name) {
+    const ext = /\.([A-Za-z0-9]{1,5})$/.exec(String(name || ''));
+    if (ext) return ext[1].toUpperCase();
     if (!mime) return '?';
     const known = MIME_LABELS.find(([re]) => re.test(String(mime)));
     if (known) return known[1];
@@ -462,7 +465,7 @@
       return '<div class="flex gap-1 wrap"><span class="pill solid-rose text-xs" title="This file could not be read — it may be corrupt, password-protected or an unsupported format. Download it to check, or upload a fixed copy.">unreadable</span></div>';
     }
     const parsed = p.has_parsed ? on('parsed', 'parsed text available') : off('unparsed', 'no parsed text yet (parsing, failed, or no parser reads this type) — ⚡ parses it now');
-    const prep = p.source_id ? on('prep·' + (p.chunk_count || 0) + 'ch', 'parsed source' + (p.parser === 'manual-edit' ? ' (hand-edited)' : ' via ' + (p.parser || 'parser'))) : off('prep', 'not a data-prep source yet');
+    const prep = p.source_id ? on((p.chunk_count || 0) + ' passages', 'split into ' + (p.chunk_count || 0) + ' passages for mining and the Smart Brain' + (p.parser === 'manual-edit' ? ' (hand-edited text)' : ', read by ' + (p.parser || 'the parser'))) : off('passages', 'not split into passages yet');
     const brain = p.in_brain ? (p.brain_stale ? off('brain', 'in the Smart Brain, but edited since its last build: rebuild it')
       : on('brain', 'in the Smart Brain index')) : off('brain', 'not in the Smart Brain index (or it is not built)');
     return '<div class="flex gap-1 wrap">' + parsed + prep + brain + '</div>';
@@ -529,7 +532,7 @@
           (f.first_folder ? ' <span class="text-xs dim">· ' + esc(f.first_folder) + '</span>' : '') +
           (tagPills ? '<div class="flex gap-1 wrap mt-1">' + tagPills + '</div>' : '') +
         '</td>' +
-        '<td class="cell-wrap fb-c-type"><span class="pill outline mono">' + esc(mimeBadge(f.mime_type)) + '</span></td>' +
+        '<td class="cell-wrap fb-c-type"><span class="pill outline mono">' + esc(mimeBadge(f.mime_type, f.original_name)) + '</span></td>' +
         '<td class="num mono fb-c-size">' + formatBytes(f.size_bytes) + '</td>' +
         '<td class="meta mono fb-c-ver">v' + (f.current_version || 1) + '</td>' +
         '<td class="meta mono fb-c-up" title="' + esc(f.uploaded_at || '') + '">' + relativeTime(f.uploaded_at) + '</td>' +
@@ -1349,7 +1352,14 @@
     const toggle = document.getElementById('fb-upload-toggle');
     const hide = document.getElementById('fb-upload-hide');
     const card = document.getElementById('fb-upload-card');
-    if (toggle && card) toggle.addEventListener('click', () => { card.hidden = !card.hidden; });
+    // The card sits below the folder/filter bar: bring it into view, or opening it looked like nothing happened.
+    if (toggle && card) toggle.addEventListener('click', () => {
+      card.hidden = !card.hidden;
+      if (!card.hidden) {
+        card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        document.getElementById('fb-upload-input')?.focus({ preventScroll: true });
+      }
+    });
     if (hide && card) hide.addEventListener('click', () => { card.hidden = true; });
     const form = document.getElementById('fb-upload-form');
     if (form) {

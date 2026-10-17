@@ -1457,7 +1457,7 @@ function rqRenderDetail() {
       ' · <span class="dp-status-' + st + '">' + st + '</span>' + (it.origin ? ' · ' + escapeHtml(it.origin) : '') +
       (it.note ? ' · note: ' + escapeHtml(it.note) : '') +
       (it.created_at ? ' · ' + rqTime(it.created_at) : '') +
-      ' · <span class="dim">' + (_rq.cur + 1) + ' / ' + _rq.items.length + (_rq.total > _rq.items.length ? ' (of ' + _rq.total + ')' : '') + '</span>' +
+      ' · <span class="dim" title="Position in the list as filtered (pages of 200 load as you go)">pair ' + (_rq.cur + 1) + ' of ' + Math.max(_rq.total || 0, _rq.items.length) + '</span>' +
     '</div>' +
     '<div id="dp-rq-covers" class="dp-rq-covers text-xs"></div>' +
     '<label class="text-xs dim" for="dp-rq-q">Question</label>' +
@@ -1839,6 +1839,8 @@ function dpGroundedShare() {
   }
 })();
 
+var _dpExportBlobUrl = '';
+
 async function dpExportApproved() {
   var approved = _rq.counts.approved;
   if (!approved) {
@@ -1865,17 +1867,13 @@ async function dpExportApproved() {
       dpBridgeStatus(String((err && err.detail) || ('Export failed (HTTP ' + r.status + ')')), 'error');
       return;
     }
-    // Side effect on the server registers project_datasets; also offer a local download.
+    // Side effect on the server registers project_datasets. The JSONL is offered as a button, not
+    // downloaded unasked (every export used to drop a file in the browser's downloads).
     var groundedRows = parseInt(r.headers.get('X-Grounded-Rows') || '0', 10) || 0;
     var rowCount = parseInt(r.headers.get('X-Rows') || '', 10);
     var blob = await r.blob();
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = _prepPid + '-sharegpt-approved.jsonl';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+    if (_dpExportBlobUrl) URL.revokeObjectURL(_dpExportBlobUrl);
+    _dpExportBlobUrl = URL.createObjectURL(blob);
     await dpRefreshExportedDatasets();
     dpBridgeStatus(
       'Exported ' + (isNaN(rowCount) ? approved : rowCount) + ' pair(s)' +
@@ -1886,14 +1884,18 @@ async function dpExportApproved() {
     );
     // Make the next step un-missable: CTA row attached to the exported-datasets panel.
     var panel = document.getElementById('dp-exported-datasets');
-    if (panel && !panel.hidden && !document.getElementById('dp-post-export-cta')) {
-      var cta = document.createElement('div');
-      cta.id = 'dp-post-export-cta';
-      cta.className = 'dp-ds-row';
-      cta.style.marginTop = '8px';
+    if (panel && !panel.hidden) {
+      var cta = document.getElementById('dp-post-export-cta');
+      if (!cta) {
+        cta = document.createElement('div');
+        cta.id = 'dp-post-export-cta';
+        cta.className = 'dp-ds-row mt-2';
+        panel.appendChild(cta);
+      }
       cta.innerHTML = '<span class="text-xs dim">Next step: configure a run</span>' +
+        '<a class="btn sm" id="dp-export-download" href="' + _dpExportBlobUrl + '" download="' +
+        escapeHtml(_prepPid + '-sharegpt-approved.jsonl') + '">Download JSONL</a>' +
         '<a class="btn sm primary" href="/projects/' + encodeURIComponent(_prepPid) + '/training?dataset=latest" data-link>Start training with this dataset →</a>';
-      panel.appendChild(cta);
     }
   } catch (e) {
     dpBridgeStatus('Export failed: ' + ((e && e.message) || e), 'error');

@@ -86,3 +86,11 @@ def test_review_queue_scrolls_its_own_box_not_the_page() -> None:
     assert ".scrollIntoView(" not in code.split("function rqRenderList()", 1)[1].split("function rqRenderDetail()", 1)[0]
     helper = code.split("function rqKeepRowVisible(row)", 1)[1].split("\n}\n", 1)[0]
     assert "box.scrollTop" in helper and "dp-rq-list" in helper
+
+
+def test_files_page_type_badge_uses_the_extension_and_the_upload_card_scrolls_into_view() -> None:
+    page = _r("templates/project_data.html")
+    assert "mimeBadge(f.mime_type, f.original_name)" in page   # "TXT"/"EML", not "PLAIN"/"RFC822"
+    assert "'prep·'" not in page and "' passages'" in page
+    toggle = page.split("getElementById('fb-upload-toggle')", 1)[1].split("const form", 1)[0]
+    assert "card.scrollIntoView" in toggle

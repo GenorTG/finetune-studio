@@ -55,7 +55,7 @@
           <a href="/projects/{{ m.project_id }}" data-link>{{ projects.get(m.project_id, m.project_id[:8]) }}</a>
         {% else %}—{% endif %}
       </td>
-      <td class="meta mono text-xs models-col-path" title="{{ m.path }}">{{ m.path[-40:] if m.path|length > 40 else m.path }}</td>
+      {% set _tail = m.path[-40:] %}<td class="meta mono text-xs models-col-path" title="{{ m.path }}">{% if m.path|length <= 40 %}{{ m.path }}{% elif '/' in _tail[1:] %}…{{ _tail[_tail.find('/', 1):] }}{% else %}…{{ _tail }}{% endif %}</td>
       <td class="models-col-actions"><button class="btn sm" data-copy-path="{{ m.path }}" onclick="ftsCopyText(this.dataset.copyPath)">Copy</button></td>
     </tr>
     {% else %}

@@ -508,10 +508,23 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
       showResultCard([['Export id', row.id], ['Format', row.format], ['Quant', quantsText(row) || '—'],
         ['Path', row.output_path || '—'], ['Size', row.size_human || row.size_bytes || '—']]);
       notify('Export finished', 'success');
-      setTimeout(() => location.reload(), 1500);   // refresh the "Trained exports" list
+      refreshTrainedExports();   // the list only: a page reload wiped the result card just shown
     } else {
       notify((row.format || 'export') + ' export ' + (failed ? 'failed: ' + (row.error || '') : row.status), 'error');
     }
+  }
+
+  // Re-render the "Trained exports" table from a fresh copy of this page (server-rendered rows, same markup).
+  async function refreshTrainedExports() {
+    const box = $('trained-exports-table-scroll');
+    if (!box) return;
+    try {
+      const r = await fetch(location.pathname + location.search, { cache: 'no-store', credentials: 'same-origin' });
+      if (!r.ok) return;
+      const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
+      const fresh = doc.getElementById('trained-exports-table-scroll');
+      if (fresh) box.replaceWith(document.importNode(fresh, true));
+    } catch (e) { /* the list stays as it was; the result card above already names the file */ }
   }
 
   // ── starting jobs ──

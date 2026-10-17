@@ -27,7 +27,7 @@
     </span>
     <span class="pill outline mono">{{ project.id[:8] }}</span>
     <a class="btn sm" href="/projects/{{ pid }}/settings" data-link>Settings</a>
-    <button class="btn sm danger" data-confirm="Delete this project and ALL its RAGs and Runs?" data-action="/api/projects/{{ project.id }}" data-method="DELETE" data-redirect="/projects">Delete</button>
+    <button class="btn sm danger" data-confirm="Delete this project with all its files, pairs, datasets, training runs and Smart Brain? This cannot be undone." data-action="/api/projects/{{ project.id }}" data-method="DELETE" data-redirect="/projects">Delete</button>
   </div>
 </div>
 

@@ -17,6 +17,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from finetune_studio import (
@@ -420,6 +421,12 @@ class _NoCacheStatic(StaticFiles):
 
 
 app.mount("/static", _NoCacheStatic(directory=str(static_dir)), name="static")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon() -> RedirectResponse:
+    """Browsers ask for /favicon.ico on their own (JSON pages, the login page): send them the SVG icon instead of a 404."""
+    return RedirectResponse("/static/favicon.svg", status_code=308)
 
 from finetune_studio.webui.routes import (
     benchmarks,
