@@ -50,6 +50,7 @@ def test_settings_state_reports_the_local_file_and_the_recommendation(client: Te
     r = client.post("/api/settings/helper/local", json={"path": str(g)})
     assert r.status_code == 200 and r.json()["local"]["model_path"] == str(g) and r.json()["local"]["present"] is True
     assert r.json()["seat"] == "local"
+    assert r.json()["local"]["label"] == "Helper · a-model"
     bad = client.post("/api/settings/helper/local", json={"path": str(tmp_path / "mmproj-a.gguf")})
     assert bad.status_code == 400 and "projector" in bad.json()["detail"]
     assert client.post("/api/settings/helper/local", json={"path": str(tmp_path / "nope.gguf")}).status_code == 400

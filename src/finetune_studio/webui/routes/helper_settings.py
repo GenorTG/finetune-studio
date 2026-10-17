@@ -292,13 +292,15 @@ async def use_local_helper(request: Request):
         raise HTTPException(status_code=400, detail=f"not an installed GGUF file: {path or '(empty)'}")
     if resolved.name.lower().startswith("mmproj"):
         raise HTTPException(status_code=400, detail="that file is a vision projector (mmproj), not a model")
+    recommended_gguf, _ = recommended_helper_paths()
+    label = DEFAULT_HELPER_LABEL if resolved.resolve() == recommended_gguf.resolve() else f"Helper · {resolved.stem}"
     async with ENGINE_LOCK:
         mgr = get_manager()
         if (mgr.active() or {}).get("id") == DEFAULT_HELPER_PROVIDER_ID:
             from finetune_studio.models.llama_loader import unload_all_models
             await asyncio.to_thread(unload_all_models)
         await asyncio.to_thread(
-            mgr.upsert_provider, id=DEFAULT_HELPER_PROVIDER_ID, name=DEFAULT_HELPER_LABEL,
+            mgr.upsert_provider, id=DEFAULT_HELPER_PROVIDER_ID, name=label,
             kind="local_gguf", model_id=str(resolved),
         )
         await asyncio.to_thread(set_helper_provider_id, DEFAULT_HELPER_PROVIDER_ID)
