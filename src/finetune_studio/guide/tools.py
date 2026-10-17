@@ -88,7 +88,7 @@ TOOLS_CATALOG: list[dict[str, Any]] = [
     },
     {
         "name": "list_runs",
-        "description": "Recent training runs (status, base model, route, loss, steps, production flag).",
+        "description": "Recent training runs (status, base model, route, steps, production flag). final_loss is set when a run ends; while it trains, current_step / latest_loss / best_eval_loss are live.",
         "parameters": _obj(),
     },
     {

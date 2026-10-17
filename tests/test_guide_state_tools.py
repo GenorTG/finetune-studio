@@ -201,3 +201,27 @@ def test_readiness_moves_past_data_prep_once_a_run_is_done(project: dict) -> Non
     ready = state.readiness(pid)
     assert "1 test run(s)" in ready["summary"]
     assert ready["next_step"].startswith("Use the trained model") and "1 pending Q&A pair(s)" in ready["next_step"]
+
+
+def test_list_runs_reports_the_live_step_and_loss_of_the_training_run(monkeypatch) -> None:
+    # The run row gets step/loss only when the run ends: mid-run the Guide said "no loss recorded yet".
+    from types import SimpleNamespace
+
+    from finetune_studio.guide import state as gstate
+    from finetune_studio.webui import app as webapp
+
+    monkeypatch.setattr(gstate, "_project_or_error", lambda pid: ({"id": pid, "production_run": None}, None))
+    monkeypatch.setattr(gstate.db, "list_runs", lambda pid: [
+        {"id": "r2", "status": "training", "settings": {}, "metrics": {}},
+        {"id": "r1", "status": "done", "final_loss": 0.4, "settings": {}, "metrics": {"current_step": 9}},
+    ])
+    eng = SimpleNamespace(
+        state=SimpleNamespace(status="training", current_step=120, total_steps=420, loss=0.81, final_loss=None,
+                              eval_loss=None, best_eval_loss=0.9, learning_rate=8e-5, epoch=1.1, elapsed=300.0,
+                              eta=700.0, message="", error="", log_lines=[], pref_metrics={}),
+        current_project_id="p1", _run_db_id=lambda: "r2")
+    monkeypatch.setattr(webapp, "training_engine", eng)
+    out = gstate.list_runs("p1")
+    live, done = out["runs"]
+    assert (live["current_step"], live["total_steps"], live["latest_loss"], live["live"]) == (120, 420, 0.81, True)
+    assert done["final_loss"] == 0.4 and "live" not in done

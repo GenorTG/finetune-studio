@@ -11,6 +11,7 @@ advisor, dataset health check, accel/GPU probes — instead of re-deriving numbe
 """
 from __future__ import annotations
 
+import logging
 import shutil
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,8 @@ from typing import Any
 from finetune_studio import db
 from finetune_studio.data.fs import qa as qa_fs
 from finetune_studio.knowledge.sources import list_sources
+
+log = logging.getLogger(__name__)
 
 MAX_ROWS = 10
 _ROUTES = ("sft", "dpo", "tool_sft", "continued_pretraining", "reasoning_distillation")
@@ -116,6 +119,9 @@ def _run_row(run: dict, production: str | None) -> dict[str, Any]:
         "training_mode": settings.get("training_mode", "sft"),
         "epochs": settings.get("num_epochs"),
         "final_loss": run.get("final_loss"),
+        "current_step": metrics.get("current_step"),
+        "latest_loss": metrics.get("loss"),
+        "best_eval_loss": metrics.get("best_eval_loss"),
         "total_steps": metrics.get("total_steps"),
         "has_output": bool(run.get("output_path")),
         "production": bool(production) and run.get("id") == production,
@@ -130,11 +136,31 @@ def list_runs(pid: str | None) -> dict[str, Any]:
     assert project is not None and pid is not None
     runs = db.list_runs(pid)
     production = project.get("production_run")
+    rows = [_run_row(r, production) for r in runs[:MAX_ROWS]]
+    _overlay_live_run(pid, rows)
     return {
         "count": len(runs),
         "production_run": production or None,
-        "runs": [_run_row(r, production) for r in runs[:MAX_ROWS]],
+        "runs": rows,
     }
+
+
+def _overlay_live_run(pid: str, rows: list[dict[str, Any]]) -> None:
+    """Fill the training run's row from the live engine: its DB row gets step/loss only when it ends
+    (the Guide answered "no loss recorded yet" at step 120 of a running run)."""
+    try:
+        from finetune_studio.training.monitor import training_snapshot
+        from finetune_studio.webui.app import training_engine
+        live = training_snapshot(training_engine, pid)
+        run_id = training_engine._run_db_id() if live.get("running") else None
+    except Exception:  # the Guide still answers from the DB rows
+        log.debug("guide: live training state unavailable", exc_info=True)
+        return
+    for row in rows:
+        if run_id and row.get("id") == run_id:
+            row.update(status=live.get("status") or row.get("status"), current_step=live.get("current_step"),
+                       total_steps=live.get("total_steps"), latest_loss=live.get("loss"),
+                       best_eval_loss=live.get("best_eval_loss"), eta_s=live.get("eta"), live=True)
 
 
 def list_datasets(pid: str | None) -> dict[str, Any]:
