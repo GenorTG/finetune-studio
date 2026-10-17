@@ -194,6 +194,24 @@
         <label class="flex items-center gap-2"><input type="radio" name="helper-seat" id="helper-seat-local" value="local" /> Local model on this machine <span id="helper-local-label" class="dim text-xs"></span></label>
         <label class="flex items-center gap-2"><input type="radio" name="helper-seat" id="helper-seat-api" value="api" /> API provider</label>
       </div>
+      <div id="helper-local-fields" class="mb-3">
+        <div class="text-xs mb-2">Model file: <span id="helper-local-path" class="mono"></span> <span id="helper-local-present"></span></div>
+        <div class="card helper-recommended mb-3" id="helper-recommended">
+          <div class="text-sm"><b>Recommended:</b> <span id="helper-rec-label"></span> <span class="dim" id="helper-rec-meta"></span></div>
+          <div class="text-xs dim mt-1" id="helper-rec-why"></div>
+          <div class="flex gap-2 items-center mt-2">
+            <button class="btn sm primary" type="button" id="btn-helper-rec">Download and use</button>
+            <span id="helper-rec-status" class="text-xs dim" role="status"></span>
+          </div>
+          <div class="text-xs dim mt-2">For picture reading during mining, also enable this model under <a href="#vision-card">Vision reader settings</a>.</div>
+        </div>
+        <label class="block text-xs muted mb-1" for="helper-local-select">Or use another installed GGUF (download more in Model library)</label>
+        <div class="flex gap-2 items-center">
+          <select id="helper-local-select" class="select settings-field-lg"></select>
+          <button class="btn sm" type="button" id="btn-helper-local-use">Use this model</button>
+        </div>
+        <div class="text-xs dim mt-1">A local helper works one request at a time: mining a few documents takes tens of minutes, against a few minutes with an API provider.</div>
+      </div>
       <div id="helper-api-fields">
         <div class="mb-3">
           <label class="block text-xs muted mb-1" for="helper-api-preset">Provider</label>
@@ -350,6 +368,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/settings.js?v=16"></script>
+<script src="/static/js/settings.js?v=17"></script>
 <script src="/static/js/security.js?v=3"></script>
 {% endblock %}

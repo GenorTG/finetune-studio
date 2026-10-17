@@ -1,4 +1,4 @@
-"""Configured local helper model (8B GGUF) for data-prep / suite generation.
+"""Configured local helper model (a ~12B GGUF) for mining, suite generation, preference pairs and the Guide.
 
 The studio keeps one dedicated provider row (``local-default``) pointing at the
 helper GGUF used to mine Q&A and (when LLM-assisted) build test suites.
@@ -9,6 +9,7 @@ happens to be loaded on the Inference tab.
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -23,13 +24,41 @@ DEFAULT_HELPER_PROVIDER_ID: str = "local-default"
 API_HELPER_PROVIDER_ID: str = "api-helper"
 HELPER_SEAT_KEY: str = "helper_seat"
 
-# Clear UI / error-message label (not the bare filename alone).
-DEFAULT_HELPER_LABEL: str = "Helper · Gemma 4 12B Uncensored GGUF"
+@dataclass(frozen=True)
+class RecommendedHelper:
+    """The local helper the app recommends and can download in one click (Settings -> Helper model)."""
 
-# Helper seat is the Gemma 4 12B Uncensored Q4_K_M
-# (zaakirio/gemma-4-12b-it-uncensored-GGUF, fetched 2026-09-28).
-# Genor's fleet rule: helpers must be <27B; the 27B stays off the helper seat.
-DEFAULT_HELPER_GGUF_BASENAME: str = "gemma-4-12b-it-uncensored-Q4_K_M.gguf"
+    repo_id: str
+    revision: str
+    gguf: str
+    mmproj: str
+    label: str
+    size_gb: float
+    license: str
+    why: str
+
+
+# Recommended local helper: Google's official, ungated Gemma 4 12B QAT GGUF. The Gemma 4 12B family has already
+# been exercised in this app for RAG reading and vision; this exact Q4_0 artifact still needs a dedicated helper-quality
+# benchmark before its results can be claimed. Pin an immutable Hub revision so a future upstream update cannot change
+# what the one-click download installs.
+RECOMMENDED_LOCAL_HELPER = RecommendedHelper(
+    repo_id="google/gemma-4-12B-it-qat-q4_0-gguf",
+    revision="29d097773436b69ff9feafd636ab4cf873786537",
+    gguf="gemma-4-12b-it-qat-q4_0.gguf",
+    mmproj="mmproj-gemma-4-12b-it-qat-q4_0.gguf",
+    label="Gemma 4 12B QAT (Google)",
+    size_gb=7.2,
+    license="Apache-2.0",
+    why="Google's official 4-bit QAT build: a capable local helper for grounded pair mining and Guide tools; it can also read document images when enabled as the Vision reader.",
+)
+
+# Clear UI / error-message label (not the bare filename alone).
+DEFAULT_HELPER_LABEL: str = f"Helper · {RECOMMENDED_LOCAL_HELPER.label}"
+DEFAULT_HELPER_GGUF_BASENAME: str = RECOMMENDED_LOCAL_HELPER.gguf
+# Earlier default helpers: an install that still points the seat at one keeps it recognised as the helper.
+# Genor's fleet rule: helpers must be <27B.
+LEGACY_HELPER_GGUF_BASENAMES: tuple[str, ...] = ("gemma-4-12b-it-uncensored-Q4_K_M.gguf",)
 
 # Alternate helper — bigger MoE, available as a second local provider so the
 # user can swap via the Inference picker without re-downloading.
@@ -65,18 +94,24 @@ DEFAULT_HELPER_EXTRA: dict[str, Any] = {
 ALTERNATE_HELPER_EXTRA: dict[str, Any] = dict(DEFAULT_HELPER_EXTRA)
 
 
+def hf_models_dir() -> Path:
+    """Where Model library downloads land (``webui/routes/hf_models._local_dir``): ``<repo org>__<name>/<file>``."""
+    return Path.home() / ".finetune-studio" / "hf_models"
+
+
+def recommended_helper_paths() -> tuple[Path, Path]:
+    """(GGUF, mmproj) paths of the recommended helper once downloaded through the app."""
+    rec = RECOMMENDED_LOCAL_HELPER
+    folder = hf_models_dir() / rec.repo_id.replace("/", "__")
+    return folder / rec.gguf, folder / rec.mmproj
+
+
 def default_helper_gguf_path() -> str:
-    """Absolute path to the configured helper GGUF on this host."""
+    """Absolute path to the configured helper GGUF on this host (``FTS_HELPER_GGUF`` or the recommended download)."""
     override = (os.environ.get("FTS_HELPER_GGUF") or "").strip()
     if override:
         return str(Path(override).expanduser())
-    return str(
-        Path.home()
-        / "finetune-studio"
-        / "models"
-        / "gguf"
-        / DEFAULT_HELPER_GGUF_BASENAME
-    )
+    return str(recommended_helper_paths()[0])
 
 
 def alternate_helper_gguf_path() -> str:
@@ -129,7 +164,7 @@ def is_helper_gguf_path(path: str | None) -> bool:
         return True
     # Basename match covers relative vs absolute layout differences.
     base = helper_basename(path)
-    return base in (DEFAULT_HELPER_GGUF_BASENAME, ALTERNATE_HELPER_GGUF_BASENAME)
+    return base in (DEFAULT_HELPER_GGUF_BASENAME, ALTERNATE_HELPER_GGUF_BASENAME, *LEGACY_HELPER_GGUF_BASENAMES)
 
 
 def get_helper_provider_id() -> str:
@@ -270,8 +305,19 @@ def missing_gguf_for_provider(pid: str) -> str:
 
 def helper_missing_message(path: str) -> str:
     """Actionable text for a helper GGUF that is not on disk."""
+    rec = RECOMMENDED_LOCAL_HELPER
     return (
-        "No helper model is installed yet. Q&A generation needs a chat-capable GGUF "
-        f"(expected {path}). Download one in Model library (a 7B-12B instruct GGUF "
-        "works), then choose it as the helper on this page, or set FTS_HELPER_GGUF."
+        f"No helper model is installed yet (expected {path}). Open Settings -> Helper model and press "
+        f"'Download {rec.label}' ({rec.size_gb:g} GB), pick another installed GGUF there, or connect an API provider."
     )
+
+
+def recommended_helper_state() -> dict[str, Any]:
+    """The recommended helper and whether its files are on disk (Settings -> Helper model)."""
+    rec = RECOMMENDED_LOCAL_HELPER
+    gguf, mmproj = recommended_helper_paths()
+    return {
+        "repo_id": rec.repo_id, "files": [rec.gguf, rec.mmproj], "label": rec.label, "size_gb": rec.size_gb,
+        "license": rec.license, "why": rec.why, "revision": rec.revision, "path": str(gguf),
+        "installed": gguf.is_file(), "vision_installed": mmproj.is_file(),
+    }

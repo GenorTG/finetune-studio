@@ -273,6 +273,69 @@ function wireHelper() {
 
   function showFields() {
     $('helper-api-fields').hidden = !$('helper-seat-api').checked;
+    $('helper-local-fields').hidden = $('helper-seat-api').checked;
+  }
+
+  let rec = null;
+  let localPath = '';
+  function applyLocal(local) {
+    localPath = local.model_path || '';
+    rec = local.recommended || null;
+    $('helper-local-path').textContent = localPath || '(none)';
+    $('helper-local-present').textContent = local.present ? '✓ installed' : '✗ file missing';
+    $('helper-local-present').className = local.present ? 'sev-ok' : 'sev-warning';
+    const sel = $('helper-local-select');
+    const cands = local.candidates || [];
+    sel.innerHTML = cands.length
+      ? cands.map((c) => `<option value="${escHtml(c.path)}"${c.path === localPath ? ' selected' : ''}>${escHtml(c.name)}${c.size_gb ? ' · ' + c.size_gb + ' GB' : ''}</option>`).join('')
+      : '<option value="">No GGUF installed yet</option>';
+    $('btn-helper-local-use').disabled = !cands.length;
+    if (!rec) { $('helper-recommended').hidden = true; return; }
+    $('helper-rec-label').textContent = rec.label;
+    $('helper-rec-meta').textContent = `· ${rec.size_gb} GB · ${rec.license} · ${rec.repo_id}`;
+    $('helper-rec-why').textContent = rec.why;
+    const inUse = rec.installed && localPath === rec.path;
+    const btn = $('btn-helper-rec');
+    btn.textContent = inUse && rec.vision_installed ? 'In use'
+      : rec.installed && !rec.vision_installed ? 'Download vision file and use'
+        : rec.installed ? 'Use it' : `Download (${rec.size_gb} GB) and use`;
+    btn.disabled = inUse && rec.vision_installed;
+  }
+
+  const escHtml = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+  async function useLocal(path) {
+    setStatus('Switching the local helper…');
+    try { apply(await call('/api/settings/helper/local', 'POST', { path })); setStatus('Local helper set.'); }
+    catch (e) { setStatus('Failed: ' + e.message); }
+  }
+
+  async function downloadRecommended() {
+    const status = $('helper-rec-status');
+    const btn = $('btn-helper-rec');
+    if (rec && rec.installed && rec.vision_installed) { await useLocal(rec.path); return; }
+    btn.disabled = true;
+    status.textContent = 'Starting the download…';
+    let started;
+    try { started = await call('/api/settings/helper/recommended/download', 'POST', {}); }
+    catch (e) { status.textContent = 'Could not start: ' + e.message; btn.disabled = false; return; }
+    // Poll every job until done; the files land in Model library, so leaving the page does not stop them.
+    for (;;) {
+      let done = 0, total = 0, have = 0, failed = '';
+      for (const j of started.jobs) {
+        const d = await call('/api/hf/download/progress?job_id=' + encodeURIComponent(j.job_id), 'GET').catch(() => ({}));
+        total += Number(d.bytes_total || 0); have += Number(d.bytes_done || 0);
+        if (d.status === 'completed') done += 1;
+        else if (['error', 'failed', 'cancelled', 'crashed', 'stopped'].includes(d.status)) failed = `${j.file}: ${d.error || d.status}`;
+      }
+      if (failed) { status.textContent = 'Download failed: ' + failed; btn.disabled = false; return; }
+      if (done === started.jobs.length) break;
+      status.textContent = total ? `Downloading… ${(have / 1e9).toFixed(1)} of ${(total / 1e9).toFixed(1)} GB` : 'Downloading…';
+      await new Promise((r) => setTimeout(r, 2000));
+      if (!document.body.contains(btn)) return;   // left the page: Model library keeps the download going
+    }
+    status.textContent = 'Downloaded.';
+    await useLocal(started.path);
   }
 
   function apply(h) {
@@ -283,6 +346,7 @@ function wireHelper() {
     $('helper-seat-local').checked = h.seat === 'local';
     $('helper-seat-api').checked = h.seat === 'api';
     $('helper-local-label').textContent = h.local.label ? '— ' + h.local.label : '';
+    applyLocal(h.local || {});
     $('helper-api-url').value = h.api.base_url || '';
     $('helper-api-model').value = h.api.model || '';
     $('helper-api-effort').value = h.api.reasoning_effort || '';
@@ -323,6 +387,8 @@ function wireHelper() {
   });
   document.querySelectorAll('input[name="helper-seat"]').forEach((el) => el.addEventListener('change', showFields));
   $('btn-helper-save').addEventListener('click', () => save());
+  $('btn-helper-rec').addEventListener('click', downloadRecommended);
+  $('btn-helper-local-use').addEventListener('click', () => { const v = $('helper-local-select').value; if (v) useLocal(v); });
   $('btn-helper-clear-key').addEventListener('click', () => save({ api_key: '', clear_key: true }));
   $('btn-helper-test').addEventListener('click', async () => {
     setStatus('Testing…');

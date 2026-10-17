@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -23,9 +24,13 @@ from finetune_studio.data.mining.scheduler import (
 )
 from finetune_studio.models.helper import (
     API_HELPER_PROVIDER_ID,
+    DEFAULT_HELPER_LABEL,
     DEFAULT_HELPER_PROVIDER_ID,
+    RECOMMENDED_LOCAL_HELPER,
     get_configured_helper_provider,
     get_helper_provider_id,
+    recommended_helper_paths,
+    recommended_helper_state,
     set_helper_provider_id,
 )
 from finetune_studio.models.manager import get_manager
@@ -62,6 +67,17 @@ def _stored_concurrency(extra: dict[str, Any]) -> int:
         return DEFAULT_API_CONCURRENCY
 
 
+def _local_candidates() -> list[dict[str, Any]]:
+    """Installed chat GGUFs that could hold the local helper seat (vision projectors are not models)."""
+    from finetune_studio.webui.app import discovered_models
+    out = []
+    for m in discovered_models:
+        name = Path(str(getattr(m, "path", ""))).name
+        if str(getattr(m, "format", "")).lower() == "gguf" and not name.lower().startswith("mmproj"):
+            out.append({"path": str(m.path), "name": name, "size_gb": getattr(m, "size_gb", None)})
+    return sorted(out, key=lambda c: c["name"].lower())
+
+
 def _public_state() -> dict[str, Any]:
     mgr = get_manager()
     seat = get_helper_provider_id()
@@ -74,7 +90,10 @@ def _public_state() -> dict[str, Any]:
         "seat_provider_id": seat,
         "seat_label": (get_configured_helper_provider() or {}).get("label", ""),
         "local": {"provider_id": DEFAULT_HELPER_PROVIDER_ID, "label": local.get("label", ""),
-                  "model_path": local.get("model_id", "")},
+                  "model_path": local.get("model_id", ""),
+                  "present": bool(local.get("model_id")) and Path(str(local.get("model_id"))).expanduser().is_file(),
+                  "recommended": recommended_helper_state(),
+                  "candidates": _local_candidates()},
         "api": {
             "configured": bool(api),
             "base_url": (api or {}).get("base_url", ""),
@@ -258,3 +277,54 @@ async def list_helper_api_models(request: Request):
 
     result = await asyncio.to_thread(_fetch)
     return JSONResponse(result, status_code=200 if result["ok"] else 502)
+
+
+@router.post("/api/settings/helper/local")
+async def use_local_helper(request: Request):
+    """Point the local helper seat (``local-default``) at an installed GGUF; a resident old helper is unloaded."""
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid JSON") from None
+    path = str((body or {}).get("path") or "").strip() if isinstance(body, dict) else ""
+    resolved = Path(path).expanduser()
+    if not path or resolved.suffix.lower() != ".gguf" or not resolved.is_file():
+        raise HTTPException(status_code=400, detail=f"not an installed GGUF file: {path or '(empty)'}")
+    if resolved.name.lower().startswith("mmproj"):
+        raise HTTPException(status_code=400, detail="that file is a vision projector (mmproj), not a model")
+    async with ENGINE_LOCK:
+        mgr = get_manager()
+        if (mgr.active() or {}).get("id") == DEFAULT_HELPER_PROVIDER_ID:
+            from finetune_studio.models.llama_loader import unload_all_models
+            await asyncio.to_thread(unload_all_models)
+        await asyncio.to_thread(
+            mgr.upsert_provider, id=DEFAULT_HELPER_PROVIDER_ID, name=DEFAULT_HELPER_LABEL,
+            kind="local_gguf", model_id=str(resolved),
+        )
+        await asyncio.to_thread(set_helper_provider_id, DEFAULT_HELPER_PROVIDER_ID)
+    return await asyncio.to_thread(_public_state)
+
+
+@router.post("/api/settings/helper/recommended/download")
+async def download_recommended_helper():
+    """Start Model library downloads for the recommended helper's files that are missing (GGUF + vision mmproj).
+
+    Returns the download job ids; the page polls ``/api/hf/download/progress`` and then uses the GGUF."""
+    from finetune_studio.jobs import launch
+    from finetune_studio.webui import download_jobs
+    from finetune_studio.webui.errors import ApiError
+
+    rec = RECOMMENDED_LOCAL_HELPER
+    gguf, mmproj = recommended_helper_paths()
+    jobs = []
+    for path in (gguf, mmproj):
+        if path.is_file():
+            continue
+        try:
+            row = await asyncio.to_thread(download_jobs.start, repo_id=rec.repo_id, filename=path.name,
+                                          revision=rec.revision, dest=str(path.parent))
+        except launch.JobRejected as e:
+            raise ApiError(e.status if e.status >= 400 else 503, f"could not start the download: {e}",
+                           code=e.code or None) from e
+        jobs.append({"file": path.name, "job_id": row["id"]})
+    return {"ok": True, "jobs": jobs, "path": str(gguf), "already_installed": not jobs}

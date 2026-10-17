@@ -47,9 +47,9 @@ def _ensure_db() -> None:
             value TEXT NOT NULL
         );
         """)
-        # Default local helper (Gemma 4 12B Uncensored GGUF) if no providers
-        # configured yet, plus the alternate (Qwen3-30B-A3B) as a second local
-        # helper so the user can swap via the Inference picker.
+        # Default local helper (RECOMMENDED_LOCAL_HELPER: Google's Gemma 4 12B QAT, downloaded from Settings ->
+        # Helper model) if no providers are configured yet, plus the alternate (Qwen3-30B-A3B) as a second local
+        # helper. An existing install keeps whatever file its helper row points at.
         from finetune_studio.models.helper import (
             ALTERNATE_HELPER_EXTRA,
             ALTERNATE_HELPER_LABEL,
