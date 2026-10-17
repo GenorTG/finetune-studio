@@ -953,6 +953,37 @@ class TrainingEngine:
         return (f"Training complete! Stopped early at step {step}/{self.state.total_steps}: "
                 "validation loss stopped improving, best checkpoint kept.")
 
+    @staticmethod
+    def _sft_formatter(tokenizer: Any, rows: list) -> Callable[[dict], dict]:
+        """Row -> SFTTrainer columns. Chat rows become ``prompt``/``completion`` (TRL then puts the loss on the answers
+        only) when EVERY train+eval row splits cleanly (one schema per dataset); otherwise every row is full ``text``
+        ending at EOS. Plain-text rows (continued pretraining) stay ``text``.
+
+        Full-text SFT spent the loss on the baked system prompt, the template and the question: a 9B run reported
+        0.046 while its answer tokens sat at 0.65 and it recalled 16/56 of its own training answers (2026-10-17).
+        """
+        from finetune_studio.training.formatting import (
+            _end_at_eos,
+            render_chat_text,
+            split_prompt_completion,
+        )
+        chat = [r for r in rows if r.get("text") is None]
+        completion_only = bool(rows) and len(chat) == len(rows) and all(
+            split_prompt_completion(tokenizer, r["messages"], tools=r.get("tools")) for r in rows)
+        if chat and not completion_only:
+            log.warning("completion-only loss off: a row cannot be split into prompt + answer (or the data mixes "
+                        "plain text and chat); training on the full text")
+
+        def format_chat(example: dict) -> dict:
+            if example.get("text") is not None:   # Dataset rows carry every column: chat rows have text=None
+                return {"text": example["text"]}
+            tools = example.get("tools") or None
+            if completion_only:
+                prompt, completion = split_prompt_completion(tokenizer, example["messages"], tools=tools)
+                return {"prompt": prompt, "completion": completion}
+            return {"text": _end_at_eos(render_chat_text(tokenizer, example["messages"], tools=tools), tokenizer)}
+        return format_chat
+
     def _eval_setup(self, val_data: list, format_chat: Callable[[dict], dict]) -> tuple[Any, list]:
         """Held-out eval dataset + early-stopping callback, per ``self.config``.
 
@@ -1035,10 +1066,7 @@ class TrainingEngine:
                 _json.dump(self_trainer.args.to_dict(), f, indent=2, default=str)
         SFTTrainer._save = _patched_save
 
-        from finetune_studio.training.formatting import render_chat_text
-        def format_chat(example):
-            text = render_chat_text(tokenizer, example["messages"])
-            return {"text": text}
+        format_chat = self._sft_formatter(tokenizer, [*train_data, *val_data])
         dataset = Dataset.from_list(train_data).map(format_chat, remove_columns=list(train_data[0].keys()))
         if self._stop_requested():
             self._mark_stopped()
@@ -1122,14 +1150,7 @@ class TrainingEngine:
             bias="none", task_type="CAUSAL_LM",
         )
         model = get_peft_model(model, lora_config)
-        from finetune_studio.training.formatting import render_chat_text
-        def format_chat(example):
-            text = (
-                example["text"]
-                if "text" in example
-                else render_chat_text(tokenizer, example["messages"], tools=example.get("tools"))
-            )
-            return {"text": text}
+        format_chat = self._sft_formatter(tokenizer, [*train_data, *val_data])
         dataset = Dataset.from_list(train_data, on_mixed_types="use_json").map(
             format_chat, remove_columns=list(train_data[0].keys())
         )
