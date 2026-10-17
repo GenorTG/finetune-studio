@@ -68,3 +68,21 @@ def test_files_content_search_is_named_for_what_it_does() -> None:
     page = _r("templates/project_data.html")
     assert 'id="fb-content-toggle"> search inside files' in page
     assert "'Search inside files and facts… (Enter)'" in page
+
+
+def test_training_start_does_not_cover_the_live_panel_with_the_activity_drawer() -> None:
+    app = _r("static/js/app.js")
+    assert 'document.querySelector("[data-live-status]")' in app
+    starts = [ln for ln in app.splitlines() if "Training started" in ln]
+    assert starts and "window.ftsActivity?.open()" not in "".join(starts)
+    assert app.count("surfaceRun();") == 2
+    assert "data-live-status" in _r("templates/project_training.html")
+
+
+def test_review_queue_scrolls_its_own_box_not_the_page() -> None:
+    # scrollIntoView also scrolls the window: arriving on Pairs jumped the page down to the queue.
+    page = _r("templates/data_prep.html")
+    code = "\n".join(line for line in page.splitlines() if not line.strip().startswith("//"))
+    assert ".scrollIntoView(" not in code.split("function rqRenderList()", 1)[1].split("function rqRenderDetail()", 1)[0]
+    helper = code.split("function rqKeepRowVisible(row)", 1)[1].split("\n}\n", 1)[0]
+    assert "box.scrollTop" in helper and "dp-rq-list" in helper

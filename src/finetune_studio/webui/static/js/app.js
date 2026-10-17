@@ -253,6 +253,12 @@
   let _docClickListenersBound = false;
 
   function delegate() {
+    // A started run is surfaced in the activity drawer, except on a page that streams that run's progress itself
+    // (Training's live card): the drawer is a modal overlay and hid the very panel the user was about to watch.
+    const surfaceRun = () => {
+      if (document.querySelector("[data-live-status]")) { window.ftsActivity?.refresh?.(); return; }
+      window.ftsActivity?.open?.();
+    };
     // Forms — re-wire per SPA swap, but never double-bind the same element
     document.querySelectorAll("form[data-api]").forEach((form) => {
       if (form.dataset.ftsBound === "1") return;
@@ -278,7 +284,7 @@
         } else {
           const data = Object.fromEntries(new FormData(form));
           api.post(url, data).then((d) => {
-            if (d && d.run_id) { notify("Training started · run " + d.run_id.slice(0, 8), "success"); window.ftsActivity?.open(); }
+            if (d && d.run_id) { notify("Training started · run " + d.run_id.slice(0, 8), "success"); surfaceRun(); }
             else notify("Done", "success");
             if (form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
           })
@@ -323,9 +329,7 @@
               // Training start / benchmark exec — long op, name it properly
               // (a bare "Done" after starting a 20-minute run is a lie).
               notify("Training started · run " + String(d.run_id).slice(0, 8), "success");
-              if (window.ftsActivity && typeof window.ftsActivity.open === "function") {
-                window.ftsActivity.open();
-              }
+              surfaceRun();
             } else notify("Done", "success");
             // A deleted project's own page would 404 on reload: data-redirect leaves it instead.
             if (btn.dataset.redirect) setTimeout(() => location.assign(btn.dataset.redirect), 600);
