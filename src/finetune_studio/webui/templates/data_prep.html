@@ -243,7 +243,7 @@
   </div>
   <pre id="dp-pref-status" role="status" aria-live="polite" class="dp-status-pre below" hidden></pre>
   <div id="dp-pref-result" class="dp-exported-panel text-sm" hidden></div>
-</div>
+</details>
 
 
 
@@ -1422,7 +1422,17 @@ function rqRenderList() {
       ? '<div class="dim text-xs mt-2">' + _rq.items.length + ' of ' + _rq.total + ' loaded — the next page loads as you reach the end.</div>' : '');
   host.querySelectorAll('input.dp-qa-check').forEach(function (b) { if (keepChecked[b.value]) b.checked = true; });
   var row = host.querySelector('tr.cur');
-  if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
+  rqKeepRowVisible(row);
+}
+
+// Keep the current row visible inside the list box only: scrollIntoView also scrolls the window, so every render
+// (page load included) jumped the page down to the review queue.
+function rqKeepRowVisible(row) {
+  var box = document.getElementById('dp-rq-list');
+  if (!box || !row) return;
+  var r = row.getBoundingClientRect(), b = box.getBoundingClientRect();
+  if (r.top < b.top) box.scrollTop -= (b.top - r.top);
+  else if (r.bottom > b.bottom) box.scrollTop += (r.bottom - b.bottom);
 }
 
 function rqMarkCur() {
@@ -1431,7 +1441,7 @@ function rqMarkCur() {
   var prev = host.querySelector('tr.cur');
   if (prev) prev.classList.remove('cur');
   var next = host.querySelector('tr[data-i="' + _rq.cur + '"]');
-  if (next) { next.classList.add('cur'); if (next.scrollIntoView) next.scrollIntoView({ block: 'nearest' }); }
+  if (next) { next.classList.add('cur'); rqKeepRowVisible(next); }
 }
 
 function rqRenderDetail() {
