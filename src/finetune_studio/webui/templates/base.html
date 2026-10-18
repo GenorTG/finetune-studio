@@ -188,7 +188,7 @@
     }.get(bc) %}
     {% set _state_next = flow_next(pid, bc) if flow_next is defined else None %}
     {% if _state_next %}{% set _flow_next = _state_next %}{% endif %}
-    <nav id="workspace-subnav" class="workspace-subnav" aria-label="Project flow">
+    <nav id="workspace-subnav" class="workspace-subnav" aria-label="Project flow" data-pid="{{ pid }}" data-flow-page="{{ bc }}">
       <span class="ws-label" title="Files are prepared once, then trained into a model or served by the Smart Brain">Flow</span>
       <a href="/projects/{{ pid }}" data-link data-tab="overview" class="ws-link {% if bc in ('overview', 'models') %}here{% endif %}" title="Project home">home</a>
       <a href="/projects/{{ pid }}/wizard" data-link data-tab="wizard" class="ws-link {% if bc == 'quick work' %}here{% endif %}" title="All steps on one page, in order">⚡ quick work</a>

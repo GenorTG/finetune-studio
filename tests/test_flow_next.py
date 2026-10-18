@@ -48,3 +48,16 @@ def test_base_template_uses_it_and_renders_same_page_steps_as_text() -> None:
     from pathlib import Path
     html = (Path(fn.__file__).parent / "templates" / "base.html").read_text(encoding="utf-8")
     assert "flow_next(pid, bc)" in html and 'class="next-step-here"' in html
+
+
+def test_flow_next_api_follows_the_counts(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The bar asks again after an upload parses: the API returns the same step the template would render."""
+    pid = client.post("/api/projects", json={"name": "flow-next-api"}).json()["id"]
+    counts = {"n": fn.ProjectCounts(files=0, parsed=0, pending=0, approved=0, datasets=0, runs_done=0)}
+    monkeypatch.setattr(fn, "project_counts", lambda p: counts["n"])
+    first = client.get(f"/api/projects/{pid}/flow-next?page=files").json()["next"]
+    assert first == {"href": "", "title": "Upload your files", "why": first["why"]}
+    counts["n"] = fn.ProjectCounts(files=6, parsed=6, pending=0, approved=0, datasets=0, runs_done=0)
+    assert client.get(f"/api/projects/{pid}/flow-next?page=files").json()["next"]["href"] == "/data-prep"
+    assert client.get(f"/api/projects/{pid}/flow-next?page=chat").json() == {"next": None}
+    assert client.get("/api/projects/nope/flow-next?page=files").status_code == 404

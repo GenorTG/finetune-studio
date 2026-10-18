@@ -96,6 +96,20 @@ async def get_project(pid: str):
     return p
 
 
+@router.get("/{pid}/flow-next")
+async def get_flow_next(pid: str, page: str = ""):
+    """The flow bar's state-aware Next step for ``page`` (null: the bar's static entry stays).
+
+    The bar is rendered once per page load; a page that changes the counts (an upload finishing its parse) asks
+    again so the bar does not keep saying "Upload your files" next to six parsed files."""
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    from finetune_studio.webui.flow_next import flow_next
+    step = await asyncio.to_thread(flow_next, pid, page)
+    return {"next": None if step is None else {"href": step[0], "title": step[1], "why": step[2]}}
+
+
 @router.patch("/{pid}")
 async def update_project(pid: str, request: Request):
     missing = _project_404(pid)

@@ -496,11 +496,51 @@
     return sub.replace(/^(x-|vnd\.)/, "").split(/[.+]/).pop() || "?";
   }
 
+  // The flow bar's Next step is rendered with the page; a page that changes the project's counts (an upload that
+  // finished parsing, pairs mined) calls this so the bar stops pointing at the step just done.
+  async function refreshFlowNext() {
+    const nav = document.getElementById('workspace-subnav');
+    if (!nav || !nav.dataset.pid) return;
+    let step;
+    try {
+      const url = '/api/projects/' + encodeURIComponent(nav.dataset.pid) + '/flow-next?page=' + encodeURIComponent(nav.dataset.flowPage || '');
+      step = (await api.get(url)).next;
+    } catch (_) { return; }   // the bar keeps its rendered step
+    if (!step) return;        // null: the static entry for this page stays
+    let box = nav.querySelector('.next-step');
+    if (!box) {
+      box = document.createElement('div');
+      box.className = 'next-step';
+      box.setAttribute('aria-label', 'Next step');
+      nav.appendChild(box);
+    }
+    box.replaceChildren();
+    const label = document.createElement('span');
+    label.className = 'next-step-label';
+    label.textContent = 'Next';
+    let target;
+    if (step.href) {
+      target = document.createElement('a');
+      target.href = '/projects/' + nav.dataset.pid + step.href;
+      target.setAttribute('data-link', '');
+      target.textContent = step.title + ' →';
+    } else {
+      target = document.createElement('span');
+      target.className = 'next-step-here';
+      target.textContent = step.title;
+    }
+    const why = document.createElement('span');
+    why.className = 'next-step-why';
+    why.title = step.why;
+    why.textContent = step.why;
+    box.append(label, ' ', target, ' ', why);
+  }
+
   // Page-swap hook called from spa.js after each navigation
   window.fts = {
     notify, api, poll, subscribe, confirm: confirmDialog, prompt: promptDialog, init: delegate, formatJsTime,
     conn: { check: connCheck, start: connStart, stop: connStop },
-    themeToggle, fileTypeLabel,
+    themeToggle, fileTypeLabel, refreshFlowNext,
   };
 
   // Run the formatter on full load + after every SPA swap
