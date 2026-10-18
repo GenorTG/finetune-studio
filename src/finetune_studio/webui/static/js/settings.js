@@ -236,7 +236,9 @@ function wireJudge() {
     (d.providers || []).forEach((p) => {
       const o = document.createElement('option');
       o.value = p.id;
-      o.textContent = p.label + (p.is_helper_seat ? ' (helper seat)' : '') + (p.local ? ' · local GPU' : ' · API');
+      o.textContent = p.label + (p.is_helper_seat ? ' (helper seat)' : '') + (p.local ? ' · local GPU' : ' · API') +
+        (p.file_missing ? ' — file missing on disk' : '');
+      o.disabled = !!p.file_missing;   // a deleted GGUF would only fail at judge time
       sel.appendChild(o);
     });
     sel.value = d.judge_provider_id || d.effective_judge_provider_id || '';
