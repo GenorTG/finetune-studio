@@ -104,6 +104,24 @@ def test_annotate_provider_renames_legacy_local_gguf() -> None:
     assert row["label"] == DEFAULT_HELPER_LABEL
 
 
+def test_annotate_provider_labels_local_seat_by_its_file() -> None:
+    """A stale stored name from an earlier default never labels the GGUF the seat points at now."""
+    row = annotate_provider({
+        "id": DEFAULT_HELPER_PROVIDER_ID,
+        "name": "Helper · Gemma 4 12B Uncensored GGUF",
+        "model_id": "/models/unsloth__Qwen3.5-9B-GGUF/Qwen3.5-9B-Q4_K_M.gguf",
+        "kind": "local_gguf",
+    })
+    assert row["label"] == "Helper · Qwen3.5-9B-Q4_K_M"
+    rec = annotate_provider({
+        "id": DEFAULT_HELPER_PROVIDER_ID,
+        "name": "Helper · Gemma 4 12B Uncensored GGUF",
+        "model_id": default_helper_gguf_path(),
+        "kind": "local_gguf",
+    })
+    assert rec["label"] == DEFAULT_HELPER_LABEL
+
+
 def test_helper_display_label_prefixes() -> None:
     assert helper_display_label(name="Local GGUF").startswith("Helper")
     assert "12B" in helper_display_label(model_id=DEFAULT_HELPER_GGUF_BASENAME)

@@ -242,10 +242,13 @@ def annotate_provider(row: dict[str, Any]) -> dict[str, Any]:
         # Keep DB name in sync with the clear label for UI pickers.
         if (out.get("name") or "").strip() in ("", "Local GGUF", "local"):
             out["name"] = DEFAULT_HELPER_LABEL
-        out["label"] = helper_display_label(
-            name=out.get("name"),
-            model_id=out.get("model_id") or out.get("model_path"),
-        )
+        model_id = out.get("model_id") or out.get("model_path")
+        if out.get("id") in (DEFAULT_HELPER_PROVIDER_ID, ALTERNATE_HELPER_PROVIDER_ID) and model_id:
+            # A local seat is named after the file it points at: a stored name from an earlier default
+            # ("Gemma 4 12B Uncensored") must not label a different GGUF the seat was later moved to.
+            out["label"] = helper_display_label(model_id=str(model_id))
+        else:
+            out["label"] = helper_display_label(name=out.get("name"), model_id=model_id)
     else:
         out["label"] = out.get("name") or out.get("id") or ""
     return out

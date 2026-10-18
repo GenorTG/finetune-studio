@@ -5,7 +5,7 @@ page: pairs
 keywords: helper model gemma load unload gguf mining generation agent guide no helper missing configured silent switch vram idle api provider key opencode deepseek mimo openai remote cloud settings
 ---
 ## Purpose
-A dedicated local GGUF (Gemma 4 12B Uncensored Q4_K_M by default) mines Q&A pairs, builds LLM-assisted test suites and powers the guide's Agent mode.
+A dedicated local GGUF (recommended: Google's Gemma 4 12B QAT Q4_0, one click under Settings → Helper model) or an API provider mines Q&A pairs, builds LLM-assisted test suites and powers the guide's Agent mode.
 
 ## Workflow
 1. The Pairs page loads it before mining (about 50 s, ≈12–14 GiB VRAM); the guide loads it when it needs it. A local helper serves one call at a time.

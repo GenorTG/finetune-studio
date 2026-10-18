@@ -274,6 +274,7 @@ function wireHelper() {
   function showFields() {
     $('helper-api-fields').hidden = !$('helper-seat-api').checked;
     $('helper-local-fields').hidden = $('helper-seat-api').checked;
+    $('btn-helper-clear-key').hidden = !$('helper-seat-api').checked;
   }
 
   let rec = null;
@@ -391,10 +392,12 @@ function wireHelper() {
   $('btn-helper-local-use').addEventListener('click', () => { const v = $('helper-local-select').value; if (v) useLocal(v); });
   $('btn-helper-clear-key').addEventListener('click', () => save({ api_key: '', clear_key: true }));
   $('btn-helper-test').addEventListener('click', async () => {
-    setStatus('Testing…');
+    const local = !$('helper-seat-api').checked;
+    setStatus(local ? 'Loading the local model and asking it… (a 12B takes about a minute)' : 'Testing…');
     try {
       const d = await call('/api/settings/helper/test', 'POST', body());
-      setStatus(`Works: "${d.reply}" in ${(d.latency_ms / 1000).toFixed(1)} s.`);
+      const load = d.load_ms ? `loaded in ${(d.load_ms / 1000).toFixed(0)} s, ` : '';
+      setStatus(`Works: "${d.reply}" (${load}answered in ${(d.latency_ms / 1000).toFixed(1)} s)${local && d.load_ms ? '; unloaded again.' : '.'}`);
     } catch (e) { setStatus('Test failed: ' + e.message); }
   });
   $('btn-helper-models').addEventListener('click', async () => {

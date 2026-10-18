@@ -230,6 +230,8 @@ async def test_helper_api(request: Request):
         body = await request.json()
     except ValueError:
         body = {}
+    if isinstance(body, dict) and body.get("seat") == "local":
+        return await _test_local_helper()
     cfg = _probe_config(body if isinstance(body, dict) else {})
     if not cfg.model_id or not cfg.api_key:
         return JSONResponse({"ok": False, "detail": "enter the model name and API key first"}, status_code=400)
@@ -246,6 +248,52 @@ async def test_helper_api(request: Request):
         return {"ok": True, "reply": reply[:80], "latency_ms": int((time.perf_counter() - t0) * 1000)}
 
     result = await asyncio.to_thread(_ping)
+    return JSONResponse(result, status_code=200 if result["ok"] else 502)
+
+
+async def _test_local_helper() -> JSONResponse:
+    """Load the local helper GGUF, ask for "pong", and unload it again if this test was what loaded it.
+
+    Testing the local seat with the stored API provider (the old behaviour) reported "Works" for a GGUF that was
+    never touched. A model someone else loaded is never displaced: the test answers 409 and names it."""
+    from finetune_studio.models.helper import (
+        helper_missing_message,
+        missing_gguf_for_provider,
+    )
+    from finetune_studio.smart_brain.model_cache import release_brain_models
+    from finetune_studio.webui.app import inference_engine
+
+    missing = missing_gguf_for_provider(DEFAULT_HELPER_PROVIDER_ID)
+    if missing:
+        return JSONResponse({"ok": False, "code": "helper_missing", "detail": helper_missing_message(missing)},
+                            status_code=400)
+    async with ENGINE_LOCK:
+        mgr = get_manager()
+        was_loaded = (mgr.active() or {}).get("id") == DEFAULT_HELPER_PROVIDER_ID
+        if not was_loaded and getattr(inference_engine, "model", None) is not None:
+            held = Path(str(getattr(inference_engine, "model_path", "") or "another model")).name
+            return JSONResponse({"ok": False, "code": "gpu_busy",
+                                 "detail": f"{held} is loaded on the GPU; unload it (Inference page) to test the local helper"},
+                                status_code=409)
+
+        def _ping() -> dict[str, Any]:
+            t0 = time.perf_counter()
+            try:
+                if not was_loaded:
+                    release_brain_models("local helper test")
+                    mgr.load(DEFAULT_HELPER_PROVIDER_ID)
+                t1 = time.perf_counter()
+                reply = mgr.chat([{"role": "user", "content": "Reply with exactly: pong"}], max_tokens=64, temperature=0)
+            except Exception as exc:  # a failed load/chat is the test's answer, reported as 502
+                log.exception("local helper test failed")
+                return {"ok": False, "detail": f"the local helper failed: {exc}", "code": "provider_failed"}
+            finally:
+                if not was_loaded:
+                    mgr.unload()
+            return {"ok": True, "reply": reply.strip()[:80], "latency_ms": int((time.perf_counter() - t1) * 1000),
+                    "load_ms": 0 if was_loaded else int((t1 - t0) * 1000)}
+
+        result = await asyncio.to_thread(_ping)
     return JSONResponse(result, status_code=200 if result["ok"] else 502)
 
 

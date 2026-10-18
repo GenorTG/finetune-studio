@@ -269,3 +269,38 @@ def test_guide_chat_declares_tools_only_for_api_helpers(client: Any, gateway: _G
     _put(client, gateway)
     reply = _chat_local({"manager": get_manager()}, [{"role": "user", "content": "hi"}], {"max_tokens": 64})
     assert "<tool_call>" in reply and "DSML" not in reply
+
+
+def _local_seat_at(path: str) -> None:
+    from finetune_studio.models.manager import get_manager
+    get_manager().upsert_provider(id=helper.DEFAULT_HELPER_PROVIDER_ID, name="x", kind="local_gguf", model_id=path)
+
+
+def test_local_seat_test_loads_the_gguf_not_the_api(client: Any, tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test connection on the local seat loads the GGUF, asks it, and unloads it again; the API row is not used."""
+    from finetune_studio.models.manager import get_manager
+    gguf = tmp_path / "helper.gguf"
+    gguf.write_bytes(b"GGUF")
+    _local_seat_at(str(gguf))
+    mgr, calls = get_manager(), []
+    monkeypatch.setattr("finetune_studio.webui.app.inference_engine.model", None, raising=False)
+    monkeypatch.setattr(mgr, "load", lambda pid, extra=None: calls.append(("load", pid)) or {"id": pid})
+    monkeypatch.setattr(mgr, "chat", lambda messages, **gen: calls.append(("chat",)) or " pong\n")
+    monkeypatch.setattr(mgr, "unload", lambda: calls.append(("unload",)))
+    r = client.post("/api/settings/helper/test", json={"seat": "local"})
+    assert r.status_code == 200 and r.json()["reply"] == "pong" and "load_ms" in r.json()
+    assert calls == [("load", helper.DEFAULT_HELPER_PROVIDER_ID), ("chat",), ("unload",)]
+
+
+def test_local_seat_test_reports_a_missing_file_and_a_busy_gpu(client: Any, tmp_path: Any,
+                                                              monkeypatch: pytest.MonkeyPatch) -> None:
+    _local_seat_at(str(tmp_path / "gone.gguf"))
+    r = client.post("/api/settings/helper/test", json={"seat": "local"})
+    assert r.status_code == 400 and r.json()["code"] == "helper_missing"
+    gguf = tmp_path / "helper.gguf"
+    gguf.write_bytes(b"GGUF")
+    _local_seat_at(str(gguf))
+    monkeypatch.setattr("finetune_studio.webui.app.inference_engine.model", object(), raising=False)
+    monkeypatch.setattr("finetune_studio.webui.app.inference_engine.model_path", "/m/chat-model.gguf", raising=False)
+    r = client.post("/api/settings/helper/test", json={"seat": "local"})
+    assert r.status_code == 409 and "chat-model.gguf" in r.json()["detail"]
