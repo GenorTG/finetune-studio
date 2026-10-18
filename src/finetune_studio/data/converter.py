@@ -32,8 +32,9 @@ from typing import Any
 
 # Shapes supported by the SFT formatter (or the preference trainer) pass through.
 _TRAINABLE_KEYS = ("messages", "conversations", "text")
-_USER_COLS = ("question", "prompt", "instruction", "query", "user", "input")
-_ASSISTANT_COLS = ("answer", "response", "output", "completion", "assistant")
+# Short "q"/"a" last: the app's own Korvane golden pairs ({file, chunk, origin, q, a}) were refused on Training upload.
+_USER_COLS = ("question", "prompt", "instruction", "query", "user", "input", "q")
+_ASSISTANT_COLS = ("answer", "response", "output", "completion", "assistant", "a")
 _WRAPPER_KEYS = ("data", "examples", "rows", "records", "items")
 UPLOAD_SUFFIXES = (".jsonl", ".json", ".csv")
 

@@ -49,6 +49,14 @@ def test_question_answer_rows_become_messages() -> None:
     assert records_from_upload(raw, "d.json") == [{"messages": QA}]
 
 
+def test_short_q_a_rows_become_messages_and_longer_names_win() -> None:
+    """The Korvane golden pairs ({file, chunk, origin, q, a}) were refused on Training upload (2026-10-18)."""
+    raw = b'{"file": "x.pdf", "chunk": 1, "origin": "model", "q": "What is X?", "a": "X is Y."}\n'
+    assert records_from_upload(raw, "golden.jsonl") == [{"messages": QA}]
+    both = json.dumps([{"question": "What is X?", "a": "ignored", "answer": "X is Y."}]).encode()
+    assert records_from_upload(both, "d.json") == [{"messages": QA}]
+
+
 def test_csv_question_answer_and_system() -> None:
     raw = b"question,answer,system\nWhat is X?,X is Y.,Be brief.\n"
     recs = records_from_upload(raw, "d.csv")
