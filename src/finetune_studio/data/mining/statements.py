@@ -255,23 +255,66 @@ def covering_pairs(text: str, tokens: frozenset[str], pairs: Sequence[PairTokens
 _HEX_RE = re.compile(r"^[0-9a-f]{6,}$|^[0-9a-f-]{20,}$", re.IGNORECASE)
 
 
+_YEAR_RE = re.compile(r"^(19|20)\d{2}$")
+
+
 def title_from_filename(filename: str) -> str:
-    """Readable topic from a file name; ``""`` for hashes."""
+    """Readable topic from a file name; ``""`` for hashes. Years stay ("board_pack_q3_2024" is not "Board Pack Q3")."""
     stem = PurePath(filename or "").stem
-    words = [w for w in re.split(r"[\s_\-.]+", stem) if w and not w.isdigit() and not _HEX_RE.match(w)]
+    words = [w for w in re.split(r"[\s_\-.]+", stem)
+             if w and (not w.isdigit() or _YEAR_RE.match(w)) and not _HEX_RE.match(w)]
     if not words:
         return ""
     title = " ".join(words)
     return title.title() if title.islower() else title
 
 
+# Parser/reader markers in front of the real text: "[Figure 1 · page 1 · scanned page · read by …]", "=== Slide 1 ===".
+_MARKER_LINE = re.compile(r"^(?:\[(?:figure|page|slide|sheet|image|table)\b[^\]]*\]|={2,}.*={2,})$", re.IGNORECASE)
+_SUBJECT_LINE = re.compile(r"^subject:\s*(?:(?:re|fwd?|aw|wg)\s*:\s*)*(.+)$", re.IGNORECASE)
+# "CAR no. KC-CAR-24-088", "Ticket #INC-2041": the record's own number, not a form or template code.
+_RECORD_NO = re.compile(r"(?:\b(?i:no|nr|number|ref)\b\.?|#)\s*:?\s*([A-Z][A-Z0-9]*(?:[-/][A-Z0-9]+)+)")
+_HEADING_SEPS = frozenset({"-", "–", "—", "&", "/", "·", "|"})
+
+
+def _caps_heading(line: str) -> str:
+    """The ALL-CAPS heading that opens a long line ("KORVANE COLD CHAIN - CORRECTIVE ACTION REQUEST - form …"), title-cased."""
+    words: list[str] = []
+    for tok in line.split():
+        core = tok.strip("()[],;:")
+        if tok in _HEADING_SEPS or (any(c.isalpha() for c in core) and core == core.upper()):
+            words.append(tok)
+        else:
+            break
+    while words and words[-1] in _HEADING_SEPS:
+        words.pop()
+    if sum(1 for w in words if any(c.isalpha() for c in w)) < 2 or len(" ".join(words)) < 8:
+        return ""
+    return " ".join(w.title() if w.isalpha() else w for w in words)
+
+
 def document_title(first_chunk: str, filename: str) -> str:
-    """A title for question scoping: the document's own opening line(s) when they read like a title, else the file name."""
+    """A title for question scoping: the document's own opening line(s) when they read like a title, else the file name.
+
+    Reader markers are skipped, an e-mail is named by its Subject, and a scanned form read as one long line by its caps
+    heading plus record number: all three fell back to the file name, so 40 pairs asked about "the Scanned Corrective
+    Action" instead of corrective action request KC-CAR-24-088 (walkthrough 2026-10-18)."""
     def looks_like_title(line: str) -> bool:
         return (6 <= len(line) <= 110 and not line.startswith("===") and " | " not in line and not line.endswith((".", ",", ";"))
                 and not line.lower().startswith(("from:", "to:", "date:", "subject:", "[", "{", "<")))
 
     lines = [ln.strip().lstrip("#").strip() for ln in first_chunk.splitlines() if ln.strip()]
+    while lines and _MARKER_LINE.match(lines[0]):
+        lines.pop(0)
+    for ln in lines[:15]:
+        subject = _SUBJECT_LINE.match(ln)
+        if subject and 6 <= len(subject.group(1).strip()) <= 110:
+            return subject.group(1).strip()
+    if lines and len(lines[0]) > 110:
+        heading = _caps_heading(lines[0])
+        if heading:
+            record = _RECORD_NO.search(lines[0][:400])
+            return f"{heading} {record.group(1)}" if record and record.group(1) not in heading else heading
     if not lines or not looks_like_title(lines[0]):
         return title_from_filename(filename) or filename
     title = lines[0]
