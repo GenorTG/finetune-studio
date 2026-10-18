@@ -23,13 +23,13 @@ from fastapi.templating import Jinja2Templates
 
 from finetune_studio import __release_channel__ as RELEASE_CHANNEL
 from finetune_studio import __version__ as APP_VERSION
-from finetune_studio.webui.flow_next import flow_next
+from finetune_studio.webui.flow_next import flow_next_step
 from finetune_studio.webui.model_labels import model_label as _model_label
 
 templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
 templates.env.globals["app_version"] = APP_VERSION
 templates.env.globals["release_channel"] = RELEASE_CHANNEL
-templates.env.globals["flow_next"] = flow_next
+templates.env.globals["flow_next_step"] = flow_next_step
 
 # Custom Jinja2 filters for project stats
 def _sum_benchmarks(runs):

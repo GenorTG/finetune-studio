@@ -15,6 +15,22 @@ log = logging.getLogger(__name__)
 
 STATEFUL_PAGES = frozenset({"files", "data", "pairs", "data-prep", "training"})
 
+# Each page's Next step once its own state-aware step (``next_for``) is done. One table for base.html and the API, so a
+# bar refreshed in place (``GET /api/projects/{pid}/flow-next``) can fall back to it as well.
+STATIC_NEXT: dict[str, tuple[str, str, str]] = {
+    "files": ("/data-prep", "Review question-answer pairs", "For training, mine and approve examples from your files."),
+    "pairs": ("/training", "Train an adapter", "Use the reviewed dataset to teach the model how to answer."),
+    "training": ("/testing", "Test the answers", "Run a quiz to see what the adapter learned and when it declines."),
+    "testing": ("/export", "Export or use the model", "Package a finished adapter, then try it in chat."),
+    "export": ("/chat", "Try it in chat", "Test the exported model; add Smart Brain when answers need document facts."),
+    "smart brain": ("/chat", "Ask with sources", "Chat uses the indexed files and shows where each answer came from."),
+    "chat": ("/testing", "Measure answer quality", "Run a quiz to check accuracy and appropriate declines."),
+    "compare": ("/testing", "Run a focused quiz", "Compare models on the same questions, then score the answers."),
+    "benchmarks": ("/testing", "Test your own questions", "Public benchmarks are useful context; your quiz measures your task."),
+    "models": ("/chat", "Open a model in chat", "Use a model in this project and optionally ground it with Smart Brain."),
+    "settings": ("", "Return to project overview", "Pick up the next project step from its overview."),
+}
+
 
 @dataclass(frozen=True)
 class ProjectCounts:
@@ -84,3 +100,9 @@ def flow_next(pid: str | None, page: str) -> tuple[str, str, str] | None:
     except Exception:  # the bar must render even if a count fails
         log.warning("flow_next: counts failed for project %s", pid, exc_info=True)
         return None
+
+
+def flow_next_step(pid: str | None, page: str) -> tuple[str, str, str] | None:
+    """Jinja global + API: the state-aware step, else the page's static entry, else None (no Next on this page)."""
+    page = (page or "").strip()
+    return flow_next(pid, page) or STATIC_NEXT.get(page)

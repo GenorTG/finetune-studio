@@ -50,8 +50,8 @@ async def data_prep_page(request: Request, pid: str):
     templates = Jinja2Templates(directory=str(Path(__file__).parent.parent / "templates"))
     templates.env.globals["app_version"] = APP_VERSION
     templates.env.globals["release_channel"] = RELEASE_CHANNEL
-    from finetune_studio.webui.flow_next import flow_next
-    templates.env.globals["flow_next"] = flow_next
+    from finetune_studio.webui.flow_next import flow_next_step
+    templates.env.globals["flow_next_step"] = flow_next_step
     project = db.get_project(pid)
     if not project:
         return HTMLResponse("Project not found", status_code=404)

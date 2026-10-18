@@ -1179,6 +1179,8 @@ function dpUpdateStats() {
   dpUpdateWorkflowAction();
 }
 
+var _dpFlowStage = null;   // last stage dpUpdateWorkflowAction saw (null: the server-rendered bar is current)
+
 function dpUpdateWorkflowAction() {
   var button = document.getElementById('dp-jump-review');
   var label = document.getElementById('dp-jump-label');
@@ -1187,6 +1189,12 @@ function dpUpdateWorkflowAction() {
   var hasFiles = Number(_flTotalCount || 0) > 0;
   var hasSources = Array.isArray(_flSources) && _flSources.length > 0;
   var pairCount = _rq.counts.pending + _rq.counts.approved + _rq.counts.rejected;
+  // The flow bar's Next step follows the same stages; ask again only when the stage changes (not on every verdict).
+  var stage = [hasSources, _rq.counts.pending > 0, _rq.counts.approved > 0].join();
+  if (stage !== _dpFlowStage) {
+    if (_dpFlowStage !== null && window.fts && fts.refreshFlowNext) fts.refreshFlowNext();
+    _dpFlowStage = stage;
+  }
   if (!hasFiles) {
     label.textContent = 'Add source files';
     count.hidden = true;
@@ -1875,6 +1883,7 @@ async function dpExportApproved() {
     if (_dpExportBlobUrl) URL.revokeObjectURL(_dpExportBlobUrl);
     _dpExportBlobUrl = URL.createObjectURL(blob);
     await dpRefreshExportedDatasets();
+    if (window.fts && fts.refreshFlowNext) fts.refreshFlowNext();   // the bar said "Export the approved pairs"
     dpBridgeStatus(
       'Exported ' + (isNaN(rowCount) ? approved : rowCount) + ' pair(s)' +
       ' (reviewed, approved pairs only)' +

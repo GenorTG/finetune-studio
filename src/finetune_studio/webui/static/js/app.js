@@ -506,8 +506,8 @@
       const url = '/api/projects/' + encodeURIComponent(nav.dataset.pid) + '/flow-next?page=' + encodeURIComponent(nav.dataset.flowPage || '');
       step = (await api.get(url)).next;
     } catch (_) { return; }   // the bar keeps its rendered step
-    if (!step) return;        // null: the static entry for this page stays
     let box = nav.querySelector('.next-step');
+    if (!step) { if (box) box.remove(); return; }   // this page has no Next step
     if (!box) {
       box = document.createElement('div');
       box.className = 'next-step';

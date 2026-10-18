@@ -173,21 +173,7 @@
        into a model or served by the Smart Brain. Both are step 2; test and use follow. ``here`` is server-rendered
        from each page's ``breadcrumb_tab``. #}
     {% set bc = self.breadcrumb_tab()|trim %}
-    {% set _flow_next = {
-      'files': ['/data-prep', 'Review question-answer pairs', 'For training, mine and approve examples from your files.'],
-      'pairs': ['/training', 'Train an adapter', 'Use the reviewed dataset to teach the model how to answer.'],
-      'training': ['/testing', 'Test the answers', 'Run a quiz to see what the adapter learned and when it declines.'],
-      'testing': ['/export', 'Export or use the model', 'Package a finished adapter, then try it in chat.'],
-      'export': ['/chat', 'Try it in chat', 'Test the exported model; add Smart Brain when answers need document facts.'],
-      'smart brain': ['/chat', 'Ask with sources', 'Chat uses the indexed files and shows where each answer came from.'],
-      'chat': ['/testing', 'Measure answer quality', 'Run a quiz to check accuracy and appropriate declines.'],
-      'compare': ['/testing', 'Run a focused quiz', 'Compare models on the same questions, then score the answers.'],
-      'benchmarks': ['/testing', 'Test your own questions', 'Public benchmarks are useful context; your quiz measures your task.'],
-      'models': ['/chat', 'Open a model in chat', 'Use a model in this project and optionally ground it with Smart Brain.'],
-      'settings': ['', 'Return to project overview', 'Pick up the next project step from its overview.']
-    }.get(bc) %}
-    {% set _state_next = flow_next(pid, bc) if flow_next is defined else None %}
-    {% if _state_next %}{% set _flow_next = _state_next %}{% endif %}
+    {% set _flow_next = flow_next_step(pid, bc) if flow_next_step is defined else None %}
     <nav id="workspace-subnav" class="workspace-subnav" aria-label="Project flow" data-pid="{{ pid }}" data-flow-page="{{ bc }}">
       <span class="ws-label" title="Files are prepared once, then trained into a model or served by the Smart Brain">Flow</span>
       <a href="/projects/{{ pid }}" data-link data-tab="overview" class="ws-link {% if bc in ('overview', 'models') %}here{% endif %}" title="Project home">home</a>

@@ -37,6 +37,8 @@ def _render_base(*, pid: str | None = None) -> str:
         loader=FileSystemLoader(str(_TEMPLATES)),
         autoescape=select_autoescape(["html", "xml"]),
     )
+    from finetune_studio.webui.flow_next import flow_next_step
+    env.globals["flow_next_step"] = flow_next_step   # as routes/pages.py registers it
     child = env.from_string(
         '{% extends "base.html" %}'
         "{% block breadcrumb_tab %}testing{% endblock %}"
