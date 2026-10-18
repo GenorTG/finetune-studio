@@ -1792,13 +1792,22 @@ async function dpBulkAction(ids, action, note) {
 async function dpApproveSelected() {
   var ids = dpSelectedIds();
   if (!ids.length) {
+    // Nothing ticked used to approve every loaded pending pair (up to a page of 200) unread and unasked.
     ids = _rq.items.filter(function (q) { return (q.status || 'pending') === 'pending'; }).map(function (q) { return q.id; });
+    if (!ids.length) { dpBridgeStatus('No pending pairs in this list.', 'info'); return; }
+    if (!await fts.confirm('No pair is ticked. Approve all ' + ids.length + ' pending pair(s) shown in the list?',
+      { okText: 'Approve ' + ids.length })) return;
   }
   await dpBulkAction(ids, 'approve');
 }
 
 async function dpRejectSelected() {
-  await dpBulkAction(dpSelectedIds(), 'reject', 'rejected in bulk');
+  var ids = dpSelectedIds();
+  if (!ids.length) { dpBulkAction(ids, 'reject'); return; }
+  // The reason goes to the helper's fix rounds ("do not repeat their mistakes") and to the review record.
+  var reason = await fts.prompt('Why are these ' + ids.length + ' pair(s) rejected?', 'duplicate of another pair');
+  if (reason == null) return;
+  await dpBulkAction(ids, 'reject', reason.trim() || 'rejected in bulk');
 }
 
 // Every pending pair of the project (not just the loaded page): page through the queue to collect the ids.
