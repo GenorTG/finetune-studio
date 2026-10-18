@@ -234,3 +234,11 @@ def test_helper_sees_neutral_figure_markers() -> None:
     out = mfig.neutral_markers(f"Intro\n{read}\n{held}\nEnd")
     assert out == "Intro\n[Figure 1, page 1]\nPump P-12\n[Figure 2, page 3]\n(picture not read)\nEnd"
     assert "Gemma" not in out and "OCR" not in out
+
+
+def test_clean_drops_markdown_escapes_of_blank_form_fields() -> None:
+    """The local Gemma reading of the scanned CAR carried "\\_\\_\\_" for blank fields into the parse (2026-10-18)."""
+    from finetune_studio.models.vision import READ_PROMPT, clean
+    assert clean(r"Closed by: \_\_\_\_ (Kowarzik) date: \_\_ \*urgent\* C:\temp") == \
+        r"Closed by: ____ (Kowarzik) date: __ *urgent* C:\temp"
+    assert "one line per line" in READ_PROMPT

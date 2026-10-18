@@ -31,7 +31,8 @@ LOCAL_N_CTX = 16384       # a reading needs the picture + prompt + answer, not t
 
 READ_PROMPT = """This picture comes from a page of the document "{title}" ({where}). Transcribe it so that a reader who \
 cannot see it loses nothing:
-- every piece of text, word for word, in reading order (titles, labels, notes, handwriting);
+- every piece of text, word for word, in reading order (titles, labels, notes, handwriting), one line per line, field or \
+list item of the page (not one long paragraph);
 - a table as rows "col | col | col" with its header row first, every cell exactly as written;
 - a chart as: its title and units, then one row per data point "category | series | value" with every value as printed on \
 the chart (read printed labels; if a value is not printed, give your reading and mark it "(estimated)");
@@ -41,12 +42,15 @@ Never add facts that are not visible. Output only the transcription."""
 
 _THINK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 _CHANNEL = re.compile(r"^.*<channel\|>", re.DOTALL)   # Gemma 4: '<|channel>thought ... <channel|>' before the answer
+# Markdown escapes: a blank form field came back as "Closed by: \_\_\_\_ (Kowarzik)" and was mined with the backslashes.
+_MD_ESCAPE = re.compile(r"\\([_*#`|~\[\]])")
 
 
 def clean(text: str) -> str:
-    """The transcription without reasoning blocks (a local Gemma 4 prefixed every reading with its thought channel)."""
+    """The transcription without reasoning blocks (a local Gemma 4 prefixed every reading with its thought channel) and
+    without markdown escapes."""
     text = _CHANNEL.sub("", _THINK.sub("", text or ""))
-    return text.lstrip("> \n").strip()
+    return _MD_ESCAPE.sub(r"\1", text).lstrip("> \n").strip()
 
 
 class VisionError(RuntimeError):
