@@ -44,3 +44,14 @@ def test_an_answer_may_name_the_record_the_context_holds() -> None:
     pair = [{"q": "When is measure M5 of corrective action request KC-CAR-24-088 due?",
              "a": "Measure M5 is due 04.10.2024."}]
     assert validate_qa_batch(pair, f"{CAR[2]}\n{before}\n{after}\n{ids}").accepted
+
+
+def test_strip_overlap_drops_the_repeated_head_and_keeps_the_chunk_count() -> None:
+    from finetune_studio.data.mining.statements import strip_overlap
+    a = "=== Slide 3 ===\nRevenue EUR 29.5m. [Speaker notes] Q3 beat the budget quarter (EUR 28.2m revenue) by about 1.3m."
+    tail = "Q3 beat the budget quarter (EUR 28.2m revenue) by about 1.3m."
+    b = tail + "\n\n=== Slide 4 ===\nRevenue by segment (EUR m)"
+    out = strip_overlap([a, b, "no overlap here at all, a fresh chunk"])
+    assert out == [a, "=== Slide 4 ===\nRevenue by segment (EUR m)", "no overlap here at all, a fresh chunk"]
+    assert strip_overlap([a, tail + " ok"]) == [a, tail + " ok"]   # nearly empty remainder: the chunk keeps its text
+    assert strip_overlap([]) == []

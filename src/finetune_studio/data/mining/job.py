@@ -40,6 +40,7 @@ from finetune_studio.data.mining.statements import (
     document_title,
     drop_redundant,
     keyed_chunk,
+    strip_overlap,
     table_header_before,
 )
 from finetune_studio.data.prep.parsers import parse_qa_json
@@ -166,7 +167,7 @@ class MiningJob:
         texts = sources.passages(self.pid, source.sha256)
         if not texts:
             raise RuntimeError(f"{source.filename}: the parser produced no text to mine")
-        texts = self._neutral(self._hold_back_pictures(source, texts))
+        texts = strip_overlap(self._neutral(self._hold_back_pictures(source, texts)))
         self.source = source
         self.title = document_title(texts[0], source.filename)
         self.doc_ids = document_identifiers(self.title, texts[0])

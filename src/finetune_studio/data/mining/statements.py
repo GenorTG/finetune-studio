@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
+from itertools import pairwise
 from pathlib import PurePath
 
 from finetune_studio.data.prep.qa_validate import content_tokens
@@ -322,6 +323,28 @@ def document_title(first_chunk: str, filename: str) -> str:
     unfinished = title.endswith(("—", "-", "–")) or title.split()[-1][:1].isupper() or (
         title[-1].isalnum() and lines[1][:1].isupper() if len(lines) > 1 else False)
     return f"{title} {lines[1]}" if short_follow_up and unfinished else title
+
+
+OVERLAP_MIN, OVERLAP_MAX = 20, 600
+
+
+def strip_overlap(texts: Sequence[str]) -> list[str]:
+    """Each chunk without the head it repeats from the end of the chunk before (same count, same order).
+
+    Passages overlap by ~200 characters for search. Mined as they are, the overlap was inventoried and mined twice (three
+    board-pack pairs for one "Q3 beat the budget" sentence) and each chunk opened mid-sentence ("double check v4 against
+    v3 ..." without its subject). The chunk's neighbouring text (``job.neighbour_text``) still shows the helper that part.
+    A chunk that would be left nearly empty keeps its text."""
+    out = [texts[0]] if texts else []
+    for prev, cur in pairwise(texts):
+        cut = 0
+        for n in range(min(len(prev), len(cur), OVERLAP_MAX), OVERLAP_MIN - 1, -1):
+            if prev.endswith(cur[:n]):
+                cut = n
+                break
+        rest = cur[cut:].lstrip()
+        out.append(rest if len(rest) >= OVERLAP_MIN else cur)
+    return out
 
 
 _SEPARATOR_ROW = re.compile(r"^\s*:?-{2,}:?(\s*\|\s*:?-{2,}:?)*\s*$")
