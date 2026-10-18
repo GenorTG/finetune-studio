@@ -75,6 +75,20 @@ def document_identifiers(title: str, first_chunk: str) -> str:
 
 
 SPAN_PROMPT_CHARS = 7500   # the prompts cut a passage at 8000 characters
+CONTEXT_BEFORE_CHARS = 300
+CONTEXT_AFTER_CHARS = 200
+
+
+def neighbour_text(texts: list[str], i: int) -> tuple[str, str]:
+    """(tail of chunk ``i-1``, head of chunk ``i+1``), cut at word boundaries; empty where there is no neighbour."""
+    before = after = ""
+    if i > 0:
+        tail = " ".join(texts[i - 1].split())[-CONTEXT_BEFORE_CHARS:]
+        before = tail.split(" ", 1)[1] if " " in tail and len(tail) == CONTEXT_BEFORE_CHARS else tail
+    if i + 1 < len(texts):
+        head = " ".join(texts[i + 1].split())
+        after = head[:CONTEXT_AFTER_CHARS].rsplit(" ", 1)[0] if len(head) > CONTEXT_AFTER_CHARS else head
+    return before, after
 
 
 def _values_of(items: list[dict[str, Any]], ch: Chunk) -> list[str] | None:
@@ -89,6 +103,8 @@ class Chunk:
     grounding: str           # header carried from an earlier chunk + text: what answers are checked against
     prompt: str              # the form shown to the helper (keyed table rows)
     span: bool = False       # joined from several chunks for whole-file items: ask only for its checklist
+    context: str = ""        # neighbouring-text block (prompts.context_block): which record a split sentence belongs to
+    neighbours: str = ""     # the same text, plain: answers may name a record label that only it holds ("M5")
 
 
 @dataclass
@@ -157,7 +173,9 @@ class MiningJob:
         self.chunks = []
         for i, text in enumerate(texts):
             carried = table_header_before(texts, i)
-            self.chunks.append(Chunk(i + 1, text, f"{carried}\n{text}" if carried else text, keyed_chunk(text, carried)))
+            before, after = neighbour_text(texts, i)
+            self.chunks.append(Chunk(i + 1, text, f"{carried}\n{text}" if carried else text, keyed_chunk(text, carried),
+                                     context=prompts.context_block(before, after), neighbours=f"{before}\n{after}"))
 
         if self.kind == "mine":
             self._stage("inventory", f"Listing the data points of {len(self.chunks)} chunk(s)…")
@@ -229,7 +247,7 @@ class MiningJob:
             rules_by_chunk.setdefault(r.chunk_idx, []).append(r)
 
         def per_chunk(ch: Chunk) -> list:
-            reply, rid = self._call("inventory", ch.idx, prompts.inventory_messages(self.title, ch.prompt))
+            reply, rid = self._call("inventory", ch.idx, prompts.inventory_messages(self.title, ch.prompt, ch.context))
             got = agent_items(ground(parse_inventory(reply), ch.grounding), ch.idx, rules_by_chunk.get(ch.idx, []))
             db.mining.finish_round(rid, reply=reply, error=self._round_error(rid), seconds=self._round_seconds(rid),
                                     parsed=len(parse_inventory(reply)), items_added=len(got))
@@ -258,8 +276,8 @@ class MiningJob:
             ch, todo = unit
             checklist = [item_prompt_text(it) for it in todo]
             # a joined passage repeats whole chunks: the full mining prompt ("cover every fact") mined them all again
-            messages = (prompts.fix_messages(self.title, ch.prompt, checklist) if ch.span
-                        else prompts.mine_messages(self.title, ch.prompt, checklist))
+            messages = (prompts.fix_messages(self.title, ch.prompt, checklist, context=ch.context) if ch.span
+                        else prompts.mine_messages(self.title, ch.prompt, checklist, ch.context))
             self._pairs_round("mine", ch, messages, [it["id"] for it in todo], seen, only_values=_values_of(todo, ch))
 
         self._parallel(per_unit, self._units(items), "Mining")
@@ -282,7 +300,7 @@ class MiningJob:
             def per_unit(unit: tuple[Chunk, list[dict[str, Any]]], rejected=rejected) -> None:
                 ch, todo = unit
                 messages = prompts.fix_messages(self.title, ch.prompt, [item_prompt_text(it) for it in todo],
-                                                rejected.get(ch.idx, []))
+                                                rejected.get(ch.idx, []), ch.context)
                 skipped = self._pairs_round("fix", ch, messages, [it["id"] for it in todo], seen,
                                             only_values=_values_of(todo, ch))
                 proposed.update(skipped)
@@ -313,7 +331,7 @@ class MiningJob:
         raw = parse_qa_json(reply, 400) if reply else []
         written = 0
         with self._write_lock:
-            batch = validate_qa_batch(raw, f"{ch.grounding}\n{self.doc_ids}", seen_questions=seen)
+            batch = validate_qa_batch(raw, f"{ch.grounding}\n{ch.neighbours}\n{self.doc_ids}", seen_questions=seen)
             existing = [{"q": p["question"], "a": p["answer"]} for p in qa_fs.list_qa_pairs(self.pid, source_id=self.source_id)
                         if p.get("status") != "rejected" and int(p.get("chunk_idx") or 0) == ch.idx]
             accepted = [p for p in batch.accepted

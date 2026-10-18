@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-PROMPT_VERSION = "mining-v2"
+PROMPT_VERSION = "mining-v3"   # v3: neighbouring text around a chunk (records split across chunks)
 
 INVENTORY_SYSTEM = """You list the data points of a company document so that nothing in it is forgotten when it is turned into \
 training questions.
@@ -29,6 +29,7 @@ Passage:
 {chunk}
 \"\"\"
 
+{context}
 List EVERY data point of this passage. Respond with ONLY the JSON array."""
 
 FILE_INVENTORY_USER = """Document: {title}
@@ -72,6 +73,7 @@ Passage:
 {chunk}
 \"\"\"
 
+{context}
 Checklist of data points in this passage (each must be stated by at least one pair):
 {checklist}
 
@@ -84,6 +86,7 @@ Passage:
 {chunk}
 \"\"\"
 
+{context}
 These data points of the passage are NOT stated by any accepted pair yet:
 {checklist}
 {rejected}
@@ -96,6 +99,17 @@ words>"}} to the same array instead. A reviewer confirms every skip, so skip onl
 data point because you think it is already covered, duplicated or combines other values: you cannot see the other pairs, \
 so write the pair. Respond with ONLY the JSON array."""
 
+# A chunk can start or end mid-record: chunk 3 of a scanned CAR began "Due 04.10.2024." (measure M5's date, at the end of
+# chunk 2) and the helper wrote "the CAR is due 04.10.2024"; chunk 1 ended on the question "Why 3 - why not FSTL?" whose
+# answer opened chunk 2 (walkthrough 2026-10-18).
+CONTEXT_BLOCK = """
+Neighbouring text (NOT part of the passage: the end of the part before it and the start of the part after it). Use it only \
+to tell which record, row, measure or question a sentence of the passage belongs to: a passage that starts with "Due \
+04.10.2024." continues the record before it. Never list or write pairs for facts that appear only in the neighbouring text.
+Before the passage: "…{before}"
+After the passage: "{after}…"
+"""
+
 REJECTED_BLOCK = """
 A reviewer rejected these pairs for this passage. Do not repeat their mistakes:
 {rows}
@@ -106,9 +120,14 @@ def numbered(lines: Sequence[str]) -> str:
     return "\n".join(f"{i}. {line}" for i, line in enumerate(lines, 1))
 
 
-def inventory_messages(title: str, chunk: str) -> list[dict[str, str]]:
+def context_block(before: str, after: str) -> str:
+    """The neighbouring-text block for a chunk; ``""`` when it has no neighbours."""
+    return CONTEXT_BLOCK.format(before=before, after=after) if before or after else ""
+
+
+def inventory_messages(title: str, chunk: str, context: str = "") -> list[dict[str, str]]:
     return [{"role": "system", "content": INVENTORY_SYSTEM},
-            {"role": "user", "content": INVENTORY_USER.format(title=title, chunk=chunk[:8000])}]
+            {"role": "user", "content": INVENTORY_USER.format(title=title, chunk=chunk[:8000], context=context)}]
 
 
 def file_inventory_messages(title: str, text: str) -> list[dict[str, str]]:
@@ -116,15 +135,16 @@ def file_inventory_messages(title: str, text: str) -> list[dict[str, str]]:
             {"role": "user", "content": FILE_INVENTORY_USER.format(title=title, text=text)}]
 
 
-def mine_messages(title: str, chunk: str, checklist: Sequence[str]) -> list[dict[str, str]]:
+def mine_messages(title: str, chunk: str, checklist: Sequence[str], context: str = "") -> list[dict[str, str]]:
     return [{"role": "system", "content": MINE_SYSTEM},
-            {"role": "user", "content": MINE_USER.format(title=title, chunk=chunk[:8000], checklist=numbered(checklist))}]
+            {"role": "user", "content": MINE_USER.format(title=title, chunk=chunk[:8000], checklist=numbered(checklist),
+                                                         context=context)}]
 
 
 def fix_messages(title: str, chunk: str, checklist: Sequence[str],
-                 rejected: Sequence[tuple[str, str, str]] = ()) -> list[dict[str, str]]:
+                 rejected: Sequence[tuple[str, str, str]] = (), context: str = "") -> list[dict[str, str]]:
     block = REJECTED_BLOCK.format(rows="\n".join(f"- Q: {q}\n  A: {a}\n  Reason: {why or 'rejected'}" for q, a, why in rejected[:20])) \
         if rejected else ""
     return [{"role": "system", "content": MINE_SYSTEM},
             {"role": "user", "content": FIX_USER.format(title=title, chunk=chunk[:8000], checklist=numbered(checklist),
-                                                        rejected=block)}]
+                                                        rejected=block, context=context)}]
