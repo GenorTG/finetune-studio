@@ -2108,7 +2108,7 @@ async function dpLoadFiles() {
   dpRenderFiles();
   dpUpdateWorkflowAction();
   flUpdatePromotePanel();
-  if (_dpPanel.sid) dpLoadPanel(false);
+  if (_dpPanel.sid && !dpPanelBusy()) dpLoadPanel(false);
   clearTimeout(_dpFilesTimer);
   if (Object.keys(_dpJobs).length) _dpFilesTimer = setTimeout(dpLoadFiles, 2000);  // live while jobs run, idle otherwise
 }
@@ -2284,6 +2284,16 @@ function dpClosePanel() {
   document.querySelectorAll('#dp-files-table tr.dp-file-open').forEach(function (tr) { tr.classList.remove('dp-file-open'); });
 }
 
+// The files poll (every 2 s while any job runs) re-rendered the checklist panel and wiped a pair the reviewer was writing
+// (walkthrough 2026-10-18). Skip the background refresh while a write form is open or a field in the panel has focus.
+function dpPanelBusy() {
+  var box = document.getElementById('dp-file-panel');
+  if (!box) return false;
+  if (box.querySelector('[data-write-for]:not([hidden])')) return true;
+  var el = document.activeElement;
+  return !!(el && box.contains(el) && /^(TEXTAREA|INPUT|SELECT)$/.test(el.tagName));
+}
+
 async function dpLoadPanel(scroll) {
   var sid = _dpPanel.sid;
   if (!sid) return;
@@ -2410,6 +2420,7 @@ async function dpItemAction(act, itemId) {
     } catch (e) { dpMiningStatus(e.message, 'error'); return; }
     dpMiningStatus('Pair added and approved.', 'success');
     prepRefreshResults();
+    dpLoadPanel(false);   // closes the form (an open one pauses the background refresh) and shows the item covered
   } else {
     var reason = '';
     if (act === 'exclude') {
