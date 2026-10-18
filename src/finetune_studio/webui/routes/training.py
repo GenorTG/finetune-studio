@@ -681,7 +681,7 @@ async def start_training(request: Request):
     # later status callbacks omit output_path or use a composite engine run id.
     db.update_run(
         run_id,
-        name=f"Run {run_id} · {Path(data_path).name}",
+        name=f"Run {run_id} · {Path(data_path).stem}",   # no ".jsonl" in pickers ("…approved_core.jsonl/merged")
         output_path=config.output_dir,
     )
     # Training and any resident helper/test model share the same GPU. Unload

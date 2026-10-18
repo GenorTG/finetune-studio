@@ -106,9 +106,9 @@ def _scan_run_models(runs: list[dict]) -> list[dict]:
                 if not model_paths:
                     continue
             for model_path in model_paths:
-                model_name = f"{run.get('name') or run.get('id', '')}/{subdir}"
+                model_name = f"{run.get('name') or run.get('id', '')} · {subdir}"
                 if fmt == "gguf":
-                    model_name += f"/{os.path.basename(model_path)}"
+                    model_name += f" · {os.path.basename(model_path)}"
                 quant = ""
                 if fmt == "gguf":
                     m_q = re.match(r"^model-(.+)\.gguf$", os.path.basename(model_path), re.IGNORECASE)

@@ -4580,7 +4580,7 @@
 #dp-files-table .dp-col-check { width: 2.5em; }
 #dp-files-table .dp-col-status { width: 9rem; }
 #dp-files-table .dp-points-col { width: 11rem; }
-#dp-files-table .dp-col-pairs { width: 9rem; }
+#dp-files-table .dp-col-pairs { width: 11rem; }   /* "2 ok · 55 pending · 0 rej" */
 #dp-files-table .dp-col-chunks { width: 5rem; }
 #dp-files-table .dp-col-acts { width: 16rem; }
 #dp-files-table tr.dp-file-open td { box-shadow: inset 3px 0 0 var(--accent); }
