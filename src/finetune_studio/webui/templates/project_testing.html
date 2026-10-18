@@ -289,13 +289,15 @@
       const sel = $('t-suite');
       let opt = Array.from(sel.options).find(function(o) { return o.value === data.path; });
       if (!opt) { opt = document.createElement('option'); opt.value = data.path; sel.appendChild(opt); }
-      const label = data.name + ' · ' + data.case_count + ' questions' + (data.abstain_cases ? ' (' + data.abstain_cases + ' unanswerable)' : '');
+      // Same label as the server lists after a reload (suite_defs.SuiteDefinition.label); the import message says the rest.
+      const label = 'local · ' + data.name + ' (' + data.case_count + ' cases)';
       opt.textContent = label;
       opt.setAttribute('data-name', data.name); opt.setAttribute('data-type', 'local');
       opt.setAttribute('data-source', 'project_import'); opt.setAttribute('data-label', label);
       sel.value = data.path;
       window.onSuitePicked();
-      msg.textContent = 'Imported ' + label + ' — selected above.';
+      msg.textContent = 'Imported ' + data.name + ': ' + data.case_count + ' questions' +
+        (data.abstain_cases ? ' (' + data.abstain_cases + ' unanswerable)' : '') + ' — selected above.';
     } catch (e) {
       msg.textContent = 'Import failed: ' + ((e && e.message) || e);
     }

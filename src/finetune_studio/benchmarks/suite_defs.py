@@ -145,7 +145,8 @@ class SuiteDefinition:
         if self.source == "project_qa":
             n = self.case_count or 0
             return f"local · {title} ({n} cases)"
-        return f"local · {title}"
+        # An imported quiz showed "122 questions" right after the import and a bare name after a reload.
+        return f"local · {title} ({self.case_count} cases)" if self.case_count is not None else f"local · {title}"
 
     @property
     def scoring(self) -> str:
