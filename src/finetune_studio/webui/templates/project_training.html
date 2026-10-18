@@ -702,7 +702,7 @@
   }
   if (select) select.addEventListener("change", onDatasetPicked);
 
-  // The first upload into a project with no dataset: the panel holds the "No datasets yet" note, not a picker, so the
+  // The first upload into a project with no dataset: the panel holds the empty-state note, not a picker, so the
   // uploaded set was ready (health check, Start enabled) but the panel still said there were none (2026-10-18).
   function ensureDatasetSelect() {
     if (select) return select;
