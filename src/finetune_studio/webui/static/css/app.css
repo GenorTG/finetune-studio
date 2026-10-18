@@ -3817,9 +3817,10 @@
 #fb-files-table .fb-col-uploaded { width: 7rem; }
 #fb-files-table .fb-col-drift { width: 5rem; }
 #fb-files-table .fb-col-pipeline { width: 8rem; }
-/* Actions row needs ~9 icon buttons on one line — fixed rem floor beats a %
-   that collapses; table-scroll absorbs the overflow (59a8206 design). */
-#fb-files-table .fb-col-actions { width: 25rem; }
+/* The 8 row buttons wrap inside .fb-actions-wrap (max-width 15em: 3 per row), so the column only needs that
+   plus padding. 25rem here left ~200px empty per row and squeezed Name to 41px at a 1200px viewport
+   (one letter per line, 610px rows; 2026-10-18 walkthrough). */
+#fb-files-table .fb-col-actions { width: 14rem; }
 #fb-files-table td.fb-c-actions { overflow: visible; white-space: nowrap; text-overflow: clip; }
 #fb-files-table td.fb-c-actions .btn.sm { padding: 4px 7px; }
 #fb-files-table td.fb-c-pipe { white-space: normal; }
@@ -4287,6 +4288,9 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* The project flow bar is row 3 across all columns. In column 1 only (its base rule), its link run sized
+     the auto brand column to ~800px and squeezed the main tabs into a 395px wrap at 1200px (2026-10-18). */
+  .workspace-subnav { grid-column: 1 / -1; }
   .sb-right {
     position: static;
     grid-area: right;

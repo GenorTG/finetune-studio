@@ -1262,10 +1262,11 @@
     await loadFiles();
   }
 
-  function pollUntilParsed(tries) {
+  // onDone(stillWaiting): the upload status said "queued for parsing" long after every row showed PARSED.
+  function pollUntilParsed(tries, onDone) {
     const waiting = files.some((f) => !f.deleted_at && !(pipe[f.id] || {}).has_parsed && !(pipe[f.id] || {}).parser);
-    if (!waiting || tries <= 0) return;
-    setTimeout(async () => { await loadFiles(); pollUntilParsed(tries - 1); }, 2000);
+    if (!waiting || tries <= 0) { if (onDone) onDone(waiting); return; }
+    setTimeout(async () => { await loadFiles(); pollUntilParsed(tries - 1, onDone); }, 2000);
   }
 
   function uploadFiles(fileList) {
@@ -1302,7 +1303,11 @@
             ' — queued for parsing';
         }
         await loadFiles();
-        pollUntilParsed(15);
+        const head = status ? status.textContent.replace(' — queued for parsing', '') : '';
+        pollUntilParsed(15, (stillWaiting) => {
+          if (status) status.textContent = head + (stillWaiting ? ' — still parsing after 30 s; reload this page later for the result'
+            : ' — parsed; see the Pipeline column');
+        });
       } catch (e) {
         if (status) status.textContent = 'Failed: ' + e.message;
         notify('Upload failed: ' + e.message, 'error');
