@@ -458,7 +458,7 @@
 
   const dataPathInput = document.getElementById("data-path-input");
   const datasetIdInput = document.getElementById("dataset-id-input");
-  const select = document.getElementById("dataset-select");
+  let select = document.getElementById("dataset-select");   // absent while the project has no dataset
   const fileInput = document.getElementById("dataset-upload");
   const statusEl = document.getElementById("dataset-upload-status");
   const startBtn = document.getElementById("start-btn");
@@ -664,19 +664,17 @@
       btn.disabled = true;
       try {
         const ds = await api.post(healthApi(btn.dataset.healthDedup, "dedup"));
-        // Train on the de-duplicated copy from here on. The dropdown only exists
-        // once the project had datasets at page load, so set the fields directly.
+        // Train on the de-duplicated copy from here on.
         dataPathInput.value = ds.data_path;
         datasetIdInput.value = ds.id;
         syncStartEnabled();
-        if (select) {
-          const opt = document.createElement("option");
-          opt.value = ds.id;
-          opt.setAttribute("data-path", ds.data_path);
-          opt.textContent = `${ds.name} · ${ds.qa_count} pairs · (duplicates removed)`;
-          select.insertBefore(opt, select.options[1] || null);
-          opt.selected = true;
-        }
+        const picker = ensureDatasetSelect();
+        const opt = document.createElement("option");
+        opt.value = ds.id;
+        opt.setAttribute("data-path", ds.data_path);
+        opt.textContent = `${ds.name} · ${ds.qa_count} pairs · (duplicates removed)`;
+        picker.insertBefore(opt, picker.options[1] || null);
+        opt.selected = true;
         if (statusEl) statusEl.textContent = `✓ Using ${ds.name} (${ds.qa_count} pairs, ${ds.removed} duplicate${ds.removed > 1 ? "s" : ""} removed)`;
         loadHealth(ds.id);
         window.fts?.notify(`Removed ${ds.removed} duplicate(s) → ${ds.name}`, "success");
@@ -688,21 +686,35 @@
   }
 
   // Picking a project dataset fills both hidden fields.
-  if (select) {
-    select.addEventListener("change", () => {
-      const opt = select.selectedOptions[0];
-      if (!opt) return;
-      const path = opt.getAttribute("data-path");
-      if (path) {
-        dataPathInput.value = path;
-        datasetIdInput.value = opt.value;
-      } else {
-        dataPathInput.value = "";
-        datasetIdInput.value = "";
-      }
-      syncStartEnabled();
-      loadHealth(datasetIdInput.value);
-    });
+  function onDatasetPicked() {
+    const opt = select.selectedOptions[0];
+    if (!opt) return;
+    const path = opt.getAttribute("data-path");
+    if (path) {
+      dataPathInput.value = path;
+      datasetIdInput.value = opt.value;
+    } else {
+      dataPathInput.value = "";
+      datasetIdInput.value = "";
+    }
+    syncStartEnabled();
+    loadHealth(datasetIdInput.value);
+  }
+  if (select) select.addEventListener("change", onDatasetPicked);
+
+  // The first upload into a project with no dataset: the panel holds the "No datasets yet" note, not a picker, so the
+  // uploaded set was ready (health check, Start enabled) but the panel still said there were none (2026-10-18).
+  function ensureDatasetSelect() {
+    if (select) return select;
+    const panel = document.querySelector('.data-panel[data-panel="project"]');
+    select = document.createElement("select");
+    select.id = "dataset-select";
+    select.className = "select mt-1";
+    select.innerHTML = '<option value="">— pick a dataset —</option>';
+    select.addEventListener("change", onDatasetPicked);
+    const empty = panel && panel.querySelector(".empty");
+    if (empty) empty.replaceWith(select); else if (panel) panel.prepend(select);
+    return select;
   }
 
   // Deep-link from Data Prep: /training?dataset=latest | <dataset id>[&mode=dpo]
@@ -745,15 +757,15 @@
         panels.forEach((p) => p.classList.remove("active"));
         document.querySelector('.data-tab[data-tab="project"]').classList.add("active");
         document.querySelector('.data-panel[data-panel="project"]').classList.add("active");
-        // Inject the new option into the dropdown so it's discoverable.
-        if (select) {
-          const opt = document.createElement("option");
-          opt.value = ds.id;
-          opt.setAttribute("data-path", ds.data_path);
-          opt.textContent = `${ds.name} · ${ds.qa_count} pairs · (just uploaded)`;
-          opt.selected = true;
-          select.insertBefore(opt, select.firstChild);
-        }
+        // Inject the new option into the dropdown (created on the first upload) so it's discoverable.
+        const picker = ensureDatasetSelect();
+        const opt = document.createElement("option");
+        opt.value = ds.id;
+        opt.setAttribute("data-path", ds.data_path);
+        opt.textContent = `${ds.name} · ${ds.qa_count} pairs · (just uploaded)`;
+        opt.selected = true;
+        picker.insertBefore(opt, picker.options[1] || null);
+        if (window.fts && fts.refreshFlowNext) fts.refreshFlowNext();   // "Build a dataset first" is done
       } catch (e) {
         statusEl.textContent = `✗ upload failed: ${e.message || e}`;
       }
