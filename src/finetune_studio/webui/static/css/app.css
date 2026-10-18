@@ -4574,6 +4574,15 @@
 .dp-points-bar .op { background: var(--err); }
 .dp-open { color: var(--err); }
 .dp-file-acts { white-space: nowrap; text-align: right; }
+/* .table is table-layout:fixed, so without widths every column got the same share (83px at 780, the checkbox as wide
+   as File). File takes what is left; the floor keeps it >=12rem and .table-scroll scrolls below that (2026-10-18). */
+#dp-files-table { min-width: 62rem; }
+#dp-files-table .dp-col-check { width: 2.5em; }
+#dp-files-table .dp-col-status { width: 9rem; }
+#dp-files-table .dp-points-col { width: 11rem; }
+#dp-files-table .dp-col-pairs { width: 9rem; }
+#dp-files-table .dp-col-chunks { width: 5rem; }
+#dp-files-table .dp-col-acts { width: 16rem; }
 #dp-files-table tr.dp-file-open td { box-shadow: inset 3px 0 0 var(--accent); }
 .dp-file-panel { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-elevated); }
 .dp-panel-head { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }

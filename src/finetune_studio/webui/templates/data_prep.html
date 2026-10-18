@@ -2151,8 +2151,9 @@ function dpRenderFiles() {
   var ticked = {};
   host.querySelectorAll('.dp-source-check:checked').forEach(function (b) { ticked[b.value] = true; });
   host.innerHTML = '<div class="table-scroll"><table class="table compact" id="dp-files-table"><thead><tr>' +
-    '<th><input type="checkbox" id="dp-source-check-all" aria-label="Select all files"></th><th>File</th><th>Status</th>' +
-    '<th class="dp-points-col">Data points</th><th>Pairs</th><th class="num">Chunks</th><th></th></tr></thead><tbody>' +
+    '<th class="dp-col-check"><input type="checkbox" id="dp-source-check-all" aria-label="Select all files"></th><th>File</th>' +
+    '<th class="dp-col-status">Status</th><th class="dp-points-col">Data points</th><th class="dp-col-pairs">Pairs</th>' +
+    '<th class="num dp-col-chunks">Chunks</th><th class="dp-col-acts"></th></tr></thead><tbody>' +
     list.map(function (s) {
       var m = s.mining || {}, job = _dpJobs[s.id];
       var st = job ? 'mining' : (m.status || 'parsed');
