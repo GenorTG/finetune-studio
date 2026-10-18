@@ -659,8 +659,16 @@
       if (target && !target.querySelector('.bench-sprite')) {
         const cap = document.createElement('div');
         cap.className = 'sprite-mount-caption';
-        // Idle pages have no run — do not claim scores are computing.
-        cap.textContent = 'READY TO RUN';
+        // Idle pages have no run — do not claim scores are computing. Testing names what Run still needs (it said
+        // READY TO RUN with no model export and no quiz, 2026-10-18).
+        const idleTestCaption = () => {
+          const run = document.getElementById('t-run-btn');
+          if (!run || !run.disabled) return 'READY TO RUN';
+          return run.dataset.missing === 'model' ? 'NEEDS A MODEL' : run.dataset.missing === 'quiz' ? 'PICK A QUIZ' : 'RUNNING';
+        };
+        cap.textContent = idleTestCaption();
+        const testTimer = setInterval(() => { if (!/^SCORE/.test(cap.textContent)) cap.textContent = idleTestCaption(); }, 1500);
+        cleanups.push(() => clearInterval(testTimer));
         const host = document.createElement('div');
         host.className = 'sprite-mount';
         host.appendChild(spriteBenchBars(72));

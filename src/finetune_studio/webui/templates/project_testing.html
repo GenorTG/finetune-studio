@@ -31,7 +31,7 @@
   <div class="grid grid-12 gap-3 items-end">
     <div class="col-span-5">
       <label class="block text-xs muted mb-1" for="t-model">Model under test</label>
-      <select id="t-model" aria-label="Model to test" class="select">
+      <select id="t-model" aria-label="Model to test" class="select" data-exports="{{ models|length }}">
         <option value="">— latest merged export —</option>
         {% if project.base_model %}<option value="__base__" title="{{ project.base_model }}"{% if base_model_missing %} disabled{% endif %}>Base model (untrained) · {{ project.base_model.rstrip('/').split('/')[-1] }}{% if base_model_missing %} — file missing on disk{% endif %}</option>{% endif %}
         {% for m in models %}
@@ -249,13 +249,20 @@
   function syncRunButton() {
     const btn = $('t-run-btn'), status = $('t-status');
     const m = mode();
-    const ready = m === 'dataset' ? true : !!$('t-suite').value;
+    // "— latest merged export —" with no export only ever answered 400: say what is missing instead of offering Run.
+    const sel = $('t-model');
+    const modelOk = m === 'dataset' || !!sel.value || Number(sel.dataset.exports || 0) > 0;
+    const suiteOk = m === 'dataset' || !!$('t-suite').value;
+    const ready = modelOk && suiteOk;
     btn.disabled = S.busy || !ready;
-    btn.title = ready ? 'Start the test' : 'Pick a quiz first';
+    btn.dataset.missing = !modelOk ? 'model' : (!suiteOk ? 'quiz' : '');
+    btn.title = ready ? 'Start the test' : (!modelOk ? 'No model to test yet: export a finished run or pick the base model' : 'Pick a quiz first');
     if (status && !status.dataset.busy && ready) {
       status.textContent = m === 'dataset' ? 'Ready — dataset check.' : ('Ready — ' + suiteLabel());
     }
   }
+
+  $('t-model').addEventListener('change', syncRunButton);   // picking the base model makes a run possible
 
   window.onSuitePicked = function() {
     const hint = $('t-suite-hint'), sel = $('t-suite');
