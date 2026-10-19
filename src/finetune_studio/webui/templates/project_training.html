@@ -99,8 +99,8 @@
     <button class="btn sm danger"
             data-action="/api/projects/{{ pid }}/runs/{{ detail_run.id }}"
             data-method="DELETE"
-            data-confirm="Delete this run? Output files on disk will be kept."
-            data-reload="true">Delete</button>
+            data-confirm="Delete this run and its run-specific output files (adapter, checkpoints, merged model, GGUF exports)? Shared output folders are kept. This cannot be undone."
+            data-redirect="/projects/{{ pid }}/training">Delete</button>
   </div>
   <details class="mt-3">
     <summary class="text-xs muted">Debug JSON</summary>
