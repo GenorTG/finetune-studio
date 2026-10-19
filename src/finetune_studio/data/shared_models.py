@@ -165,6 +165,17 @@ def register(model_name: str, kind: str, src_dir: Path | None = None,
         copy_sentence_transformer_tree(src_dir, target)
         size = sum(p.stat().st_size for p in target.rglob("*") if p.is_file())
     else:
+        # Already registered under this name: reuse the newest complete copy. Every Smart Brain build called this and
+        # re-loaded the model from the Hub only to save the same 2.2 GB again (plus a reranker) — ~10 s, an
+        # unauthenticated Hub request and a full rewrite per build (2026-10-19). Delete the copy to force a refresh.
+        if prefer_cached:
+            for have in sorted(_dir_for(kind).glob(f"{_safe_repo_name(model_name)}@*"),
+                               key=lambda d: d.stat().st_mtime, reverse=True):
+                complete = (is_complete_sentence_transformer_dir(have) if kind == "embedder"
+                            else (have / "config.json").is_file())
+                if have.is_dir() and complete:
+                    _touch_use(have)
+                    return ModelRef(name=model_name, kind=kind, short_id=have.name, path=str(have))
         # Download fresh into target dir.
         # Use a temp staging path so the sentence-transformers save() doesn't get
         # fooled by our `pending` placeholder in the path. We then move the dir

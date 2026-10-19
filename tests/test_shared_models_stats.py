@@ -123,3 +123,34 @@ def test_no_test_reaches_the_shared_model_download() -> None:
 
     with pytest.raises(OSError, match="tests do not download models"):
         sm.register("intfloat/multilingual-e5-large", kind="embedder")
+
+
+def test_register_reuses_a_complete_registered_copy(tmp_path: Path, monkeypatch) -> None:
+    """Every Smart Brain build re-downloaded and re-saved the 2.2 GB embedder it already had (2026-10-19)."""
+    import sys
+    import types
+
+    built: list[str] = []
+
+    class FakeModel:
+        def __init__(self, name: str, *args, **kw) -> None:
+            built.append(name)
+
+        def save(self, path: str) -> None:
+            Path(path, "model.safetensors").write_bytes(b"w")
+            Path(path, "modules.json").write_text("[]", encoding="utf-8")
+            Path(path, "config.json").write_text("{}", encoding="utf-8")
+
+    monkeypatch.setitem(sys.modules, "sentence_transformers",
+                        types.SimpleNamespace(SentenceTransformer=FakeModel, CrossEncoder=FakeModel))
+    monkeypatch.setattr(sm, "SHARED", tmp_path / "shared")
+    monkeypatch.setattr(sm, "EMBEDDERS", tmp_path / "shared" / "embedders")
+    monkeypatch.setattr(sm, "RERANKERS", tmp_path / "shared" / "rerankers")
+    monkeypatch.setattr(sm, "hf_cache_dir", lambda: tmp_path / "hf" / "hub")
+    real = sm.register.real
+    first = [real("some/embedder", kind="embedder"), real("some/reranker", kind="reranker")]
+    again = [real("some/embedder", kind="embedder"), real("some/reranker", kind="reranker")]
+    assert [r.path for r in again] == [r.path for r in first]
+    assert built == ["some/embedder", "some/reranker"]          # loaded once each, not per build
+    real("some/embedder", kind="embedder", prefer_cached=False)
+    assert built[-1] == "some/embedder"                          # an explicit refresh still downloads
