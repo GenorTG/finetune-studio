@@ -50,8 +50,11 @@ def _accel_summary() -> dict:
                 "degraded_reason": ""}
 
 
+# GPU probes (torch / CUDA init on first use, nvidia-smi) are blocking: these handlers are plain ``def`` so FastAPI runs
+# them in its threadpool. As ``async def`` the first probe after a restart, while the worker loaded a 12B, held the event
+# loop 33 s; the supervisor's health check timed out and killed the web server twice (2026-10-19).
 @router.get("/api/system/resources")
-async def resources():
+def resources():
     """Host RAM + per-GPU VRAM snapshot for UI bars.
 
     Returns:
@@ -65,7 +68,7 @@ async def resources():
 
 
 @router.get("/api/system/accelerator")
-async def accelerator():
+def accelerator():
     """Full accelerator report: chosen device, torch build, llama.cpp backends, hardware,
     policy env and ``degraded_reason`` (non-empty when a GPU host is running on CPU)."""
     from finetune_studio import accel
@@ -75,7 +78,7 @@ async def accelerator():
 
 
 @router.get("/api/system/gpu")
-async def gpu_summary():
+def gpu_summary():
     """Short VRAM string for dashboard stat tile (plain text for SPA poll).
 
     Returns e.g. "12.3 / 23.5 GB" or "—" when no GPU.
@@ -89,7 +92,7 @@ async def gpu_summary():
 
 
 @router.get("/api/system/gpu-text")
-async def gpu_text():
+def gpu_text():
     """Sub-line for dashboard stat tile — GPU name + percent (plain text)."""
     from fastapi.responses import PlainTextResponse
     vram = _vram()

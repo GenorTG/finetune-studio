@@ -418,7 +418,8 @@ async def inference_memory_estimate(request: Request):
     model_path = body.get("model_path") or body.get("path") or ""
     if not model_path:
         return JSONResponse({"detail": "No model_path provided"}, status_code=400)
-    try:
+
+    def _estimate() -> dict:
         est = inference_engine.estimate_memory(
             model_path,
             n_ctx=body.get("n_ctx", DEFAULT_N_CTX),
@@ -433,5 +434,10 @@ async def inference_memory_estimate(request: Request):
         except Exception as e:  # noqa: BLE001
             log.debug("GPU usage probe failed: %s", e)
         return est
+
+    try:
+        # Off the event loop: the GPU probe initialises CUDA on first use. Inline, picking a model on the Inference page
+        # froze every request for 33 s and the supervisor killed the web server (twice, 2026-10-19).
+        return await asyncio.to_thread(_estimate)
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"detail": str(e)}, status_code=500)

@@ -675,8 +675,10 @@ async def settings_page(request: Request):
 
 
 @router.get("/api/debug/info")
-async def debug_info():
-    """Return system debug info for the Settings page."""
+def debug_info():
+    """Return system debug info for the Settings page.
+
+    Plain ``def`` (threadpool): GPU probes and importing torch/transformers block for seconds."""
     import os
     import platform
     import sys
