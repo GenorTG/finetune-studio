@@ -55,7 +55,7 @@ def test_testing_page_lists_project_merged_export(client, tmp_path) -> None:
     assert r.status_code == 200
     body = r.text
     assert str(merged) in body
-    assert "merged-run/merged" in body
+    assert "merged-run · merged" in body
     assert "selected" in body  # default_model_path pre-selects latest merged
     assert "No project merged/GGUF exports yet" not in body
 
