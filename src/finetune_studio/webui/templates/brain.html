@@ -602,13 +602,21 @@
         return;
       }
       let html = d.weak ? '<p class="text-sm warn">⚠ ' + esc(d.note) + '</p>' : '';
+      // Hits are ordered by the reranker when it ran (ce_score); showing the hybrid rrf score next to that order read as
+      // unsorted (0.033, 0.031, 0.022, 0.028). Show the score the order comes from and say which one it is.
+      const reranked = hits.some(function(h) { return h.ce_score != null; });
+      const scoreTip = reranked ? 'Reranker score: higher = closer match (the order of this list)'
+        : 'Hybrid score (keyword + meaning): higher = closer match';
       html += '<div class="table-scroll"><table class="table ref-table brain-hits-table"><thead><tr>'
-        + '<th class="brain-hit-rank">#</th><th class="brain-hit-score">Score</th>'
+        + '<th class="brain-hit-rank">#</th><th class="brain-hit-score" title="' + scoreTip + '">Score</th>'
         + '<th class="brain-hit-source">Source</th><th class="brain-hit-preview">Preview</th></tr></thead><tbody>';
       hits.forEach(function(h, i) {
         html += '<tr>'
           + '<td class="mono brain-hit-rank">' + (h.rank != null ? h.rank : (i + 1)) + '</td>'
-          + '<td class="mono brain-hit-score">' + (h.score != null ? Number(h.score).toFixed(3) : '—') + '</td>'
+          + '<td class="mono brain-hit-score">' + (function() {
+              const v = reranked && h.ce_score != null ? h.ce_score : h.score;
+              return v != null ? Number(v).toFixed(reranked ? 2 : 3) : '—';
+            })() + '</td>'
           + '<td class="mono text-xs cell-wrap brain-hit-source" title="' + esc(h.filename || h.source || '') + '">'
           + esc(h.filename || h.source || '—') + '</td>'
           + '<td class="text-xs cell-wrap brain-hit-preview">' + esc((h.text || h.preview || '').slice(0, 280)) + '</td>'
