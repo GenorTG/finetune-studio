@@ -384,3 +384,39 @@ test over every template), review list scrolled the whole page (`104b7d1`), acti
 Open: header NEXT link is per page, not per state; mining attributes a chunk that starts mid-record to the whole document (two CAR
 pairs) and inverted one board-pack fact (beat -> missed budget), both caught only by human review; warmup 100 steps on a ~100-step
 run; export also downloads the JSONL unannounced; Guide reports "no loss recorded yet" mid-run; adapter alpha 128 vs advisor's 256.
+
+## 17. Manual browser walkthrough, local helper (2026-10-18/19, project `korvane-walkthrough-1018` 7d7536dd, runs deleted after)
+
+One agent in a real browser, password on, 0.1.0.429 -> 0.1.0.454 as fixes landed. Helper and Vision reader: Google's Gemma 4 12B QAT
+Q4_0 GGUF (local, one call at a time). Six mixed fixtures (pptx, csv, md, scanned PDF, rtf, eml). Training on the 2,491 golden pairs
+uploaded through Training (nothing approved on the reviewer's behalf); Qwen3.5-9B, preset "balanced" (rank 64, LR 1e-4, 3 epochs,
+batch 2 x 4), QLoRA chosen by the app (18 GiB bf16 did not fit next to training memory). Judge: deepseek-v4.1-flash.
+
+| Step | Result |
+|---|---|
+| Helper | local seat Test connection: load 72 s, "pong" 0.5 s, unloaded again; Vision "Test reading" 35 s |
+| Upload + parse | 6/6 in < 8 s; the Vision reader read the scanned CAR (one long line, markdown escapes: both fixed) |
+| Mining, first run (v2 prompts) | cancelled after 28 min: overlap mined twice, filename titles ("the Scanned Corrective Action") |
+| Mining, re-run (mining-v3, overlap stripped, real titles) | 48 min, 1,281 pairs, data points 1,495 -> 1,245 (overlap no longer inventoried twice), 98.2 % stated |
+| CAR review (every pair against the 3 chunks) | 54 mined: 43 approved, 9 duplicates, 1 echo, 1 wrong value (CAR "due 04.10.2024" = measure M5); 3 reviewer pairs |
+| SFT run 1, early stopping | stopped 400/843, best step 250 (eval 1.070), 12.7 min; quiz **8/102**, 15 partial, declined **0/20** |
+| SFT run 2, no early stopping | 843 steps, 31.7 min, loss 0.30; quiz **19/102 = 18.6 %**, 19 partial, declined **0/20** |
+| GGUF q4_k_m of run 2 | 7 min 47 s, 5.2 GB; chat answers INC-4812 (truth INC-2024-0614): confident and wrong |
+| Smart Brain (6 files) | quick index 6 docs / 56 chunks; base Gemma reader: CAR owner + M4 date right with [n] citations, unknown loan margin declined |
+| Guide | project_overview tool call, correct counts and next step |
+
+Reading: completion-only loss + trained prompt does not rescue SFT recall on paraphrased questions (§3: 11.8-25.5 %, here 8-19 %), early
+stopping on held-out facts keeps an under-trained checkpoint, and fact-tuned models never abstain. Facts belong in the Smart Brain.
+
+Bugs fixed in this run: helper Test connection pinged the API row for the local seat, local seat label from an older default
+(`2b53d56`); files table and header layout at 1200 px (`633f601`); flow-bar NEXT refreshes in place (`887380a`, `51a32ea`); mine table
+widths (`9d0f5c3`, `54ab6ca`); judge picker offered a missing GGUF (`0ad8d24`); mining titles from reader markers / e-mail subject / caps
+heading (`edd2c21`), neighbouring-text context (`d1486d9`), overlap stripped (`f58a021`); Write pair wiped by the 2 s poll (`8541a80`);
+bulk reject reason, unticked Approve selected confirms (`5118861`); vision markdown escapes + line breaks (`a43a592`); q/a upload
+columns (`1514ba0`); first uploaded dataset missing from the picker (`e264224`); Run test without a model, state-aware banner (`d757c57`);
+suite labels (`e4c0809`, `5f24f73`); **GPU probe on the event loop killed the web server twice** (`80f7d02`); Smart Brain settings
+loaded the embedder inline, search/chat on the loop, numbered sources (`a74a050`), score column (`4c5ff2e`); run Delete said files stay
+(`cead0b4`); every build re-saved the 2.2 GB embedder (`32339ab`).
+Open: a correction in a later message is not carried to the chunk with the old value (14,500 vs 12,750 EUR, known since §1); small
+records split across chunks still lose their owner with Gemma 12B (merge small chunks into one mining unit, re-measure on the core
+corpus); e-mail pairs carry relative times ("this afternoon"); Quick index unloads the chat model without saying so (grounded chat then answers "no model loaded").
