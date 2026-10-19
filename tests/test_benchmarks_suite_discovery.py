@@ -197,3 +197,24 @@ def test_auto_suite_regeneration_lists_newest_case_count(
     auto = [s for s in suites if s.get("suite_type") == "auto" and s["name"] == "regen"]
     assert len(auto) == 1, "one entry per suite file"
     assert auto[0]["case_count"] == 554, "newest regeneration wins"
+
+
+def test_auto_suites_of_two_runs_with_one_name_carry_their_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path
+) -> None:
+    """Two runs on one dataset listed two identical 'auto · <dataset> (n cases)' entries (2026-10-19)."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data" / "benchmarks").mkdir(parents=True)
+    proj = db.create_project(name="two-runs", base_model="x/y")
+    rows = []
+    for i in (1, 2):
+        run = db.create_run(proj["id"], f"run{i}", base_model="x/y")
+        path = tmp_path / f"suite{i}.json"
+        path.write_text("[]", encoding="utf-8")
+        rows.append((f"as{i}", run["id"], proj["id"], "golden", str(path), 3, "{}", time.time() + i))
+    with db.cursor() as c:
+        c.executemany(
+            "INSERT INTO auto_suites (id, run_id, project_id, suite_name, suite_path, case_count, "
+            "categories_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", rows)
+    labels = sorted(s["label"] for s in _discover_suites(proj["id"]) if s.get("suite_type") == "auto")
+    assert labels == sorted(f"auto · golden · run {r[1]} (3 cases)" for r in rows)

@@ -140,7 +140,7 @@ class SuiteDefinition:
             )
         if self.suite_type == "auto":
             n = self.case_count or 0
-            return f"auto · {self.name} ({n} cases)"
+            return f"auto · {self.title or self.name} ({n} cases)"
         title = self.title or self.name
         if self.source == "project_qa":
             n = self.case_count or 0
@@ -396,10 +396,15 @@ def discover_suites(project_id: str | None = None) -> list[dict[str, Any]]:
 
         with db.cursor() as c:
             rows = c.execute(
-                "SELECT suite_name, suite_path, case_count FROM auto_suites "
+                "SELECT suite_name, suite_path, case_count, run_id FROM auto_suites "
                 "WHERE project_id = ? ORDER BY created_at DESC",
                 (project_id,),
             ).fetchall()
+        # Every run on one dataset writes a suite of the same name: two runs listed two identical
+        # "auto · korvane_golden_approved_core (2491 cases)" entries (2026-10-19). Shared names carry their run.
+        paths_by_name: dict[str, set[str]] = {}
+        for row in rows:
+            paths_by_name.setdefault(str(row["suite_name"]), set()).add(str(row["suite_path"]))
         for row in rows:
             suite_name = str(row["suite_name"])
             suite_path = str(row["suite_path"])
@@ -407,10 +412,11 @@ def discover_suites(project_id: str | None = None) -> list[dict[str, Any]]:
             key = f"auto:{suite_name}:{suite_path}"
             if key in found:
                 continue  # rows are created_at DESC — keep the NEWEST per file
+            shared = len(paths_by_name[suite_name]) > 1
             found[key] = SuiteDefinition(
                 name=suite_name,
                 path=suite_path,
-                title=suite_name,
+                title=f"{suite_name} · run {row['run_id']}" if shared else suite_name,
                 description=format_auto_suite_label(suite_name, case_count),
                 suite_type="auto",
                 source="auto_suites",
