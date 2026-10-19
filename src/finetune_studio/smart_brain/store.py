@@ -70,6 +70,11 @@ class BrainIndex:
         return (self.chunks_path.exists() and self.vectors_path.exists()
                 and self.idx_path.exists() and self.manifest_path.exists())
 
+    def read_manifest(self) -> Manifest:
+        """The manifest alone. ``load()`` also reads every vector and loads the embedder (2.2 GB onto the GPU) — the
+        settings route did that on every Smart Brain page visit just to show the chunk size (2026-10-19)."""
+        return Manifest.from_json(read_json(self.manifest_path))
+
     # ── Build / ingest ──
 
     def _clear_source_artifacts(self) -> None:

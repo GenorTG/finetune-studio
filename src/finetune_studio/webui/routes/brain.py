@@ -135,7 +135,7 @@ async def brain_get_settings(pid: str):
     if not index.exists():
         # Not an error: the page asks before any index exists.
         return {"exists": False}
-    m = index.load().manifest
+    m = await asyncio.to_thread(index.read_manifest)
     return {
         "exists": True,
         "embedder": m.embedding_model.name,
@@ -410,12 +410,14 @@ async def brain_search(pid: str, req: SearchRequest):
     if not index.exists():
         return JSONResponse({"detail": "no corpus — build first"}, status_code=400)
     try:
-        q = index.load()
+        # Off the event loop: load() brings up the embedder and search() runs it and the reranker (7 s on a first
+        # search, every other request waited).
+        q = await asyncio.to_thread(index.load)
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"detail": f"load failed: {e}"}, status_code=500)
-    hits = q.search(req.query, top_k=req.top_k,
-                    hybrid=req.hybrid, rerank=req.rerank,
-                    rerank_top_n=req.rerank_top_n)
+    hits = await asyncio.to_thread(q.search, req.query, top_k=req.top_k,
+                                   hybrid=req.hybrid, rerank=req.rerank,
+                                   rerank_top_n=req.rerank_top_n)
     weak = weak_match(req.query, hits)
     return {"hits": hits, "count": len(hits), "query": req.query, "weak": weak,
             "note": "These passages share few words with your question; the corpus may not cover it." if weak else ""}
@@ -446,18 +448,17 @@ async def brain_chat(pid: str, req: ChatRequest):
     index = BrainIndex(_corpus_dir(pid))
     if not index.exists():
         return JSONResponse({"detail": "no corpus — build first"}, status_code=400)
-    try:
-        q = index.load()
-    except Exception as e:  # noqa: BLE001
-        return JSONResponse({"detail": f"load failed: {e}"}, status_code=500)
-
     # Use the last user message as the search query
     user_messages = [m for m in req.messages if m.get("role") == "user"]
     if not user_messages:
         return JSONResponse({"detail": "no user message to search for"}, status_code=400)
     last_user = user_messages[-1]["content"]
+    try:
+        q = await asyncio.to_thread(index.load)   # embedder load + search off the event loop, like brain_search
+    except Exception as e:  # noqa: BLE001
+        return JSONResponse({"detail": f"load failed: {e}"}, status_code=500)
 
-    hits = q.search(last_user, top_k=req.top_k)
+    hits = await asyncio.to_thread(q.search, last_user, top_k=req.top_k)
     n_ctx = inference_engine.n_ctx if inference_engine.model is not None else (_active_n_ctx() or None)
     history_chars = sum(len(str(m.get("content", ""))) for m in req.messages) + len(req.system_prompt or "")
     context = q.format_context(hits, max_chars=context_char_budget(

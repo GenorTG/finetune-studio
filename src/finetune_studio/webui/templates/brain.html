@@ -649,9 +649,11 @@
         '<div class="text-xs"><b>Assistant</b>: ' + esc(reply) + '</div>');
       if (d.sources && d.sources.length) {
         box.insertAdjacentHTML('beforeend',
-          '<div class="text-xs dim">Sources: ' + esc(d.sources.map(function(s) {
-            return s.filename || s.source || s;
-          }).join(', ')) + '</div>');
+          // Numbered like the answer's [n] citations (the context blocks are labelled by rank); a bare repeated list of
+          // file names did not say which one [2] was.
+          '<div class="text-xs dim">Sources: ' + esc(d.sources.map(function(s, i) {
+            return '[' + (s.rank || i + 1) + '] ' + (s.filename || s.source || s);
+          }).join(' · ')) + '</div>');
       }
       box.scrollTop = box.scrollHeight;
     } catch (e) {

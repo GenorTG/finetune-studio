@@ -167,7 +167,7 @@ async def brain_import(pid: str, file: UploadFile, overwrite: bool = False,
                     f"Corpus already exists at {index.dir}; pass overwrite=True to replace.")
             await asyncio.to_thread(sb.import_secure_bundle, tmp_path, passphrase,
                                     index.dir, overwrite=True)
-            stats = index.load().manifest.to_json()
+            stats = index.read_manifest().to_json()   # counts only: no embedder load
             stats = {"documents": stats.get("documents", 0), "chunks": stats.get("chunks", 0)}
         else:
             stats = index.import_bundle(tmp_path, overwrite=overwrite)

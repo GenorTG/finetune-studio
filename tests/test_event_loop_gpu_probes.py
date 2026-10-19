@@ -36,3 +36,23 @@ def test_memory_estimate_keeps_the_event_loop_free(client: Any, monkeypatch: pyt
     assert time.perf_counter() - t0 < 0.8, "the health check waited for the GPU probe"
     worker.join()
     assert done["r"].status_code == 200 and done["r"].json()["total_gpu_gb"] == 24.0
+
+
+def test_brain_settings_read_the_manifest_without_loading_the_embedder(
+    client: Any, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The settings route ran BrainIndex.load() (every vector + the 2.2 GB embedder) to show the manifest."""
+    from finetune_studio.smart_brain import BrainIndex
+    from finetune_studio.smart_brain.store import Manifest
+
+    pid = client.post("/api/projects", json={"name": "brain-settings"}).json()["id"]
+    monkeypatch.setattr(BrainIndex, "exists", lambda self: True)
+    monkeypatch.setattr(BrainIndex, "load", lambda self: (_ for _ in ()).throw(AssertionError("load() called")))
+    called: list[str] = []
+
+    def fake_read(self: Any) -> Any:
+        called.append("manifest")
+        return Manifest.from_json({"name": "x"})
+    monkeypatch.setattr(BrainIndex, "read_manifest", fake_read)
+    r = client.get(f"/api/projects/{pid}/brain/settings")
+    assert r.status_code == 200 and called == ["manifest"]
