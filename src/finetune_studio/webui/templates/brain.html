@@ -97,11 +97,12 @@
   <div class="grid grid-12 gap-3 items-end">
     <div class="col-span-4">
       <label class="block text-xs muted mb-1"
-             title="An embedder is a small ML model that converts text into a fixed-length numeric vector (e.g. 1024 numbers). Texts with similar meaning land near each other in that vector space, which lets the system find chunks semantically related to a query. multilingual-e5-large handles 100+ languages; bge-large-en is stronger for English-only corpora; all-MiniLM-L6-v2 is tiny and fast but weaker.">Embedder <span class="dim">?</span></label>
+             title="An embedder is a small ML model that converts text into a fixed-length numeric vector (e.g. 1024 numbers). Texts with similar meaning land near each other in that vector space, which lets the system find chunks semantically related to a query. multilingual-e5-large handles 100+ languages; bge-large-en is stronger for English-only corpora; Qwen3-Embedding-0.6B is small and multilingual, and Ollama serves the same model (qwen3-embedding:0.6b), so an exported server can embed queries through an Ollama that already holds it; all-MiniLM-L6-v2 is tiny and fast but weaker.">Embedder <span class="dim">?</span></label>
       <select id="b-embedder" class="select"
               title="Pick the embedding model. Larger = better retrieval quality but more disk + slower build. You can change this and rebuild to compare results.">
         <option value="intfloat/multilingual-e5-large" selected>multilingual-e5-large (1024d, multilingual, recommended)</option>
         <option value="BAAI/bge-large-en-v1.5">bge-large-en-v1.5 (1024d, English only, strong)</option>
+        <option value="Qwen/Qwen3-Embedding-0.6B">Qwen3-Embedding-0.6B (1024d, multilingual, small: ~1.2 GB, also in Ollama)</option>
         <option value="sentence-transformers/all-MiniLM-L6-v2">all-MiniLM-L6-v2 (384d, fast, weaker)</option>
       </select>
     </div>
