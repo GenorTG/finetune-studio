@@ -16,6 +16,7 @@ exclude the item), ``failed``, or ``cancelled``. Pairs are never auto-approved: 
 from __future__ import annotations
 
 import logging
+import re
 import threading
 import time
 import uuid
@@ -35,7 +36,7 @@ from finetune_studio.data.mining.inventory import (
     parse_skips,
     rule_items,
 )
-from finetune_studio.data.mining.match import contains, loosely_contains
+from finetune_studio.data.mining.match import contains, loosely_contains, norm
 from finetune_studio.data.mining.statements import (
     document_title,
     drop_redundant,
@@ -90,6 +91,113 @@ def neighbour_text(texts: list[str], i: int) -> tuple[str, str]:
         head = " ".join(texts[i + 1].split())
         after = head[:CONTEXT_AFTER_CHARS].rsplit(" ", 1)[0] if len(head) > CONTEXT_AFTER_CHARS else head
     return before, after
+
+
+# Which side of a correction is the old value. The whole-file pass words it differently every run, so each rule below
+# names one wording and the first that finds values on both sides wins:
+#   "changed from OLD to NEW" | "replaced by / corrected (on <date>) to / moved to NEW" (old before) |
+#   "OLD was superseded and the current ... is NEW" | "... is NEW, not OLD" (in a correction) |
+#   "NEW, replacing / superseding / instead of the earlier OLD".
+# A correction whose direction is not stated this way gets no note: a note on a chunk that holds only the NEW value made the
+# helper write "3 months' notice ... was later corrected" for the current rule (core mine v4a).
+_FROM_TO = re.compile(r"\bchanged from\b(?P<old>.*?)\bto\b", re.IGNORECASE)
+_NEW_AFTER = re.compile(r"\b(?:(?:replaced|superseded) by|(?:corrected|changed|moved|moves|updated|amended)\b[^.;]{0,25}?\bto)\b",
+                        re.IGNORECASE)
+# passive "superseded" only: "is replaced, after probation, by 1 month" is a rule, not a correction
+_PASSIVE = re.compile(r"\b(?:is|was|were|are|has been)\s+superseded\b(?!\s+by\b)", re.IGNORECASE)
+_NOT_OLD = re.compile(r",?\s+not\s+(?:the\s+)?(?=[^.;]*\d)", re.IGNORECASE)
+_CORRECTION_WORD = re.compile(r"\b(?:correct(?:ed|ion)|supersed\w*|replac\w*)\b", re.IGNORECASE)
+# "replaced" / "instead of" alone also describe rules ("175 % instead of the 200 % Sunday rate", "replaced, after probation, by
+# clause 10.1"): they count only next to an old-value marker.
+_OLD_AFTER = re.compile(r"\b(?:replac(?:ing|es|ed)|supersed(?:ing|es|ed)|instead of)\b(?=[^.;]{0,40}?\b(?:earlier|previous|old|"
+                        r"original|stated|draft|figure|v\d+)\b)", re.IGNORECASE)
+# Values too vague to place a note: "v3" names a version (every "v3" chunk got the mileage note), a bare "20" matches any
+# "20 minutes".
+_VAGUE_VALUE = re.compile(r"(?:v|rev\.?\s*)\d+|\d{1,2}", re.IGNORECASE)
+MAX_CORRECTION_VALUES = 4   # a bridge of seven figures "corrected" spread its note over most chunks of the board pack
+
+
+def correction_sides(text: str, values: list[str]) -> tuple[list[str], list[str]] | None:
+    """(old values, new values) of a correction statement, or ``None`` when it does not state which is which."""
+    low = text.lower()
+    at = {v: i for v in values if (i := low.find(v.lower())) >= 0}
+
+    def split(cut: int, end: int, *, old_first: bool, stop: int | None = None) -> tuple[list[str], list[str]]:
+        before = [v for v, i in at.items() if i < cut]
+        after = [v for v, i in at.items() if end <= i < (len(text) if stop is None else stop)]
+        return (before, after) if old_first else (after, before)
+
+    candidates = []
+    if m := _FROM_TO.search(text):
+        candidates.append(([v for v, i in at.items() if m.start("old") <= i < m.end("old")],
+                           [v for v, i in at.items() if i >= m.end()]))
+    if m := _NEW_AFTER.search(text):
+        candidates.append(split(m.start(), m.end(), old_first=True))
+    if m := _PASSIVE.search(text):
+        candidates.append(split(m.start(), m.end(), old_first=True))
+    if _CORRECTION_WORD.search(text) and (m := _NOT_OLD.search(text)):
+        clause = max(text.rfind(";", 0, m.start()), text.rfind(". ", 0, m.start())) + 1
+        end = min((i for i in (text.find(";", m.end()), text.find(". ", m.end())) if i >= 0), default=len(text))
+        candidates.append(([v for v, i in at.items() if m.end() <= i < end],
+                           [v for v, i in at.items() if clause <= i < m.start()]))
+    if m := _OLD_AFTER.search(text):
+        candidates.append(split(m.start(), m.end(), old_first=False))
+    return next(((old, new) for old, new in candidates if old and new), None)
+
+
+def correction_notes(items: list[dict[str, Any]], groundings: list[str]) -> dict[int, list[str]]:
+    """Chunk index (1-based) -> whole-file corrections whose old value it holds without the new one.
+
+    A correction is a whole-file item (``agent_file``) with two to ``MAX_CORRECTION_VALUES`` values carrying digits whose
+    text says which value replaced which (``correction_sides``)."""
+    out: dict[int, list[str]] = {}
+    for it in items:
+        if it.get("origin") != "agent_file" or it.get("excluded_reason"):
+            continue
+        numbers = [v for v in it.get("values") or [] if any(ch.isdigit() for ch in v) and not _VAGUE_VALUE.fullmatch(v.strip())]
+        sides = correction_sides(it["text"], numbers) if 2 <= len(numbers) <= MAX_CORRECTION_VALUES else None
+        if sides is None:
+            continue
+        old, new = sides
+        if _refines(old, new) or not _stated_in_source(old + new, groundings):
+            continue
+        for i, text in enumerate(groundings, start=1):
+            if any(_holds(v, text) for v in old) and not any(_holds(v, text) for v in new):
+                out.setdefault(i, []).append(it["text"])
+    return out
+
+
+# The whole-file pass can invent the relation ("the audit of 14 to 18 October supersedes the earlier 14 October", ISO report,
+# core mine v4c): a correction counts only when a sentence of the file holding one of its values says something changed.
+_CHANGE_CUE = re.compile(r"\b(?:correct\w*|not|no longer|instead|replac\w*|supersed\w*|chang\w*|mov(?:e|ed|es|ing)|updat\w*|"
+                         r"amend\w*|struck|wrong|actually|earlier|previous|former|originally|draft|v\d+|rev\.?\s?\d+|"
+                         r"do not use|pulled forward|postponed|delayed)\b", re.IGNORECASE)
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+|\n\s*\n")     # not every newline: PDF text wraps mid-sentence
+_NUMBER = re.compile(r"\d+(?:[.,:]\d+)*")
+
+
+def _stated_in_source(values: list[str], groundings: list[str]) -> bool:
+    """A sentence holding one of ``values``, or the sentence next to it ("Priya has NOT cleared 14,500. She cleared 12,750
+    EUR"), says something changed."""
+    for text in groundings:
+        sentences = _SENTENCE_END.split(text)
+        for i, sentence in enumerate(sentences):
+            if any(_holds(v, sentence) for v in values) and \
+                    any(_CHANGE_CUE.search(s) for s in sentences[max(0, i - 1):i + 2]):
+                return True
+    return False
+
+
+def _refines(old: list[str], new: list[str]) -> bool:
+    """Every number of the old side is also in the new one: "14 October 2024" -> "14 to 18 October 2024" adds detail, it
+    corrects nothing."""
+    old_n = {n for v in old for n in _NUMBER.findall(v)}
+    return bool(old_n) and old_n <= {n for v in new for n in _NUMBER.findall(v)}
+
+
+def _holds(value: str, text: str) -> bool:
+    """``value`` as a whole token run of ``text`` (normalised): ``contains`` also matches "2 months" inside "12 months"."""
+    return re.search(rf"(?<![0-9a-z]){re.escape(norm(value))}(?![0-9a-z])", norm(text)) is not None
 
 
 def _values_of(items: list[dict[str, Any]], ch: Chunk) -> list[str] | None:
@@ -182,11 +290,14 @@ class MiningJob:
             self._stage("inventory", f"Listing the data points of {len(self.chunks)} chunk(s)…")
             items = self._inventory(texts)
             self.stats["items"] = len(items)
+            self._add_corrections(items)
             self._stage("mining", f"Mining {len(items)} data points…")
             self._mine(items)
         items = db.mining.list_items(self.pid, self.source_id)
         if not items:
             raise RuntimeError("the file has no inventory: mine it first")
+        if self.kind != "mine":
+            self._add_corrections(items)
         open_ids = self._fix_loop(items)
         if self.stats["calls"] and self.stats["call_errors"] == self.stats["calls"]:
             raise RuntimeError(f"every helper call failed: {self._first_error}")
@@ -391,6 +502,16 @@ class MiningJob:
 
     def _round_seconds(self, rid: str) -> float:
         return self._round_meta.get(rid, ("", 0.0))[1]
+
+    def _add_corrections(self, items: list[dict[str, Any]]) -> None:
+        """Give every chunk that holds an old value the whole-file correction of it (prompt context + grounding: an answer
+        naming the new value must not be rejected as invented)."""
+        notes = correction_notes(items, [c.grounding for c in self.chunks])
+        for ch in self.chunks:
+            if notes.get(ch.idx):
+                ch.context += prompts.corrections_block(notes[ch.idx])
+                ch.neighbours += "\n" + "\n".join(notes[ch.idx])
+        self.stats["corrections"] = len({n for got in notes.values() for n in got})
 
     def _units(self, items: list[dict[str, Any]]) -> list[tuple[Chunk, list[dict[str, Any]]]]:
         """One helper call per (passage, items): chunk items go with their chunk; a whole-file item goes with a passage

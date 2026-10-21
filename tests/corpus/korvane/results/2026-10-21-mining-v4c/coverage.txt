@@ -1,0 +1,57 @@
+file                                                       covered/total   pairs
+amendment_no2_oakhaven_2024.doc                              42/44    95.5%    120
+board_pack_q3_2024.pptx                                      84/84   100.0%    174
+case_study_fruttoria_baltica.pdf                             45/47    95.7%    124
+crm_export_2024_q3.csv                                       68/69    98.6%    433
+depot_directory_2024.xls                                     47/51    92.2%    165
+employment_contract_template_ops_staff.docx                  49/49   100.0%    143
+handbook_v4_extract_leave_expenses_discipline.pdf            83/86    96.5%    205
+iso22000_surveillance_audit_report_2024.docx                 75/75   100.0%    267
+kctag4_datasheet.html                                        38/39    97.4%    100
+kctag4_quick_start_guide.pdf                                 81/82    98.8%    143
+minutes_ops_review_2024_09_24.txt                            50/50   100.0%    168
+msa_oakhaven_dairy_2023.pdf                                  81/83    97.6%    250
+ops_chat_export_2024_09_w38.txt                              38/40    95.0%    158
+postmortem_tidewalk_alert_outage_2024_08.docx                55/57    96.5%    202
+rate_card_2024.xlsx                                          33/36    91.7%    110
+runbook_kchub_offline.md                                     85/86    98.8%    247
+scanned_corrective_action_0917.pdf                           20/22    90.9%     48
+sop_reefer_loading_and_excursions.rtf                        72/79    91.1%    228
+thread_oakhaven_incident_2024_06.eml                         49/51    96.1%    170
+of the covered facts, 194 are stated across several answers of their chunk and 109 only by token-level match (re-worded values): treat those as 'probably' until the manual review confirms
+TOTAL 1095/1130 = 96.9%   pairs counted: 3455   pairs matching no fact: 406
+  MISSING legal-0099 [amendment_no2_oakhaven_2024.doc · cl. 6.1] ['Clause 14.2 of the MSA is deleted and replaced as follows', "not less than 120 days' written notice"]
+  MISSING legal-0110 [amendment_no2_oakhaven_2024.doc · drafting history] ['21 August 2024', 'EUR 88,000', '150-day Customer notice', '27 August']
+  MISSING sales-0020 [case_study_fruttoria_baltica.pdf · The rollout, Yusuf quote] ['pallet jack', 'second hub', 'Moved the hub up on the wall']
+  MISSING sales-0116 [case_study_fruttoria_baltica.pdf · Why Korvane] ['Dominik Szewczyk', '21 February 2023']
+  MISSING sales-0100 [crm_export_2024_q3.csv · OPP-24-0333 notes] ['7 warehouses', 'no white-label before 2025']
+  MISSING ops-0106 [depot_directory_2024.xls · Equipment RS-GDY-01] ['RS-GDY-01', '45 t', 'shift office safe']
+  MISSING ops-0107 [depot_directory_2024.xls · Equipment RS-GDY-02] ['RS-GDY-02', 'do NOT lend to Waltershof again']
+  MISSING ops-0112 [depot_directory_2024.xls · Equipment FL-HAM-02] ['FL-HAM-02', 'Toyoda 8FBE30', 'charger in bay 3']
+  MISSING ops-0122 [depot_directory_2024.xls · Emergency row 3] ['ext 2620', 'escalate Red excursions here']
+  MISSING hr-0004 [handbook_v4_extract_leave_expenses_discipline.pdf · Preamble] ['the full Handbook shall prevail', 'more favourable to the employee']
+  MISSING hr-0047 [handbook_v4_extract_leave_expenses_discipline.pdf · Section 6.1] ['Finance Controller', '10th of the month']
+  MISSING hr-0081 [handbook_v4_extract_leave_expenses_discipline.pdf · Section 12.3] ['garden leave']
+  MISSING product-0616 [kctag4_datasheet.html · downloads] ['412 KB', '2.1 MB', '188 KB']
+  MISSING product-0010 [kctag4_quick_start_guide.pdf · §1] ['calibration card', 'KT4-2403-00418', 'year, week, running number']
+  MISSING legal-0034 [msa_oakhaven_dairy_2023.pdf · cl. 7.4] ['wilful misconduct']
+  MISSING legal-0049 [msa_oakhaven_dairy_2023.pdf · cl. 14.1] ['successive periods of 12 months', "120 days' written notice"]
+  MISSING comms-0071 [ops_chat_export_2024_09_w38.txt · 18 Sep 00:40] ['604419-6', 'checksum matches']
+  MISSING comms-0091 [ops_chat_export_2024_09_w38.txt · 18 Sep 13:40] ['three Volvos', 'nothing exciting']
+  MISSING it-0095 [postmortem_tidewalk_alert_outage_2024_08.docx · §1] ['blameless-ish']
+  MISSING it-0100 [postmortem_tidewalk_alert_outage_2024_08.docx · §2] ['9 of those 64']
+  MISSING finance-0090 [rate_card_2024.xlsx · sheet Reefer rates, row RC-04] ['RC-04', '33.90', '54.60', '59.15', '36.80', 'feeder, weekly']
+  MISSING finance-0096 [rate_card_2024.xlsx · sheet Reefer rates, NOTE 2] ["45' units", 'Rafal Nowogrodzki', 'per started day']
+  MISSING finance-0108 [rate_card_2024.xlsx · sheet Surcharges, row EN-1] ['EN-1', '1.35', 'metered at the plug']
+  MISSING it-0080 [runbook_kchub_offline.md · §6] ['5 spares in Gdynia', '2 each in Hamburg and Rotterdam', '1 in Gothenburg']
+  MISSING compliance-0088 [scanned_corrective_action_0917.pdf · Section 3] ['escalation design gap']
+  MISSING compliance-0093 [scanned_corrective_action_0917.pdf · Section 4 M5] ['M5', '7 cases', '2 need late evaluation', '04.10.2024']
+  MISSING ops-0006 [sop_reefer_loading_and_excursions.rtf · intro] ['all five depots']
+  MISSING ops-0019 [sop_reefer_loading_and_excursions.rtf · section 1] ['drain plugs', 'standing water']
+  MISSING ops-0031 [sop_reefer_loading_and_excursions.rtf · section 2] ['first 20 cm in front of the unit bulkhead']
+  MISSING ops-0035 [sop_reefer_loading_and_excursions.rtf · section 3, Tag 2] ['Tag 2, the middle tag', '1.1 m', "In a 20' this tag is left out"]
+  MISSING ops-0054 [sop_reefer_loading_and_excursions.rtf · section 5 table, Level 1] ['unit alarm code, door seals and setpoint', 'every 15 minutes']
+  MISSING ops-0072 [sop_reefer_loading_and_excursions.rtf · section 6] ['container number', 'seal number', 'pre-cool start and end times']
+  MISSING ops-0078 [sop_reefer_loading_and_excursions.rtf · section 6] ['The loader and the supervisor both sign', 'one form in twelve']
+  MISSING comms-0031 [thread_oakhaven_incident_2024_06.eml · Szymon's note of 14 Jun 18:03] ['Fri, 14 Jun 2024 at 18:03', '22 years', 'Transport Manager']
+  MISSING comms-0049 [thread_oakhaven_incident_2024_06.eml · internal forward, last paragraph] ['one hour offset', 'scrap that']

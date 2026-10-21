@@ -455,3 +455,27 @@ reproduces on the current code. CAR alone, local Gemma 4 12B QAT helper + Vision
 states "The due date for Measure M5 is 04.10.2024", M1/M2/M4 owners and dates match the form; chunk 3 asks for "the due date for the
 record" (vague, not wrong). Joining small passages into one mining unit is therefore not needed for this case (every core passage is
 < 1,500 chars, median 994: a size rule would pair up the whole corpus).
+
+## 19. mining-v4: whole-file corrections reach the chunks with the old value (2026-10-21, results in `results/2026-10-21-mining-v4{a,b,c,d}/`)
+
+Open since §1: the e-mail thread's chunk 6 holds only Benedikta's "Korvane will credit 14,500 EUR"; the correction ("Priya has NOT
+cleared 14,500. She cleared 12,750 EUR") is in chunk 9, and the chunk-6 pair stated the superseded figure as the fact. The whole-file
+inventory pass already lists the correction. mining-v4 (`data/mining/job.correction_notes`) gives every chunk that holds an OLD value
+and none of the NEW ones a "Corrected elsewhere in this file" note (prompt context + grounding, so an answer naming the new value is
+not rejected as invented). Same setup as §18 (19 core files, API helper deepseek-v4.1-flash, Vision reader on).
+
+| Run | Rule state | Calls | Pairs | Recall | Open items | Notes placed | What the audit of "later corrected" answers found |
+|---|---|---|---|---|---|---|---|
+| v3 (§18) | none | 534 / 516 | 3,592 / 3,189 | 96.4 / 96.3 % | 58 / 49 | 0 | chunk 6: "Korvane will credit 14,500 EUR" as the fact |
+| v4a | some-but-not-all values | 543 | 3,405 | 96.7 % | 48 | 11 | credit fixed; but a note on the chunk with the CURRENT 3 months made "3 months' notice ... was later corrected" |
+| v4b | + old/new direction from the wording | 508 | 3,270 | 97.5 % | 38 | 3 | the run worded the credit "is superseded; ... 12,750 EUR, not 14,500 EUR": no rule matched, chunk 6 wrong again |
+| v4c | + one rule per wording | 518 | 3,455 | 96.9 % | 48 | 9 | credit fixed; the pass INVENTED "14 to 18 October supersedes 14 October" (ISO) and the note spread it |
+| v4d | + source must say it changed, refinements skipped | 514 | 3,253 | **97.3 %** | 62 | 7 | every note real (credit, handbook notice + mileage v3->v4, cut-off 13:30->15:00, electrician 02.10->03.10); no false claim |
+
+Guards in v4d: direction from the wording ("changed from OLD to NEW", "replaced by / corrected to / moved to NEW", "OLD was superseded",
+"NEW, not OLD", "NEW, replacing the earlier OLD"; none = no note), at most 4 numeric values, no bare 1-2 digit numbers or "v3" labels,
+word-bounded value match (`match.contains` also finds "2 months" in "12 months"), a change cue in the source sentence (or the next one)
+holding a value, and no note when the old numbers are all in the new value (detail added, nothing corrected). Dry runs of the final
+rules on the v3, v4b and v4c inventories place 9 / 8 / 10 notes, all real, the ISO relation excluded.
+Reading: recall 96.7-97.5 % over four v4 runs vs 96.3-96.4 % over two v3 runs (small, within the observed spread of single runs); the
+point is the answers: superseded figures are no longer stated as facts where the file corrects them. Open items swing 38-62 run to run.

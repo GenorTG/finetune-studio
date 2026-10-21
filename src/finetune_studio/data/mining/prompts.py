@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-PROMPT_VERSION = "mining-v3"   # v3: neighbouring text around a chunk (records split across chunks)
+PROMPT_VERSION = "mining-v4"   # v3: neighbouring text around a chunk (records split across chunks); v4: corrections found
+#                                 by the whole-file pass reach the chunks that hold the old value
 
 INVENTORY_SYSTEM = """You list the data points of a company document so that nothing in it is forgotten when it is turned into \
 training questions.
@@ -109,6 +110,21 @@ to tell which record, row, measure or question a sentence of the passage belongs
 Before the passage: "…{before}"
 After the passage: "{after}…"
 """
+
+# The whole-file pass saw "Priya has NOT cleared 14,500. She cleared 12,750 EUR" (chunk 9); chunk 6 holds only the letter's
+# "Korvane will credit 14,500 EUR" and its pair stated the superseded figure as the fact (core mine, 2026-10-21; open since §1).
+CORRECTIONS_BLOCK = """
+Corrected elsewhere in this file (NOT part of the passage):
+{rows}
+When the passage states a value that one of these corrects, the answer states what the passage says AND that it was later \
+corrected to the new value. Never write pairs about these notes on their own.
+"""
+
+
+def corrections_block(notes: Sequence[str]) -> str:
+    """The corrections block for a chunk; ``""`` when no correction concerns it."""
+    return CORRECTIONS_BLOCK.format(rows="\n".join(f"- {n}" for n in notes)) if notes else ""
+
 
 REJECTED_BLOCK = """
 A reviewer rejected these pairs for this passage. Do not repeat their mistakes:

@@ -1,0 +1,813 @@
+{
+  "per_file": {
+    "thread_oakhaven_incident_2024_06.eml": {
+      "total": 51,
+      "covered": 50,
+      "lenient_only": 7,
+      "missing": [
+        {
+          "id": "comms-0031",
+          "locator": "Szymon's note of 14 Jun 18:03",
+          "fact": "Szymon Karpi\u0144ski, Transport Manager at Oakhaven Dairy Ltd, wrote on Fri 14 Jun 2024 at 18:03 that he had been in the trade for 22 years.",
+          "values": [
+            "Fri, 14 Jun 2024 at 18:03",
+            "22 years",
+            "Transport Manager"
+          ],
+          "kind": "email"
+        }
+      ],
+      "union_only": 18
+    },
+    "ops_chat_export_2024_09_w38.txt": {
+      "total": 40,
+      "covered": 39,
+      "lenient_only": 9,
+      "missing": [
+        {
+          "id": "comms-0091",
+          "locator": "18 Sep 13:40",
+          "fact": "Gunnar finished the tyre pressures on the three Volvos on 18 September with nothing exciting to report.",
+          "values": [
+            "three Volvos",
+            "nothing exciting"
+          ],
+          "kind": "casual"
+        }
+      ],
+      "union_only": 8
+    },
+    "minutes_ops_review_2024_09_24.txt": {
+      "total": 50,
+      "covered": 50,
+      "lenient_only": 12,
+      "missing": [],
+      "union_only": 9
+    },
+    "iso22000_surveillance_audit_report_2024.docx": {
+      "total": 75,
+      "covered": 74,
+      "lenient_only": 6,
+      "missing": [
+        {
+          "id": "compliance-0069",
+          "locator": "Section 8",
+          "fact": "The current certificate expires on 14 December 2024, leaving an eight-week reserve after the recertification audit, and certification decisions normally take four to six weeks.",
+          "values": [
+            "14 December 2024",
+            "eight weeks",
+            "four to six weeks"
+          ],
+          "kind": "text"
+        }
+      ],
+      "union_only": 15
+    },
+    "scanned_corrective_action_0917.pdf": {
+      "total": 22,
+      "covered": 20,
+      "lenient_only": 1,
+      "missing": [
+        {
+          "id": "compliance-0088",
+          "locator": "Section 3",
+          "fact": "The root cause is an escalation design gap (authority matrix plus missing on-call), not individual error.",
+          "values": [
+            "escalation design gap"
+          ],
+          "kind": "scan"
+        },
+        {
+          "id": "compliance-0093",
+          "locator": "Section 4 M5",
+          "fact": "Measure M5 is a look-back at all excursions over 4 h since 01.01.2024, which found 7 cases of which 2 need late evaluation; owner Aaltonen, due 04.10.2024.",
+          "values": [
+            "M5",
+            "7 cases",
+            "2 need late evaluation",
+            "04.10.2024"
+          ],
+          "kind": "scan"
+        }
+      ],
+      "union_only": 11
+    },
+    "board_pack_q3_2024.pptx": {
+      "total": 84,
+      "covered": 84,
+      "lenient_only": 4,
+      "missing": [],
+      "union_only": 7
+    },
+    "rate_card_2024.xlsx": {
+      "total": 36,
+      "covered": 35,
+      "lenient_only": 0,
+      "missing": [
+        {
+          "id": "finance-0090",
+          "locator": "sheet Reefer rates, row RC-04",
+          "fact": "Lane RC-04 Gdynia - Klaipeda, a weekly feeder, costs 33.90 EUR/day for a 20' reefer, 54.60 for a 40', 59.15 for a 40' HC, a lift move of 36.80 EUR, and has 4 free days.",
+          "values": [
+            "RC-04",
+            "33.90",
+            "54.60",
+            "59.15",
+            "36.80",
+            "feeder, weekly"
+          ],
+          "kind": "table"
+        }
+      ],
+      "union_only": 7
+    },
+    "handbook_v4_extract_leave_expenses_discipline.pdf": {
+      "total": 86,
+      "covered": 84,
+      "lenient_only": 3,
+      "missing": [
+        {
+          "id": "hr-0009",
+          "locator": "Section 3.1 table",
+          "fact": "A full-time employee with 10 or more completed years of service receives 30 working days of annual leave per leave year.",
+          "values": [
+            "10 and over",
+            "30"
+          ],
+          "kind": "table"
+        },
+        {
+          "id": "hr-0047",
+          "locator": "Section 6.1",
+          "fact": "Late expense claims need approval of the Finance Controller, and approved claims are paid with payroll on the 10th of the month following approval.",
+          "values": [
+            "Finance Controller",
+            "10th of the month"
+          ],
+          "kind": "text"
+        }
+      ],
+      "union_only": 22
+    },
+    "employment_contract_template_ops_staff.docx": {
+      "total": 49,
+      "covered": 49,
+      "lenient_only": 7,
+      "missing": [],
+      "union_only": 12
+    },
+    "runbook_kchub_offline.md": {
+      "total": 86,
+      "covered": 84,
+      "lenient_only": 8,
+      "missing": [
+        {
+          "id": "it-0062",
+          "locator": "\u00a75",
+          "fact": "Hubs have A/B firmware slots, and kchubctl fw rollback boots the previous slot, 2.13.9 at time of writing, taking about 6 minutes.",
+          "values": [
+            "kchubctl fw rollback",
+            "2.13.9",
+            "~6 minutes"
+          ],
+          "kind": "text"
+        },
+        {
+          "id": "it-0080",
+          "locator": "\u00a76",
+          "fact": "Spare KC-Hub units: 5 held in Gdynia, 2 each in Hamburg and Rotterdam, and 1 in Gothenburg.",
+          "values": [
+            "5 spares in Gdynia",
+            "2 each in Hamburg and Rotterdam",
+            "1 in Gothenburg"
+          ],
+          "kind": "text"
+        }
+      ],
+      "union_only": 14
+    },
+    "postmortem_tidewalk_alert_outage_2024_08.docx": {
+      "total": 57,
+      "covered": 56,
+      "lenient_only": 1,
+      "missing": [
+        {
+          "id": "it-0100",
+          "locator": "\u00a72",
+          "fact": "In 9 of the 64 late CRIT cases the excursion was still in progress when the alert reached the customer.",
+          "values": [
+            "9 of those 64"
+          ],
+          "kind": "text"
+        }
+      ],
+      "union_only": 10
+    },
+    "msa_oakhaven_dairy_2023.pdf": {
+      "total": 83,
+      "covered": 79,
+      "lenient_only": 3,
+      "missing": [
+        {
+          "id": "legal-0039",
+          "locator": "cl. 9.1(c)",
+          "fact": "Korvane must hold cyber and data cover of at least EUR 1,000,000.",
+          "values": [
+            "EUR 1,000,000"
+          ],
+          "kind": "legal"
+        },
+        {
+          "id": "legal-0041",
+          "locator": "cl. 9.2",
+          "fact": "Each party must furnish a broker's certificate of insurance within 10 Business Days of written request, and Korvane's programme is placed through Seaboard Insurance Brokers.",
+          "values": [
+            "within 10 Business Days of written request",
+            "Seaboard Insurance Brokers"
+          ],
+          "kind": "legal"
+        },
+        {
+          "id": "legal-0049",
+          "locator": "cl. 14.1",
+          "fact": "After the Initial Term the Oakhaven MSA renews automatically for successive 12-month periods unless a party gives at least 120 days' written notice of non-renewal.",
+          "values": [
+            "successive periods of 12 months",
+            "120 days' written notice"
+          ],
+          "kind": "legal"
+        },
+        {
+          "id": "legal-0057",
+          "locator": "cl. 17.2",
+          "fact": "If a dispute is not resolved within 30 days after referral, the Regional Court in Gda\u0144sk (S\u0105d Okr\u0119gowy w Gda\u0144sku) has exclusive jurisdiction, though interim relief may be sought in any competent court.",
+          "values": [
+            "within 30 days after referral",
+            "S\u0105d Okr\u0119gowy w Gda\u0144sku"
+          ],
+          "kind": "legal"
+        }
+      ],
+      "union_only": 9
+    },
+    "amendment_no2_oakhaven_2024.doc": {
+      "total": 44,
+      "covered": 43,
+      "lenient_only": 2,
+      "missing": [
+        {
+          "id": "legal-0099",
+          "locator": "cl. 6.1",
+          "fact": "Clause 14.2 of the MSA is deleted and replaced so that Korvane keeps a 180-day convenience notice while the Customer's convenience notice drops to 120 days.",
+          "values": [
+            "Clause 14.2 of the MSA is deleted and replaced as follows",
+            "not less than 120 days' written notice"
+          ],
+          "kind": "legal"
+        }
+      ],
+      "union_only": 4
+    },
+    "sop_reefer_loading_and_excursions.rtf": {
+      "total": 79,
+      "covered": 73,
+      "lenient_only": 4,
+      "missing": [
+        {
+          "id": "ops-0015",
+          "locator": "section 1 table",
+          "fact": "Frozen loads have a setpoint of \u221218.0 \u00b0C or colder and need a minimum pre-cool of 9 hours.",
+          "values": [
+            "\u221218.0 \u00b0C or colder",
+            "9 hours"
+          ],
+          "kind": "table"
+        },
+        {
+          "id": "ops-0031",
+          "locator": "section 2",
+          "fact": "The first 20 cm in front of the unit bulkhead must be kept completely clear of cartons.",
+          "values": [
+            "first 20 cm in front of the unit bulkhead"
+          ],
+          "kind": "text"
+        },
+        {
+          "id": "ops-0035",
+          "locator": "section 3, Tag 2",
+          "fact": "Tag 2, the middle tag, goes at the centre of the load on the middle pallet at roughly 1.1 m height, and is left out in a 20'.",
+          "values": [
+            "Tag 2, the middle tag",
+            "1.1 m",
+            "In a 20' this tag is left out"
+          ],
+          "kind": "list"
+        },
+        {
+          "id": "ops-0054",
+          "locator": "section 5 table, Level 1",
+          "fact": "At Amber the shift supervisor on site checks the unit alarm code, door seals and setpoint, makes no external call, and re-reads the tag every 15 minutes.",
+          "values": [
+            "unit alarm code, door seals and setpoint",
+            "every 15 minutes"
+          ],
+          "kind": "table"
+        },
+        {
+          "id": "ops-0067",
+          "locator": "section 5",
+          "fact": "At every level it is forbidden to change the setpoint, to open the doors to look, or to take a tag out of the box to reset it.",
+          "values": [
+            "change the setpoint",
+            "open the doors",
+            "take a tag out of the box"
+          ],
+          "kind": "list"
+        },
+        {
+          "id": "ops-0078",
+          "locator": "section 6",
+          "fact": "Both the loader and the supervisor sign KC-OPS-114, and Quality audits roughly one form in twelve.",
+          "values": [
+            "The loader and the supervisor both sign",
+            "one form in twelve"
+          ],
+          "kind": "text"
+        }
+      ],
+      "union_only": 17
+    },
+    "depot_directory_2024.xls": {
+      "total": 51,
+      "covered": 49,
+      "lenient_only": 11,
+      "missing": [
+        {
+          "id": "ops-0107",
+          "locator": "Equipment RS-GDY-02",
+          "fact": "RS-GDY-02 is the backup Lundin RS45 reach stacker at GDY-1 and must not be lent to Waltershof again.",
+          "values": [
+            "RS-GDY-02",
+            "do NOT lend to Waltershof again"
+          ],
+          "kind": "table"
+        },
+        {
+          "id": "ops-0122",
+          "locator": "Emergency row 3",
+          "fact": "Quality on-call Benedikta Aaltonen is on ext 2620 for escalating Red excursions.",
+          "values": [
+            "ext 2620",
+            "escalate Red excursions here"
+          ],
+          "kind": "table"
+        }
+      ],
+      "union_only": 12
+    },
+    "kctag4_quick_start_guide.pdf": {
+      "total": 82,
+      "covered": 80,
+      "lenient_only": 10,
+      "missing": [
+        {
+          "id": "product-0010",
+          "locator": "\u00a71",
+          "fact": "The KC-Tag 4 box contains a calibration card printing the device serial number, whose format is year, week and running number, for example KT4-2403-00418.",
+          "values": [
+            "calibration card",
+            "KT4-2403-00418",
+            "year, week, running number"
+          ],
+          "kind": "list"
+        },
+        {
+          "id": "product-0050",
+          "locator": "\u00a75",
+          "fact": "When a limit is exceeded the KC-Tag 4 reports every 60 seconds until values are back to normal, and a door event is transmitted within 5 seconds.",
+          "values": [
+            "every 60 seconds",
+            "within 5 seconds"
+          ],
+          "kind": "text"
+        }
+      ],
+      "union_only": 11
+    },
+    "kctag4_datasheet.html": {
+      "total": 39,
+      "covered": 37,
+      "lenient_only": 7,
+      "missing": [
+        {
+          "id": "product-0080",
+          "locator": "intro paragraph",
+          "fact": "The KC-Tag 4 is the successor of the KC-Tag 3 and works with the KC-Hub 200 gateway.",
+          "values": [
+            "successor of the KC-Tag 3",
+            "KC-Hub 200"
+          ],
+          "kind": "text"
+        },
+        {
+          "id": "product-0616",
+          "locator": "downloads",
+          "fact": "The datasheet PDF is 412 KB, the quick start guide PDF is 2.1 MB and the EU declaration of conformity PDF is 188 KB.",
+          "values": [
+            "412 KB",
+            "2.1 MB",
+            "188 KB"
+          ],
+          "kind": "list"
+        }
+      ],
+      "union_only": 9
+    },
+    "case_study_fruttoria_baltica.pdf": {
+      "total": 47,
+      "covered": 47,
+      "lenient_only": 2,
+      "missing": [],
+      "union_only": 8
+    },
+    "crm_export_2024_q3.csv": {
+      "total": 69,
+      "covered": 69,
+      "lenient_only": 19,
+      "missing": [],
+      "union_only": 15
+    }
+  },
+  "total": 1130,
+  "covered": 1102,
+  "unmatched_pair_ids": [
+    "005b3f4de617",
+    "0112706f3995",
+    "01b2ff1768f9",
+    "0213e7630565",
+    "03358f38d0e4",
+    "0390c9bf9834",
+    "05d2fcc16219",
+    "07b7b46ec9b0",
+    "088905dae7b4",
+    "094550b39935",
+    "0bd33f872d38",
+    "0be1cf66a5bd",
+    "0dfa5d2ad5ca",
+    "0e462c0811eb",
+    "0eb026a0fc5b",
+    "0f6a9d67860b",
+    "0f7bae762080",
+    "103cfbed491a",
+    "1177fa17a4bc",
+    "13fda4e9e248",
+    "149252122cba",
+    "1552682766a1",
+    "1617049d4a8d",
+    "16d30bd4c457",
+    "170198e4e13d",
+    "1829f218f6ac",
+    "18d204171957",
+    "1957100b776f",
+    "1aeaddfa61d3",
+    "1b0f7f271d81",
+    "1bb5ecef21fe",
+    "1c0e4e5b686c",
+    "1c665c1e14e1",
+    "1cbcf285f84f",
+    "1da90d9e8467",
+    "1df053bda4e4",
+    "1e1b8c98b159",
+    "1e3115065be1",
+    "1f666ff8bc22",
+    "214b378c7768",
+    "2485acdc2444",
+    "255c1b2bdf7f",
+    "2614809fa45e",
+    "26b4e4f7ab6c",
+    "27611a6a360a",
+    "27c790539b0d",
+    "27ca15c6d5b0",
+    "299a31b4b64b",
+    "2b090cafe50b",
+    "2b3702fad9d8",
+    "2b5344ec3ba9",
+    "2ba603480989",
+    "2baefc324b6f",
+    "2e71aef378af",
+    "2ebb28ea74ab",
+    "2f81ca122d6e",
+    "2f95b6283c6a",
+    "308035d324ff",
+    "30f1dc3f5967",
+    "30f29b9d2c9e",
+    "3170166d3b1f",
+    "31c366028b4d",
+    "32c6fc761774",
+    "35889de8a152",
+    "35d5e53d71a2",
+    "36c94de198f9",
+    "370cd0b97e0f",
+    "37459e9f216d",
+    "376219179664",
+    "385e05c84f5c",
+    "38fc1b7d0fc6",
+    "39243e2f4849",
+    "3a214cc541aa",
+    "3ae205abc383",
+    "3b994f15a929",
+    "3cafc37a7c7a",
+    "3cef6816e6b0",
+    "3e7403cd8cad",
+    "3ee7ac4a0564",
+    "3f1d9b5f877b",
+    "3f6f1e191c24",
+    "3f950f6442c9",
+    "40a11d529b1f",
+    "4113afd2a1bf",
+    "418b36509dad",
+    "422b30d01d59",
+    "43984a8ed901",
+    "43fc938c31df",
+    "47100429c837",
+    "4881ab502981",
+    "4918829a0371",
+    "4a3ebedd83a8",
+    "4ca7e097f5e5",
+    "4d244abd4c90",
+    "4fef22c94c7d",
+    "50ab996df3f4",
+    "5101a6b912cf",
+    "512e11d58da3",
+    "513a49fdde1c",
+    "52927f10e0e8",
+    "52fe9bcf56ea",
+    "53c8c741612a",
+    "559ea0fea20d",
+    "563e87e4b092",
+    "567a0b6ecedd",
+    "5734386ff123",
+    "58933fbf95d2",
+    "59754aba3769",
+    "59ce5b5046d8",
+    "5ca6d2b2739a",
+    "5d0a0c0238c1",
+    "5d8941c5f4e1",
+    "5eed31c83c7a",
+    "5f24cc988707",
+    "5f8239590524",
+    "5ff560d2c193",
+    "60c58688a0a7",
+    "611885c30472",
+    "61ad07406adb",
+    "631d7607a42b",
+    "635bf0939eb9",
+    "65e1f54d051d",
+    "663d49673a50",
+    "664519bef327",
+    "67069e47412f",
+    "673633975cf1",
+    "674c8d8932b4",
+    "676710677966",
+    "68417cf1a23e",
+    "688a187cf602",
+    "688b901c3d98",
+    "6939459ff17a",
+    "69affb963173",
+    "69dc1ff990c8",
+    "6baf5f202a6f",
+    "6c05d7e00e3f",
+    "6d13413b1dbb",
+    "6d280cfabb52",
+    "6d33a721de90",
+    "6d70f42e08f1",
+    "6e3eadd45e1a",
+    "6e58971227f7",
+    "6eaae81fadc6",
+    "6ebecc5bda4a",
+    "6eef294cd3b2",
+    "702d2a145dae",
+    "71aa6dd48873",
+    "7257587cb401",
+    "75aa002cbcb5",
+    "76584e6ea356",
+    "77b09ddbc427",
+    "7935e68cee3f",
+    "793d41443c9d",
+    "79b40dd96bcc",
+    "7a5dfcd41ec9",
+    "7a9f1f3df01c",
+    "7ad7c36ceab5",
+    "7bc2ac2d6d22",
+    "7d4120a81188",
+    "7f0666618d80",
+    "801cdf4827ab",
+    "808a09e99c2f",
+    "81628d829c70",
+    "83d050ae4162",
+    "846cb2fb4b5c",
+    "84ed8651c0d9",
+    "856e35a351a0",
+    "8578048ee647",
+    "85ede185e3b6",
+    "866d9b568c7b",
+    "869651ee0535",
+    "8863d337757a",
+    "8911918e0815",
+    "8973a06b1b11",
+    "8a8d4e11b36b",
+    "8ae9ea9a2f6d",
+    "8af4d0f627b5",
+    "8b0459b5f8d8",
+    "8bfa128fc557",
+    "8cdd39789cd5",
+    "8da298b0cb9b",
+    "8dcf3019f086",
+    "8ef3dded106d",
+    "8f0947ec5b9c",
+    "8f683bde62fd",
+    "8f80d2d06f27",
+    "8fd605286d74",
+    "9077c39566ce",
+    "90b2909d7fd7",
+    "90dc51e8bbee",
+    "91a1b2d4e155",
+    "92bc625fd34a",
+    "92e58a3d4451",
+    "9315b26257e0",
+    "937ded6e4c23",
+    "93a32b2fb4c5",
+    "9555dbd7ca5d",
+    "955d22c26a30",
+    "95d22da3a0da",
+    "9636ce7dd541",
+    "96fc78a1f3c6",
+    "97b63f082d5e",
+    "97b7b35119f3",
+    "97cbec21138a",
+    "9887061dad6c",
+    "98c7e67d2521",
+    "99f1d98edb39",
+    "9b9adce45b96",
+    "9ba787950429",
+    "9bcd5ebc1524",
+    "9c801828d35d",
+    "9c9fc289f14b",
+    "9d53fe4055eb",
+    "9e91ebf47a38",
+    "9ea0b1cbcca8",
+    "9fd9c09582c2",
+    "a1113c4ffaf9",
+    "a152608b5db0",
+    "a1e477cd4707",
+    "a22dfc4d35bf",
+    "a2a95780870f",
+    "a33afa2bf541",
+    "a3918706081e",
+    "a3b18561553b",
+    "a3e1ea1f3da2",
+    "a48283ca2949",
+    "a4d08b537642",
+    "a554b03379a4",
+    "a5ae396418c4",
+    "a6259f36c4ab",
+    "a646f398bf93",
+    "a67c1a6858c9",
+    "a736e9ff2ae9",
+    "a79102b98e6d",
+    "a79e30906dcb",
+    "a7eab2425093",
+    "a86d258db734",
+    "aa3108f9a905",
+    "aab2f6fc48d6",
+    "aae7c14bdc6f",
+    "ab172728ef2d",
+    "ab8e8db7ae56",
+    "ad307f083281",
+    "ad37682d99c3",
+    "ada1b6dca6ee",
+    "ae600f36794d",
+    "af18cc734233",
+    "b0b3fe342193",
+    "b1b1b4c36502",
+    "b1bf5fd750c1",
+    "b21f18208af6",
+    "b327773a4c3c",
+    "b336eade4083",
+    "b4ef59ba0fbb",
+    "b52fba2a3e3a",
+    "b809eb0f8fa0",
+    "b87e6d375777",
+    "b8c8c11a0ce5",
+    "b90a7d5de6be",
+    "b9a3f2ae13ca",
+    "ba0e756d7845",
+    "ba46eda345d9",
+    "ba4fecc7e28e",
+    "baead56635bc",
+    "bc9cfc93272b",
+    "bccd710800b4",
+    "be39b3316d24",
+    "bec93dc89d24",
+    "bf15cb7fc7e8",
+    "bfcd07420a97",
+    "bffb923b0866",
+    "c09bf4565cdd",
+    "c0db6a8af513",
+    "c100cfcac980",
+    "c11b92c15e78",
+    "c145508e0710",
+    "c2ddafe6420b",
+    "c2fedc2b62cb",
+    "c5ce83be9939",
+    "c6e3174557aa",
+    "c7141c2b2ae6",
+    "c76e99cb0079",
+    "c9e201a0c952",
+    "ca8d6a09bd28",
+    "cb20ac6b827e",
+    "cb4ce643f71d",
+    "cb9349054fca",
+    "cc532a4d0c11",
+    "cc5cd9deb89f",
+    "cebec4544822",
+    "cf1aa25b334c",
+    "d0d3f96c6760",
+    "d11e34317e25",
+    "d361ad0531d4",
+    "d3b19e2b2f88",
+    "d3f2ffc9560b",
+    "d47241891b5c",
+    "d48d4e7f6435",
+    "d4bd58e25262",
+    "d552a57d9b59",
+    "d5eba9e65ec2",
+    "d62c34ffba94",
+    "d6a6223d7e54",
+    "d71329120d2b",
+    "d90db31b7b9e",
+    "db5deab1a59d",
+    "db7c539ff8af",
+    "db8e0a385e1d",
+    "db90678ddc03",
+    "dbad7b370652",
+    "dbbc9f71a929",
+    "dc1eacedb13b",
+    "dc3d0ed41cac",
+    "dc52d04d7d63",
+    "dce7a87427cc",
+    "de037cb571b5",
+    "de6712ae5f1a",
+    "de71af704cf2",
+    "df5b39b53c7c",
+    "df6524e10e43",
+    "dfc647fce6d6",
+    "dfd2796768d5",
+    "dfeadb9eb41d",
+    "e0045d2e7152",
+    "e0fb318c08de",
+    "e2589c9baa2d",
+    "e2a8ef9a63b5",
+    "e5311fb4c3f6",
+    "e56b832f4404",
+    "e5dc6d356aec",
+    "e6f4b31ad0ff",
+    "e70708544ec3",
+    "e7fc5c5ca550",
+    "e8cc4e838a58",
+    "ecd6c18c7002",
+    "ed0dd782f826",
+    "ee903f18367c",
+    "eebc3b388718",
+    "eebde1ed73f8",
+    "ef54e46ba8f6",
+    "f13bab0d2f1a",
+    "f17bf2305c45",
+    "f1a5aa38be19",
+    "f26dc934e835",
+    "f318867d40b0",
+    "f3269572c390",
+    "f4732536c2d1",
+    "f511c8297a77",
+    "f5576f153d71",
+    "f560a86225c9",
+    "f5c6bfe387ab",
+    "f615c94df39e",
+    "f6757a2ae082",
+    "f7ab23f40456",
+    "f7f18d2cb674",
+    "f881b042e1a6",
+    "f8d49939c4cb",
+    "f941e58c1ffa",
+    "f9ad843936e1",
+    "fa61a67663f9",
+    "fb5279f3e1e7",
+    "fba6b57195c7",
+    "fbb41a0e7b2c",
+    "fd4adb2d0d28",
+    "fe727db69333",
+    "ff6114ccb5b5",
+    "ffb742eec529",
+    "ffe80e0b423c"
+  ]
+}
