@@ -6,6 +6,7 @@ Also: bundle/unbundle models for portability, export as tar/zip.
 """
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import logging
@@ -135,24 +136,34 @@ class BrainIndex:
 
     def build_from_documents(self, docs: list[IndexDocument], *,
                              name: str | None = None,
-                             embedder: str = DEFAULT_EMBEDDER,
+                             embedder: str | None = None,
                              chunk_size: int = 400, overlap: int = 80,
                              device: str = "auto",
                              splitter: str | None = None,
-                             extra: dict | None = None) -> dict:
+                             extra: dict | None = None,
+                             rag_settings: RetrievalSettings | None = None) -> dict:
         """Chunk, embed and BM25-index already parsed documents; write every corpus artifact.
 
         Always **replaces** the corpus content. No documents = nothing written (an existing corpus is kept), so a
         failed parse of every file never wipes a working index. ``splitter`` names pre-chunked input in the manifest
         (``passages``: a project's mining passages); ``extra`` lands in ``manifest.extra`` (e.g. what the
         index was built from, for stale detection).
+
+        The retrieval settings carry over: ``rag_settings`` (a caller that removed the corpus first), else this
+        corpus' own. No ``embedder`` = the one those settings chose, else ``DEFAULT_EMBEDDER`` (a rebuild used to
+        reset every index to the default embedder and rerank/hybrid defaults).
         """
         from finetune_studio.smart_brain.chunking import chunk_documents
 
         docs = [d for d in docs if d.text.strip()]
         if not docs:
             return {"documents": 0, "chunks": 0, "skipped": 0}
-        encode, embed_info = get_embedder(name=embedder, device=device)
+        if rag_settings is None and self.manifest_path.exists():
+            rag_settings = Manifest.from_json(read_json(self.manifest_path)).rag_settings
+        embedder = embedder or (rag_settings.embedder if rag_settings else "") or DEFAULT_EMBEDDER
+        encode, embed_info = get_embedder(name=resolve_model_ref(embedder, "embedder"), device=device)
+        if embedder.startswith("shared:embedder:"):   # keep the portable ref, not this machine's path
+            embed_info = dataclasses.replace(embed_info, name=embedder)
         # Chunks are sized in the embedder's own tokens when it exposes a tokenizer, else by a chars/token estimate.
         count_tokens = getattr(encode, "count_tokens", None)
         max_seq = int(getattr(encode, "max_seq_tokens", 0) or 0)
@@ -167,8 +178,9 @@ class BrainIndex:
             embedding_model=embed_info,
             chunk_settings=ChunkSettings(size=chunk_size, overlap=overlap,
                                          splitter=splitter or ("rows+tokens" if count_tokens else "rows+chars")),
-            rag_settings=RetrievalSettings(embedder=embedder, reranker=DEFAULT_RERANKER,
-                                     rerank_enabled=True, hybrid_enabled=True),
+            rag_settings=(dataclasses.replace(rag_settings, embedder=embedder) if rag_settings else
+                          RetrievalSettings(embedder=embedder, reranker=DEFAULT_RERANKER,
+                                            rerank_enabled=True, hybrid_enabled=True)),
         )
         all_chunks = chunk_documents(docs, chunk_size, overlap, count_tokens)
         if not all_chunks:

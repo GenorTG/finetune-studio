@@ -131,3 +131,25 @@ def test_the_index_rows_are_the_mining_passages(pid: str) -> None:
     assert rows == [p for p in sources.passages(pid, src.sha256) if p.strip()]
     manifest = json.loads((brain_index_dir(pid) / "manifest.json").read_text())
     assert manifest["chunk_settings"]["splitter"] == "passages"
+
+
+def test_a_rebuild_keeps_the_chosen_embedder_and_retrieval_settings(pid: str, client) -> None:
+    """Regression (2026-10-21): every Build / Quick index without an explicit embedder re-embedded with
+    DEFAULT_EMBEDDER and reset rerank/hybrid to defaults, so a project switched to another embedder (Settings, then
+    Re-embed) silently went back to e5 on its next rebuild."""
+    import json
+
+    from finetune_studio.data.fs.paths import brain_index_dir
+
+    add_source(pid, "a.txt", "File A says the gate closes at 22:00.")
+    index.build(pid, embedder="fake-deterministic")
+    r = client.post(f"/api/projects/{pid}/brain/settings",
+                    json={"embedder": "fake-chosen", "rerank_enabled": False, "rerank_top_n": 20})
+    assert r.status_code == 200, r.text
+    for reset in (False, True):
+        index.build(pid, reset=reset)
+        m = json.loads((brain_index_dir(pid) / "manifest.json").read_text())
+        rs = m["rag_settings"]
+        assert m["embedding_model"]["name"] == "fake-chosen" and rs["embedder"] == "fake-chosen", (reset, m)
+        assert rs["rerank_enabled"] is False and rs["rerank_top_n"] == 20
+

@@ -209,7 +209,7 @@ def run(pid: str, build_id: str, *, embedder: str | None = None, reset: bool = F
     ``parse_first`` (the Quick index) parses the pending library files before embedding: the result then carries
     ``promoted`` / ``failed`` (``parse_pending``). ``progress(phase, done, total)`` reports the parse step.
     """
-    from finetune_studio.smart_brain import DEFAULT_EMBEDDER, BrainIndex
+    from finetune_studio.smart_brain import BrainIndex, Manifest, read_json
 
     db.mark_brain_build_running(build_id)
     parsed: dict[str, Any] = {"promoted": [], "failed": []}
@@ -226,6 +226,9 @@ def run(pid: str, build_id: str, *, embedder: str | None = None, reset: bool = F
             raise IndexBuildError("no file could be parsed into text" + (f" ({why})" if why else "")
                                   + ": nothing to index", 400)
         corpus = brain_index_dir(pid)
+        manifest = corpus / "manifest.json"
+        settings = Manifest.from_json(read_json(manifest)).rag_settings \
+            if manifest.is_file() else None   # the embedder/rerank choice outlives a reset
         if reset and corpus.exists():
             shutil.rmtree(corpus)
         hashes = {s.id: s.text_sha for s in sources.list_sources(pid) if s.ready}
@@ -233,8 +236,8 @@ def run(pid: str, build_id: str, *, embedder: str | None = None, reset: bool = F
                                 if not d.document_id.endswith(FACTS_SUFFIX)},
                  "fact_cards": fact_cards, "facts_sha": facts_sha(pid) if fact_cards else ""}
         result = BrainIndex(corpus).build_from_documents(
-            docs, name=project["name"], embedder=embedder or DEFAULT_EMBEDDER, chunk_size=0, overlap=0,
-            splitter="passages", extra=extra)
+            docs, name=project["name"], embedder=embedder, chunk_size=0, overlap=0,
+            splitter="passages", extra=extra, rag_settings=settings)
     except Exception as e:
         log.exception("index build failed for %s", pid)
         db.mark_brain_build_failed(build_id, error=str(e) or type(e).__name__)
