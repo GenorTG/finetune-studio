@@ -420,3 +420,32 @@ loaded the embedder inline, search/chat on the loop, numbered sources (`a74a050`
 Open: a correction in a later message is not carried to the chunk with the old value (14,500 vs 12,750 EUR, known since §1); small
 records split across chunks still lose their owner with Gemma 12B (merge small chunks into one mining unit, re-measure on the core
 corpus); e-mail pairs carry relative times ("this afternoon"); Quick index unloads the chat model without saying so (grounded chat then answers "no model loaded").
+
+## 18. mining-v3 on the 19-file core tier, API helper (2026-10-21, projects `korvane-mining-v3` c17e3255 and `korvane-mining-v3b` 3304cdfe, results in `results/2026-10-21-mining-v3{,b}/`)
+
+Same setup as §14 (helper deepseek-v4.1-flash via OpenCode Go, concurrency 8, up to 16 files at once, Vision reader on: local Gemma 4 12B
+QAT), now with mining-v3 (real document titles, neighbouring-text context, overlap stripped). Driven over the API (`.tmp/mine_core.py`),
+coverage with `scripts/corpus_coverage.py --tier core --status any`. Two identical runs to see the run-to-run spread.
+
+| Run | Wall time | Helper calls | Data points | Pairs | Manifest recall | Open checklist items (app) | Pairs matching no fact |
+|---|---|---|---|---|---|---|---|
+| mining-12 (§14, v2) | 8.0 min | 533 | n/a | 3,915 | 1,101 / 1,130 = 97.4 % | 64 | 487 |
+| mining-v3 | 6.2 min | 534 | 3,302 | 3,592 | 1,089 / 1,130 = 96.4 % | 58 | 617 |
+| mining-v3b | 4.8 min | 516 | 3,191 | 3,189 | 1,088 / 1,130 = 96.3 % | 49 | 350 |
+
+No job failed, no helper call failed. Strict recall is about one point below §14 in both runs; 25 of the 41/42 misses are shared by both
+v3 runs, 16 by all three runs, 9 are missed by both v3 runs and covered in §14. Reading those 9 against the pairs:
+
+- most are the strict rule (every value of the fact in ONE answer): "22 years" is stated but not with the message time and job title
+  (comms-0031), "three Volvos" without "nothing exciting" (comms-0091), the court without the 30-day referral (legal-0057). v3 answers state
+  one value each, which is the mining rule; §14 happened to bundle them.
+- a few are real helper misses that the app keeps as **open** checklist items, e.g. "The KC-Tag 4 is the successor of the KC-Tag 3"
+  (product-0080): inventoried in both runs, no pair states it, item state `open` (correct). The fix rounds did not write it.
+- not a pipeline loss: the datasheet intro reaches the helper unchanged (HTML passages carry no overlap; `strip_overlap` only drops a
+  repeated head).
+
+The 350-617 pairs matching no manifest fact are, on a 25-pair sample, real facts the manifest does not list (MSA clause 7.3 exclusions,
+2 spares in Rotterdam, leverage 2.74x vs 3.50x covenant), not noise.
+Reading: mining-v3 trades about one point of strict manifest recall for 8-19 % fewer pairs (no double-mined overlap) and fewer open
+items; the misses that matter stay visible as open items for the reviewer. Small observation: rule-item hard tokens drop single-digit
+model numbers ("KC-Tag 4" -> `kc-tag`), so an answer about "KC-Tag 3 end of life" counts toward the KC-Tag 4 rule item.
