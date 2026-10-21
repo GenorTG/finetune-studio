@@ -113,3 +113,30 @@ def test_context_char_budget_rules() -> None:
     # history eats window tokens (3 chars per token), the answer budget is reserved
     assert context_char_budget(32768, max_new_tokens=512, history_chars=3000) == (32768 - 512 - 1024 - 1000) * 3
     assert context_char_budget(2048, max_new_tokens=2000) == 4000                          # never below a usable floor
+
+
+def test_no_chat_model_is_409_with_the_reason_before_any_search(client) -> None:
+    """A GPU index build unloads the chat model; grounded chat answered a bare 400 "no model loaded" (2026-10-19
+    walkthrough) after loading the embedder and searching for nothing."""
+    from finetune_studio.webui import app as webapp
+
+    pid = _project(client)
+    fake_rag = MagicMock()
+    fake_rag.exists.return_value = True
+    mgr = MagicMock()
+    mgr.active.return_value = None
+    with patch("finetune_studio.smart_brain.BrainIndex", return_value=fake_rag), \
+         patch.object(webapp.inference_engine, "model", None), \
+         patch("finetune_studio.models.manager.get_manager", return_value=mgr):
+        r = client.post(f"/api/projects/{pid}/brain/chat", json={"messages": [{"role": "user", "content": "q"}]})
+    assert r.status_code == 409, r.text
+    assert "unloads it" in r.json()["detail"] and "top bar" in r.json()["detail"]
+    fake_rag.load.assert_not_called()
+
+
+def test_build_status_says_a_gpu_build_unloads_the_chat_model() -> None:
+    from pathlib import Path
+
+    page = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/brain.html").read_text()
+    assert "function gpuNote(r)" in page and "r.gpu ?" in page
+    assert page.count("+ note;") == 4          # Quick index running + done, Build running + done

@@ -431,6 +431,23 @@ def _active_n_ctx() -> int:
     return int(active.get("n_ctx") or 0)
 
 
+# A GPU job (an index build whose embedder runs on the GPU, training, an export) unloads the chat model first: say so,
+# a bare "no model loaded" right after a Quick index read like a broken chat.
+NO_CHAT_MODEL = ("No chat model is loaded. A GPU job (an index build on the GPU, training or an export) unloads it: "
+                 "load a model from the model pill in the top bar, then ask again.")
+
+
+class _NoChatModel(Exception):
+    pass
+
+
+def _chat_model_loaded() -> bool:
+    from finetune_studio.models.manager import get_manager
+    from finetune_studio.webui.app import inference_engine
+
+    return inference_engine.model is not None or get_manager().active() is not None
+
+
 @router.post("/{pid}/brain/chat")
 async def brain_chat(pid: str, req: ChatRequest):
     """RAG-augmented chat. Retrieves top-k from project corpus, prepends to
@@ -452,6 +469,8 @@ async def brain_chat(pid: str, req: ChatRequest):
     user_messages = [m for m in req.messages if m.get("role") == "user"]
     if not user_messages:
         return JSONResponse({"detail": "no user message to search for"}, status_code=400)
+    if not await asyncio.to_thread(_chat_model_loaded):   # before the embedder load + search it would waste
+        raise ApiError(409, NO_CHAT_MODEL, code="no_model")
     last_user = user_messages[-1]["content"]
     try:
         q = await asyncio.to_thread(index.load)   # embedder load + search off the event loop, like brain_search
@@ -477,7 +496,7 @@ async def brain_chat(pid: str, req: ChatRequest):
         from finetune_studio.models.manager import get_manager
         mgr = get_manager()
         if mgr.active() is None:
-            raise ValueError("no model loaded")
+            raise _NoChatModel
         return mgr.chat(
             msgs, max_tokens=req.max_tokens,
             temperature=req.temperature, top_p=0.9,
@@ -486,6 +505,8 @@ async def brain_chat(pid: str, req: ChatRequest):
     try:
         async with ENGINE_LOCK:
             reply = await asyncio.to_thread(_generate)
+    except _NoChatModel:
+        raise ApiError(409, NO_CHAT_MODEL, code="no_model") from None   # unloaded while the search ran
     except ValueError as e:
         return JSONResponse({"detail": str(e)}, status_code=400)
 

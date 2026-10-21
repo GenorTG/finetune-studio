@@ -27,7 +27,7 @@
   </div>
   <div class="actions flex gap-2 wrap">
     <button onclick="quickIndex()" id="quick-index-btn" class="btn primary"
-            title="⚡ One click: parse any library files that are not ready yet, then build the index.">⚡ Quick index</button>
+            title="⚡ One click: parse any library files that are not ready yet, then build the index. When the embedder runs on the GPU, the chat model is unloaded first.">⚡ Quick index</button>
     <a href="/projects/{{ pid }}/data" class="btn" data-link
        id="brain-cta-data">⬆ Files &amp; Knowledge (step 1)</a>
     <span id="quick-index-status" class="text-xs dim self-center" role="status" aria-live="polite"></span>
@@ -963,6 +963,12 @@
     });
   }
 
+  // A build whose embedder runs on the GPU takes the GPU: the supervisor unloads the chat model first, and grounded
+  // chat then has no model. Say it where the build was started.
+  function gpuNote(r) {
+    return r && r.gpu ? ' The embedder runs on the GPU, so the chat model was unloaded: load it again for grounded chat.' : '';
+  }
+
   function buildDone(b) {
     if (typeof window.loadIndexedDocs === 'function') window.loadIndexedDocs();
     if (typeof window.loadBrainStatus === 'function') window.loadBrainStatus();
@@ -981,13 +987,14 @@
       // cannot start is a 4xx/5xx whose detail says why.
       const r = await api().post('/api/projects/' + PID + '/brain/quick', {});
       const pending = r.pending_parses || 0;
+      const note = gpuNote(r.build || r);
       status.textContent = (pending ? 'Converting ' + pending + ' unparsed file(s) to text, then ' : '') +
-        'building the index (it runs on its own: you can leave this page)…';
+        'building the index (it runs on its own: you can leave this page)…' + note;
       const b = await followBuild((r.build || {}).build_id || r.build_id);
       const failed = (b.failed || []).length;
       const converted = (b.promoted ? '⚡ Converted ' + b.promoted + ' new file(s)' : '⚡ Every file was already parsed') +
         (failed ? ' (' + failed + ' failed to parse)' : '');
-      status.textContent = converted + ' · index: ' + buildDone(b) + '.';
+      status.textContent = converted + ' · index: ' + buildDone(b) + '.' + note;
       notify('Quick index done: ' + (b.promoted || 0) + ' converted · ' + b.chunks + ' chunks', 'success');
     } catch (e) {
       status.textContent = 'Failed: ' + e.message;
@@ -1011,12 +1018,13 @@
       };
       const r = await api().post('/api/projects/' + PID + '/brain/build', body);
       const q = r.queued_files != null ? r.queued_files : '?';
+      const note = gpuNote(r);
       status.textContent = 'Embedding ' + q + ' file' + (q === 1 ? '' : 's') +
-        '… (it runs on its own: you can leave this page)';
+        '… (it runs on its own: you can leave this page)' + note;
       notify('Index build started: ' + q + ' files', 'info');
       const b = await followBuild(r.build_id);
       const done = buildDone(b);
-      status.textContent = 'Done — ' + done + ' indexed.';
+      status.textContent = 'Done — ' + done + ' indexed.' + note;
       notify('Index built: ' + done, 'success');
     } catch (e) {
       const msg = (e && e.message) || String(e);
