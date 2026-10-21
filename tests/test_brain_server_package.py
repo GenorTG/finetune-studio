@@ -335,3 +335,41 @@ def test_reranker_scores_more_candidates_than_it_returns(corpus_dir: Path, tmp_p
     corpus.local_reranker = lambda: Prefers()
     hits = corpus.search("salt oath ledger", 1)
     assert len(hits) == 1 and hits[0]["chunk_id"] == "c3" and hits[0]["rank"] == 1
+
+
+def _install_torch_args(tmp_path: Path, compute_caps: str, *, embedder: bool = True) -> str:
+    """Run the package install.sh with stub python/nvidia-smi; return the torch pip line."""
+    from finetune_studio.smart_brain import server_package
+
+    root = tmp_path / "pkg"
+    (root / "corpus" / ("embedder" if embedder else "reranker")).mkdir(parents=True)
+    (root / "requirements.txt").write_text("numpy\n", encoding="utf-8")
+    (root / "install.sh").write_text(server_package._INSTALL_SH, encoding="utf-8")
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    log = tmp_path / "pip.log"
+    (bin_dir / "nvidia-smi").write_text(
+        "#!/bin/sh\n[ \"$1\" = -L ] && { echo 'GPU 0: X'; exit 0; }\n"
+        f"printf '{compute_caps}'\n", encoding="utf-8")
+    (bin_dir / "fakepy").write_text(  # "python -m venv .venv" -> a .venv/bin/pip that logs its args
+        f"#!/bin/sh\nmkdir -p .venv/bin\nprintf '#!/bin/sh\\necho \"$@\" >> {log}\\n' > .venv/bin/pip\n"
+        "chmod +x .venv/bin/pip\n", encoding="utf-8")
+    for f in bin_dir.iterdir():
+        f.chmod(0o755)
+    env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}", "PYTHON": str(bin_dir / "fakepy")}
+    env.pop("TORCH_INDEX_URL", None)
+    r = subprocess.run(["bash", str(root / "install.sh")], cwd=root, env=env,
+                       capture_output=True, text=True, timeout=60, check=False)
+    assert r.returncode == 0, r.stderr
+    return next(line for line in log.read_text().splitlines() if line.startswith("install --quiet torch"))
+
+
+def test_package_install_gives_pascal_a_torch_build_that_runs_on_it(tmp_path: Path) -> None:
+    """Regression: the default cu13x wheel has no sm_61 kernels, so a GTX 1070 host got a torch that
+    could not run the reranker (the server then silently kept the RRF order)."""
+    assert "whl/cu126" in _install_torch_args(tmp_path / "a", "6.1\\n8.6\\n")
+    assert "--index-url" not in _install_torch_args(tmp_path / "b", "8.6\\n12.0\\n")
+
+
+def test_package_install_installs_torch_for_a_reranker_only_package(tmp_path: Path) -> None:
+    assert "whl/cu126" in _install_torch_args(tmp_path, "6.1\\n", embedder=False)

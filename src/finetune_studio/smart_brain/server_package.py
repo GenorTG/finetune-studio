@@ -253,13 +253,20 @@ cd "$(dirname "$0")"
 PY="${PYTHON:-python3}"
 "$PY" -m venv .venv
 .venv/bin/pip install --quiet --upgrade pip
-if [ -d corpus/embedder ]; then
+if [ -d corpus/embedder ] || [ -d corpus/reranker ]; then
   # GPU first: pick the torch wheel that matches the hardware; CPU wheel only when
   # no GPU is present. Override with TORCH_INDEX_URL (e.g. .../whl/cu128, .../whl/rocm6.4).
   if [ -n "${TORCH_INDEX_URL:-}" ]; then
     TORCH_ARGS=(--index-url "$TORCH_INDEX_URL"); KIND="custom index"
   elif command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
-    TORCH_ARGS=(); KIND="NVIDIA CUDA"          # default PyPI Linux wheel bundles CUDA
+    # The default PyPI wheel (cu13x) has kernels for sm_75+ only: on an older card (Pascal, Volta)
+    # it installs fine and then cannot run, so those get the cu126 build (sm_50+).
+    MIN_CC=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | sort -n | head -1)
+    if [ -n "$MIN_CC" ] && awk -v cc="$MIN_CC" 'BEGIN { exit !(cc + 0 < 7.5) }'; then
+      TORCH_ARGS=(--index-url https://download.pytorch.org/whl/cu126); KIND="NVIDIA CUDA (sm_${MIN_CC/./}: cu126 build)"
+    else
+      TORCH_ARGS=(); KIND="NVIDIA CUDA"        # default PyPI Linux wheel bundles CUDA
+    fi
   elif [ "$(uname -s)" = "Darwin" ]; then
     TORCH_ARGS=(); KIND="Apple MPS"            # default macOS wheel includes MPS
   elif command -v rocm-smi >/dev/null 2>&1 || [ -d /opt/rocm ]; then
