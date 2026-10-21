@@ -109,3 +109,15 @@ def test_an_invented_or_refining_relation_gets_no_note() -> None:
                "service was 2 months.", "The leave year starts in January."]
     notice = "The notice of 3 months replaces the v3 figure of 2 months."
     assert correction_notes([_item(notice, ["3 months", "2 months"])], wrapped) == {2: [notice]}   # cue across a line wrap
+
+
+def test_a_value_never_matches_part_of_a_longer_number() -> None:
+    """"2 months" was found in "12 months", "500" in "14,500", "38" in "OPP-24-0338": coverage and the recall script counted
+    facts as stated by answers about something else (v4d baseline: 2 of 1,130 manifest facts, 2 of 3,184 items)."""
+    from finetune_studio.data.mining.match import contains, loosely_contains
+
+    assert not contains("2 months", "Probation lasts 12 months") and contains("2 months", "notice was 2 months.")
+    assert not contains("500", "EUR 14,500") and not contains("EUR 4,000", "EUR 4,000,000")
+    assert contains("01.10", "due 01.10.2024") and contains("38.50", "EUR 38.5 per day")
+    assert contains("45,000 - 89,999", "45,000-89,999") and contains("12,750 EUR", "cleared 12,750 EUR, in writing")
+    assert not loosely_contains("38 reefer plugs", "The next step for OPP-24-0338 is reefer plugs")

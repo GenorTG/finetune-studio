@@ -28,6 +28,7 @@ BASE = "http://127.0.0.1:7860"
 
 # One set of matching rules for the app's coverage check and this script (finetune_studio.data.mining.match).
 norm, squash, lenient_value_in = _match.norm, _match.squash, _match.loosely_contains
+within = _match.within   # substring that never cuts a number ("2 months" is not in "12 months")
 
 
 def auth_headers() -> dict[str, str]:
@@ -86,22 +87,22 @@ def main() -> int:
         hit = None
         for p in by_file.get(f["file"], []):
             ans = str(p.get("answer", ""))
-            if all(norm(v) in norm(ans) for v in f["values"]):
+            if all(within(norm(v), norm(ans)) for v in f["values"]):
                 hit = p
                 break
         if hit is None:
             for p in by_file.get(f["file"], []):
-                if all(squash(v) in squash(str(p.get("answer", ""))) for v in f["values"]):
+                if all(within(squash(v), squash(str(p.get("answer", "")))) for v in f["values"]):
                     hit = p
                     row["lenient_only"] += 1
                     break
         if hit is None:
             # The pairs of the chunk(s) that contain the fact: together, do their answers state every value?
             near = [p for p in by_file.get(f["file"], [])
-                    if all(norm(v) in norm(str(p.get("chunk_text", ""))) or squash(v) in squash(str(p.get("chunk_text", "")))
+                    if all(within(norm(v), norm(str(p.get("chunk_text", "")))) or within(squash(v), squash(str(p.get("chunk_text", ""))))
                            for v in f["values"])]
             blob = " ".join(str(p.get("answer", "")) for p in near)
-            if near and all(norm(v) in norm(blob) or squash(v) in squash(blob) for v in f["values"]):
+            if near and all(within(norm(v), norm(blob)) or within(squash(v), squash(blob)) for v in f["values"]):
                 row["union_only"] = row.get("union_only", 0) + 1
                 row["covered"] += 1
                 used.update(str(p.get("id")) for p in near)

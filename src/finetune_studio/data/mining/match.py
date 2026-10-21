@@ -55,13 +55,29 @@ def _needle(value: str) -> tuple[str, str, frozenset[str], frozenset[str]]:
     return v, re.sub(r"[^0-9a-zа-яÀ-ɏ]+", "", v), nums, frozenset(w.lower() for w in _WORDS.findall(v))
 
 
+def within(needle: str, hay: str) -> bool:
+    """``needle`` in ``hay`` without cutting a number: "2 months" is not in "12 months", "500" not in "14,500", "EUR 4,000"
+    not in "EUR 4,000,000". A dot is no boundary ("01.10" stays in "01.10.2024")."""
+    start = hay.find(needle)
+    while start >= 0:
+        end = start + len(needle)
+        cut_left = needle[0].isdigit() and start > 0 and (
+            hay[start - 1].isdigit() or (hay[start - 1] == "," and start > 1 and hay[start - 2].isdigit()))
+        cut_right = needle[-1].isdigit() and end < len(hay) and (
+            hay[end].isdigit() or (hay[end] == "," and end + 1 < len(hay) and hay[end + 1].isdigit()))
+        if not cut_left and not cut_right:
+            return True
+        start = hay.find(needle, start + 1)
+    return False
+
+
 def contains(value: str, text: str | Haystack) -> bool:
-    """True when ``value`` appears in ``text`` (normalised, else squashed)."""
+    """True when ``value`` appears in ``text`` (normalised, else squashed), never as part of a longer number."""
     v, sq, _, _ = _needle(value)
     if not v:
         return False
     h = haystack(text)
-    return v in h.normed or (bool(sq) and sq in h.squashed)
+    return within(v, h.normed) or (bool(sq) and within(sq, h.squashed))
 
 
 def loosely_contains(value: str, text: str | Haystack) -> bool:
@@ -71,7 +87,7 @@ def loosely_contains(value: str, text: str | Haystack) -> bool:
         return True
     nt = h.normed
     _, _, nums, words = _needle(value)
-    if nums and not all(n in nt for n in nums):
+    if nums and not all(within(n, nt) for n in nums):
         return False
     if not words:
         return bool(nums)
