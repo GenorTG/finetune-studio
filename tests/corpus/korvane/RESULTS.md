@@ -449,3 +449,9 @@ The 350-617 pairs matching no manifest fact are, on a 25-pair sample, real facts
 Reading: mining-v3 trades about one point of strict manifest recall for 8-19 % fewer pairs (no double-mined overlap) and fewer open
 items; the misses that matter stay visible as open items for the reviewer. Small observation: rule-item hard tokens drop single-digit
 model numbers ("KC-Tag 4" -> `kc-tag`), so an answer about "KC-Tag 3 end of life" counts toward the KC-Tag 4 rule item.
+
+Addendum (same day): the split-record owner loss of §17 (CAR "due 04.10.2024" = measure M5, local Gemma 12B) no longer
+reproduces on the current code. CAR alone, local Gemma 4 12B QAT helper + Vision reader, one job, 9 helper calls, 71 pairs: chunk 2
+states "The due date for Measure M5 is 04.10.2024", M1/M2/M4 owners and dates match the form; chunk 3 asks for "the due date for the
+record" (vague, not wrong). Joining small passages into one mining unit is therefore not needed for this case (every core passage is
+< 1,500 chars, median 994: a size rule would pair up the whole corpus).
