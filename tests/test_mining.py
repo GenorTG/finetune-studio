@@ -409,6 +409,21 @@ def test_clause_numbers_are_not_data_and_large_numbers_are_one_token() -> None:
     assert "57.5" in st.pair_tokens("p", "q", "Net debt is EUR 57.5m.").answer
 
 
+def test_a_code_with_a_one_digit_version_is_one_token() -> None:
+    """Core mine 2026-10-21: "KC-Tag 4" lost its "4" (too short for a token), so the answer "KC-Tag 3 end of life"
+    stated the item "The KC-Tag 4 is the successor of the KC-Tag 3"."""
+    item = "The KC-Tag 4 is the successor of the KC-Tag 3 and works with the KC-Hub 200 gateway."
+    assert {"kc-tag4", "kc-tag3", "kc-hub", "200"} <= st.hard_tokens(item)
+    wrong = st.pair_tokens("w", "Which related items are listed?", "The KC-Hub 200 gateway and KC-Tag 3 end of life.")
+    right = st.pair_tokens("r", "What is the KC-Tag 4 the successor of?",
+                           "The KC-Tag 4 is the successor of the KC-Tag 3 and works with the KC-Hub 200 gateway.")
+    assert st.covering_pairs(item, st.hard_tokens(item), [wrong]) == []
+    assert st.covering_pairs(item, st.hard_tokens(item), [right]) == ["r"]
+    assert "kc-tag4" in st.pair_tokens("p", "q", "The KC-Tag4 runs 5 years.").answer    # written without the space
+    assert st.hard_tokens("Level 4 Black") == frozenset()                             # not a code
+    assert st.hard_tokens("KC-Tag 4.5 firmware") == {"kc-tag", "4.5"}                 # a decimal is no version
+
+
 def test_wrapped_lines_are_one_statement() -> None:
     text = "Up to 6 days of unused leave may be carried over into the following\nyear, but must be taken by 31 March.\n" \
            "Gross misconduct includes falsification of a record (code GM-1)\n(GM-2) and theft (GM-3).\nNext Heading"

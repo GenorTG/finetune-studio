@@ -166,13 +166,25 @@ def hard_tokens(text: str) -> frozenset[str]:
         c = canon(w)
         if len(c) < 2:
             continue
-        bare = w.strip(".,;:()")
-        # "RC-01", "KC-Tag": a capital or digit after the first letter; never "cut-off" or a sentence-initial "E-mail"
-        code = (_CODE.fullmatch(bare) and any(ch.isupper() or ch.isdigit() for ch in bare[1:])
-                and (any(ch in "-_/" for ch in bare) or any(ch.isdigit() for ch in bare)))      # "AG", "EU" are not codes
-        if _NUMBERISH.search(c) or code or (w.isupper() and len(w) > 2):
+        if _NUMBERISH.search(c) or _is_code(w.strip(".,;:()")) or (w.isupper() and len(w) > 2):
             out.add(c)
-    return frozenset(out)
+    return frozenset(out | versioned_codes(body))
+
+
+def _is_code(bare: str) -> bool:
+    """"RC-01", "KC-Tag": a capital or digit after the first letter; never "cut-off" or a sentence-initial "E-mail";
+    "AG", "EU" are not codes."""
+    return bool(_CODE.fullmatch(bare) and any(ch.isupper() or ch.isdigit() for ch in bare[1:])
+                and (any(ch in "-_/" for ch in bare) or any(ch.isdigit() for ch in bare)))
+
+
+_VERSIONED = re.compile(r"(?<![\w-])([A-Za-z][\w/-]*)\s+(\d)(?!\w|[.,]\d)")
+
+
+def versioned_codes(text: str) -> set[str]:
+    """"KC-Tag 4" -> ``kc-tag4``: a code with a one-digit version is one token (the same as "KC-Tag4"). The digit alone is too
+    short to be a token, so an answer about "KC-Tag 3 end of life" stated the KC-Tag 4 item (core mine, 2026-10-21)."""
+    return {f"{canon(m.group(1))}{m.group(2)}" for m in _VERSIONED.finditer(text) if _is_code(m.group(1))}
 
 
 def _cut_long(text: str) -> list[str]:
@@ -225,7 +237,7 @@ _NUM_WITH_UNIT = re.compile(r"^(\d[\d.]*?)(?:[a-z%°]+)$")
 
 
 def pair_tokens(pair_id: str, question: str, answer: str) -> PairTokens:
-    words = {canon(w) for w in _WORD.findall(join_thousands(answer))}
+    words = {canon(w) for w in _WORD.findall(join_thousands(answer))} | versioned_codes(answer)
     words |= {m.group(1) for w in words if (m := _NUM_WITH_UNIT.match(w))}     # "57.5m" also states "57.5"
     return PairTokens(pair_id, frozenset(content_tokens(f"{question} {answer}")), frozenset(words))
 
