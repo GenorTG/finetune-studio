@@ -377,6 +377,7 @@ async def project_testing_page(request: Request, pid: str):
     from finetune_studio.webui.routes.benchmarks import _discover_suites
     from finetune_studio.webui.testing_models import (
         default_model_path_for_testing,
+        library_models_for_testing,
         local_model_missing,
         models_for_testing_page,
     )
@@ -411,6 +412,7 @@ async def project_testing_page(request: Request, pid: str):
         {
             **ctx,
             "models": models,
+            "library_models": library_models_for_testing(models),
             "default_model_path": default_path,
             "base_model_missing": local_model_missing(str(ctx["project"].get("base_model") or "")),
             "inference_engine": inference_engine,

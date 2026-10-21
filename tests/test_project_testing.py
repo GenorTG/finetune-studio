@@ -93,3 +93,23 @@ def test_benchmarks_for_project_lists_runs_newest_first_with_run_name(temp_db) -
     rows = db.list_benchmarks_for_project(pid, limit=2)
     assert [r["suite_name"] for r in rows] == ["suite_2", "suite_1"]
     assert rows[0]["run_name"] == "r1" and rows[0]["config"] == {} and rows[0]["status"] == "done"
+
+
+def test_testing_page_offers_installed_library_models(client, monkeypatch, tmp_path) -> None:
+    """A Smart-Brain-only project has no export: installed models must still be pickable (as readers)."""
+    from types import SimpleNamespace
+
+    from finetune_studio.webui import app as webapp
+
+    gguf = tmp_path / "reader-4b-Q4_K_M.gguf"
+    gguf.write_bytes(b"GGUF")
+    proj = tmp_path / "mmproj-reader.gguf"
+    proj.write_bytes(b"GGUF")
+    monkeypatch.setattr(webapp, "discovered_models", [
+        SimpleNamespace(path=str(gguf), name="reader-4b-Q4_K_M.gguf", format="gguf", size_gb=2.7),
+        SimpleNamespace(path=str(proj), name="mmproj-reader.gguf", format="gguf", size_gb=0.7),
+    ])
+    body = client.get(f"/projects/{_project(client)}/testing").text
+    assert 'label="Installed models (Model library)"' in body and str(gguf) in body
+    assert str(proj) not in body                      # a vision projector is not a model
+    assert "test any installed model" in body

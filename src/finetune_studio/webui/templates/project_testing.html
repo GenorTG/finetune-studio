@@ -37,8 +37,17 @@
         {% for m in models %}
         <option value="{{ m.path }}"{% if default_model_path and m.path == default_model_path %} selected{% endif %}>{{ m.name }} · {{ m.format }} ({{ m.size_gb }} GB)</option>
         {% endfor %}
+        {% if library_models %}
+        <optgroup label="Installed models (Model library)">
+          {% for m in library_models %}
+          <option value="{{ m.path }}">{{ m.name }} · {{ m.format }}{% if m.size_gb %} ({{ m.size_gb }} GB){% endif %}</option>
+          {% endfor %}
+        </optgroup>
+        {% endif %}
       </select>
-      {% if not models %}
+      {% if not models and library_models %}
+      <div class="text-xs dim mt-1">No exports from this project yet: test any installed model (e.g. as a Smart Brain reader), or <a href="/projects/{{ pid }}/export" data-link>export a completed run →</a></div>
+      {% elif not models %}
       <div class="text-xs dim mt-1">No project merged/GGUF exports yet. <a href="/projects/{{ pid }}/export" data-link>Export a completed run →</a></div>
       {% endif %}
     </div>

@@ -75,6 +75,28 @@ def models_for_testing_page(project_models: list[dict[str, Any]]) -> list[dict[s
     return usable
 
 
+def library_models_for_testing(project_models: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Installed Model-library models (GGUF / safetensors) that are not already this project's exports.
+
+    A Smart-Brain-only project has no trained export, and the picker listed nothing but "latest merged export":
+    no reader could be tested at all (2026-10-21). Vision projectors (mmproj) are not models.
+    """
+    from pathlib import Path
+
+    from finetune_studio.webui.app import discovered_models
+
+    taken = {str(m.get("path") or "").rstrip("/") for m in project_models}
+    out: list[dict[str, Any]] = []
+    for m in discovered_models:
+        path = str(getattr(m, "path", "") or "").rstrip("/")
+        fmt = str(getattr(m, "format", "") or "").lower()
+        if not path or path in taken or fmt not in _INFERENCE_FORMATS or Path(path).name.lower().startswith("mmproj"):
+            continue
+        out.append({"path": path, "name": getattr(m, "name", "") or Path(path).name, "format": fmt,
+                    "size_gb": getattr(m, "size_gb", None)})
+    return sorted(out, key=lambda m: m["name"].lower())
+
+
 def default_model_path_for_testing(models: list[dict[str, Any]]) -> str | None:
     """Path of the preferred default selection (latest merged safetensors)."""
     for m in models:
