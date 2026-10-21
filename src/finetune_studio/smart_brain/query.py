@@ -73,7 +73,10 @@ class BrainQuery:
         dense_rank = [self._chunk_ids[i] for i in np.argsort(-dense_scores)]
         if use_hybrid:
             bm25_scores = self.bm25.score(query)
-            bm25_rank = [self._chunk_ids[i] for i in np.argsort(-bm25_scores)]
+            # Only passages sharing a term get a keyword rank: an arbitrary rank for the zero-score rest pushed a
+            # passage found by meaning alone below ones matching just "you" / "w" (standalone_server does the same).
+            order = np.argsort(-bm25_scores)
+            bm25_rank = [self._chunk_ids[i] for i in order if bm25_scores[i] > 0]
         else:
             bm25_scores = None
             bm25_rank = dense_rank

@@ -373,3 +373,45 @@ def test_package_install_gives_pascal_a_torch_build_that_runs_on_it(tmp_path: Pa
 
 def test_package_install_installs_torch_for_a_reranker_only_package(tmp_path: Path) -> None:
     assert "whl/cu126" in _install_torch_args(tmp_path, "6.1\\n", embedder=False)
+
+
+def test_dense_extra_adds_what_the_keyword_half_buried(corpus_dir: Path, tmp_path: Path) -> None:
+    """Measured 2026-10-21 (website corpus, 160 EN/PL questions): hybrid top 6 + 4 dense = 160/160, any single
+    ranking 157. A passage that shares no word with the query gets no keyword rank (it used to get an arbitrary one)."""
+    corpus = _in_process_corpus(corpus_dir, tmp_path)
+    corpus.embed_query = lambda q: np.array([0.0, 0.0, 1.0], dtype=np.float32)   # meaning: the Emberfall passage
+    hits = corpus.search("oath ledger", 1)
+    assert [h["chunk_id"] for h in hits] == ["c1"]
+    hits = corpus.search("oath ledger", 1, dense_extra=1)
+    assert [(h["chunk_id"], h.get("via")) for h in hits] == [("c1", None), ("c3", "dense")]
+    assert [h["rank"] for h in hits] == [1, 2]
+    assert len(corpus.search("oath ledger", 1, dense_extra=5)) == 3                 # never repeats a passage
+
+
+def test_query_prefix_reaches_the_embeddings_api(corpus_dir: Path, tmp_path: Path, monkeypatch) -> None:
+    from finetune_studio.smart_brain import standalone_server as srv
+
+    cfg, _ = srv.resolve_config({}, {"RAG_QUERY_PREFIX": "Instruct: find it\\nQuery:", "RAG_DENSE_EXTRA": "4"}, {})
+    assert cfg["query_prefix"] == "Instruct: find it\nQuery:" and cfg["dense_extra"] == 4
+    with pytest.raises(srv.ConfigError):
+        srv.resolve_config({}, {"RAG_DENSE_EXTRA": "-1"}, {})
+    root = _extract(_plain(corpus_dir, tmp_path / "p.tar.gz", name="Test Corpus"), tmp_path / "x")
+    corpus = srv.Corpus(root / "corpus", {**cfg, "embed_base_url": "http://emb.invalid/v1"}, None)
+    sent: list[dict] = []
+
+    class Resp:
+        def __init__(self, body: bytes) -> None:
+            self.body = body
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+        def read(self) -> bytes:
+            return self.body
+
+    def fake_urlopen(req, timeout=0):
+        sent.append(json.loads(req.data))
+        return Resp(json.dumps({"data": [{"embedding": [1.0, 0.0, 0.0]}]}).encode())
+    monkeypatch.setattr(srv.urllib.request, "urlopen", fake_urlopen)
+    corpus.search("salt", 1)
+    assert sent[0]["input"] == ["Instruct: find it\nQuery:salt"]

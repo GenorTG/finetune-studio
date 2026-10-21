@@ -24,6 +24,8 @@ Configuration precedence:  CLI flags > env (RAG_*) > rag.config.json > defaults.
     host/RAG_HOST  port/RAG_PORT  top_k/RAG_TOP_K  device/RAG_DEVICE
     reranker/RAG_RERANKER  auth_token/RAG_AUTH_TOKEN  embed_model/RAG_EMBED_MODEL
     embed_base_url/RAG_EMBED_BASE_URL  embed_api_key/RAG_EMBED_API_KEY
+    query_prefix/RAG_QUERY_PREFIX (prepended to the embedded query; Qwen3: "Instruct: ...\\nQuery:")
+    dense_extra/RAG_DENSE_EXTRA (also return the N best passages by meaning alone)
     config path: --config / RAG_CONFIG / <this dir>/rag.config.json
 
 Embedding, best available source first:
@@ -68,13 +70,14 @@ MAX_TOP_K = 100
 DEFAULT_CONFIG: dict = {
     "host": "127.0.0.1", "port": 8899, "top_k": 10, "device": "auto",
     "reranker": True, "auth_token": "", "embed_model": "",
-    "embed_base_url": "", "embed_api_key": "",
+    "embed_base_url": "", "embed_api_key": "", "query_prefix": "", "dense_extra": 0,
 }
 ENV_KEYS = {
     "host": "RAG_HOST", "port": "RAG_PORT", "top_k": "RAG_TOP_K",
     "device": "RAG_DEVICE", "reranker": "RAG_RERANKER",
     "auth_token": "RAG_AUTH_TOKEN", "embed_model": "RAG_EMBED_MODEL",
     "embed_base_url": "RAG_EMBED_BASE_URL", "embed_api_key": "RAG_EMBED_API_KEY",
+    "query_prefix": "RAG_QUERY_PREFIX", "dense_extra": "RAG_DENSE_EXTRA",
 }
 SECRET_KEYS = frozenset({"auth_token", "embed_api_key"})
 
@@ -121,8 +124,10 @@ class ConfigError(Exception):
 
 def _coerce(key: str, value: object) -> object:
     try:
-        if key in ("port", "top_k"):
+        if key in ("port", "top_k", "dense_extra"):
             return int(value)  # type: ignore[call-overload]
+        if key == "query_prefix":   # "\n" in an env value / unit file = a newline (Qwen3: "Instruct: …\nQuery:")
+            return str(value).replace("\\n", "\n")
         if key == "reranker":
             if isinstance(value, str):
                 low = value.strip().lower()
@@ -162,6 +167,8 @@ def resolve_config(flags: Mapping[str, object], env: Mapping[str, str],
         raise ConfigError(f"port out of range: {cfg['port']}")
     if not 1 <= cfg["top_k"] <= MAX_TOP_K:
         raise ConfigError(f"top_k must be 1..{MAX_TOP_K}")
+    if not 0 <= cfg["dense_extra"] <= MAX_TOP_K:
+        raise ConfigError(f"dense_extra must be 0..{MAX_TOP_K}")
     return cfg, origin
 
 
@@ -293,6 +300,8 @@ class Corpus:
         self.embed_base = str(self.cfg["embed_base_url"]).rstrip("/")
         self.device = _resolve_device(str(self.cfg["device"]))
         self.top_k = int(self.cfg["top_k"])
+        self.query_prefix = str(self.cfg.get("query_prefix") or "")
+        self.dense_extra = int(self.cfg.get("dense_extra") or 0)
         self._local_embedder = None
         self._local_embedder_failed = False
         self._reranker = None
@@ -377,12 +386,12 @@ class Corpus:
         """Embed the query: bundled model → API endpoint → None (keyword-only)."""
         model = self.local_embedder()
         if model is not None:
-            v = np.asarray(model.encode([query], normalize_embeddings=True),
+            v = np.asarray(model.encode([self.query_prefix + query], normalize_embeddings=True),
                            dtype=np.float32)[0]
             return v
         if not self.embed_base:
             return None
-        body = json.dumps({"input": [query], "model": self.embed_model}).encode()
+        body = json.dumps({"input": [self.query_prefix + query], "model": self.embed_model}).encode()
         req = urllib.request.Request(
             f"{self.embed_base}/embeddings",
             data=body,
@@ -402,10 +411,13 @@ class Corpus:
         norm = float(np.linalg.norm(vec))
         return vec / norm if norm else None
 
-    def search(self, query: str, top_k: int | None = None, source_prefix: str = "") -> list[dict]:
+    def search(self, query: str, top_k: int | None = None, source_prefix: str = "",
+               dense_extra: int | None = None) -> list[dict]:
         """Hybrid search; ``source_prefix`` keeps only passages whose file name starts with it
         (e.g. ``pl-`` for a per-language corpus). The reranker scores the best ``rerank_top_n``
-        candidates, not only the returned ``top_k``."""
+        candidates, not only the returned ``top_k``. ``dense_extra`` (default: config) appends up to that many
+        of the best passages by meaning alone that the fused ranking left out (``"via": "dense"``): a short
+        question whose words match nothing ranks its answer low in the keyword half."""
         query = (query or "").strip()
         if not query:
             return []
@@ -428,7 +440,10 @@ class Corpus:
                 print(f"[warn] query dim {q.shape[0]} != corpus dim {self.vectors.shape[1]}; "
                       "skipping semantic search", file=sys.stderr)
         bm25 = self.bm25_scores(query)
-        rankings.append([self.chunk_ids[i] for i in allowed[np.argsort(-bm25[allowed])]])
+        # Only passages sharing a term get a keyword rank: ranking the zero-score rest (arbitrary order) pushed
+        # a passage found by meaning alone below ones that matched just "you" / "are" / "w".
+        hit = allowed[bm25[allowed] > 0]
+        rankings.append([self.chunk_ids[i] for i in hit[np.argsort(-bm25[hit])]])
 
         rrf: dict[str, float] = {}
         for ranking in rankings:
@@ -470,6 +485,20 @@ class Corpus:
             except Exception as e:  # noqa: BLE001
                 print(f"[warn] rerank failed ({e}); keeping RRF order", file=sys.stderr)
         hits = hits[:top_k]
+        extra = self.dense_extra if dense_extra is None else min(max(0, int(dense_extra)), MAX_TOP_K)
+        if extra and dense_scores is not None:
+            have = {h["chunk_id"] for h in hits}
+            for i in allowed[np.argsort(-dense_scores[allowed])]:
+                if extra <= 0:
+                    break
+                c = self.chunks[i]
+                if c["id"] in have:
+                    continue
+                hits.append({"chunk_id": c["id"], "score": 0.0, "rrf_score": 0.0, "via": "dense",
+                             "text": c.get("text", ""), "filename": c.get("filename") or c.get("source") or "",
+                             "document_id": c.get("document_id", ""), "chunk_index": c.get("chunk_index", 0),
+                             "dense_score": round(float(dense_scores[i]), 6), "bm25_score": round(float(bm25[i]), 6)})
+                extra -= 1
         for rank, h in enumerate(hits, start=1):
             h["rank"] = rank
         return hits
@@ -542,7 +571,8 @@ def make_handler(corpus: Corpus, token: str = ""):
                 try:
                     top_k = int(qs["top_k"][0]) if qs.get("top_k") else None
                     prefix = (qs.get("source_prefix") or [""])[0]
-                    self._json({"query": q, "hits": corpus.search(q, top_k, prefix)})
+                    extra = int(qs["dense_extra"][0]) if qs.get("dense_extra") else None
+                    self._json({"query": q, "hits": corpus.search(q, top_k, prefix, extra)})
                 except ValueError as e:
                     self._json({"error": str(e)}, 400)
             else:
@@ -560,7 +590,8 @@ def make_handler(corpus: Corpus, token: str = ""):
                 top_k = body.get("top_k")
                 hits = corpus.search(str(body.get("query", "")),
                                      int(top_k) if top_k is not None else None,
-                                     str(body.get("source_prefix") or ""))
+                                     str(body.get("source_prefix") or ""),
+                                     int(body["dense_extra"]) if body.get("dense_extra") is not None else None)
                 self._json({"hits": hits})
             except (ValueError, json.JSONDecodeError) as e:
                 self._json({"error": str(e)}, 400)
@@ -608,6 +639,8 @@ _TOOLS = [{
             "top_k": {"type": "integer", "description": "How many passages (server default, usually 10)."},
             "source_prefix": {"type": "string",
                               "description": "Only passages from files whose name starts with this (optional)."},
+            "dense_extra": {"type": "integer",
+                            "description": "Also return up to this many best passages by meaning alone (optional)."},
         },
         "required": ["query"],
     },
@@ -640,7 +673,8 @@ def mcp_responder(corpus: Corpus):
                 if name == "rag_search":
                     out = corpus.search(str(args.get("query", "")),
                                         int(args["top_k"]) if args.get("top_k") is not None else None,
-                                        str(args.get("source_prefix") or ""))
+                                        str(args.get("source_prefix") or ""),
+                                        int(args["dense_extra"]) if args.get("dense_extra") is not None else None)
                 elif name == "rag_info":
                     out = corpus.info()
                 else:
