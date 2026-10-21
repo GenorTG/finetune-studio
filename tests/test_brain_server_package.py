@@ -376,8 +376,9 @@ def test_package_install_installs_torch_for_a_reranker_only_package(tmp_path: Pa
 
 
 def test_dense_extra_adds_what_the_keyword_half_buried(corpus_dir: Path, tmp_path: Path) -> None:
-    """Measured 2026-10-21 (website corpus, 160 EN/PL questions): hybrid top 6 + 4 dense = 160/160, any single
-    ranking 157. A passage that shares no word with the query gets no keyword rank (it used to get an arbitrary one)."""
+    """Website corpus, 160 EN/PL questions, deployed pack (re-measured 2026-10-21 evening): top 6 152/160, + 4 dense
+    154/160; top 10 154 -> 155. A passage that shares no word with the query gets no keyword rank (it used to get an
+    arbitrary one)."""
     corpus = _in_process_corpus(corpus_dir, tmp_path)
     corpus.embed_query = lambda q: np.array([0.0, 0.0, 1.0], dtype=np.float32)   # meaning: the Emberfall passage
     hits = corpus.search("oath ledger", 1)
