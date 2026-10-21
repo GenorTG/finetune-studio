@@ -479,3 +479,6 @@ holding a value, and no note when the old numbers are all in the new value (deta
 rules on the v3, v4b and v4c inventories place 9 / 8 / 10 notes, all real, the ISO relation excluded.
 Reading: recall 96.7-97.5 % over four v4 runs vs 96.3-96.4 % over two v3 runs (small, within the observed spread of single runs); the
 point is the answers: superseded figures are no longer stated as facts where the file corrects them. Open items swing 38-62 run to run.
+Measurement note (`0fb819e`): matching no longer finds a value inside a longer number ("2 months" in "12 months", "38" in
+"OPP-24-0338"). Re-scored with it, v4d is 1,097 / 1,130 = **97.1 %** (was 97.3 %) and 64 open items (was 62); both flipped facts were
+real misses. Earlier rows of §12-§19 used the old rule and may be up to ~0.2 points high.
