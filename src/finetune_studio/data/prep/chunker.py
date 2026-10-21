@@ -13,6 +13,10 @@ import re
 # coverage-fill cannot mint a pair from "# Lore", so such a chunk would be a
 # permanent coverage hole that blocks dataset export.
 _MIN_STANDALONE_CHARS = 200
+# A Markdown section heading starts a new passage (and carries no overlap from the section before): retrieval returns
+# passages, and a passage that ends in the next section's first lines — or opens with the previous one's tail — answered
+# questions with the wrong section's facts (website profile corpus, 2026-10-21). ``####`` and deeper stay inline.
+_SECTION_RE = re.compile(r"^#{1,3}\s+\S")
 
 
 def _tail(text: str, overlap: int) -> str:
@@ -80,6 +84,10 @@ def chunk_text(text: str, target_chars: int = 1200, overlap: int = 200) -> list[
     paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
     chunks, buf = [], ""
     for p in paras:
+        if buf and len(buf) >= _MIN_STANDALONE_CHARS and _SECTION_RE.match(p):
+            chunks.append(buf)          # a short buffer (a lone document title) stays with the first section
+            buf = p
+            continue
         cand = (buf + "\n\n" + p).strip() if buf else p
         if len(cand) <= target_chars:
             buf = cand
