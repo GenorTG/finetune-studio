@@ -204,7 +204,38 @@ def project_overview(pid: str | None) -> dict[str, Any]:
         "production_run": runs.get("production_run"),
         "runs": {"count": runs["count"], "latest": runs["runs"][:3]},
         "system_prompt_set": bool(project.get("system_prompt")),
+        "latest_tests": latest_tests(pid),
     }
+
+
+# Below this share of a question suite answered right, more SFT epochs rarely close the gap: facts belong in the Smart
+# Brain (Korvane, RESULTS §3/§17: fact-tuned 8-26 % vs Smart Brain 92 % on the same questions).
+LOW_RECALL_PCT = 50.0
+_TEST_KINDS = {"suite": "model", "brain": "smart_brain"}   # heldout / leakage / public benchmarks measure other things
+
+
+def latest_tests(pid: str) -> dict[str, Any]:
+    """The newest judged test run of the model alone and of the Smart Brain, plus ``advice`` when the numbers say
+    where the facts should live. Unjudged or unfinished runs are skipped: a rate from no verdicts is not a measurement."""
+    from finetune_studio.db import benchmarks
+
+    out: dict[str, Any] = {}
+    for b in benchmarks.list_for_project(pid, limit=50):
+        key = _TEST_KINDS.get(str(b.get("kind") or ""))
+        scores = b.get("scores") or {}
+        if not key or key in out or b.get("status") != "done" or scores.get("pass_rate") is None:
+            continue
+        out[key] = {"suite": b.get("suite_name"), "model": _short(str(b.get("model_path") or "")),
+                    "run": b.get("run_name"), **{k: scores.get(k) for k in
+                                                 ("total", "judged", "passed", "partial", "pass_rate", "weighted_score")}}
+    model, brain = out.get("model"), out.get("smart_brain")
+    if model and brain and brain["pass_rate"] > model["pass_rate"]:
+        out["advice"] = (f"The Smart Brain answered {brain['pass_rate']} % of its suite, the model alone {model['pass_rate']} %: "
+                         "for facts, use the Smart Brain (grounded chat or its exported server) instead of more SFT.")
+    elif model and model["pass_rate"] < LOW_RECALL_PCT:
+        out["advice"] = (f"The model alone answered {model['pass_rate']} % of its suite: more SFT rarely fixes fact recall. "
+                         "Build the Smart Brain (Quick index) and test it on the same suite.")
+    return out
 
 
 def dataset_health(pid: str | None, dataset_id: str | None = None, training_mode: str | None = None) -> dict[str, Any]:

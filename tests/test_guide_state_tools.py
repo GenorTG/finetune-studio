@@ -225,3 +225,53 @@ def test_list_runs_reports_the_live_step_and_loss_of_the_training_run(monkeypatc
     live, done = out["runs"]
     assert (live["current_step"], live["total_steps"], live["latest_loss"], live["live"]) == (120, 420, 0.81, True)
     assert done["final_loss"] == 0.4 and "live" not in done
+
+
+def _test_run(pid: str, run_id: str, kind: str, passed: int, total: int, *, status: str = "done", judged: bool = True) -> None:
+    from finetune_studio.db import benchmarks
+
+    scores = {"total": total, "judged": total if judged else 0, "passed": passed, "partial": 0,
+              "pass_rate": round(passed / total * 100, 1) if judged else None, "weighted_score": None}
+    benchmarks.create_benchmark(run_id, f"{kind} · quiz.json", scores, model_path="/m/model.gguf", status=status, kind=kind)
+
+
+def test_overview_reports_the_latest_judged_tests_and_points_facts_at_the_smart_brain(project: dict) -> None:
+    """HANDOFF 2026-10-19: the Guide recommended more SFT without knowing the model scored 8-19 % on its quiz while the
+    Smart Brain scored 92 %."""
+    pid = project["pid"]
+    run = db.create_run(pid, "sft-a", base_model="/m/Qwen__Qwen3-4B", settings_obj={"training_mode": "sft"})
+    assert state.project_overview(pid)["latest_tests"] == {}
+    _test_run(pid, run["id"], "suite", 19, 102)
+    out = state.latest_tests(pid)
+    assert out["model"]["pass_rate"] == 18.6 and "smart_brain" not in out
+    assert "more SFT rarely fixes" in out["advice"]
+    _test_run(pid, run["id"], "brain", 94, 102)
+    _test_run(pid, run["id"], "brain", 0, 102, judged=False)          # newest, but unjudged: not a measurement
+    _test_run(pid, run["id"], "heldout", 100, 102)                    # another measurement, not a quiz
+    out = state.project_overview(pid)["latest_tests"]
+    assert out["smart_brain"]["pass_rate"] == 92.2 and out["model"]["pass_rate"] == 18.6
+    assert "use the Smart Brain" in out["advice"]
+
+
+def test_a_good_model_score_without_a_smart_brain_run_gives_no_advice(project: dict) -> None:
+    run = db.create_run(project["pid"], "sft-b", base_model="/m/Qwen__Qwen3-4B", settings_obj={"training_mode": "sft"})
+    _test_run(project["pid"], run["id"], "suite", 80, 100)
+    assert "advice" not in state.latest_tests(project["pid"])
+
+
+def test_legacy_rag_runs_saved_as_suite_are_smart_brain_runs(project: dict) -> None:
+    """Runs named "rag · <suite>" predate the `kind` column; its 'suite' default made the Guide read a 91.8 %
+    Smart Brain score as the model's own (live korvane-ragtrace, 2026-10-21)."""
+    from finetune_studio.db import benchmarks
+    from finetune_studio.db.connection import cursor, init_db
+
+    run = db.create_run(project["pid"], "legacy", base_model="/m/Qwen__Qwen3-4B", settings_obj={"training_mode": "sft"})
+    b = benchmarks.create_benchmark(run["id"], "rag · quiz.json", {"total": 2, "judged": 2, "passed": 2, "pass_rate": 100.0},
+                                    kind="suite")
+    m = benchmarks.create_benchmark(run["id"], "quiz.json", {"total": 2, "judged": 2, "passed": 1, "pass_rate": 50.0},
+                                    kind="suite")
+    init_db()
+    assert benchmarks.get_benchmark(b["id"])["kind"] == "brain"
+    assert benchmarks.get_benchmark(m["id"])["kind"] == "suite"
+    with cursor() as c:
+        assert c.execute("SELECT COUNT(*) FROM benchmark_runs WHERE kind = 'suite'").fetchone()[0] == 1

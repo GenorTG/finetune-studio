@@ -663,6 +663,9 @@ def init_db() -> None:
             "UPDATE benchmark_runs SET scoring = 'exact', kind = 'public' "
             "WHERE scoring = 'judge' AND kind = 'suite' AND scores_json LIKE '%\"is_real_benchmark\": true%'"
         )
+        c.execute(  # Smart Brain runs saved before `kind` existed ("rag · <suite>") defaulted to the model-only 'suite'
+            "UPDATE benchmark_runs SET kind = 'brain' WHERE kind = 'suite' AND suite_name LIKE 'rag · %'"
+        )
         # Verdicts written before case_judgements existed become judgement rows, once, so the history is complete.
         c.execute(
             "INSERT INTO case_judgements (id, case_id, benchmark_id, kind, provider_id, judge_model, verdict, "

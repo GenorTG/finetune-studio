@@ -73,7 +73,7 @@ TOOLS_CATALOG: list[dict[str, Any]] = [
     },
     {
         "name": "project_overview",
-        "description": "This project's state: sources, Q&A review counts, datasets, RAG corpora, runs, production run, next step. With no active project, lists projects.",
+        "description": "This project's state: sources, Q&A review counts, datasets, RAG corpora, runs, production run, latest test scores (model alone vs Smart Brain, with advice), next step. With no active project, lists projects.",
         "parameters": _obj(),
     },
     {
