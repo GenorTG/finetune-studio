@@ -11,7 +11,7 @@ Searches a corpus produced by Finetune Studio.  Two on-disk layouts:
                         legacy / --no-encrypt plaintext layout.
 
 Modes
-    --http [PORT]   REST API:   GET /health   GET /search?q=...&top_k=5
+    --http [PORT]   REST API:   GET /health   GET /search?q=...&top_k=5[&source_prefix=pl-]
                     Binds 127.0.0.1 by default.  A non-loopback --host
                     REQUIRES an auth token (Authorization: Bearer ...).
     --mcp           MCP stdio server (JSON-RPC 2.0 over stdin/stdout).
@@ -402,29 +402,41 @@ class Corpus:
         norm = float(np.linalg.norm(vec))
         return vec / norm if norm else None
 
-    def search(self, query: str, top_k: int | None = None) -> list[dict]:
+    def search(self, query: str, top_k: int | None = None, source_prefix: str = "") -> list[dict]:
+        """Hybrid search; ``source_prefix`` keeps only passages whose file name starts with it
+        (e.g. ``pl-`` for a per-language corpus). The reranker scores the best ``rerank_top_n``
+        candidates, not only the returned ``top_k``."""
         query = (query or "").strip()
         if not query:
             return []
         top_k = self.top_k if top_k is None else min(max(1, int(top_k)), MAX_TOP_K)
+        allowed = np.arange(len(self.chunks))
+        if source_prefix:
+            allowed = np.array([i for i, c in enumerate(self.chunks)
+                                if (c.get("filename") or c.get("source") or "").startswith(source_prefix)],
+                               dtype=int)
+            if allowed.size == 0:
+                return []
         rankings: list[list[str]] = []
         dense_scores = None
         q = self.embed_query(query)
         if q is not None and self.vectors.ndim == 2 and self.vectors.shape[0] == len(self.chunks):
             if q.shape[0] == self.vectors.shape[1]:
                 dense_scores = self.vectors @ q
-                rankings.append([self.chunk_ids[i] for i in np.argsort(-dense_scores)])
+                rankings.append([self.chunk_ids[i] for i in allowed[np.argsort(-dense_scores[allowed])]])
             else:
                 print(f"[warn] query dim {q.shape[0]} != corpus dim {self.vectors.shape[1]}; "
                       "skipping semantic search", file=sys.stderr)
         bm25 = self.bm25_scores(query)
-        rankings.append([self.chunk_ids[i] for i in np.argsort(-bm25)])
+        rankings.append([self.chunk_ids[i] for i in allowed[np.argsort(-bm25[allowed])]])
 
         rrf: dict[str, float] = {}
         for ranking in rankings:
             for rank, cid in enumerate(ranking, start=1):
                 rrf[cid] = rrf.get(cid, 0.0) + 1.0 / (self.rrf_k + rank)
-        ordered = sorted(rrf.items(), key=lambda kv: -kv[1])[: max(1, top_k)]
+        reranker = self.local_reranker()
+        n_candidates = max(top_k, self.rerank_top_n) if reranker is not None else top_k
+        ordered = sorted(rrf.items(), key=lambda kv: -kv[1])[: max(1, n_candidates)]
 
         hits = []
         for rank, (cid, score) in enumerate(ordered, start=1):
@@ -447,7 +459,6 @@ class Corpus:
             hit["bm25_score"] = round(float(bm25[i]), 6)
             hits.append(hit)
 
-        reranker = self.local_reranker()
         if reranker is not None and len(hits) > 1:
             pool = hits[: self.rerank_top_n]
             try:
@@ -456,10 +467,11 @@ class Corpus:
                     h["ce_score"] = round(float(s), 6)
                 pool.sort(key=lambda h: -h["ce_score"])
                 hits = pool + hits[len(pool):]
-                for rank, h in enumerate(hits, start=1):
-                    h["rank"] = rank
             except Exception as e:  # noqa: BLE001
                 print(f"[warn] rerank failed ({e}); keeping RRF order", file=sys.stderr)
+        hits = hits[:top_k]
+        for rank, h in enumerate(hits, start=1):
+            h["rank"] = rank
         return hits
 
     def info(self) -> dict:
@@ -529,7 +541,8 @@ def make_handler(corpus: Corpus, token: str = ""):
                 q = (qs.get("q") or [""])[0]
                 try:
                     top_k = int(qs["top_k"][0]) if qs.get("top_k") else None
-                    self._json({"query": q, "hits": corpus.search(q, top_k)})
+                    prefix = (qs.get("source_prefix") or [""])[0]
+                    self._json({"query": q, "hits": corpus.search(q, top_k, prefix)})
                 except ValueError as e:
                     self._json({"error": str(e)}, 400)
             else:
@@ -546,7 +559,8 @@ def make_handler(corpus: Corpus, token: str = ""):
                 body = json.loads(self.rfile.read(length) or b"{}")
                 top_k = body.get("top_k")
                 hits = corpus.search(str(body.get("query", "")),
-                                     int(top_k) if top_k is not None else None)
+                                     int(top_k) if top_k is not None else None,
+                                     str(body.get("source_prefix") or ""))
                 self._json({"hits": hits})
             except (ValueError, json.JSONDecodeError) as e:
                 self._json({"error": str(e)}, 400)
@@ -592,6 +606,8 @@ _TOOLS = [{
         "properties": {
             "query": {"type": "string", "description": "What to look up."},
             "top_k": {"type": "integer", "description": "How many passages (server default, usually 10)."},
+            "source_prefix": {"type": "string",
+                              "description": "Only passages from files whose name starts with this (optional)."},
         },
         "required": ["query"],
     },
@@ -623,7 +639,8 @@ def mcp_responder(corpus: Corpus):
             try:
                 if name == "rag_search":
                     out = corpus.search(str(args.get("query", "")),
-                                        int(args["top_k"]) if args.get("top_k") is not None else None)
+                                        int(args["top_k"]) if args.get("top_k") is not None else None,
+                                        str(args.get("source_prefix") or ""))
                 elif name == "rag_info":
                     out = corpus.info()
                 else:
@@ -673,6 +690,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="serve REST API (optionally on PORT)")
     ap.add_argument("--mcp", action="store_true", help="serve MCP over stdio")
     ap.add_argument("--query", help="run one search and print JSON, then exit")
+    ap.add_argument("--source-prefix", dest="source_prefix", default="",
+                    help="with --query: only passages from files whose name starts with this")
     ap.add_argument("--host", help="bind address (default 127.0.0.1)")
     ap.add_argument("--port", type=int, help="HTTP port (default 8899)")
     ap.add_argument("--top-k", dest="top_k", type=int, help="results per search (default 10)")
@@ -742,7 +761,7 @@ def main(argv: list[str] | None = None) -> int:
         raise
 
     if args.query:
-        print(json.dumps(corpus.search(args.query), ensure_ascii=False, indent=2))
+        print(json.dumps(corpus.search(args.query, None, args.source_prefix), ensure_ascii=False, indent=2))
         return 0
     if args.http is not None:
         serve_http(corpus, cfg)

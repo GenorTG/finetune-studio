@@ -303,3 +303,35 @@ def test_server_offline_with_bundled_models(corpus_dir: Path, tmp_path: Path, mo
     assert r.returncode == 0, r.stderr
     hits = json.loads(r.stdout)
     assert hits and hits[0]["chunk_id"] == "c1"
+
+
+def _in_process_corpus(corpus_dir: Path, tmp_path: Path):
+    from finetune_studio.smart_brain import standalone_server as srv
+
+    root = _extract(_plain(corpus_dir, tmp_path / "p.tar.gz", name="Test Corpus"), tmp_path / "x")
+    cfg, _ = srv.resolve_config({}, {}, {})
+    return srv.Corpus(root / "corpus", cfg, None)
+
+
+def test_source_prefix_filters_before_ranking(corpus_dir: Path, tmp_path: Path) -> None:
+    """A per-language corpus (en-*.md / pl-*.md) is searched one language at a time."""
+    corpus = _in_process_corpus(corpus_dir, tmp_path)
+    assert [h["filename"] for h in corpus.search("salt", 3)][:2] != ["emberfall.txt"]
+    hits = corpus.search("salt", 3, "ember")
+    assert [h["filename"] for h in hits] == ["emberfall.txt"] and hits[0]["rank"] == 1
+    assert corpus.search("salt", 3, "nope-") == []
+
+
+def test_reranker_scores_more_candidates_than_it_returns(corpus_dir: Path, tmp_path: Path) -> None:
+    """Regression: the reranker only reordered the top_k RRF hits, so a passage the reranker
+    prefers but RRF ranked below top_k was never returned (the studio reranks the top 50)."""
+    corpus = _in_process_corpus(corpus_dir, tmp_path)
+    assert corpus.search("salt oath ledger", 1)[0]["chunk_id"] == "c1"
+
+    class Prefers:
+        def predict(self, pairs):
+            return [1.0 if "Emberfall" in text else 0.0 for _, text in pairs]
+
+    corpus.local_reranker = lambda: Prefers()
+    hits = corpus.search("salt oath ledger", 1)
+    assert len(hits) == 1 and hits[0]["chunk_id"] == "c3" and hits[0]["rank"] == 1
