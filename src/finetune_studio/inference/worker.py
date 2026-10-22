@@ -140,8 +140,13 @@ def make_engine(kind: str) -> Any:
     return InferenceEngine()
 
 
-def watch_parent() -> None:
-    """Exit when the process that started us is gone (standalone web server, CLI command, supervisor)."""
+def watch_parent(owner: int | None = None) -> None:
+    """Exit when the process that started us is gone (standalone web server, CLI command, supervisor).
+
+    ``owner``: the pid that owns this worker. On Windows the direct parent can be a venv's python.exe launcher,
+    which lives exactly as long as this process, and Windows never reparents (getppid() keeps a dead parent's pid),
+    so killing the web app left the worker holding the model (VM 2026-10-22). The launcher passes its own pid.
+    """
     parent = os.getppid()
     try:
         import psutil
@@ -153,10 +158,9 @@ def watch_parent() -> None:
     def loop() -> None:
         while True:
             time.sleep(PARENT_POLL_S)
-            # Windows never reparents, so getppid() stays the same after the parent dies; and a venv's python.exe
-            # is a launcher whose kill left this process running (Windows VM 2026-10-22). Check that it exists.
-            if os.getppid() != parent or not exists(parent):
-                print("[inference] parent process gone; exiting", flush=True)
+            if os.getppid() != parent or not exists(owner or parent):
+                with contextlib.suppress(Exception):     # stdout may be the dead parent's pipe (BrokenPipeError)
+                    print("[inference] parent process gone; exiting", flush=True)
                 os._exit(0)
 
     threading.Thread(target=loop, name="parent-watch", daemon=True).start()
@@ -166,6 +170,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m finetune_studio.inference.worker")
     parser.add_argument("--socket", required=True)
     parser.add_argument("--engine", choices=["real", "fake"], default="real", help="fake: test seam, no GPU, no model file")
+    parser.add_argument("--owner-pid", type=int, default=None, help="exit when this pid is gone (default: the parent)")
     args = parser.parse_args(argv)
     from finetune_studio import logsetup
     logsetup.setup("inference")
@@ -176,7 +181,7 @@ def main(argv: list[str] | None = None) -> int:
     with contextlib.suppress(FileNotFoundError):
         sock.unlink()
     engine = make_engine(args.engine)
-    watch_parent()
+    watch_parent(args.owner_pid)
     from finetune_studio.supervisor.client import (
         HAS_AF_UNIX,
         bind_loopback,

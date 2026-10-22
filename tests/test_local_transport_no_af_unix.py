@@ -100,22 +100,32 @@ def test_job_liveness_without_proc_uses_the_process_table(monkeypatch, tmp_path)
             p.wait(10)
 
 
-def test_worker_exits_when_its_parent_dies_even_without_reparenting(no_af_unix) -> None:
-    """Windows keeps getppid() after the parent dies (and a venv python.exe is a launcher): watch the pid itself."""
+def test_worker_exits_when_its_owner_dies_behind_a_launcher(no_af_unix) -> None:
+    """Windows: owner (web app) -> venv python.exe launcher (lives as long as its child) -> worker. Killing the owner
+    left the worker holding the model; it now watches the owner pid it was given."""
     sock = no_af_unix / "run" / "inference.sock"
-    code = ("import subprocess, sys; p = subprocess.Popen([sys.executable, '-m', 'finetune_studio.inference.worker', "
-            f"'--socket', {str(sock)!r}, '--engine', 'fake']); print(p.pid, flush=True); import time; time.sleep(60)")
-    parent = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True,
-                              env={**os.environ, "FTS_NO_AF_UNIX": "1"})
-    child = int(parent.stdout.readline())
-    end = time.monotonic() + 60
-    while not launch.worker_alive(sock):
-        assert time.monotonic() < end, "worker never answered"
-        time.sleep(0.1)
-    parent.kill()
-    parent.wait(10)
+    launcher = ("import subprocess, sys; p = subprocess.Popen([sys.executable, '-m', 'finetune_studio.inference.worker', "
+                f"'--socket', {str(sock)!r}, '--engine', 'fake', '--owner-pid', sys.argv[1]]); "
+                "print(p.pid, flush=True); p.wait()")
+    owner = ("import subprocess, sys, os; l = subprocess.Popen([sys.executable, '-c', sys.argv[1], str(os.getpid())], "
+             "stdout=subprocess.PIPE, text=True); print(l.pid, l.stdout.readline().strip(), flush=True); "
+             "import time; time.sleep(120)")
+    proc = subprocess.Popen([sys.executable, "-c", owner, launcher], stdout=subprocess.PIPE, text=True,
+                            env={**os.environ, "FTS_NO_AF_UNIX": "1"})
+    launcher_pid, worker_pid = (int(x) for x in proc.stdout.readline().split())
     import psutil
-    end = time.monotonic() + 15
-    while psutil.pid_exists(child) and psutil.Process(child).status() != psutil.STATUS_ZOMBIE:
-        assert time.monotonic() < end, "the worker outlived its parent"
-        time.sleep(0.2)
+    try:
+        end = time.monotonic() + 60
+        while not launch.worker_alive(sock):
+            assert time.monotonic() < end, "worker never answered"
+            time.sleep(0.1)
+        proc.kill()                                   # the owner dies; the launcher is still waiting on the worker
+        proc.wait(10)
+        end = time.monotonic() + 15
+        while psutil.pid_exists(worker_pid) and psutil.Process(worker_pid).status() != psutil.STATUS_ZOMBIE:
+            assert time.monotonic() < end, "the worker outlived its owner"
+            time.sleep(0.2)
+    finally:
+        for pid in (worker_pid, launcher_pid):
+            with __import__("contextlib").suppress(psutil.Error):
+                psutil.Process(pid).kill()

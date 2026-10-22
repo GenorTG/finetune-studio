@@ -90,7 +90,8 @@ def _spawn_private(sock: Path, extra_args: tuple[str, ...] = ()) -> subprocess.P
     sock.parent.mkdir(parents=True, exist_ok=True)
     with inference_log_path().open("ab") as log:
         return subprocess.Popen(
-            [sys.executable, "-m", "finetune_studio.inference.worker", "--socket", str(sock), *extra_args],
+            [sys.executable, "-m", "finetune_studio.inference.worker", "--socket", str(sock),
+             "--owner-pid", str(os.getpid()), *extra_args],
             stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT, env=child_env(), cwd=os.getcwd(),
         )
 
