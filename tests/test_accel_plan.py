@@ -305,7 +305,7 @@ def test_nvidia_llama_cpp_python_prefers_prebuilt_wheel_then_source_then_cpu(mon
     fake_hw(monkeypatch, tmp_path, **nvidia([R3090], "580.178.04", "13.0"))
     plan = ap.build_plan(ap.detect())
     labels = [a[0] for a in ap.llama_py_attempts(plan, "py", [])]
-    assert labels == ["prebuilt wheel cu132", "source build (cuda)", "CPU build"]
+    assert labels == ["prebuilt wheel cu132", "source build (cuda)", "CPU wheel", "CPU build"]
     wheel = ap.llama_py_attempts(plan, "py", [])[0][1]
     # uv searches --extra-index-url BEFORE PyPI; with first-index llama-cpp-python comes from abetlen and
     # deps from PyPI. Using --index-url for abetlen lets PyPI win and silently installs the CPU sdist
@@ -361,7 +361,18 @@ def test_llama_cpp_python_cpu_build_is_last_resort_and_flagged_on_gpu_hosts(back
         assert len(installs) == 1                       # wheel installed AND probe passed
     else:
         assert len(installs) == 3 and "--no-binary" in installs[1]
-        assert any("no GPU build of llama-cpp-python" in m for m in said)   # loud, never silent
+        assert f"{ap.ABETLEN_WHL}/cpu" in installs[2]                      # prebuilt CPU wheel, no compiler needed
+        assert sum("no GPU build of llama-cpp-python" in m for m in said) == 1   # loud, never silent, said once
+
+
+def test_cpu_host_tries_the_prebuilt_cpu_wheel_before_compiling(monkeypatch, tmp_path) -> None:
+    """A fresh Windows has no compiler: PyPI's sdist failed to build and GGUF was unavailable (VM 2026-10-22)."""
+    fake_hw(monkeypatch, tmp_path, system="Windows", machine="AMD64")
+    plan = ap.build_plan(ap.detect())
+    attempts = ap.llama_py_attempts(plan, "py", [])
+    assert [a[0] for a in attempts] == ["CPU wheel", "CPU build"]
+    wheel = attempts[0][1]
+    assert wheel[wheel.index("--extra-index-url") + 1] == f"{ap.ABETLEN_WHL}/cpu" and "first-index" in wheel
 
 
 def test_cuda_archs_are_limited_to_what_nvcc_can_target() -> None:

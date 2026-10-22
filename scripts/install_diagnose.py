@@ -752,7 +752,7 @@ def repair(
             f"{' > '.join(b.name for b in plan.llama_backends if not b.missing)})")
         attempts = []
         for sub, cmd, env in ap.llama_py_attempts(plan, py, constraints):
-            gpu_try = plan.vendor != "none" and sub != "CPU build"
+            gpu_try = plan.vendor != "none" and not sub.startswith("CPU")   # CPU wheel or build: no offload probe
             attempts.append((sub, cmd, env, [py, "-c", ap.LLAMA_PROBE] if gpu_try else None))
         won = chain("llama-cpp reinstall", attempts, 1800, tail=1200)
         if won:

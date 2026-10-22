@@ -1040,6 +1040,10 @@ def llama_py_attempts(plan: Plan, py: str, constraints: list[str]) -> list[tuple
         # CPU build would be reused and the GPU flags silently ignored (verified 2026-10-05).
         attempts.append((f"source build ({b.name})",
                          uv_pip(py, "--no-cache", *force, *constraints, "--no-binary", "llama-cpp-python", spec), env))
+    # Prebuilt CPU wheels (Windows, Linux, macOS arm64) before PyPI's sdist: a fresh Windows has no compiler, so
+    # the sdist build failed and GGUF was unavailable (VM 2026-10-22).
+    attempts.append(("CPU wheel", uv_pip(py, *force, *constraints, "--extra-index-url", f"{ABETLEN_WHL}/cpu",
+                                         "--index-strategy", "first-index", spec), {}))
     attempts.append(("CPU build", uv_pip(py, *force, *constraints, spec), {}))
     return attempts
 
@@ -1178,7 +1182,7 @@ def install_llama_cpp_python(plan: Plan, venv: Path, *, runner=_exec) -> bool:
     attempts = llama_py_attempts(plan, py, constraint_args(venv))
     gpu_expected = plan.vendor != "none"
     for label, cmd, env in attempts:
-        if label == "CPU build" and gpu_expected:
+        if label == "CPU wheel" and gpu_expected:   # first of the two CPU attempts: warn once
             _say("WARN: no GPU build of llama-cpp-python could be installed; installing the "
                  "CPU build so GGUF still works. Fix the hints above, then `bash install.sh --repair`.")
         _say(f"llama-cpp-python: {label}")
@@ -1188,7 +1192,7 @@ def install_llama_cpp_python(plan: Plan, venv: Path, *, runner=_exec) -> bool:
         if runner(cmd, env) != 0:
             continue
         probe = runner([py, "-c", LLAMA_PROBE])
-        if probe == 0 or label == "CPU build" or not gpu_expected:
+        if probe == 0 or label.startswith("CPU") or not gpu_expected:
             write_llama_marker(venv, plan, label)
             return True
         _say(f"llama-cpp-python ({label}) installed but has no GPU offload -- trying the next option")
