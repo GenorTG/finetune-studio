@@ -85,7 +85,7 @@
         </label>
         <input type="range" id="n-gpu-layers" aria-label="GPU layers" class="range" min="0" max="0" step="1" value="0" disabled
                oninput="document.getElementById('n-gpu-val').textContent=this.value>=parseInt(this.max)?'all '+String(this.max)+'/'+String(this.max):this.value+' / '+String(this.max); updateMemEstimate()">
-        <div class="text-[10px] dim mt-0.5" id="n-gpu-hint">Loading model topology…</div>
+        <div class="text-[10px] dim mt-0.5" id="n-gpu-hint">Pick a model to see its layer count.</div>
       </div>
 
       <div class="mt-3">
