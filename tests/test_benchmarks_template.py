@@ -171,3 +171,17 @@ def test_benchmarks_page_shows_base_row_with_zero_runs(client) -> None:
     assert 'id="bench-base-form"' in page.text
     assert "/base/run" in page.text
     assert "start one to enable benchmarking" not in page.text
+
+
+def test_benchmarks_page_hides_the_run_table_until_something_can_run(client) -> None:
+    """No run and no base model: the only row would be a disabled RUN; with a base model the base row runs."""
+    bare = client.post("/api/projects", json={"name": "Bench Bare"}).json()["id"]
+    body = client.get(f"/projects/{bare}/benchmarks").text
+    assert "<div hidden>\n  <h3 class=\"mt-4 mb-2\">Pick a model and a suite</h3>" in body
+    assert "Run a benchmark</h3>" not in body   # the card title already says it
+    based = client.post("/api/projects", json={"name": "Bench Base", "base_model": "/models/base"}).json()["id"]
+    body = client.get(f"/projects/{based}/benchmarks").text
+    assert "<div>\n  <h3 class=\"mt-4 mb-2\">Pick a model and a suite</h3>" in body
+    # Catalog rows name the suite; type, source and case count are their own columns.
+    catalog = body.split('id="suite-catalog"', 1)[1].split("</table>", 1)[0]
+    assert "official cases" not in catalog.split("<td", 2)[1].split("</td>", 1)[0].split(">", 1)[1]
