@@ -71,6 +71,9 @@ def test_data_prep_page_shows_helper_label(client: Any) -> None:
     # Mining runs on the helper the page names (a local GGUF is never auto-loaded by the server).
     assert 'id="dp-helper-name"' in r.text
     assert "only" in r.text.lower()
+    # The label carries "Helper · ": next to "Helper:" / "the helper model" the page must not say it twice.
+    assert "Helper: <b" in r.text and 'id="dp-helper-name">Helper' not in r.text
+    assert 'id="dp-helper-label">Helper' not in r.text
 
 
 def test_testing_page_shows_helper_label(client: Any) -> None:

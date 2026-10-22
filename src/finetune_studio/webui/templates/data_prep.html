@@ -13,7 +13,7 @@
     <a href="/projects/{{ pid }}/training" data-link>training (step 2)</a> consumes.
     <br><span class="text-xs">Files come from the
     <a href="/projects/{{ pid }}/data" data-link>files</a>, parsed once for training and the Smart Brain. Writing the pairs
-    uses the helper model <span class="mono" id="dp-helper-label">{{ helper_label }}</span>. Want to mine them conversationally instead?
+    uses the helper model <span class="mono" id="dp-helper-label">{{ helper_label | replace("Helper · ", "", 1) }}</span>. Want to mine them conversationally instead?
     <a href="/projects/{{ pid }}/chat?mode=agent" data-link>Agent chat</a>.</span>
   </div>
 </div>
@@ -133,7 +133,7 @@
     A file is <b>complete</b> when every data point is stated by an approved pair or excluded; export needs every file complete. Every helper call is kept: open a file's checklist and look under <b>Rounds</b>.
   </details>
   <div class="flex gap-2 wrap items-center text-xs dp-row">
-    <span>Helper: <b id="dp-helper-name">{{ helper_label }}</b> <span class="dim" id="dp-helper-par"></span></span>
+    <span>Helper: <b id="dp-helper-name">{{ helper_label | replace("Helper · API · ", "", 1) | replace("Helper · ", "", 1) }}</b> <span class="dim" id="dp-helper-par"></span></span>
     <span class="spacer"></span>
     <span id="dp-promote-panel" class="prep-promote-panel" hidden>
       <button type="button" class="btn sm" id="dp-promote-library-btn" onclick="flPromoteEligibleFromLibrary()">Use text/markdown from file library</button>
@@ -2125,7 +2125,7 @@ async function dpLoadFiles() {
 function dpRenderHelper() {
   var par = document.getElementById('dp-helper-par'), name = document.getElementById('dp-helper-name');
   if (!_dpHelper) return;
-  if (name && _dpHelper.label) name.textContent = _dpHelper.label;
+  if (name && _dpHelper.label) name.textContent = _dpHelper.label.replace(/^Helper · (API · )?/, '');  // "Helper:" and "· API" are already said
   if (par) par.textContent = _dpHelper.kind === 'openai_compat'
     ? '· API, ' + _dpHelper.concurrency + ' calls in parallel' + (_dpHelper.reasoning_effort ? ', reasoning ' + _dpHelper.reasoning_effort : '')
     : '· local model, one call at a time';

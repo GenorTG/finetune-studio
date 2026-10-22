@@ -135,7 +135,7 @@
     <label class="flex items-center gap-1">with
       <select id="t-judge-provider" class="select judge-select" aria-label="Judge model">
         {% for p in judge_providers %}
-        <option value="{{ p.id }}"{% if p.id == default_judge_provider_id and not p.file_missing %} selected{% endif %}{% if p.file_missing %} disabled{% endif %}>{{ p.label }}{% if p.is_helper_seat %} (helper seat){% endif %}{% if p.local %} · local GPU{% else %} · API{% endif %}{% if p.file_missing %} — file missing on disk{% endif %}</option>
+        <option value="{{ p.id }}"{% if p.id == default_judge_provider_id and not p.file_missing %} selected{% endif %}{% if p.file_missing %} disabled{% endif %}>{{ p.label }}{% if p.is_helper_seat %} (helper seat){% endif %}{% if p.local %} · local GPU{% elif '· API' not in p.label %} · API{% endif %}{% if p.file_missing %} — file missing on disk{% endif %}</option>
         {% endfor %}
       </select>
     </label>
@@ -143,8 +143,11 @@
   </div>
 
   <div id="t-status" class="mt-3 text-xs" aria-live="polite" role="status">
-    {% if not models %}
+    {% if not models and not library_models and not project.base_model %}
     No project merged/GGUF exports yet — <a href="/projects/{{ pid }}/export" data-link>export a completed run</a> first, then pick a quiz.
+    {% elif not models %}
+    {# The hint under the model list already offers the base/installed models: say the same, not "export first". #}
+    Pick a model to test (the base or an installed one) and a quiz.
     {% elif not suites %}
     No quizzes yet — generate one in <a href="/projects/{{ pid }}/wizard" data-link>Quick work</a> (Step 5 · Test it) or import your own above.
     {% else %}
@@ -184,7 +187,7 @@
     <b>Judge this run</b>
     <select id="rv-provider" class="select judge-select" aria-label="Judge model for this run">
       {% for p in judge_providers %}
-      <option value="{{ p.id }}" data-local="{{ '1' if p.local else '' }}"{% if p.id == default_judge_provider_id and not p.file_missing %} selected{% endif %}{% if p.file_missing %} disabled{% endif %}>{{ p.label }}{% if p.is_helper_seat %} (helper seat){% endif %}{% if p.local %} · local GPU{% else %} · API{% endif %}{% if p.file_missing %} — file missing on disk{% endif %}</option>
+      <option value="{{ p.id }}" data-local="{{ '1' if p.local else '' }}"{% if p.id == default_judge_provider_id and not p.file_missing %} selected{% endif %}{% if p.file_missing %} disabled{% endif %}>{{ p.label }}{% if p.is_helper_seat %} (helper seat){% endif %}{% if p.local %} · local GPU{% elif '· API' not in p.label %} · API{% endif %}{% if p.file_missing %} — file missing on disk{% endif %}</option>
       {% endfor %}
     </select>
     <button class="btn sm primary" id="rv-judge-new" type="button" title="Judge the answers that have no AI or human verdict yet (also replaces old scripted verdicts)">Judge unjudged</button>

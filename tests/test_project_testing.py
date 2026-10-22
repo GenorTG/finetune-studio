@@ -113,3 +113,14 @@ def test_testing_page_offers_installed_library_models(client, monkeypatch, tmp_p
     assert 'label="Installed models (Model library)"' in body and str(gguf) in body
     assert str(proj) not in body                      # a vision projector is not a model
     assert "test any installed model" in body
+
+
+def test_testing_page_without_exports_offers_the_base_model_not_export_first(client) -> None:
+    """With a base model to test, the status line must not contradict the hint ("export first" vs "test any model")."""
+    pid = client.post("/api/projects", json={"name": "No Exports", "base_model": "/models/base"}).json()["id"]
+    body = client.get(f"/projects/{pid}/testing").text
+    status = body.split('id="t-status"', 1)[1].split("</div>", 1)[0]
+    assert "Pick a model to test" in status and "export a completed run" not in status
+    # Judge options never say "API" twice (the API helper's label already ends its provider part with "API").
+    opts = body.split('id="t-judge-provider"', 1)[1].split("</select>", 1)[0]
+    assert "· API · API" not in opts and "· API (helper seat) · API" not in opts
