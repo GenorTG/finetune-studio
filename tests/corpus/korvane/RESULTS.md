@@ -482,3 +482,23 @@ point is the answers: superseded figures are no longer stated as facts where the
 Measurement note (`0fb819e`): matching no longer finds a value inside a longer number ("2 months" in "12 months", "38" in
 "OPP-24-0338"). Re-scored with it, v4d is 1,097 / 1,130 = **97.1 %** (was 97.3 %) and 64 open items (was 62); both flipped facts were
 real misses. Earlier rows of §12-§19 used the old rule and may be up to ~0.2 points high.
+
+## 20. "I don't know" rows in SFT: do declines generalise? (2026-10-22, throwaway project `abstain-exp-1022` 37486899, deleted after; results in `results/2026-10-22-abstain/`)
+
+§3 found fact-tuned adapters never decline (0/20 on the held-out unanswerable set). This run adds decline rows that are
+unanswerable by construction (`scripts/corpus_abstain_rows.py --seed 7`: real people/companies with an attribute no corpus file
+mentions, or golden questions with a fictitious entity; never the held-out set's attribute types) and trains two identical runs on
+Qwen3.5-9B (QLoRA, rank 64 / alpha 128, lr 1e-4, 3 epochs, batch 2 x 4, max 1,024 tokens, completion-only loss, no system prompt,
+merged): A = the 2,491 golden core pairs, B = the same + 240 decline rows (8.8 % of rows). Quiz: `scripts/corpus_eval.py` (102
+paraphrased answerable questions, 20 held-out unanswerable ones), no retrieval.
+
+| Run | Rows | Final loss | Paraphrase recall | Declines on unknown | Answerable questions declined |
+|---|---|---|---|---|---|
+| A golden | 2,491 | 0.236 | 15 / 102 = 14.7 % | 0 / 20 | 0 |
+| B golden + decline | 2,731 | 0.280 | 15 / 102 = 14.7 % | **2 / 20** | 1 |
+
+Reading: the decline rows cost no recall (same count; 7 facts pass in both, 8 only in A, 8 only in B, i.e. run-to-run noise), but
+declining barely generalises: 2 of 20 unseen unanswerable questions (a CFO's salary, a customer's phone number), 18 still get a
+confident invented value ("The Wi-Fi password of the HAM-2 gate cabin is ham2024."). Template declines teach the wording, not when
+the model lacks a fact. Keep the advice: answer from the Smart Brain (retrieval) when "I don't know" matters, and treat an adapter's
+answers to out-of-scope questions as unreliable.
