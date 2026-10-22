@@ -112,6 +112,15 @@ def pid_alive(job_id: str) -> bool:
         return False
     try:
         cmdline = Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", "replace")
+    except FileNotFoundError:
+        if Path("/proc/self").exists():
+            return False                     # Linux: the process is gone
+        # No /proc (Windows, macOS): every running job read as "crashed" the moment it started.
+        try:
+            import psutil
+            cmdline = " ".join(psutil.Process(pid).cmdline())
+        except Exception:  # noqa: BLE001 - gone, no access or no psutil: not provably this job
+            return False
     except OSError:
         return False
     return "finetune_studio.jobs.runner" in cmdline and job_id in cmdline

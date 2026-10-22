@@ -118,8 +118,11 @@ def stop(job_id: str) -> dict[str, Any]:
     pid = store.read_pid(job_id)
     if pid and store.pid_alive(job_id):
         try:
-            os.killpg(pid, signal.SIGTERM)       # the runner sets ctx.stop; the kind ends cooperatively
-        except ProcessLookupError:
+            if hasattr(os, "killpg"):
+                os.killpg(pid, signal.SIGTERM)   # the runner sets ctx.stop; the kind ends cooperatively
+            else:
+                os.kill(pid, signal.SIGTERM)     # Windows: TerminateProcess (no cooperative stop there)
+        except (ProcessLookupError, PermissionError):
             pass
     return describe(job_id)
 

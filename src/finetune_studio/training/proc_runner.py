@@ -88,7 +88,8 @@ def kill_process_group(proc: subprocess.Popen) -> None:
     The child was started with ``start_new_session`` so its pgid is its pid;
     killing by that id also reaches grandchildren after the leader is reaped.
     """
-    for sig, grace in ((signal.SIGTERM, TERM_GRACE_SECONDS), (signal.SIGKILL, 2.0)):
+    # Windows has no SIGKILL; there the second round is proc.kill() (see below).
+    for sig, grace in ((signal.SIGTERM, TERM_GRACE_SECONDS), (getattr(signal, "SIGKILL", signal.SIGTERM), 2.0)):
         try:
             if hasattr(os, "killpg"):
                 os.killpg(proc.pid, sig)

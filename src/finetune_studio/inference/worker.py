@@ -169,25 +169,44 @@ def main(argv: list[str] | None = None) -> int:
         sock.unlink()
     engine = make_engine(args.engine)
     watch_parent()
-    print(f"[inference] pid {os.getpid()} engine={args.engine} socket={sock}", flush=True)
-    server = uvicorn.Server(uvicorn.Config(build_app(engine), uds=str(sock), log_level="warning", lifespan="off",
-                                           timeout_graceful_shutdown=3))
+    from finetune_studio.supervisor.client import (
+        HAS_AF_UNIX,
+        bind_loopback,
+        port_file,
+        require_token,
+    )
+
+    app: Any = build_app(engine)
+    listen: list[Any] | None = None
+    if HAS_AF_UNIX:
+        config = uvicorn.Config(app, uds=str(sock), log_level="warning", lifespan="off", timeout_graceful_shutdown=3)
+    else:
+        lsock, token = bind_loopback(sock)
+        listen = [lsock]
+        config = uvicorn.Config(require_token(app, token), log_level="warning", lifespan="off",
+                                timeout_graceful_shutdown=3)
+    print(f"[inference] pid {os.getpid()} engine={args.engine} socket={sock}"
+          + ("" if HAS_AF_UNIX else f" (loopback port {listen[0].getsockname()[1]})"), flush=True)
+    server = uvicorn.Server(config)
 
     async def serve() -> None:
         # Own the signals: uvicorn's ``run()`` re-raises a captured SIGTERM after shutdown, which would
-        # kill the process before the cleanup below (the socket file stayed behind).
+        # kill the process before the cleanup below (the socket file stayed behind). Windows' event loop
+        # cannot install them (NotImplementedError); Ctrl+C / termination end the process there.
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(sig, lambda: setattr(server, "should_exit", True))
-        await server.serve()
+            with contextlib.suppress(NotImplementedError):
+                loop.add_signal_handler(sig, lambda: setattr(server, "should_exit", True))
+        await server.serve(sockets=listen)
 
     try:
         asyncio.run(serve())
     finally:
         with contextlib.suppress(Exception):
             engine.unload()
-        with contextlib.suppress(FileNotFoundError):
-            sock.unlink()
+        for leftover in (sock, port_file(sock)):
+            with contextlib.suppress(FileNotFoundError):
+                leftover.unlink()
     return 0
 
 
