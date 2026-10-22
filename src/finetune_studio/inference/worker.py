@@ -143,11 +143,19 @@ def make_engine(kind: str) -> Any:
 def watch_parent() -> None:
     """Exit when the process that started us is gone (standalone web server, CLI command, supervisor)."""
     parent = os.getppid()
+    try:
+        import psutil
+        exists = psutil.pid_exists
+    except ImportError:
+        def exists(_pid: int) -> bool:
+            return True
 
     def loop() -> None:
         while True:
             time.sleep(PARENT_POLL_S)
-            if os.getppid() != parent:
+            # Windows never reparents, so getppid() stays the same after the parent dies; and a venv's python.exe
+            # is a launcher whose kill left this process running (Windows VM 2026-10-22). Check that it exists.
+            if os.getppid() != parent or not exists(parent):
                 print("[inference] parent process gone; exiting", flush=True)
                 os._exit(0)
 

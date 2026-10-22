@@ -98,3 +98,24 @@ def test_job_liveness_without_proc_uses_the_process_table(monkeypatch, tmp_path)
         for p in (runner, other):
             p.kill()
             p.wait(10)
+
+
+def test_worker_exits_when_its_parent_dies_even_without_reparenting(no_af_unix) -> None:
+    """Windows keeps getppid() after the parent dies (and a venv python.exe is a launcher): watch the pid itself."""
+    sock = no_af_unix / "run" / "inference.sock"
+    code = ("import subprocess, sys; p = subprocess.Popen([sys.executable, '-m', 'finetune_studio.inference.worker', "
+            f"'--socket', {str(sock)!r}, '--engine', 'fake']); print(p.pid, flush=True); import time; time.sleep(60)")
+    parent = subprocess.Popen([sys.executable, "-c", code], stdout=subprocess.PIPE, text=True,
+                              env={**os.environ, "FTS_NO_AF_UNIX": "1"})
+    child = int(parent.stdout.readline())
+    end = time.monotonic() + 60
+    while not launch.worker_alive(sock):
+        assert time.monotonic() < end, "worker never answered"
+        time.sleep(0.1)
+    parent.kill()
+    parent.wait(10)
+    import psutil
+    end = time.monotonic() + 15
+    while psutil.pid_exists(child) and psutil.Process(child).status() != psutil.STATUS_ZOMBIE:
+        assert time.monotonic() < end, "the worker outlived its parent"
+        time.sleep(0.2)

@@ -109,8 +109,10 @@ def stop_private_worker() -> None:
             with contextlib.suppress(ProcessLookupError):
                 proc.kill()
     if sock is not None:  # the worker unlinks on a clean exit; a killed one cannot
-        with contextlib.suppress(FileNotFoundError):
-            sock.unlink()
+        from finetune_studio.supervisor.client import port_file
+        for leftover in (sock, port_file(sock)):
+            with contextlib.suppress(FileNotFoundError):
+                leftover.unlink()
 
 
 def describe_worker_exit() -> str:
