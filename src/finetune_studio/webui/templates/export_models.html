@@ -57,13 +57,15 @@
         {% endfor %}
       </div>
     {% else %}
-      <div class="empty">No exportable runs. Finish a training run that writes an adapter or merged model first.</div>
+      <div class="empty">No exportable runs. Finish a training run that writes an adapter or merged model first; the export formats (GGUF, merged, abliterated) appear here then.</div>
     {% endif %}
   </div>
 </div>
 
 {# ── Compatible base for adapter-only merge ───────────────────────── #}
-<div class="card mb-4" id="export-base-card">
+{# No run to export: the base-model path and the format form would be live-looking controls with nothing to act on. #}
+{% set has_exportable = project.runs|selectattr('exportable')|list|length > 0 %}
+<div class="card mb-4" id="export-base-card"{% if not has_exportable %} hidden{% endif %}>
   <div class="card-head">
     <div>
       <div class="card-title">Compatible base model</div>
@@ -79,7 +81,7 @@
 
 {# ── Export options ───────────────────────────────────────────────── #}
 {% set caps = export_caps if export_caps is defined else {'gguf': false, 'gguf_hint': ''} %}
-<div class="card mb-4">
+<div class="card mb-4" id="export-format-card"{% if not has_exportable %} hidden{% endif %}>
   <div class="card-head">
     <div>
       <div class="card-title">Export format</div>

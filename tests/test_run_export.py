@@ -306,6 +306,14 @@ class TestExportApiAdapterOnly:
         assert 'value="awq"' not in body
         assert "AWQ is not available" not in body
         assert run["id"] in body
+        # With a run to export, the base-model path and format form are live.
+        assert 'id="export-base-card">' in body and 'id="export-format-card">' in body
+
+    def test_page_without_runs_hides_the_export_form(self, client) -> None:
+        pid = client.post("/api/projects", json={"name": "Export Empty"}).json()["id"]
+        body = client.get(f"/projects/{pid}/export").text
+        assert "No exportable runs" in body
+        assert 'id="export-base-card" hidden>' in body and 'id="export-format-card" hidden>' in body
 
     def test_post_export_merged_with_base_override(
         self, client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
