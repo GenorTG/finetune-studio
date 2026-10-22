@@ -149,12 +149,13 @@ function renderResults(results) {
     return;
   }
   const COLORS = ['solid-blue','solid-green','solid-purple','solid-orange','solid-pink','solid-cyan','solid-amber'];
-  const safeColor = (i, j) => (COLORS[(i + j) % COLORS.length] || '');
-  grid.innerHTML = results.map((r, i) => {
+  // Colour follows the tag text, so "transformers" looks the same on every card (by position it changed card to card).
+  const tagColor = (t) => { let h = 0; for (const c of String(t)) h = (h * 31 + c.charCodeAt(0)) >>> 0; return COLORS[h % COLORS.length]; };
+  grid.innerHTML = results.map((r) => {
     const repo = r.repo_id || '?';
     const fav = isFavorited(repo);
-    const tagPills = (r.tags || []).slice(0, 4).map((t, j) =>
-      `<span class="pill ${safeColor(i, j)}">${esc(t)}</span>`).join('');
+    const tagPills = (r.tags || []).slice(0, 4).map((t) =>
+      `<span class="pill ${tagColor(t)}">${esc(t)}</span>`).join('');
     return `
       <div class="hf-card">
         <div class="head">
@@ -163,6 +164,7 @@ function renderResults(results) {
             <div class="name truncate" title="${esc(repo)}">${esc(repo)}</div>
             <div class="text-xs dim mono truncate">${esc(r.id || '')}</div>
           </div>
+          <button class="btn sm fav-btn${fav ? ' fav-active' : ''}" data-repo="${esc(repo)}" onclick="toggleFavorite('${esc(repo)}', this)" title="${fav ? 'Remove from favorites' : 'Add to favorites'}" aria-label="${fav ? 'Remove from favorites' : 'Add to favorites'}">${fav ? '★' : '☆'}</button>
         </div>
         <div class="pills">${tagPills}</div>
         <div class="meta">
@@ -174,7 +176,6 @@ function renderResults(results) {
           <button class="btn sm primary" onclick="showInfo('${esc(repo)}', this)">View</button>
           <button class="btn sm" onclick="showFiles('${esc(repo)}', this)">Files</button>
           <button class="btn sm" data-confirm="Download all files of ${esc(repo)}?" data-action="/api/hf/download" data-body='${JSON.stringify({repo_id: repo})}' data-method="POST" title="Download every file of this model to this machine">Download</button>
-          <button class="btn sm fav-btn${fav ? ' fav-active' : ''}" data-repo="${esc(repo)}" onclick="toggleFavorite('${esc(repo)}', this)" title="${fav ? 'Remove from favorites' : 'Add to favorites'}" aria-label="${fav ? 'Remove from favorites' : 'Add to favorites'}">${fav ? '★' : '☆'}</button>
         </div>
       </div>`;
   }).join('');

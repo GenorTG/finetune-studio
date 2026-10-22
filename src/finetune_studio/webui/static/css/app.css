@@ -935,6 +935,7 @@
 }
 .hf-card:hover { border-color: var(--accent); box-shadow: 0 0 16px var(--accent-glow); }
 .hf-card .head { display: flex; align-items: flex-start; gap: 10px; }
+.hf-card .head .fav-btn { flex: none; padding: 2px 7px; }   /* beside the name: compact, so long repo names keep their width */
 .hf-card .icon {
   width: 32px; height: 32px;
   background: var(--accent);
