@@ -50,6 +50,21 @@ def test_scan_skips_embedding_arch(tmp_path: Path) -> None:
     assert scan_models([str(tmp_path / "shared_models")]) == []
 
 
+def test_scan_skips_sentence_transformers_embedder_with_causal_lm_arch(tmp_path: Path) -> None:
+    """Qwen3-Embedding's config names Qwen3ForCausalLM; its sentence-transformers files mark it as an embedder."""
+    hub = tmp_path / "hub"
+    emb = hub / "models--Qwen--Qwen3-Embedding-0.6B" / "snapshots" / ("b" * 40)
+    _write_model(emb, _QWEN_CFG, "model.safetensors", _HALF_GIB)
+    (emb / "config_sentence_transformers.json").write_text("{}", encoding="utf-8")
+    pooled = hub / "models--org--pooled-embedder" / "snapshots" / ("c" * 40)
+    _write_model(pooled, _QWEN_CFG, "model.safetensors", _HALF_GIB)
+    (pooled / "1_Pooling").mkdir()
+    chat = hub / "models--Qwen--Qwen3-4B" / "snapshots" / ("d" * 40)
+    _write_model(chat, _QWEN_CFG, "model.safetensors", _HALF_GIB)
+    found = [m.path for m in scan_models([str(hub)])]
+    assert found == [str(chat)]
+
+
 def test_scan_skips_broken_symlink_weights_and_keeps_sibling(tmp_path: Path) -> None:
     broken = tmp_path / "hub" / "models--Qwen--Qwen3-0.6B" / "snapshots" / ("a" * 40)
     broken.mkdir(parents=True)

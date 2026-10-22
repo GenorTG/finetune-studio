@@ -333,8 +333,11 @@ def scan_models(directories: list) -> list:
                     params = cfg.get("model_type", "")
                 except (json.JSONDecodeError, OSError):
                     arch, params = "", ""
-                # Skip non-chat models (embeddings, vision encoders, projectors)
-                if arch in _SKIP_ARCHES:
+                # Skip non-chat models (embeddings, vision encoders, projectors). Sentence-transformers packaging marks an
+                # embedder whose config still names a causal LM (Qwen3-Embedding: Qwen3ForCausalLM), which the
+                # architecture list misses: it was offered as a model to chat with and compare (beta audit 2026-10-22).
+                if arch in _SKIP_ARCHES or "config_sentence_transformers.json" in files \
+                        or any(sub.endswith("_Pooling") for sub in dirs):
                     dirs.clear()
                     continue
                 # Readable weights only — dangling hub symlinks must not abort
