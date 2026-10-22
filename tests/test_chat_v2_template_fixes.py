@@ -65,3 +65,12 @@ def test_idle_chat_keeps_empty_state_not_live_success() -> None:
     assert "Done —" not in empty
     assert "factual Q&A pairs created" not in empty
     assert "Example (not a live result)" in empty or "not a live result" in src
+
+
+def test_inline_load_context_field_is_labelled_and_shows_auto() -> None:
+    """The context box beside Load had no label and showed a bare 0; empty loads with auto (parseInt -> 0)."""
+    src = _src()
+    field = src.split('id="chat-inline-ctx"', 1)[1].split(">", 1)[0]
+    assert 'value=""' in field and 'placeholder="auto"' in field
+    assert 'for="chat-inline-ctx">Context' in src
+    assert "parseInt(ctxEl.value, 10) || 0" in src
