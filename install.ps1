@@ -50,12 +50,14 @@ if ($Cpu) { $accel += "--cpu" }
 if ($Gpu) { $accel += @("--gpu", $Gpu) }
 function Invoke-Accel {
     param([string]$Sub, [string[]]$More = @())
-    & $venvPy scripts\accel_plan.py $Sub @accel --venv .venv @More
+    # Out-Host: the script's lines go to the console. Without it they became this function's return value, so
+    # "(Invoke-Accel ...) -ne 0" compared an array (always true) and every [accel] message was swallowed.
+    & $venvPy scripts\accel_plan.py $Sub @accel --venv .venv @More | Out-Host
     return $LASTEXITCODE
 }
 
 Write-Host "Detected accelerator plan:" -ForegroundColor Cyan
-Invoke-Accel plan | Out-Host
+[void](Invoke-Accel plan)
 
 # 1. PyTorch: newest CUDA/XPU index the driver + GPU support; CPU only when no GPU of any vendor.
 #    Writes .venv\torch-constraints.txt so later resolves cannot swap torch off its GPU build.

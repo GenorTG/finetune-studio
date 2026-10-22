@@ -23,6 +23,9 @@ def test_windows_powershell_installer_uses_supported_range_and_parser_extra() ->
     assert '$version -ge [version]"3.12" -and $version -lt [version]"3.14"' in source
     assert 'uv pip install @constraints -e ".[parsers]"' in source
     assert 'accel_plan.py $Sub' in source and '"torch"' in source
+    # The helper's output must reach the console, not the return value: "(Invoke-Accel ...) -ne 0" on an array of
+    # lines is always true, so a working torch install was reported as failed (Windows VM 2026-10-22).
+    assert "--venv .venv @More | Out-Host" in source
 
 
 def test_updater_defaults_to_installer_project_local_llama_cpp() -> None:
