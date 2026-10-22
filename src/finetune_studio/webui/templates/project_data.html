@@ -494,8 +494,14 @@
       const r = d.querySelector('summary').getBoundingClientRect();
       const list = d.querySelector('.fb-row-menu-list');
       const h = list.offsetHeight, w = list.offsetWidth;
-      list.style.top = (r.bottom + h + 8 > window.innerHeight ? Math.max(8, r.top - h - 4) : r.bottom + 4) + 'px';
-      list.style.left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)) + 'px';
+      const top = r.bottom + h + 8 > window.innerHeight ? Math.max(8, r.top - h - 4) : r.bottom + 4;
+      const left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8));
+      // A transformed/filtered ancestor makes `fixed` relative to itself, not the viewport: place, measure, correct.
+      list.style.top = top + 'px';
+      list.style.left = left + 'px';
+      const got = list.getBoundingClientRect();
+      list.style.top = (2 * top - got.top) + 'px';
+      list.style.left = (2 * left - got.left) + 'px';
     }, true);
     document.addEventListener('click', (e) => {
       const inMenu = e.target.closest && e.target.closest('details.fb-row-menu');
