@@ -1109,8 +1109,57 @@ def venv_python(venv: Path) -> str:
     return str(win if win.exists() else venv / "bin" / "python")
 
 
+# Every Windows torch / llama.cpp wheel links the MSVC runtime. A fresh Windows 11 has none of it (python.org Python ships
+# only its own vcruntime140*.dll, not msvcp140.dll), so `import torch` died with WinError 126 on c10.dll (VM 2026-10-22).
+MSVC_RUNTIME_DLLS = ("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll")
+VC_REDIST_URL = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+
+
+def missing_msvc_runtime() -> list[str]:
+    """MSVC runtime DLLs absent from System32 (always empty off Windows)."""
+    if not _on_windows():
+        return []
+    fx = _fixture()
+    if fx is not None and "msvc_missing" in fx:
+        return list(fx["msvc_missing"])
+    sysdir = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
+    return [d for d in MSVC_RUNTIME_DLLS if not (sysdir / d).exists()]
+
+
+def ensure_msvc_runtime(*, runner=_exec, download=None) -> bool:
+    """Install the Microsoft Visual C++ Redistributable when its DLLs are missing (Windows asks for admin approval)."""
+    missing = missing_msvc_runtime()
+    if not missing:
+        return True
+    _say(f"Microsoft Visual C++ Redistributable is missing ({', '.join(missing)}); PyTorch cannot load without it.")
+    _say(f"Installing it from {VC_REDIST_URL} (Windows may ask for administrator approval)...")
+    exe = Path(os.environ.get("TEMP") or os.environ.get("TMP") or ".") / "vc_redist.x64.exe"
+    try:
+        if download is None:
+            import urllib.request
+            with urllib.request.urlopen(VC_REDIST_URL, timeout=120) as r:
+                exe.write_bytes(r.read())
+        else:
+            download(VC_REDIST_URL, exe)
+    except OSError as exc:
+        _say(f"cannot download the redistributable: {exc}")
+    else:
+        # RunAs: the installer needs elevation, which a plain child process cannot request.
+        runner(["powershell", "-NoProfile", "-Command",
+                f"Start-Process -FilePath '{exe}' -ArgumentList '/install','/quiet','/norestart' -Verb RunAs -Wait"])
+    still = missing_msvc_runtime()
+    if still:
+        _say(f"ERROR: still missing {', '.join(still)}. Install the Visual C++ Redistributable (x64) by hand from "
+             f"{VC_REDIST_URL}, then run the installer again.")
+        return False
+    _say("Visual C++ Redistributable installed.")
+    return True
+
+
 def install_torch(plan: Plan, venv: Path, *, unsloth_profile: bool = False, runner=_exec) -> bool:
     py = venv_python(venv)
+    if not ensure_msvc_runtime(runner=runner):
+        return False
     for tag, cmd in torch_commands(plan, py, unsloth_profile=unsloth_profile):
         _say(f"Installing PyTorch ({tag or 'default'}) for {plan.vendor}...")
         if runner(cmd) != 0:

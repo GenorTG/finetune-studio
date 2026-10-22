@@ -49,7 +49,7 @@ REM 1. PyTorch: newest CUDA/XPU index the driver + GPU support; CPU only when no
 REM    Writes .venv\torch-constraints.txt so later resolves cannot swap torch off its GPU build.
 %VENV_PY% scripts\accel_plan.py install torch %ACCEL_FLAGS% --venv .venv
 if errorlevel 1 (
-    echo ERROR: PyTorch install failed. Fix the GPU driver or re-run with FTS_CPU=1.
+    echo ERROR: PyTorch install failed: the [accel] lines above say why ^(Visual C++ runtime, GPU driver, network^). On a GPU host, FTS_CPU=1 installs CPU wheels instead.
     pause
     exit /b 1
 )

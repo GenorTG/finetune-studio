@@ -60,7 +60,7 @@ Invoke-Accel plan | Out-Host
 # 1. PyTorch: newest CUDA/XPU index the driver + GPU support; CPU only when no GPU of any vendor.
 #    Writes .venv\torch-constraints.txt so later resolves cannot swap torch off its GPU build.
 if ((Invoke-Accel install @("torch")) -ne 0) {
-    Write-Host "ERROR: PyTorch install failed (see above). Fix the driver, or re-run with -Cpu." -ForegroundColor Red
+    Write-Host "ERROR: PyTorch install failed: the [accel] lines above say why (Visual C++ runtime, GPU driver, network). On a GPU host, -Cpu installs CPU wheels instead." -ForegroundColor Red
     exit 1
 }
 $constraints = @()

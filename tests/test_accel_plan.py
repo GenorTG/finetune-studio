@@ -407,6 +407,47 @@ def test_torch_install_rejects_a_wheel_of_the_wrong_backend_and_tries_the_next(m
     assert len(installs) == 2 and installs[1][installs[1].index("--index-url") + 1].endswith("/cu130")
 
 
+def test_windows_without_the_msvc_runtime_installs_it_before_torch(monkeypatch, tmp_path, capsys) -> None:
+    """A fresh Windows lacks msvcp140.dll: `import torch` died with WinError 126 on c10.dll (VM 2026-10-22)."""
+    plan = _plan_for(monkeypatch, tmp_path, system="Windows", machine="AMD64", msvc_missing=["msvcp140.dll"])
+    calls: list[list[str]] = []
+
+    def runner(cmd, env=None, shell_prefix=""):
+        calls.append(cmd)
+        if cmd[0] == "powershell":
+            ap._FIXTURE["msvc_missing"] = []          # the redistributable installed its DLLs
+        return 0
+
+    monkeypatch.setenv("TEMP", str(tmp_path))
+    monkeypatch.setattr(ap, "ensure_msvc_runtime",           # no network: the download writes a stub installer
+                        lambda runner: _ENSURE(runner=runner, download=lambda u, p: p.write_bytes(b"x")))
+    assert ap.install_torch(plan, tmp_path, runner=runner) is True
+    assert calls[0][0] == "powershell" and "-Verb RunAs" in calls[0][-1] and "/quiet" in calls[0][-1]
+    assert any("install" in c for c in calls[1:])          # torch only after the runtime
+    assert "Visual C++ Redistributable installed" in capsys.readouterr().out
+
+
+def test_windows_runtime_install_that_fails_stops_with_the_manual_link(monkeypatch, tmp_path, capsys) -> None:
+    plan = _plan_for(monkeypatch, tmp_path, system="Windows", machine="AMD64", msvc_missing=["msvcp140.dll"])
+    calls: list[list[str]] = []
+    monkeypatch.setenv("TEMP", str(tmp_path))
+    monkeypatch.setattr(ap, "ensure_msvc_runtime",
+                        lambda runner: _ENSURE(runner=runner, download=lambda u, p: p.write_bytes(b"x")))
+    assert ap.install_torch(plan, tmp_path, runner=lambda cmd, env=None, shell_prefix="": calls.append(cmd) or 0) is False
+    assert [c[0] for c in calls] == ["powershell"]          # no torch install attempted
+    out = capsys.readouterr().out
+    assert "still missing msvcp140.dll" in out and ap.VC_REDIST_URL in out
+
+
+def test_linux_never_checks_the_msvc_runtime(monkeypatch, tmp_path) -> None:
+    _plan_for(monkeypatch, tmp_path, msvc_missing=["msvcp140.dll"])
+    assert ap.missing_msvc_runtime() == []
+    assert ap.ensure_msvc_runtime(runner=lambda *a, **k: pytest.fail("ran an installer on Linux")) is True
+
+
+_ENSURE = ap.ensure_msvc_runtime
+
+
 def test_torch_family_is_torch_and_torchvision_only_no_frozen_torchaudio() -> None:
     plan = ap.build_plan(ap.GpuInfo("none", "(no GPU)", "", "", "", ""))
     assert ap.torch_specs(plan) == ["torch", "torchvision"]
