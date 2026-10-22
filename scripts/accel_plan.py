@@ -1133,6 +1133,9 @@ def install_llama_cpp_python(plan: Plan, venv: Path, *, runner=_exec) -> bool:
             _say("WARN: no GPU build of llama-cpp-python could be installed; installing the "
                  "CPU build so GGUF still works. Fix the hints above, then `bash install.sh --repair`.")
         _say(f"llama-cpp-python: {label}")
+        if label.startswith("source build"):
+            # No compiler output reaches the terminal for this step; 15-30 min of silence looked like a hang (beta audit 2026-10-22).
+            _say("  compiling llama.cpp for your GPU: usually 10-30 minutes with no output; the installer has not hung.")
         if runner(cmd, env) != 0:
             continue
         probe = runner([py, "-c", LLAMA_PROBE])
