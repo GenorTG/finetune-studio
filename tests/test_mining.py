@@ -339,6 +339,21 @@ def test_value_items_need_one_answer_with_every_value_and_rejected_pairs_never_c
     assert file_status(item_states(items, pairs), has_inventory=True, mining=False) == "review"
 
 
+def test_cached_coverage_follows_every_pair_and_item_change() -> None:
+    from finetune_studio.data.mining.coverage import cached_item_states
+    items = [{"id": "i1", "origin": "agent", "text": "x", "values": ["garden leave", "in full"], "excluded_reason": ""}]
+    pairs = [{"id": "p1", "status": "pending", "question": "q", "answer": "During garden leave pay continues in full."}]
+    assert cached_item_states(items, pairs)[0].state == "pending"
+    pairs[0]["status"] = "approved"
+    assert cached_item_states(items, pairs)[0].state == "approved"
+    pairs[0]["answer"] = "Garden leave applies."
+    assert cached_item_states(items, pairs)[0].state == "open"
+    items[0]["excluded_reason"] = "not a fact"
+    assert cached_item_states(items, pairs)[0].state == "excluded"
+    cached_item_states(items, pairs)[0].pair_ids.append("mutated")   # a caller's edit never reaches the cache
+    assert cached_item_states(items, pairs)[0].pair_ids == []
+
+
 def test_statement_coverage_ignores_unrelated_answers_that_share_a_number() -> None:
     s = st.split_statements("Annual leave is 21 working days for employees with 0-2 years of service.")[0]
     unrelated = [st.pair_tokens("p", "How many pallets fit?", "21 pallets and 0-2 spares fit.")]

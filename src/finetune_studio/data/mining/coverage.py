@@ -20,6 +20,9 @@ training-ready and pass the export check.
 """
 from __future__ import annotations
 
+import hashlib
+import threading
+from collections import OrderedDict
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Any
@@ -65,7 +68,8 @@ class FileCoverage:
                 "training_ready": self.status == "complete"}
 
 
-def _covering(item: dict[str, Any], prepared: Sequence[PairTokens], answers: Sequence[tuple[str, Haystack]]) -> list[str]:
+def _covering(item: dict[str, Any], prepared: Sequence[PairTokens], answers: Sequence[tuple[str, Haystack]],
+              content: dict[str, frozenset[str]]) -> list[str]:
     if item["origin"] == "rule":
         # Tokens from the text, not the stored values: a tokenizer fix must apply to inventories mined before it.
         return covering_pairs(item["text"], hard_tokens(item["text"]), prepared)
@@ -73,7 +77,6 @@ def _covering(item: dict[str, Any], prepared: Sequence[PairTokens], answers: Seq
     need = min(2, (len(values) + 1) // 2)
     own = content_tokens(item["text"]) - content_tokens(" ".join(values))   # words the values share prove nothing
     need_overlap = max(1, min(3, round(0.4 * len(own))))
-    content = {p.pair_id: p.content for p in prepared}
     hits = {}
     for pair_id, answer in answers:
         found = {v for v in values if loosely_contains(v, answer)}
@@ -91,6 +94,8 @@ def item_states(items: Sequence[dict[str, Any]], pairs: Sequence[dict[str, Any]]
     hay = {str(p["id"]): haystack(str(p.get("answer", ""))) for p in live}      # normalised once, checked per item
     ans_a = [(str(p["id"]), hay[str(p["id"])]) for p in approved]
     ans_l = [(str(p["id"]), hay[str(p["id"])]) for p in live]
+    content_a = {p.pair_id: p.content for p in prep_a}
+    content_l = {p.pair_id: p.content for p in prep_l}
     out: list[ItemState] = []
     for it in items:
         if it["origin"] == "rule" and not hard_tokens(it["text"]):
@@ -98,14 +103,48 @@ def item_states(items: Sequence[dict[str, Any]], pairs: Sequence[dict[str, Any]]
         if it.get("excluded_reason"):
             out.append(ItemState(it["id"], "excluded"))
             continue
-        by_approved = _covering(it, prep_a, ans_a)
+        by_approved = _covering(it, prep_a, ans_a, content_a)
         if by_approved:
             out.append(ItemState(it["id"], "approved", by_approved))
             continue
-        by_live = _covering(it, prep_l, ans_l)
+        by_live = _covering(it, prep_l, ans_l, content_l)
         out.append(ItemState(it["id"], "pending", by_live) if by_live
                    else ItemState(it["id"], "open", proposed=str(it.get("proposed_reason") or "")))
     return out
+
+
+# Coverage is items x answers fuzzy matching (a 19-file project: ~900k checks, seconds), asked for by every page that lists
+# files. The result depends only on the item and pair fields below, so it is kept per file until one of them changes.
+_STATES_CACHE: OrderedDict[str, list[ItemState]] = OrderedDict()
+_STATES_LOCK = threading.Lock()
+_STATES_MAX = 512
+
+
+def _fingerprint(items: Sequence[dict[str, Any]], pairs: Sequence[dict[str, Any]]) -> str:
+    h = hashlib.blake2b(digest_size=16)
+    for it in items:
+        h.update(repr((it.get("id"), it.get("origin"), it.get("text"), it.get("values"), it.get("excluded_reason"),
+                       it.get("proposed_reason"))).encode())
+    h.update(b"\x00")
+    for p in pairs:
+        h.update(repr((p.get("id"), p.get("status"), p.get("question"), p.get("answer"))).encode())
+    return h.hexdigest()
+
+
+def cached_item_states(items: Sequence[dict[str, Any]], pairs: Sequence[dict[str, Any]]) -> list[ItemState]:
+    """``item_states``, reused while the file's items and pairs are unchanged (copies: callers may not share the lists)."""
+    key = _fingerprint(items, pairs)
+    with _STATES_LOCK:
+        hit = _STATES_CACHE.get(key)
+        if hit is not None:
+            _STATES_CACHE.move_to_end(key)
+    if hit is None:
+        hit = item_states(items, pairs)
+        with _STATES_LOCK:
+            _STATES_CACHE[key] = hit
+            while len(_STATES_CACHE) > _STATES_MAX:
+                _STATES_CACHE.popitem(last=False)
+    return [ItemState(s.item_id, s.state, list(s.pair_ids), s.proposed) for s in hit]
 
 
 def file_status(states: Sequence[ItemState], *, has_inventory: bool, mining: bool) -> str:
@@ -130,7 +169,7 @@ def file_coverage(pid: str, source_id: str, *, items: Sequence[dict[str, Any]] |
     pairs = qa_fs.list_qa_pairs(pid, source_id=source_id) if pairs is None else pairs
     if mining is None:
         mining = bool(db.mining.list_jobs(pid, source_id=source_id, active=True, limit=1))
-    states = item_states(items, pairs)
+    states = cached_item_states(items, pairs)
     counts = {"total": len(pairs), "approved": 0, "pending": 0, "rejected": 0}
     for p in pairs:
         if p.get("status") in counts:
