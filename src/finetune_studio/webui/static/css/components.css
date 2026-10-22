@@ -37,6 +37,9 @@
   min-width: 0;
   flex: 1 1 auto;
 }
+/* A lone status pill stays beside the title: with basis auto a long description wrapped the pill onto its own row, so
+   Quick work's badges sat right on short cards and under the text on long ones (beta audit 2026-10-22). */
+.card-head > :first-child:has(+ .pill:last-child) { flex-basis: 0; }
 .card-title {
   font-size: 12px;
   font-weight: 700;

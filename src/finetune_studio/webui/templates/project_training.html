@@ -250,10 +250,6 @@
       <div id="dataset-health" class="text-xs mt-2" hidden aria-live="polite"></div>
     </div>
 
-    <label>
-      <span class="block text-xs muted mb-1" title="Where training output (adapter, merged model, GGUF export) will be written. Relative paths resolve under this project's directory.">Output Dir <span class="dim">?</span></span>
-      <input type="text" name="output_dir" value="output" class="input">
-    </label>
     <label class="flex items-center gap-2 mt-1 grid-full" title="After training, merge the LoRA adapter into the base model. The merged model is a standalone file you can load directly (no need to keep the adapter separate) and is what the Testing page's \"auto (latest merged)\" model uses. Larger on disk (roughly the base model's size): untick to keep only the adapter and merge later at export time.">
       <input type="checkbox" name="merge_on_save" value="1" id="merge-on-save-check" checked>
       <span class="block text-xs muted">Also save merged model (standalone; roughly the size of the base model)</span>
@@ -303,36 +299,45 @@
       <span class="block text-xs muted mb-1" title="Maximum tokens per training example (prompt + response). Longer = more context but more VRAM and slower training. Truncate examples longer than this; pad shorter ones up to it.">Max sequence <span class="dim">?</span></span>
       <input type="number" name="max_seq_length" value="2048" class="input">
     </label>
-    <label>
-      <span class="block text-xs muted mb-1" for="gradient-accum-steps">Gradient accumulation steps</span>
-      <input type="number" name="gradient_accumulation_steps" id="gradient-accum-steps" value="1" min="1" max="32" class="input" title="Accumulate gradients over multiple steps. Effective batch size = batch_size × this value.">
-    </label>
-    <label>
-      <span class="block text-xs muted mb-1" for="warmup-steps">Warmup steps</span>
-      <input type="number" name="warmup_steps" id="warmup-steps" value="100" min="0" class="input" title="Learning rate warmup steps. Helps stabilize early training. Capped at 10% of the run's steps, so a short run still trains at the chosen rate.">
-    </label>
-    <label class="flex items-center gap-2 mt-1 grid-full" title="Unsloth loads the model in 4-bit (QLoRA) with faster kernels: roughly half the VRAM and noticeably quicker. Falls back to standard training if Unsloth is not installed.">
-      <input type="hidden" name="unsloth" value="0">
-      <input type="checkbox" name="unsloth" value="1" id="unsloth-check">
-      <span class="text-xs">Use Unsloth (4-bit, faster, less VRAM)</span>
-    </label>
-    <label class="flex items-center gap-2 mt-1 grid-full" title="Save intermediate checkpoints every 100 steps (or at every evaluation when early stopping is on) so an interrupted run keeps its progress.">
-      <input type="hidden" name="save_checkpoints" value="0">
-      <input type="checkbox" name="save_checkpoints" value="1" id="save-checkpoints-check" checked>
-      <span class="text-xs">Save checkpoints during training</span>
-    </label>
-    <label class="flex items-center gap-2 mt-1 grid-full" title="Stop when the held-out validation loss has not improved for 3 evaluations, and keep the best checkpoint. Needs 'Eval every N steps' above 0.">
-      <input type="checkbox" name="early_stopping" value="1" id="early-stopping-check">
-      <span class="text-xs">Early stopping (stop when validation loss stops improving)</span>
-    </label>
-    <label>
-      <span class="block text-xs muted mb-1" for="save-limit">Keep last N checkpoints</span>
-      <input type="number" name="save_limit" id="save-limit" value="3" min="1" max="10" class="input" title="Maximum checkpoints to keep. Older ones are deleted.">
-    </label>
-    <label>
-      <span class="block text-xs muted mb-1" for="eval-steps">Eval every N steps</span>
-      <input type="number" name="eval_steps" id="eval-steps" value="50" min="0" class="input" title="Measure loss on the 10% held-out split every N steps. 0 = no evaluation during training. Small datasets need a small value, or no evaluation happens before training ends.">
-    </label>
+    <details class="grid-full train-advanced" id="train-advanced">
+      <summary class="text-xs muted">Advanced: output folder, gradient accumulation, warmup, Unsloth, checkpoints, evaluation</summary>
+      <div class="grid grid-2 gap-4 mt-2">
+        <label>
+          <span class="block text-xs muted mb-1" title="Where training output (adapter, merged model, GGUF export) will be written. Relative paths resolve under this project's directory.">Output Dir <span class="dim">?</span></span>
+          <input type="text" name="output_dir" value="output" class="input">
+        </label>
+        <label>
+          <span class="block text-xs muted mb-1" for="gradient-accum-steps">Gradient accumulation steps</span>
+          <input type="number" name="gradient_accumulation_steps" id="gradient-accum-steps" value="1" min="1" max="32" class="input" title="Accumulate gradients over multiple steps. Effective batch size = batch_size × this value.">
+        </label>
+        <label>
+          <span class="block text-xs muted mb-1" for="warmup-steps">Warmup steps</span>
+          <input type="number" name="warmup_steps" id="warmup-steps" value="100" min="0" class="input" title="Learning rate warmup steps. Helps stabilize early training. Capped at 10% of the run's steps, so a short run still trains at the chosen rate.">
+        </label>
+        <label class="flex items-center gap-2 mt-1 grid-full" title="Unsloth loads the model in 4-bit (QLoRA) with faster kernels: roughly half the VRAM and noticeably quicker. Falls back to standard training if Unsloth is not installed.">
+          <input type="hidden" name="unsloth" value="0">
+          <input type="checkbox" name="unsloth" value="1" id="unsloth-check">
+          <span class="text-xs">Use Unsloth (4-bit, faster, less VRAM)</span>
+        </label>
+        <label class="flex items-center gap-2 mt-1 grid-full" title="Save intermediate checkpoints every 100 steps (or at every evaluation when early stopping is on) so an interrupted run keeps its progress.">
+          <input type="hidden" name="save_checkpoints" value="0">
+          <input type="checkbox" name="save_checkpoints" value="1" id="save-checkpoints-check" checked>
+          <span class="text-xs">Save checkpoints during training</span>
+        </label>
+        <label class="flex items-center gap-2 mt-1 grid-full" title="Stop when the held-out validation loss has not improved for 3 evaluations, and keep the best checkpoint. Needs 'Eval every N steps' above 0.">
+          <input type="checkbox" name="early_stopping" value="1" id="early-stopping-check">
+          <span class="text-xs">Early stopping (stop when validation loss stops improving)</span>
+        </label>
+        <label>
+          <span class="block text-xs muted mb-1" for="save-limit">Keep last N checkpoints</span>
+          <input type="number" name="save_limit" id="save-limit" value="3" min="1" max="10" class="input" title="Maximum checkpoints to keep. Older ones are deleted.">
+        </label>
+        <label>
+          <span class="block text-xs muted mb-1" for="eval-steps">Eval every N steps</span>
+          <input type="number" name="eval_steps" id="eval-steps" value="50" min="0" class="input" title="Measure loss on the 10% held-out split every N steps. 0 = no evaluation during training. Small datasets need a small value, or no evaluation happens before training ends.">
+        </label>
+      </div>
+    </details>
     <div class="flex gap-2 mt-4 grid-full">
       <button type="submit" class="btn primary" id="start-btn" disabled title="Pick or upload a dataset first">Start training</button>
       <button type="button" class="btn danger" id="stop-btn" data-action="/api/training/stop" data-reload="true"

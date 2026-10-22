@@ -93,7 +93,7 @@
         <label class="fb-col-opt"><input type="checkbox" data-col="ver" checked> Version</label>
         <label class="fb-col-opt"><input type="checkbox" data-col="up" checked> Uploaded</label>
         <label class="fb-col-opt"><input type="checkbox" data-col="pipe" checked> Pipeline</label>
-        <label class="fb-col-opt"><input type="checkbox" data-col="drift" checked> Drift</label>
+        <label class="fb-col-opt"><input type="checkbox" data-col="drift" checked> Changed since training</label>
       </div>
     </div>
     <button class="btn sm danger" type="button" id="fb-empty-trash" hidden>Empty trash</button>
@@ -155,7 +155,7 @@
         <th class="fb-col-ver">Version</th>
         <th class="fb-col-uploaded wb-sortable" data-sort="uploaded">Uploaded <span class="wb-sort-ind"></span></th>
         <th class="fb-col-pipeline">Pipeline</th>
-        <th class="fb-col-drift">Drift</th>
+        <th class="fb-col-drift" title="Uploaded or edited after the last training run">Changed</th>
         <th class="fb-col-actions"></th>
       </tr>
     </thead>
@@ -482,6 +482,30 @@
       ).join('');
   }
 
+  // Row "⋯" menus: one open at a time, placed against the viewport (the table scrolls and would clip it),
+  // closed by an outside click, Escape or after an item ran. Registered once across SPA navigations.
+  if (!window.__fbRowMenuWired) {
+    window.__fbRowMenuWired = true;
+    const closeAll = (except) => document.querySelectorAll('details.fb-row-menu[open]').forEach((d) => { if (d !== except) d.open = false; });
+    document.addEventListener('toggle', (e) => {
+      const d = e.target;
+      if (!(d instanceof HTMLDetailsElement) || !d.classList.contains('fb-row-menu') || !d.open) return;
+      closeAll(d);
+      const r = d.querySelector('summary').getBoundingClientRect();
+      const list = d.querySelector('.fb-row-menu-list');
+      const h = list.offsetHeight, w = list.offsetWidth;
+      list.style.top = (r.bottom + h + 8 > window.innerHeight ? Math.max(8, r.top - h - 4) : r.bottom + 4) + 'px';
+      list.style.left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)) + 'px';
+    }, true);
+    document.addEventListener('click', (e) => {
+      const inMenu = e.target.closest && e.target.closest('details.fb-row-menu');
+      if (!inMenu) closeAll(null);
+      else if (e.target.closest('[role="menuitem"]')) inMenu.open = false;
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeAll(null); });
+    window.addEventListener('scroll', () => closeAll(null), true);
+  }
+
   function renderTable() {
     const tbody = document.getElementById('fb-tbody');
     const footer = document.getElementById('fb-footer-count');
@@ -507,17 +531,24 @@
       } else {
         const mime = f.mime_type || '';
         const p = pipe[f.id] || {};
+        // Two visible controls: Open, and a labelled menu (eight bare icons per row read as noise; beta audit 2026-10-22).
+        const fid = esc(f.id), fname = esc(f.original_name);
+        const item = (label, attrs) => '<button class="btn sm ghost" type="button" role="menuitem" data-fid="' + fid + '" data-name="' + fname + '" ' + attrs + '>' + label + '</button>';
+        const needsParse = !p.source_id || p.status === 'error';
         actions =
-          '<div class="flex gap-1 wrap fb-actions-wrap">' +
-          '<button class="btn sm" type="button" title="View / edit this file" onclick="wbOpen(\'' + esc(f.id) + '\',\'original\')">👁</button>' +
-          '<button class="btn sm" type="button" title="Edit parsed text (feeds training and the Smart Brain)" onclick="wbOpen(\'' + esc(f.id) + '\',\'parsed\')">✎p</button>' +
-          '<button class="btn sm" type="button" title="Usage — where this file\'s content went (parse / Smart Brain / pairs / datasets / runs)" onclick="fbUsage(\'' + esc(f.id) + '\')">ℹ️</button>' +
-          (p.has_parsed ? '<button class="btn sm" type="button" title="Discard manual edits, re-run the parser" data-fid="' + esc(f.id) + '" data-name="' + esc(f.original_name) + '" onclick="wbReparse(this.dataset.fid, this.dataset.name)">↻</button>' : '') +
-          ((!p.source_id || p.status === 'error') ? '<button class="btn sm" type="button" title="' + esc(p.error ? 'Parse failed: ' + p.error + ' — try again' : 'Parse this file now') + '" onclick="wbPromote(\'' + esc(f.id) + '\')">⚡</button>' : '') +
-          '<a class="btn sm" title="Download raw" href="/api/projects/' + PID + '/files/' + encodeURIComponent(f.id) + '/raw" download="' + esc(f.original_name) + '">⬇</a>' +
-          '<button class="btn sm" type="button" title="Tags &amp; notes" data-fid="' + esc(f.id) + '" data-name="' + esc(f.original_name) + '" onclick="fbEditTags(this.dataset.fid, this.dataset.name)">🏷</button>' +
-          '<button class="btn sm" type="button" title="Rename" data-fid="' + esc(f.id) + '" data-name="' + esc(f.original_name) + '" onclick="fbRename(this.dataset.fid, this.dataset.name)">✎</button>' +
-          '<button class="btn sm danger" type="button" title="Delete" data-fid="' + esc(f.id) + '" data-name="' + esc(f.original_name) + '" onclick="fbDelete(this.dataset.fid, this.dataset.name)">🗑</button>' +
+          '<div class="flex gap-1 fb-actions-wrap">' +
+          '<button class="btn sm" type="button" title="View / edit this file" onclick="wbOpen(\'' + fid + '\',\'original\')">Open</button>' +
+          (needsParse ? '<button class="btn sm" type="button" title="' + esc(p.error ? 'Parse failed: ' + p.error + ' — try again' : 'Parse this file now') + '" onclick="wbPromote(\'' + fid + '\')">Parse</button>' : '') +
+          '<details class="fb-row-menu"><summary class="btn sm" title="More actions" aria-label="More actions for ' + fname + '">⋯</summary>' +
+          '<div class="fb-row-menu-list card" role="menu">' +
+          item('Edit parsed text', 'onclick="wbOpen(this.dataset.fid,\'parsed\')"') +
+          item('Where it is used', 'onclick="fbUsage(this.dataset.fid)"') +
+          (p.has_parsed ? item('Re-parse (drops manual edits)', 'onclick="wbReparse(this.dataset.fid, this.dataset.name)"') : '') +
+          '<a class="btn sm ghost" role="menuitem" href="/api/projects/' + PID + '/files/' + encodeURIComponent(f.id) + '/raw" download="' + fname + '">Download</a>' +
+          item('Tags &amp; notes', 'onclick="fbEditTags(this.dataset.fid, this.dataset.name)"') +
+          item('Rename', 'onclick="fbRename(this.dataset.fid, this.dataset.name)"') +
+          '<button class="btn sm ghost danger" type="button" role="menuitem" data-fid="' + fid + '" data-name="' + fname + '" onclick="fbDelete(this.dataset.fid, this.dataset.name)">Delete</button>' +
+          '</div></details>' +
           '</div>';
       }
       const thumb = (f.mime_type || '').startsWith('image/')

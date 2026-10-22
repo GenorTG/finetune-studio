@@ -595,11 +595,16 @@
 
         async function refreshTrainCaption() {
           try {
-            const s = await fetch('/api/training/status', { cache: 'no-store' })
+            // Scoped to this project: the engine is global, and another project's run is not this page's work.
+            const pm = location.pathname.match(/^\/projects\/([^/]+)/);
+            const q = pm ? `?project_id=${encodeURIComponent(pm[1])}` : '';
+            const s = await fetch(`/api/training/status${q}`, { cache: 'no-store' })
               .then((r) => r.json())
               .catch(() => null);
             const st = (s && s.status) ? String(s.status).toLowerCase() : 'idle';
-            if (st === 'loading') {
+            if (s && s.other_project_running) {
+              cap.textContent = 'GPU BUSY: ANOTHER PROJECT IS TRAINING';
+            } else if (st === 'loading') {
               cap.textContent = 'LOADING MODEL';
             } else if (st === 'training' || st === 'running') {
               cap.textContent = 'GPU ACCELERATING';

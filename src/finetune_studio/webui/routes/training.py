@@ -115,7 +115,7 @@ TRAINING_PRESETS: dict[str, dict] = {
     # ── Small models (0.5B–1.5B) ──────────────────────────────
     "nano-fast": {
         "name": "Nano — Fast iteration",
-        "description": "Quick runs for data validation. ~5–15 min on 0.6B.",
+        "description": "Quick runs to check your data on a small (≤1B) model: minutes.",
         "target_models": ["0.6B", "1.5B"],
         "min_vram_gb": 6,
         "lora_rank": 32,
@@ -135,7 +135,7 @@ TRAINING_PRESETS: dict[str, dict] = {
     },
     "nano-quality": {
         "name": "Nano — Quality",
-        "description": "Better convergence for small models. ~30–60 min.",
+        "description": "More epochs and a longer context for small (≤2B) models.",
         "target_models": ["0.6B", "1.5B"],
         "min_vram_gb": 8,
         "lora_rank": 64,
@@ -156,7 +156,7 @@ TRAINING_PRESETS: dict[str, dict] = {
     # ── Medium models (3B–8B) ─────────────────────────────────
     "standard": {
         "name": "Standard — Balanced",
-        "description": "Good default for 3B–8B models. ~2–4 hours on 7B.",
+        "description": "Good default for 3B–9B models. Measured: a 9B, 2,500 pairs, 3 epochs ≈ 30 min on an RTX 3090.",
         "target_models": ["3B", "7B", "8B"],
         "min_vram_gb": 16,
         "lora_rank": 64,
@@ -176,7 +176,7 @@ TRAINING_PRESETS: dict[str, dict] = {
     },
     "standard-long": {
         "name": "Standard — Long training",
-        "description": "More epochs for better convergence. ~6–10 hours on 7B.",
+        "description": "Twice the epochs of Balanced, so about twice the time; watch for over-fitting.",
         "target_models": ["3B", "7B", "8B"],
         "min_vram_gb": 16,
         "lora_rank": 64,
@@ -196,7 +196,7 @@ TRAINING_PRESETS: dict[str, dict] = {
     },
     "high-rank": {
         "name": "High Rank — Maximum capacity",
-        "description": "Larger adapter for complex tasks. ~4–8 hours on 7B.",
+        "description": "Rank 128 and batch 1: a bigger adapter for complex formats, slower than Balanced.",
         "target_models": ["3B", "7B", "8B"],
         "min_vram_gb": 20,
         "lora_rank": 128,
@@ -217,7 +217,7 @@ TRAINING_PRESETS: dict[str, dict] = {
     # ── Large models (14B–27B) ────────────────────────────────
     "large": {
         "name": "Large — 14B/27B",
-        "description": "For big models. ~8–20 hours on 14B.",
+        "description": "For 14B–27B bases; needs QLoRA on a 24 GB card and takes several times longer than a 9B.",
         "target_models": ["14B", "27B"],
         "min_vram_gb": 24,
         "lora_rank": 64,
@@ -238,7 +238,7 @@ TRAINING_PRESETS: dict[str, dict] = {
     # ── QLoRA (4-bit base) ────────────────────────────────────
     "qlora": {
         "name": "QLoRA — Memory efficient",
-        "description": "4-bit base + LoRA. Fits 7B in ~6GB VRAM.",
+        "description": "4-bit base + LoRA: the least VRAM (a 9B trains on a 24 GB card).",
         "target_models": ["3B", "7B", "8B"],
         "min_vram_gb": 6,
         "lora_rank": 64,

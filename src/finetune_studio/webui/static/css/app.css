@@ -2671,6 +2671,8 @@
   width: 110px;
   white-space: nowrap;
 }
+/* Long absolute paths break anywhere instead of pushing a 390px page sideways (beta audit 2026-10-22). */
+#paths-table td:last-child { overflow-wrap: anywhere; word-break: break-word; }
 .ref-table kbd {
   display: inline-block;
   background: var(--bg-panel-2);
@@ -3625,7 +3627,13 @@
 .fb-upload .input { padding: 8px; }
 #fb-page-bar { padding: 8px 16px; border-top: 1px solid var(--border); }
 #fb-content-list { padding: 4px 16px 14px; }
-.fb-actions-wrap { max-width: 15em; }
+.fb-actions-wrap { max-width: 15em; align-items: center; }
+.fb-row-menu { display: inline-block; }
+.fb-row-menu > summary { list-style: none; }
+.fb-row-menu > summary::-webkit-details-marker { display: none; }
+.fb-row-menu-list { position: fixed; z-index: 60; display: flex; flex-direction: column; gap: 2px; min-width: 13em;
+  padding: 6px; margin: 0; box-shadow: 0 8px 24px rgb(0 0 0 / 35%); }
+.fb-row-menu-list .btn { justify-content: flex-start; text-align: left; border-color: transparent; }
 .fb-folder-icon { margin-right: 6px; }
 .fb-code-box { padding: 10px; border: 1px solid var(--border); background: var(--bg-panel); }
 .fb-search-msg { padding: 12px 0; }
@@ -3817,10 +3825,10 @@
 #fb-files-table .fb-col-uploaded { width: 7rem; }
 #fb-files-table .fb-col-drift { width: 5rem; }
 #fb-files-table .fb-col-pipeline { width: 8rem; }
-/* The 8 row buttons wrap inside .fb-actions-wrap (max-width 15em: 3 per row), so the column only needs that
+/* Row actions are Open (+ Parse when needed) and the ⋯ menu, so the column only needs that
    plus padding. 25rem here left ~200px empty per row and squeezed Name to 41px at a 1200px viewport
    (one letter per line, 610px rows; 2026-10-18 walkthrough). */
-#fb-files-table .fb-col-actions { width: 14rem; }
+#fb-files-table .fb-col-actions { width: 11rem; }
 #fb-files-table td.fb-c-actions { overflow: visible; white-space: nowrap; text-overflow: clip; }
 #fb-files-table td.fb-c-actions .btn.sm { padding: 4px 7px; }
 #fb-files-table td.fb-c-pipe { white-space: normal; }

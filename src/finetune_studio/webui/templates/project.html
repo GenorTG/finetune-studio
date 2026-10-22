@@ -201,7 +201,7 @@
         <th>Size</th>
         <th>Version</th>
         <th>Uploaded</th>
-        <th>Drift</th>
+        <th title="Uploaded after the last training run">Changed since training</th>
         <th></th>
       </tr>
     </thead>
@@ -470,8 +470,7 @@
           '<div class="flex gap-1 wrap">' +
           '<button class="btn sm" type="button" data-act="preview"' + attrs + '>Preview</button>' +
           '<a class="btn sm" title="Download the original file" aria-label="Download the original file" href="/api/projects/' + PID + '/files/' + encodeURIComponent(f.id) + '/raw" download="' + esc(f.original_name) + '">↓</a>' +
-          '<button class="btn sm" type="button" data-act="tags"' + attrs + '>Tags &amp; notes</button>' +
-          '<button class="btn sm danger" type="button" data-act="delete"' + attrs + '>Delete</button>' +
+          '<a class="btn sm ghost" href="/projects/' + PID + '/data" data-link title="Tags, rename, delete and the rest live on the Files page">Manage</a>' +
           '</div>';
         return '<tr class="row-hover">' +
           '<td class="name" title="' + esc(f.original_name) + '">' + esc(f.original_name) + '</td>' +

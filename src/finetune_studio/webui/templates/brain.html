@@ -129,7 +129,11 @@
 </div>
 
 {# Settings #}
-<details class="card mb-4" id="brain-search-settings">
+<div class="card mb-4" id="brain-needs-index-note" hidden>
+  <p class="text-sm muted">Search settings, the document list, the search test, grounded chat and export appear here once the index is built (step 2 above).</p>
+</div>
+
+<details class="card mb-4" id="brain-search-settings" data-needs-index>
   <summary class="card-head">
     <div>
       <div class="card-title">3. Search settings</div>
@@ -165,7 +169,7 @@
 </details>
 
 {# Documents indexed #}
-<details class="card mb-4" id="brain-docs-panel">
+<details class="card mb-4" id="brain-docs-panel" data-needs-index>
   <summary class="card-head">
     <div>
       <div class="card-title">4. Documents in the index</div>
@@ -250,7 +254,7 @@
 </div>
 
 {# Test #}
-<div class="card mb-4" id="brain-search">
+<div class="card mb-4" id="brain-search" data-needs-index>
   <div class="card-head">
     <div>
       <div class="card-title">5. Search test</div>
@@ -274,7 +278,7 @@
 </div>
 
 {# Chat #}
-<div class="card mb-4" id="brain-chat">
+<div class="card mb-4" id="brain-chat" data-needs-index>
   <div class="card-head">
     <div>
       <div class="card-title">6. Ask the model (grounded)</div>
@@ -297,7 +301,7 @@
 </div>
 
 {# Bundle #}
-<details class="card mb-4" id="brain-export-panel">
+<details class="card mb-4" id="brain-export-panel" data-needs-index>
   <summary class="card-head">
     <div>
       <div class="card-title">7. Download / export the index</div>
@@ -547,6 +551,10 @@
     if (!el) return;
     try {
       const d = await api().get('/api/projects/' + PID + '/brain');
+      // No index: the sections that only work on an index fold into one note instead of five live-looking forms.
+      document.querySelectorAll('[data-needs-index]').forEach((c) => { c.hidden = !d.exists; });
+      const note = document.getElementById('brain-needs-index-note');
+      if (note) note.hidden = !!d.exists;
       if (!d.exists) {
         el.innerHTML = '<p class="text-sm muted">No index yet. Use Quick index above, or choose an embedder below and click Build.</p>'
           + '<div class="text-xs dim mono mt-1">' + esc(d.corpus_dir || '') + '</div>';

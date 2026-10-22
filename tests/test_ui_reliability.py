@@ -443,10 +443,14 @@ def test_brain_ia_workflow_and_cta(client: TestClient) -> None:
         assert title in body, title
     assert body.count("5. Search test") == 1
     assert "Chat with RAG" not in body
-    assert '<details class="card mb-4" id="brain-search-settings">' in body
-    assert '<details class="card mb-4" id="brain-docs-panel">' in body
-    assert '<details class="card mb-4" id="brain-export-panel">' in body
+    assert '<details class="card mb-4" id="brain-search-settings" data-needs-index>' in body
+    assert '<details class="card mb-4" id="brain-docs-panel" data-needs-index>' in body
+    assert '<details class="card mb-4" id="brain-export-panel" data-needs-index>' in body
     assert '<details class="card mb-4" id="brain-shared-models">' in body
+    # Without an index, the index-only sections fold into one note (the JS toggles both on d.exists).
+    assert 'id="brain-search" data-needs-index' in body and 'id="brain-chat" data-needs-index' in body
+    assert 'id="brain-needs-index-note" hidden' in body
+    assert "querySelectorAll('[data-needs-index]')" in body
 
 
 def test_data_prep_ia_sections(client: TestClient) -> None:
