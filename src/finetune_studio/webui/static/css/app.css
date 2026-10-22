@@ -651,6 +651,13 @@
 .table tr.row-hover { transition: background var(--t-fast) var(--ease); }
 .table tr.row-hover:hover { background: var(--bg-panel); }
 .table .name { font-weight: 600; color: var(--accent); }
+/* Overview recent files: equal fixed-layout shares cut names to ~15 characters while the action cell wrapped
+   (beta audit 2026-10-22). The name gets the room; the short columns get what they need. */
+#ov-files-table th:nth-child(1) { width: 28%; }
+#ov-files-table th:nth-child(2), #ov-files-table th:nth-child(4) { width: 7%; }
+#ov-files-table th:nth-child(3), #ov-files-table th:nth-child(5) { width: 9%; }
+#ov-files-table th:nth-child(6) { width: 15%; }
+#ov-files-table th:nth-child(7) { width: 25%; }
 .table .meta { color: var(--text-muted); font-size: 11.5px; }
 .table .num { font-variant-numeric: tabular-nums; font-family: "VT323", monospace; font-size: 16px; }
 
