@@ -10,26 +10,7 @@
 
 <div class="page-head">
   <h1>Settings</h1>
-  <div class="sub">Project metadata and a truthful tail of the WebUI process log (systemd journal when the service owns the port; never claims live for a stale bare uvicorn.log).</div>
-</div>
-
-{# ── WebUI log tail ── #}
-<div class="card mb-4" id="log-tail-card">
-  <div class="card-head">
-    <div>
-      <div class="card-title">WebUI log tail</div>
-      <div class="card-sub text-dim">
-        <span class="mono" id="log-path">—</span>
-        · <span id="log-live-badge" class="pill outline">—</span>
-        · updated <span id="log-updated">—</span>
-      </div>
-    </div>
-    <div class="flex gap-2 wrap">
-      <button class="btn sm" type="button" id="log-refresh-btn" onclick="flRefreshLogs()">Refresh</button>
-      <button class="btn sm" type="button" id="log-auto-btn" onclick="flToggleAutoRefresh()">Auto-refresh</button>
-    </div>
-  </div>
-  <pre id="log-tail" class="mono log bg-elev">Loading…</pre>
+  <div class="sub">Name, base model, notes and system prompt for this project. The server log, shared by every project, is folded at the bottom.</div>
 </div>
 
 {# ── Project settings form (same fields as the overview modal) ── #}
@@ -47,7 +28,7 @@
     </label>
     <label class="block mb-3">
       <span class="muted text-xs">Base model</span>
-      <input class="input" name="base_model" value="{{ project.base_model or '' }}" placeholder="intfloat/multilingual-e5-large">
+      <input class="input" name="base_model" value="{{ project.base_model or '' }}" placeholder="e.g. Qwen/Qwen3.5-9B or /path/to/model">
     </label>
     <label class="block mb-3">
       <span class="muted text-xs">Description</span>
@@ -72,6 +53,24 @@
     </div>
   </form>
 </div>
+
+{# ── Server log: one journal for every project, so it sits folded under this project's own form ── #}
+<details class="card mb-4" id="log-tail-card">
+  <summary class="card-head">
+    <div>
+      <div class="card-title">WebUI log tail</div>
+      <div class="card-sub text-dim">The studio's own log, shared by every project (training jobs, errors).</div>
+    </div>
+  </summary>
+  <div class="flex gap-2 wrap items-center text-xs dim mb-2">
+    <span class="mono" id="log-path">—</span>
+    · <span id="log-live-badge" class="pill outline">—</span>
+    · updated <span id="log-updated">—</span>
+    <button class="btn sm" type="button" id="log-refresh-btn" onclick="flRefreshLogs()">Refresh</button>
+    <button class="btn sm" type="button" id="log-auto-btn" onclick="flToggleAutoRefresh()">Auto-refresh</button>
+  </div>
+  <pre id="log-tail" class="mono log bg-elev">Loading…</pre>
+</details>
 
 <script>
 (function () {
@@ -129,7 +128,9 @@
   window.flRefreshLogs = flRefreshLogs;
   window.flToggleAutoRefresh = flToggleAutoRefresh;
 
-  flRefreshLogs();
+  // Fetched when opened: the log is folded and most visits only edit the form.
+  const card = document.getElementById("log-tail-card");
+  if (card) card.addEventListener("toggle", function () { if (card.open) flRefreshLogs(); });
   document.addEventListener("fts:beforeNavigate", function () {
     if (_autoTimer) clearInterval(_autoTimer);
   }, { once: true });

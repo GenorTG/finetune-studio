@@ -29,6 +29,11 @@ def test_settings_page_renders_log_tail_card(client) -> None:
     assert 'id="settings-form"' in body
     assert 'name="base_model"' in body
     assert 'name="system_prompt"' in body
+    # The project's own form comes first; the shared server log is folded below it and fetched when opened.
+    assert body.index('id="settings-form"') < body.index('id="log-tail-card"')
+    assert '<details class="card mb-4" id="log-tail-card">' in body
+    # The base-model hint names a chat model, never the embedder (a base model is what gets fine-tuned).
+    assert "multilingual-e5-large" not in body.split('name="base_model"', 1)[1].split(">", 1)[0]
 
 
 def test_logs_endpoint_shape(client, tmp_path: Path, monkeypatch) -> None:
