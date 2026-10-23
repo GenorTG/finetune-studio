@@ -108,7 +108,8 @@
   <span class="logo">⚡ Finetune Studio</span>
   <span class="links">
     <a href="#usecases">use cases</a>
-    <a href="#new">new in v2</a>
+    <a href="#measured">measured</a>
+    <a href="#new">features</a>
     <a href="#gallery">screenshots</a>
     <a href="#pipeline">pipeline</a>
     <a href="#why">why</a>
@@ -121,8 +122,10 @@
 
 <header><div class="wrap">
   <h1>⚡ FINETUNE STUDIO<span class="cursor">▮</span></h1>
-  <p class="tagline">A self-hosted workshop for local-model training,
-  inference, and evaluation.</p>
+  <p class="tagline">A web app for working with local language models on your
+  own documents: search them, fine-tune on them, test the result.</p>
+  <p class="sub">A hobby project: I like tinkering with local models and did my best to make this solid
+  (tests, CI, measured results), but it is a one-person beta. Use it if it helps you.</p>
   <p class="sub">Project data is stored locally. If you enable a connected provider, the data needed for that feature may be sent to it.</p>
   <div class="cta">
     <a class="btn primary" href="https://github.com/GenorTG/finetune-studio">[ CLONE THE REPO ]</a>
@@ -178,14 +181,31 @@
 
     <div class="usecase">
       <h4>4 · JUST CHAT LOCALLY</h4>
-      <blockquote>"I want to run Llama 3 locally with my own chat history
-      and image support."</blockquote>
+      <blockquote>"I want to run an open model locally with my own chat
+      history and image support."</blockquote>
       <p>Pick a safetensors or GGUF model, load with auto-unload-on-idle
       to free VRAM. Image input for multimodal. Per-session
       temperature / top-p / system prompt. Conversation persists.</p>
       <div class="pillbox"><span class="pill">safetensors</span><span class="pill">GGUF</span><span class="pill">VISION</span></div>
     </div>
   </div>
+</div></section>
+
+<section id="measured"><div class="wrap">
+  <h2>HOW MUCH DOES FINE-TUNING ACTUALLY TEACH?</h2>
+  <p class="lead">Measured on a fictional company (80 files, 1,130 facts with a known answer key) with Qwen3.5-9B
+  on one RTX 3090: 102 quiz questions reworded from the training pairs, plus 20 the documents do not answer,
+  scored by an AI judge checked against hand-labelled cases.</p>
+  <table>
+    <tr><th>Setup</th><th>Quiz correct (of 102)</th><th>Declines the 20 unanswerable</th></tr>
+    <tr><td>Base model alone</td><td>3</td><td>6</td></tr>
+    <tr><td>Fine-tuned on ~2,450 reviewed pairs</td><td>19–28 (+ ~23 half right)</td><td>0</td></tr>
+    <tr><td>Base model + Smart Brain</td><td>76–97</td><td>20</td></tr>
+    <tr><td>Fine-tuned + Smart Brain</td><td>82–94</td><td>0–2</td></tr>
+  </table>
+  <p class="lead">Fine-tuning learns some facts and the answer style, but it stops the model from saying
+  "I don't know". For knowing your documents, use the Smart Brain. Every run is written up in
+  <a href="https://github.com/GenorTG/finetune-studio/blob/main/tests/corpus/korvane/RESULTS.md">RESULTS.md</a>.</p>
 </div></section>
 
 <section id="new"><div class="wrap">
@@ -257,9 +277,9 @@
 </div></section>
 
 <section id="why"><div class="wrap">
-  <h2>WHY THIS OVER DOING IT MANUALLY?</h2>
-  <p class="lead">None of the pieces are impossible by hand. The point is that
-  all of them are now in one place, with your data in
+  <h2>WHY NOT JUST DO IT BY HAND?</h2>
+  <p class="lead">You can, and for a one-off that is fine. The app is for when you
+  repeat the loop: the steps share one project, and your data stays in
   <span class="dim">~/.finetune-studio/</span> where you can find it.</p>
   <table>
     <tr><th>What you'd do manually</th><th>What Finetune Studio does</th></tr>
@@ -297,7 +317,7 @@
 </div></section>
 
 <footer><div class="wrap">
-  <p class="motto">Built by a hacker, for hackers. Self-hosted by default;
+  <p class="motto">Made by one person who likes tinkering with local models. Self-hosted by default;
   optional downloads and integrations may use external services.</p>
   <p>⚡ Finetune Studio · <a href="https://github.com/GenorTG/finetune-studio">GitHub</a> ·
   PolyForm Noncommercial License 1.0.0</p>

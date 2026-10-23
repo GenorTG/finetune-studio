@@ -1,14 +1,15 @@
 # ⚡ Finetune Studio
 
-**A self-hosted workshop for local-model training, inference, and evaluation.**
+**A web app for working with local language models on your own documents: search them, fine-tune on them, test the result.**
 
-A self-hosted workshop that gives you full control over the model training
-lifecycle: turn your files into knowledge once, then serve them as a **Smart Brain**
-that answers from the files with sources, or train a **LoRA adapter** that teaches a
-model how to answer (tone, format, a baked system prompt, a few key facts) — and chat with local models,
-run evaluation suites, compare runs side-by-side — all from one responsive,
-themeable WebUI that lives in your browser. The UI, the data pipeline, and the test
-suite all live in one repo.
+You upload your files once. From there you can build a **Smart Brain** (search plus a model that answers
+from your files and cites them), or train a **LoRA adapter** that changes how a model answers (tone, format,
+a fixed system prompt, some facts). There is also a chat page, test and benchmark pages, and export to GGUF.
+It runs on your own machine in the browser.
+
+This is a hobby project. I built it because I like tinkering with local models, and I did my best to make it
+solid: it has a large test suite, CI, and every number below comes from a real measured run. It is still a
+beta from one person, so expect rough edges. Use it if it is useful to you.
 
 [![Python 3.12–3.13](https://img.shields.io/badge/python-3.12--3.13-blue.svg)](https://www.python.org/downloads/)
 [![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-ff8800.svg)](LICENSE)
@@ -24,7 +25,7 @@ suite all live in one repo.
 | **Pairs — mined, checked, reviewed** | **Training — a LoRA adapter (merged checkpoint optional)** |
 | ![Pairs](docs/screenshots/hero_05_pairs.png) | ![Training](docs/screenshots/hero_07_training.png) |
 
-<sub>Screenshots: a throwaway instance with the fictional demo corpus in `tests/corpus/korvane`.</sub>
+<sub>Screenshots: a fresh demo project built from six files of the fictional company corpus in `tests/corpus/korvane`.</sub>
 
 ## Quickstart
 
@@ -48,8 +49,9 @@ Open http://localhost:7860. The first visit offers a short onboarding tour. By d
 - [Why I built this](#why-i-built-this)
 - [Who it's for](#who-its-for)
 - [The four use cases](#the-four-use-cases)
-- [What's new in the early-beta line](#whats-new-in-the-early-beta-line)
-- [Why this over doing it manually?](#why-this-over-doing-it-manually)
+- [How much does fine-tuning actually teach? (measured)](#how-much-does-fine-tuning-actually-teach-measured)
+- [What's in the beta](#whats-in-the-beta)
+- [Why not just do it by hand?](#why-not-just-do-it-by-hand)
 - [Walkthrough — the pages](#walkthrough--the-pages)
 - [Installation](#installation)
 - [How it works](#how-it-works)
@@ -67,44 +69,27 @@ Open http://localhost:7860. The first visit offers a short onboarding tour. By d
 
 ## Why I built this
 
-Training a language model today involves juggling **dozens of moving pieces**:
-managing CUDA dependencies, downloading and quantizing weights, building
-retrieval pipelines (RAG), writing training loops, babysitting VRAM,
-finding a benchmark suite, monitoring loss curves, packaging the result,
-serving it, comparing it against the base model…
+Training a model on your own documents means a lot of separate steps: installing the right CUDA build,
+downloading weights, turning PDFs into clean text, writing question/answer pairs, a training loop, watching
+VRAM, testing the result, exporting it. Each step has good tools, but I kept ending up with five terminals
+and a page of notes on what to run next.
 
-There are great point-solutions for each piece (HuggingFace TRL, LM Studio,
-PortableRAG, llama.cpp, MMLU…) but **no single workshop that wraps the whole
-lifecycle in one coherent interface**. You end up with five tools open,
-three terminal windows, and a Notion page of "things to remember."
-
-Finetune Studio exists to fix that. It is a **browser-based control room**
-for everything between *raw documents* and *a chat-ready, evaluated,
-fine-tuned model* — self-hosted on your hardware. Model downloads and
-optional integrations may contact third-party services; inference and
-corpus processing can run locally.
-
-The goal isn't to compete with industrial training platforms. It's to give
-independent researchers, hackers, hobbyists, small teams, and educators a
-**single place to do serious work** without the friction of cobbling it
-together themselves.
+So I put the steps I use into one app with one project at the centre. It is not trying to compete with
+cloud training platforms. It is the workshop I wanted for my own experiments, cleaned up so other people
+can use it too.
 
 ---
 
 ## Who it's for
 
-- **Independent researchers** prototyping custom models without paying cloud
-  bills.
-- **Hobbyists** who want to fine-tune Llama 3 on their RTX 3090 without
-  reading ten blog posts first.
-- **Small teams** that need a private inference + Smart Brain (retrieval) server and don't want
-  to ship sensitive data to a third party.
-- **Educators** teaching an LLM workshop — one app, all the steps visible.
-- **Anyone** who wants a polished local alternative to closed hosted
-  services.
+- People who want to ask questions about their own documents with a local model, without sending them
+  anywhere.
+- Hobbyists who want to try LoRA fine-tuning on a single consumer GPU (I use an RTX 3090) without writing
+  the training code.
+- Anyone curious about what fine-tuning really does to a model: the test pages and the measurements below
+  show it, including where it falls short.
 
-You don't need all the use cases. Most users start with one (the Smart Brain, or
-fine-tuning, or just chatting) and grow from there.
+You don't need every page. Most people start with one thing (the Smart Brain, a fine-tune, or just chat).
 
 ---
 
@@ -145,17 +130,15 @@ handles:
   embedding model + reranker ship **inside** the package: full offline
   semantic search with no external service at all (~2.3 GB archive)
 
-📸 **See:** the Smart Brain page with the live index inventory.
-
 ### Use case 2 — Train an adapter (LoRA) on your pairs
 
 > *"I want to teach a small open model how my company talks, how to answer
 > support questions, how to follow our style guide."*
 
-An adapter teaches **how to answer**, not a document set. Measured on the fictional
-Korvane corpus (1,130 facts, Qwen3.5-9B QLoRA): a fine-tune alone passed 10–24 % of
-the quiz; the same adapter with the Smart Brain passed 94 of 102 (`tests/corpus/korvane/RESULTS.md`).
-Put the facts in the Smart Brain; train the adapter on how you want answers phrased.
+An adapter teaches **how to answer** much better than it teaches a set of documents. On the fictional
+test company (1,130 facts, Qwen3.5-9B) a fine-tune alone answered 10–28 % of reworded quiz questions; with
+the Smart Brain it was 94 of 102. Details: [How much does fine-tuning actually teach?](#how-much-does-fine-tuning-actually-teach-measured)
+Put the facts in the Smart Brain and train the adapter on how you want answers phrased.
 
 The **Training** workflow lets you point the studio at a JSONL of
 prompt/completion pairs (or your own dataset), pick a base model, and run a
@@ -168,9 +151,6 @@ supervised fine-tune (SFT) with LoRA or QLoRA. The studio handles:
   chat
 - Per past-run Actions (⭐ Set Production, ▶ Inference, ⬇ Download) so
   you can promote / inspect / pull down any of your previous runs
-
-📸 **See:** the Training page with the live CpuChip sprite that pulses as
-training runs.
 
 ### Use case 3 — Benchmark before you ship
 
@@ -185,27 +165,54 @@ per-suite Δ table).
 These are local smoke suites styled after well-known benchmarks — not the
 full HuggingFace dataset downloads — so they stay offline and fast.
 
-📸 **See:** the Benchmarks page with the live score bars and the compare
-results panel.
-
 ### Use case 4 — Just chat with local models
 
-> *"I want to run Llama 3 locally with my own chat history, image support,
-> and a clean UI."*
+> *"I want to run an open model locally, with my own chat history and image
+> support."*
 
-The **Chat** page is a polished client. Pick a safetensors or GGUF model on
+The **Chat** page is a simple chat client. Pick a safetensors or GGUF model on
 disk, load it (with auto-unload on idle to free VRAM), and chat. Image
 input for multimodal models. Per-session temperature / top-p / system
 prompt. Conversation persists across reloads.
 
-📸 **See:** the Chat page with the RobotHead sprite that pulses its mouth
-as tokens stream in.
+---
+
+## How much does fine-tuning actually teach? (measured)
+
+I wanted a straight answer to "if I fine-tune a model on my documents, does it know them?", so I built a
+fictional company (Korvane, a cold-chain logistics firm: 80 files in 13 formats, 1,130 facts with a known
+answer key, in `tests/corpus/korvane/`) and measured it. The quiz asks 102 questions **reworded** from the
+training pairs, so a model cannot pass by matching the training text word for word, plus 20 questions the
+documents do not answer. An AI judge scores each answer, checked against 50 hand-labelled cases. Base model:
+Qwen3.5-9B, QLoRA on one RTX 3090.
+
+| Setup | Quiz: correct / partly / wrong (of 102) | Says "not in the documents" when it should (of 20) |
+|---|---|---|
+| Base model, no training, no Smart Brain | 3 / 4 / 95 | 6 |
+| Fine-tuned, 6 epochs on ~2,450 reviewed pairs | 19–28 / 23 / 51–60 | **0** |
+| Fine-tuned + 240 "I don't know" training rows | 15 of 102 correct (simple matcher) | 2 |
+| Base model + Smart Brain | 76–97 / 2–5 / 3–21 | **20** |
+| Fine-tuned + Smart Brain | 82–94 / 3–5 / 5–15 | 0–2 |
+
+Ranges cover several runs with different settings (top-k, reader model, quantisation); every run is
+written up in [`tests/corpus/korvane/RESULTS.md`](tests/corpus/korvane/RESULTS.md).
+
+What I take from it:
+
+- **Fine-tuning learns some facts, not all of them.** About a quarter of the reworded questions come back
+  right and another fifth half-right (right entity, wrong number). Six epochs beat three; quantising the
+  merged model to GGUF q4 cost up to 9 points.
+- **A fine-tuned model stops saying "I don't know".** The base model declines questions its documents don't
+  cover; after fact training it invents a confident answer for all 20. Adding 240 example declines to the
+  training data only brought that to 2 of 20.
+- **For facts, the Smart Brain wins clearly**: up to 97 of 102 with sources, and it declines correctly.
+  So the app recommends the Smart Brain for "know my documents" and an adapter for "answer in this style".
 
 ---
 
-## What's new in the early-beta line
+## What's in the beta
 
-Since v2 the app grew a spine — and a lot of muscle:
+The larger pieces, roughly in the order you meet them:
 
 - **⚡ Quick work** — the entire model pipeline on one page (upload →
   pairs → dataset → train → test → pin), a live status pill per step, and
@@ -239,7 +246,7 @@ Since v2 the app grew a spine — and a lot of muscle:
 
 ---
 
-## Why this over doing it manually?
+## Why not just do it by hand?
 
 | What you'd do manually | What Finetune Studio does |
 |---|---|
@@ -249,15 +256,13 @@ Since v2 the app grew a spine — and a lot of muscle:
 | Open 4 terminal windows to monitor training | Watch the live progress bar in one panel |
 | Hand-craft an eval script from scratch | Pick a suite, click Run, get a score table |
 | Open a second tab to compare two trained runs | Pick run A + run B, click Run comparison, get the diff |
-| Lather / rinse / repeat for every file rename | Click rename, type new name, ⏎ |
 | Lose an afternoon to CUDA install issues | One `./install.sh` does it |
 | Re-discover package version conflicts every 3 months | Pinned dependencies, versioned upgrades |
 | Debug a model load failure from "ENOMEM" | Actionable error: how much VRAM is needed vs free, and which other GPU processes are holding it |
 
-The point isn't that any single piece is impossible. The point is that
-**all of it is now in one place**, with a shared project concept that ties
-it together, and all your data lives in `~/.finetune-studio/` where you
-can find it.
+You can do every one of these by hand, and for a one-off that is fine. The app
+is for when you repeat the loop: the steps share one project, and all your
+data stays in `~/.finetune-studio/` where you can find it.
 
 ---
 
