@@ -545,7 +545,7 @@ on.
 
 <div align="center">
 
-Built by a hacker, for hackers. Self-hosted by default; optional downloads
+Made by one person who likes tinkering with local models. Self-hosted by default; optional downloads
 and integrations may use external services.
 
 </div>
