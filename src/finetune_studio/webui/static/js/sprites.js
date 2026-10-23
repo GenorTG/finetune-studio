@@ -607,7 +607,7 @@
             } else if (st === 'loading') {
               cap.textContent = 'LOADING MODEL';
             } else if (st === 'training' || st === 'running') {
-              cap.textContent = 'GPU ACCELERATING';
+              cap.textContent = (await trainDevice()) === 'cpu' ? 'TRAINING ON CPU' : 'TRAINING ON GPU';
             } else if (st === 'saving') {
               cap.textContent = 'SAVING';
             } else {
@@ -616,6 +616,16 @@
           } catch (_) {
             cap.textContent = idleTrainCaption();
           }
+        }
+        // The device the run uses: the saved compute choice (asked once; CPU-only hosts must not read 'GPU').
+        let trainDev = null;
+        async function trainDevice() {
+          if (trainDev === null) {
+            trainDev = await fetch('/api/system/compute-device', { cache: 'no-store' })
+              .then((r) => r.json()).then((d) => (d.effective && d.effective.is_gpu ? 'gpu' : 'cpu'))
+              .catch(() => 'gpu');
+          }
+          return trainDev;
         }
         // Idle caption reflects what the form still needs instead of a blanket
         // READY (the audit caught READY TO TRAIN with no base model installed).

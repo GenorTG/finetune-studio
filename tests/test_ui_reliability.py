@@ -516,7 +516,7 @@ def test_sprites_bench_idle_caption_not_computing() -> None:
 
 
 def test_sprites_training_idle_not_always_accelerating() -> None:
-    """Training page must show READY TO TRAIN while idle, not GPU ACCELERATING."""
+    """Training page must show READY TO TRAIN while idle, and name the real device while a run trains."""
     sprites = (
         _ROOT / "src" / "finetune_studio" / "webui" / "static" / "js" / "sprites.js"
     ).read_text(encoding="utf-8")
@@ -525,14 +525,16 @@ def test_sprites_training_idle_not_always_accelerating() -> None:
     )[0]
     assert "READY TO TRAIN" in train_block
     assert "/api/training/status" in train_block
-    assert "GPU ACCELERATING" in train_block  # only when status is training/running
+    # only when status is training/running, and CPU on a CPU-only choice (demo shoot 2026-10-23)
+    assert "TRAINING ON GPU" in train_block and "TRAINING ON CPU" in train_block
+    assert "/api/system/compute-device" in train_block and "GPU ACCELERATING" not in train_block
     assert "LOADING MODEL" in train_block
     # Idle READY only when the form can actually start (audit 2026-10-03).
     assert "NEEDS A BASE MODEL" in train_block and "PICK A DATASET" in train_block
     assert "train-base-model" in train_block and "data-path-input" in train_block
     assert "SAVING" in train_block
     # Must not hard-code accelerating as the initial caption.
-    assert "cap.textContent = 'GPU ACCELERATING';" not in train_block.split(
+    assert "TRAINING ON" not in train_block.split(
         "refreshTrainCaption", 1
     )[0]
     assert "_pageSpriteCleanup" in sprites
