@@ -2,15 +2,18 @@
 
     set -a; . ~/.openclaw/workspace/.env_opcgo; set +a
     .venv/bin/python scripts/corpus_paraphrase.py --pid <project> --variants 3 --out .tmp/augmented-sft.jsonl
+    .venv/bin/python scripts/corpus_paraphrase.py --in tests/corpus/korvane/golden/approved_pairs_core_2026-10-08.jsonl.gz --out ...
 
 The reviewed ANSWER is never touched; only the question is re-worded by an API model. A variant is kept only when it (1) differs from
 the original and the other variants, (2) keeps every number/code token of the original question and most of its capitalised names,
-(3) leaks no number from the answer that the original question did not already contain. Output = sharegpt rows (original + variants)
-for "Upload my own" on the Training page. Never prints the key.
+(3) leaks no number from the answer that the original question did not already contain, (4) is not a near-copy of a quiz
+question (``--avoid``, default the Korvane eval sets: same normalised text or >= 0.8 token overlap), so the quiz stays held out.
+Output = sharegpt rows (original + variants) for "Upload my own" on the Training page. Never prints the key.
 """
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import os
 import re
@@ -24,6 +27,8 @@ import requests
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from corpus_coverage import get
+
+EVAL = Path(__file__).resolve().parent.parent / "tests" / "corpus" / "korvane" / "eval"
 
 URL = "https://opencode.ai/zen/go/v1/chat/completions"
 SYSTEM = ("You rewrite questions for a training set. Given a question and its reviewed answer, write {n} DIFFERENT re-wordings of the "
@@ -55,6 +60,21 @@ def valid(orig_q: str, answer: str, variant: str, seen: set[str]) -> bool:
     return not leaked
 
 
+def tokens(s: str) -> set[str]:
+    return set(norm(s).split())
+
+
+def near_quiz(variant: str, quiz: list[tuple[str, set[str]]]) -> bool:
+    n, t = norm(variant), tokens(variant)
+    return any(n == qn or (t and len(t & qt) / len(t | qt) >= 0.8) for qn, qt in quiz)
+
+
+def read_rows(path: Path) -> list[dict]:
+    opener = gzip.open if path.suffix == ".gz" else open
+    with opener(path, "rt", encoding="utf-8") as fh:
+        return [json.loads(line) for line in fh if line.strip()]
+
+
 def ask(key: str, model: str, q: str, a: str, n: int) -> list[str]:
     body = {"model": model, "temperature": 0.7, "max_tokens": 600, "reasoning_effort": "none",
             "messages": [{"role": "system", "content": SYSTEM.format(n=n)},
@@ -75,7 +95,11 @@ def ask(key: str, model: str, q: str, a: str, n: int) -> list[str]:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--pid", required=True)
+    src = ap.add_mutually_exclusive_group(required=True)
+    src.add_argument("--pid", help="approved pairs of this project (live API)")
+    src.add_argument("--in", dest="inp", help="jsonl(.gz) of {q, a} rows, e.g. the golden set")
+    ap.add_argument("--avoid", nargs="*", default=[str(EVAL / "paraphrase_core.jsonl"), str(EVAL / "unanswerable_core.jsonl"),
+                                                   str(EVAL / "korvane_quiz_core.jsonl")])
     ap.add_argument("--variants", type=int, default=3)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--model", default="deepseek-v4-flash")
@@ -85,7 +109,12 @@ def main() -> int:
     key = os.environ.get("OPENCODE_GO_API_KEY", "")
     if not key:
         raise SystemExit("OPENCODE_GO_API_KEY is not set (source ~/.openclaw/workspace/.env_opcgo)")
-    pairs = [p for p in get(f"/api/projects/{a.pid}/data-prep/qa")["items"] if p["status"] == "approved"]
+    if a.inp:
+        pairs = [{"id": f"row{i}", "question": r["q"], "answer": r["a"], "source_id": r.get("file")}
+                 for i, r in enumerate(read_rows(Path(a.inp)))]
+    else:
+        pairs = [p for p in get(f"/api/projects/{a.pid}/data-prep/qa")["items"] if p["status"] == "approved"]
+    quiz = [(norm(r["q"]), tokens(r["q"])) for f in a.avoid for r in read_rows(Path(f))]
     # one row per (question, answer): the same de-duplication the export applies
     uniq = {}
     for p in pairs:
@@ -93,17 +122,21 @@ def main() -> int:
     pairs = list(uniq.values())[: a.limit or None]
     print(f"{len(pairs)} unique approved pairs", flush=True)
 
+    near: list[str] = []
+
     def work(p: dict) -> tuple[dict, list[str]]:
         got = ask(key, a.model, p["question"], p["answer"], a.variants)
         seen = {norm(p["question"])}
         kept = []
         for v in got:
-            if valid(p["question"], p["answer"], v, seen):
+            if near_quiz(v, quiz):
+                near.append(v)
+            elif valid(p["question"], p["answer"], v, seen):
                 kept.append(v)
                 seen.add(norm(v))
         return p, kept
 
-    rows, stats = [], {"pairs": len(pairs), "variants": 0, "pairs_without_variant": 0}
+    rows, stats = [], {"pairs": len(pairs), "variants": 0, "pairs_without_variant": 0, "dropped_near_quiz": 0}
     with ThreadPoolExecutor(max_workers=a.workers) as pool:
         for i, (p, kept) in enumerate(pool.map(work, pairs), 1):
             for q in [p["question"], *kept]:
@@ -111,6 +144,7 @@ def main() -> int:
                              "source_id": p.get("source_id"), "paraphrase": q != p["question"], "pair_id": p["id"]})
             stats["variants"] += len(kept)
             stats["pairs_without_variant"] += not kept
+            stats["dropped_near_quiz"] = len(near)
             if i % 200 == 0:
                 print(f"{i}/{len(pairs)} {stats}", flush=True)
     out = Path(a.out)
