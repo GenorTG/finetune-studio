@@ -161,7 +161,7 @@
     <tr data-mode="agent"><td class="meta muted" title="Set by the server. Answers come from the app knowledge base and live project state; UI tools only navigate, highlight and pre-fill allow-listed controls.">Agent system prompt</td><td class="mono cell-wrap">App guide: knowledge base + project/system state + page guidance + source-grounded Q&amp;A preparation.</td></tr>
     <tr><td class="meta muted" title="The base model this project is built around. The trained model is an adapter (LoRA) on top of this base. Use it on the Inference tab to chat with the un-fine-tuned version.">Base model</td><td class="mono cell-wrap">{{ project.base_model or '—' }}</td></tr>
     <tr><td class="meta muted" title="The training run designated as 'production' for this project — typically the best-scoring run. Set on the project overview page; this is what the Chat page serves by default.">Production run</td><td class="mono cell-wrap">{{ project.production_run or '(none)' }}</td></tr>
-    <tr><td class="meta muted" title="The Smart Brain index built from this project's parsed files. Test mode adds its sources to the chat. Build it on the Smart Brain page.">Smart Brain</td><td class="mono cell-wrap">{{ rags|length if rags else 0 }} attached</td></tr>
+    <tr><td class="meta muted" title="The Smart Brain index built from this project's parsed files. Test mode adds its sources to the chat. Build it on the Smart Brain page.">Smart Brain</td><td class="mono cell-wrap">{% if indexes %}{% for idx in indexes %}{{ idx.name }} ({{ idx.doc_count }} docs){% if not loop.last %}, {% endif %}{% endfor %}{% else %}not built yet{% endif %}</td></tr>
   </table>
   <div class="flex gap-2 mt-4 wrap">
     <a href="/projects/{{ pid }}" class="btn" data-link>← Back to project</a>

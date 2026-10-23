@@ -74,3 +74,10 @@ def test_inline_load_context_field_is_labelled_and_shows_auto() -> None:
     assert 'value=""' in field and 'placeholder="auto"' in field
     assert 'for="chat-inline-ctx">Context' in src
     assert "parseInt(ctxEl.value, 10) || 0" in src
+
+
+def test_project_context_names_the_built_smart_brain() -> None:
+    """The context table read an undefined ``rags`` and always said '0 attached' beside a ticked index (2026-10-23)."""
+    src = _src()
+    assert "rags" not in src
+    assert "{% for idx in indexes %}{{ idx.name }} ({{ idx.doc_count }} docs)" in src and "not built yet" in src
