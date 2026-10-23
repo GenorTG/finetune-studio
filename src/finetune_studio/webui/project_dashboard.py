@@ -5,6 +5,8 @@ Pure helpers — no FastAPI routes. Call from ``project_detail_page`` after
 """
 from __future__ import annotations
 
+import re
+
 import time
 from typing import Any
 
@@ -189,13 +191,15 @@ def build_activity(
             ran_at = bench.get("ran_at")
             if not ran_at:
                 continue
-            suite = bench.get("suite_name") or "benchmark"
+            suite = re.sub(r"\.jsonl?$", "", bench.get("suite_name") or "") or "benchmark"
+            # Only 'public' runs are Benchmarks; the rest are Testing-page quizzes.
+            public = bench.get("kind") == "public"
             events.append({
                 "kind": "benchmark",
                 "icon": "📊",
-                "message": f"Benchmark · {suite} on {name}",
+                "message": f"{'Benchmark' if public else 'Test'} · {suite} on {name}",
                 "ts": float(ran_at),
-                "href": f"/projects/{pid}/benchmarks",
+                "href": f"/projects/{pid}/{'benchmarks' if public else 'testing'}",
             })
 
     for m in models:

@@ -114,3 +114,12 @@ def test_setup_checklist_tracks_live_project_state() -> None:
     assert all(item["state"] == "done" for item in done["items"])
     assert done["complete"]
     assert done["next"] == {"label": "Continue in chat", "href": "/chat"}
+
+
+def test_testing_quiz_is_a_test_event_not_a_benchmark() -> None:
+    runs = [{"id": "r1", "name": "Run r1", "status": "done", "started_at": 1.0,
+             "benchmarks": [{"suite_name": "full-ingested-corpus.json", "kind": "suite", "ran_at": 5.0},
+                            {"suite_name": "mmlu-smoke", "kind": "public", "ran_at": 6.0}]}]
+    msgs = {e["message"]: e["href"] for e in build_activity(runs=runs, models=[], files=[], pid="p1", now=10.0)}
+    assert msgs["Test · full-ingested-corpus on Run r1"] == "/projects/p1/testing"
+    assert msgs["Benchmark · mmlu-smoke on Run r1"] == "/projects/p1/benchmarks"
