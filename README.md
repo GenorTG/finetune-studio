@@ -149,8 +149,8 @@ supervised fine-tune (SFT) with LoRA or QLoRA. The studio handles:
 - Configurable LoRA rank, target modules, batch size
 - A merge step that produces a self-contained checkpoint you can load in
   chat
-- Per past-run Actions (⭐ Set production, ▶ Inference, ⬇ Download) so
-  you can promote / inspect / pull down any of your previous runs
+- Per past-run Actions (⭐ Set production, ▶ Open in inference, ⬇ Export) so
+  you can promote, try or package any of your previous runs
 
 ### Use case 3 — Benchmark before you ship
 
@@ -277,11 +277,10 @@ projects, quick-create buttons.
 
 ### Project home (`/projects/{pid}`)
 
-Answers “where do I start?” before you touch any tab: two cards —
-🧠 **Train an adapter (LoRA)** (what it teaches, what it does not, the ordered steps) and
-🧠 **Smart Brain** (answers from your files with sources; minutes, no training) — plus live
-counts for files, datasets, runs and models, recent training history,
-latest exports, and the activity feed.
+Answers “where am I?”: a **project checklist** for the adapter path (files → dataset → train →
+test → pick the adapter) with a link to the Smart Brain for answers without training, then live
+counts for files, datasets, runs and models, recent training runs, latest exports, recent files
+and the activity feed.
 
 ![Project home](docs/screenshots/02_project.png)
 
@@ -314,13 +313,13 @@ on arrival; training and the Smart Brain both read that parse.
 
 ### Pairs — Files & Knowledge, training side (`/projects/{pid}/data-prep`)
 
-Question-answer pairs: mine training pairs from your parsed sources with an
-extractive prep job (no LLM), the Chat Agent, or manual JSONL upload; triage
-with bulk approve / reject. **Export approved → Training** writes a ShareGPT
-JSONL dataset — and the coverage gate fills any chunk mining missed with
-verbatim extractive pairs. The project data-audit endpoint reports chunks
-that could not be filled; chunk coverage is not a guarantee that the model
-learned every fact.
+Question-answer pairs, mined file by file by the helper model (a local GGUF or any
+OpenAI-compatible API): each file gets a checklist of its data points, pairs are written,
+checked against the text and fixed until every point is stated or excluded. You review them
+with the keyboard (approve / reject with a reason / edit / add your own) beside the source
+passage. **Export approved → Training** writes the dataset, and is held back until every file's
+checklist is complete. A complete checklist means every fact has a reviewed pair, not that the
+model will learn it (see the measurements above).
 
 ![Pairs](docs/screenshots/05_pairs.png)
 
@@ -347,10 +346,10 @@ connecting to embedding vectors in real time.
 
 Configure an adapter run, watch loss curves live. Base-model and preset
 pickers recommend rank/LR/epochs from your base size and dataset size. Each
-past run in the **Past runs** table carries Actions (⭐ Set production,
-▶ Inference, ⬇ Download) so you can promote / inspect / pull down any of
-your previous runs without re-opening individual pages. The CpuChip sprite
-flickers as the GPU accelerates.
+past run in the **Past runs** table carries Actions (Details, ⭐ Set production,
+▶ Open in inference, ⬇ Export) so you can inspect, promote or package any
+previous run from one place. The status chip says whether the run trains on
+the GPU or the CPU.
 
 ![Training](docs/screenshots/07_training.png)
 
@@ -365,7 +364,7 @@ reads each saved answer and decides pass / partial / fail with its reasoning,
 and you can override any verdict by hand in the review pane. Nothing is scored
 by string matching, so a right answer worded differently still passes; an
 unjudged run shows "awaiting judgement", never a made-up score. Judging can
-start by itself after each run if you turn that on in Settings (off by default).
+start by itself after each run if you tick that box (off by default).
 
 ![Testing](docs/screenshots/10_testing.png)
 
@@ -413,10 +412,12 @@ fills in as scores arrive.
 
 ### Settings (`/settings`, per-project under `/projects/{pid}/settings`)
 
-Per-project settings including a **WebUI log tail** card (Refresh +
-Auto-refresh) for debugging long-running jobs without leaving the browser.
-On Linux, includes the in-app **Apply update** controls for the self-update
-pipeline; the **Replay Tutorial** button is available on every platform.
+App settings (shown below): who may open the web UI (password, LAN /
+Tailscale, API tokens), the default test judge, the helper model (local GGUF
+or an API), the Vision reader, the service supervisor, which GPU (or the CPU)
+to use, debug info and storage paths. On Linux it also has the in-app **Apply
+update** controls; **Replay tutorial** works everywhere. Each project has its
+own settings page too, with a **WebUI log tail** for debugging long jobs.
 
 ![Settings](docs/screenshots/12_settings.png)
 
