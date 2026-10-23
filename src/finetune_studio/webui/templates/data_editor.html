@@ -289,12 +289,12 @@
           '<td class="text-xs dim" title="' + esc(r.source) + '">' + esc(truncate(r.source, 48)) + '</td>' +
           '<td class="text-xs" title="' + esc(truncate(r.question, 500)) + '">' + esc(truncate(r.question, 200)) + '</td>' +
           '<td class="text-xs" title="' + esc(truncate(r.answer, 500)) + '">' + esc(truncate(r.answer, 200)) + '</td>' +
-          '<td class="flex gap-1">' +
+          '<td><div class="flex gap-1">' +
             '<button class="btn sm ghost" type="button" data-act="open" title="Open this row" aria-label="View row ' + (r.index + 1) + '">View</button>' +
             '<button class="btn sm success" type="button" data-act="approve" title="Approve this row" aria-label="Approve row ' + (r.index + 1) + '">Approve</button>' +
             '<button class="btn sm danger" type="button" data-act="reject" title="Reject this row" aria-label="Reject row ' + (r.index + 1) + '">Reject</button>' +
             '<button class="btn sm" type="button" data-act="edit" title="Edit this row" aria-label="Edit row ' + (r.index + 1) + '">Edit</button>' +
-          '</td>' +
+          '</div></td>' +
         '</tr>'
       ).join('');
     }

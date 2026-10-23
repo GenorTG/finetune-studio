@@ -5149,3 +5149,6 @@ kbd { border: 1px solid var(--border-strong); padding: 0 4px; font-size: 11px; }
 #past-runs-table th:nth-child(2), #past-runs-table th:nth-child(4) { width: 9%; }
 #past-runs-table th:nth-child(3) { width: 13%; }
 #past-runs-table th:nth-child(5) { width: 8%; }
+/* Project home: the button cells need their room; equal shares cut them off at 1440. */
+#ov-runs-table th:last-child { width: 32%; }
+#ov-models-table th:last-child { width: 30%; }

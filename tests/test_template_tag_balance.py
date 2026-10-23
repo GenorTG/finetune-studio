@@ -47,3 +47,13 @@ def test_structural_tags_are_balanced(path: Path) -> None:
 
 def test_the_checker_catches_a_details_closed_by_div() -> None:
     assert tag_problems('<details class="card"><summary>x</summary><div>y</div></div>') != []
+
+
+def test_no_table_cell_is_a_flex_container() -> None:
+    """display:flex on a <td> takes it out of table layout: its buttons overflowed the card (demo shoot 2026-10-23).
+    Put a <div class="flex ..."> inside the cell instead."""
+    import re
+    root = Path(__file__).resolve().parents[1] / "src" / "finetune_studio" / "webui"
+    bad = [str(f.relative_to(root)) for f in [*root.glob("templates/**/*.html"), *root.glob("static/js/*.js")]
+           if re.search(r"<td class=\\?\"[^\"]*\bflex\b", f.read_text(encoding="utf-8"))]
+    assert bad == []

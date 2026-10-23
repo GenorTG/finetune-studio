@@ -102,7 +102,7 @@
         <th>Started</th>
         <th>Duration</th>
         <th>Loss</th>
-        <th></th>
+        <th>Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -117,7 +117,7 @@
         <td class="meta mono" title="{{ run.started_at or '' }}">{{ format_relative(run.started_at or run.created_at) }}</td>
         <td class="meta mono js-duration" data-secs="{{ run.duration or '' }}">—</td>
         <td class="num mono">{% if run.final_loss %}{{ '%.4f'|format(run.final_loss) }}{% else %}—{% endif %}</td>
-        <td class="flex gap-1 wrap">
+        <td><div class="flex gap-1 wrap">
           <a class="btn sm" href="/projects/{{ pid }}/training?run={{ run.id }}" data-link>Details</a>
           <button class="btn sm"
                   type="button"
@@ -128,7 +128,7 @@
                   data-method="DELETE"
                   data-confirm="Delete this run and its run-specific output files? Shared output files are kept."
                   data-reload="true">Delete</button>
-        </td>
+        </div></td>
       </tr>
       {% endfor %}
     </tbody>
@@ -158,7 +158,7 @@
         <th>Size</th>
         <th>Source run</th>
         <th>Created</th>
-        <th></th>
+        <th>Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -169,10 +169,10 @@
         <td class="num mono">{{ m.size_gb }} GB</td>
         <td class="meta mono" title="{{ m.run_name or '' }}">{{ m.run_id[:8] if m.run_id else '—' }}</td>
         <td class="meta mono">{{ format_relative(m.mtime) }}</td>
-        <td class="flex gap-1 wrap">
+        <td><div class="flex gap-1 wrap">
           <button class="btn sm" type="button" onclick='dashCopyPath({{ m.path|tojson }})'>Copy path</button>
           <button class="btn sm primary" type="button" onclick='dashOpenInference({{ m.path|tojson }})'>Open in inference</button>
-        </td>
+        </div></td>
       </tr>
       {% endfor %}
     </tbody>
