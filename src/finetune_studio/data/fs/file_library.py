@@ -52,6 +52,9 @@ _DOC_MIMES = {
     "text/rtf",
     "application/epub+zip",
     "application/vnd.oasis.opendocument.text",
+    "text/plain",
+    "text/markdown",
+    "message/rfc822",
 }
 _CODE_MIMES = {"text/x-python", "text/x-java", "text/x-c", "text/x-cpp", "text/javascript", "application/json", "text/html", "text/xml", "text/css", "application/x-sh"}
 
@@ -63,8 +66,9 @@ _RAW_TRASH_DIR = ".RAW_TRASH"
 def _sniff_mime(filename: str, sniffed: str | None = None) -> str:
     """Best-effort MIME detection: prefer the python-magic 'sniffed' value
     if the caller already ran libmagic, else fall back to mimetypes by
-    extension."""
-    if sniffed:
+    extension. A generic ``application/octet-stream`` hint (curl, some
+    browsers for .docx/.rtf) says nothing, so the extension decides."""
+    if sniffed and sniffed != "application/octet-stream":
         return sniffed
     if not filename:
         return "application/octet-stream"

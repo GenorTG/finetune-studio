@@ -19,3 +19,12 @@ def test_office_mime_types_map_to_format_names() -> None:
 
 def test_unknown_long_mime_subtypes_are_truncated() -> None:
     assert "raw.length > 14" in HTML
+
+
+def test_generic_octet_stream_hint_falls_back_to_the_extension() -> None:
+    from finetune_studio.data.fs.file_library import _sniff_mime, auto_kind_for
+
+    for name in ("checklist.docx", "sop.rtf", "notes.txt", "readme.md", "memo.eml"):
+        assert auto_kind_for(_sniff_mime(name, "application/octet-stream")) == "docs"
+    assert _sniff_mime("x.pdf", "application/pdf") == "application/pdf"
+    assert _sniff_mime("blob", "application/octet-stream") == "application/octet-stream"
