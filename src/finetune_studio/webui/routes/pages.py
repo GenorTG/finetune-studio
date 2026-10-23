@@ -719,19 +719,17 @@ def debug_info():
     except Exception as e:  # noqa: BLE001
         info["accelerator"] = {"error": str(e)}
 
-    # Package versions
-    pkgs = ["torch", "transformers", "peft", "llama_cpp", "sentence_transformers",
-            "fastapi", "uvicorn", "jinja2", "playwright", "numpy", "pandas"]
+    # Package versions from installed metadata: importing torch/transformers just to read __version__ took ~5 s.
+    from importlib import metadata
+    dists = {"torch": "torch", "transformers": "transformers", "peft": "peft", "llama_cpp": "llama-cpp-python",
+             "sentence_transformers": "sentence-transformers", "fastapi": "fastapi", "uvicorn": "uvicorn",
+             "jinja2": "jinja2", "playwright": "playwright", "numpy": "numpy", "pandas": "pandas"}
     versions = {}
-    for pkg in pkgs:
+    for pkg, dist in dists.items():
         try:
-            mod = __import__(pkg)
-            v = getattr(mod, "__version__", "?")
-            versions[pkg] = v
-        except ImportError:
+            versions[pkg] = metadata.version(dist)
+        except metadata.PackageNotFoundError:
             versions[pkg] = "(not installed)"
-        except (OSError, RuntimeError, AttributeError) as e:
-            versions[pkg] = f"(error: {e})"
     info["packages"] = versions
 
     return info
