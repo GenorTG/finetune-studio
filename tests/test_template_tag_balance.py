@@ -57,3 +57,9 @@ def test_no_table_cell_is_a_flex_container() -> None:
     bad = [str(f.relative_to(root)) for f in [*root.glob("templates/**/*.html"), *root.glob("static/js/*.js")]
            if re.search(r"<td class=\\?\"[^\"]*\bflex\b", f.read_text(encoding="utf-8"))]
     assert bad == []
+
+
+def test_brain_status_shows_a_readable_embedder_name() -> None:
+    """The index status printed the cache key 'shared:embedder:intfloat__…@<hash>' (demo shoot 2026-10-23)."""
+    src = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/brain.html").read_text(encoding="utf-8")
+    assert "esc(embedderLabel(d.embedder))" in src and "function embedderLabel(raw)" in src

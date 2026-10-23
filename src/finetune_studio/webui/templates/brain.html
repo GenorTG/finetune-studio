@@ -432,6 +432,14 @@
     if (n) n(msg, type); else console.log(msg);
   };
   const PID = {{ pid | tojson }};
+  // 'shared:embedder:intfloat__multilingual-e5-large@b97ef8b3…' -> 'intfloat/multilingual-e5-large' (full id in the tooltip).
+  function embedderLabel(raw) {
+    if (!raw) return '—';
+    let tail = String(raw).replace(/^(shared|embedder_local):(embedder:)?/, '');
+    if (/^[\\/~.]|^[A-Za-z]:/.test(tail)) tail = tail.split(/[\\/]/).pop();  // a local dir: its folder name
+    tail = tail.replace(/@[0-9a-f]+$/i, '');
+    return tail.replace('__', '/') || String(raw);
+  }
   const esc = (s) => String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
@@ -580,7 +588,7 @@
         + '<tr><td class="meta muted">Name</td><td class="mono" title="' + esc(d.name || '—') + '">' + esc(d.name || '—') + '</td></tr>'
         + '<tr><td class="meta muted">Documents</td><td class="mono">' + esc(d.documents) + '</td></tr>'
         + '<tr><td class="meta muted">Chunks</td><td class="mono">' + esc(d.chunks) + '</td></tr>'
-        + '<tr><td class="meta muted">Embedder</td><td class="mono" title="' + esc(d.embedder || '—') + '">' + esc(d.embedder || '—') + '</td></tr>'
+        + '<tr><td class="meta muted">Embedder</td><td class="mono" title="' + esc(d.embedder || '—') + '">' + esc(embedderLabel(d.embedder)) + '</td></tr>'
         + '<tr><td class="meta muted">Path</td><td class="mono text-xs" title="' + esc(d.corpus_dir || '') + '">' + esc(d.corpus_dir || '') + '</td></tr>'
         + '</tbody></table>'
         + '<details class="mt-2"><summary class="text-xs muted">Debug JSON</summary>'
