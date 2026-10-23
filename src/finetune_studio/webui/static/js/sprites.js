@@ -563,8 +563,9 @@
             if (infLoaded) {
               cap.textContent = '● INFERENCE MODEL LOADED';
               cap.style.color = 'var(--accent)';
-              const name = infLoaded.model || infLoaded.id;
-              sub.textContent = String(name || '').split(/[\\/]/).pop();
+              // model_display names the project/run (naming.display_for_path); a run's dir basename is just 'merged'.
+              const name = infLoaded.model_display || infLoaded.model || infLoaded.id;
+              sub.textContent = infLoaded.model_display ? String(name) : String(name || '').split(/[\\/]/).pop();
             } else {
               cap.textContent = '○ NO MODEL LOADED';
               cap.style.color = 'var(--text-dim)';

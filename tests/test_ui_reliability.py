@@ -758,3 +758,11 @@ def test_wizard_step5_not_ready_without_finished_run() -> None:
     ).read_text(encoding="utf-8")
     assert '"needs a trained model"' in wiz and "res.nDone > 0" in wiz
     assert 'd.state === "no_sources" || d.state === "not_built"' in wiz
+
+
+def test_loaded_model_labels_use_the_display_name() -> None:
+    """A merged run is a dir called 'merged': the header chip and chat card must use model_display (2026-10-23)."""
+    base = (_ROOT / "src" / "finetune_studio" / "webui" / "templates" / "base.html").read_text(encoding="utf-8")
+    sprites = (_ROOT / "src" / "finetune_studio" / "webui" / "static" / "js" / "sprites.js").read_text(encoding="utf-8")
+    assert "d.active.display = ie.model_display" in base and "if (p.display) return p.display;" in base
+    assert "infLoaded.model_display || infLoaded.model" in sprites

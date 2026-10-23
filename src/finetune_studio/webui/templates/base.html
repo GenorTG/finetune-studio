@@ -343,6 +343,7 @@
       let lastState = null;
       function deriveLabel(p) {
         if (!p) return 'no model';
+        if (p.display) return p.display;  // naming.display_for_path: a run's dir basename is just 'merged'
         if (p.kind === 'local_gguf' && p.model_id) {
           const base = String(p.model_id).split(/[\\/]/).pop() || p.model_id;
           const stripped = base.replace(/\.gguf$/i, '');
@@ -352,7 +353,7 @@
       }
       function render(d) {
         const active = d && d.active;
-        const fingerprint = active ? active.id + ':' + (active.model_id || '') + ':' + (active.loaded ? '1' : '0') : 'none';
+        const fingerprint = active ? active.id + ':' + (active.model_id || '') + ':' + (active.display || '') + ':' + (active.loaded ? '1' : '0') : 'none';
         if (fingerprint === lastState) return;
         lastState = fingerprint;
         const unloadBtn = document.getElementById('model-unload-btn');
@@ -378,6 +379,9 @@
             // Model is online via the global inference engine (loaded on the
             // Inference tab) but no provider is marked active — still show it.
             d.active = { id: '_global_inference', kind: 'local_gguf', model_id: ie.model, name: ie.model, loaded: true };
+          }
+          if (d && d.active && ie && ie.loaded && ie.model_display && d.active.model_id === ie.model) {
+            d.active.display = ie.model_display;
           }
           render(d);
         } catch (e) { /* ignore */ }
