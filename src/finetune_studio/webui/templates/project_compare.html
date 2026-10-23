@@ -49,7 +49,7 @@
     <div class="text-xs muted mb-1">Models to compare (pick 2–{{ max_models }})</div>
     <div class="cp-models" id="cp-models" role="group" aria-label="Models to compare">
       {% if project.base_model %}
-      <label title="{{ project.base_model }}"><input type="checkbox" name="cp-model" value="__base__"> Base model (untrained) · {{ project.base_model.rstrip('/').split('/')[-1] }}</label>
+      <label title="{{ project.base_model }}"><input type="checkbox" name="cp-model" value="__base__"> Base model (untrained) · {{ project.base_model|model_label }}</label>
       {% endif %}
       {% for m in models %}
       <label title="{{ m.path }}"><input type="checkbox" name="cp-model" value="{{ m.path }}"{% if default_model_path and m.path == default_model_path %} checked{% endif %}> {{ m.name }} · {{ m.format }} ({{ m.size_gb }} GB)</label>

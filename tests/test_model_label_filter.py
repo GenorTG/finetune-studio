@@ -39,3 +39,12 @@ def test_empty_and_none() -> None:
 def test_filter_registered_on_pages_templates() -> None:
     assert "model_label" in templates.env.filters
     assert templates.env.filters["model_label"]("org/repo") == "org/repo"
+
+
+def test_app_download_dir_and_run_output_get_readable_names(monkeypatch) -> None:
+    from finetune_studio import naming
+
+    assert model_label("/home/u/.finetune-studio/hf_models/Qwen__Qwen3-0.6B") == "Qwen/Qwen3-0.6B"
+    monkeypatch.setattr(naming, "resolve_run_path",
+                        lambda p: {"project_name": "Korvane handbook", "base": "Qwen3-0.6B", "kind": "merged"})
+    assert model_label("output/projects/p1/runs/r1/merged") == "Korvane handbook · Qwen3-0.6B · merged"

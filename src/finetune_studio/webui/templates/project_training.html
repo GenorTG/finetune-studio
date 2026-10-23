@@ -56,7 +56,7 @@
       <table class="table compact run-meta">
         <tr><td class="meta muted">ID</td><td class="mono">{{ detail_run.id }}</td></tr>
         <tr><td class="meta muted">Base model</td>
-            <td class="mono">{{ detail_run.base_model.split('/')[-1] if detail_run.base_model else '—' }}</td></tr>
+            <td class="mono">{{ detail_run.base_model|model_label if detail_run.base_model else '—' }}</td></tr>
         <tr><td class="meta muted">Dataset</td>
             <td class="mono" title="{{ detail_run.data_path or '' }}">{{ detail_run.data_path.split('/')[-1] if detail_run.data_path else '—' }}</td></tr>
         <tr><td class="meta muted">Output</td>
