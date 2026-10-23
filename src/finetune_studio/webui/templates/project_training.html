@@ -393,7 +393,7 @@
      unreachable. Wrap it so narrow viewports scroll instead. #}
   <div class="table-scroll">
   <table class="table" id="past-runs-table">
-    <thead><tr><th>Name</th><th>Status</th><th>Started</th><th>Duration</th><th>Loss</th><th></th><th>Actions</th></tr></thead>
+    <thead><tr><th>Name</th><th>Status</th><th>Started</th><th>Duration</th><th>Loss</th><th>Actions</th></tr></thead>
     <tbody id="past-runs-body">
       {% for run in project.runs %}
       <tr class="row-hover {% if detail_run and detail_run.id == run.id %}row-active{% endif %}"
@@ -420,8 +420,8 @@
         <td class="meta mono js-time" data-ts="{{ run.started_at or '' }}" title="When this run started">—</td>
         <td class="meta mono js-duration" data-secs="{{ run.duration or '' }}">—</td>
         <td class="num mono">{{ '%.4f'|format(run.final_loss) if run.final_loss else '—' }}</td>
-        <td><a class="btn sm" href="/projects/{{ pid }}/training?run={{ run.id }}" data-link>Details</a></td>
-        <td class="flex gap-1 wrap">
+        <td><div class="flex gap-1 wrap">
+          <a class="btn sm" href="/projects/{{ pid }}/training?run={{ run.id }}" data-link>Details</a>
           {% set can_act = run.status == 'done' and run.output_path %}
           <button type="button" class="btn sm js-set-prod"
                   data-run-id="{{ run.id }}" data-run-name="{{ run.name }}"
@@ -434,7 +434,7 @@
           {% else %}
           <a class="btn sm is-disabled" href="#" aria-disabled="true" tabindex="-1" title="Export requires a finished run with output">⬇ Export</a>
           {% endif %}
-        </td>
+        </div></td>
       </tr>
       {% endfor %}
     </tbody>
@@ -970,15 +970,15 @@
         '<td class="meta mono">' + esc(formatStarted(run.started_at)) + "</td>" +
         '<td class="meta mono">' + esc(formatDuration(run.duration)) + "</td>" +
         '<td class="num mono">' + esc(formatLoss(run.final_loss)) + "</td>" +
-        '<td><a class="btn sm" href="/projects/' + esc(PID) + "/training?run=" + esc(id) + '" data-link>Details</a></td>' +
-        '<td class="flex gap-1 wrap">' +
+        '<td><div class="flex gap-1 wrap">' +
+        '<a class="btn sm" href="/projects/' + esc(PID) + "/training?run=" + esc(id) + '" data-link>Details</a>' +
         '<button type="button" class="btn sm js-set-prod" data-run-id="' + esc(id) +
         '" data-run-name="' + esc(name) + '"' + setProdDisabled +
         (canAct ? ' title="Set as production run"' : "") + ">⭐ Set production</button>" +
         '<button type="button" class="btn sm js-open-inf" data-path="' + esc(out) + '"' +
         infDisabled + (canAct ? ' title="Load adapter in inference"' : "") + ">▶ Open in inference</button>" +
         exportBtn +
-        "</td></tr>"
+        "</div></td></tr>"
       );
     }).join("");
   }

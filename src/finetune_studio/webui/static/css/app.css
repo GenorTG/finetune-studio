@@ -2200,11 +2200,6 @@
      to a half-clipped "Details" (probe -25px) — give this table more scroll
      width so action buttons keep their full size. */
   #past-runs-table { min-width: 700px; }
-  /* Details lives in its own narrow column (empty header) — fixed layout
-     gave it ~66px while the button needs ~92 (probe: td -24px clipped at
-     768). Reserve the room. */
-  #past-runs-table th:nth-child(6),
-  #past-runs-table td:nth-child(6) { width: 100px; }
   /* rag docs headers ellipsized at 768 ("Chunks" -15, "indexed" -11,
      timestamp -25) — rebalance the column percentages inside the scroll
      wrapper so headers and the 16-char timestamp fit. */
@@ -5147,3 +5142,10 @@ kbd { border: 1px solid var(--border-strong); padding: 0 4px; font-size: 11px; }
 @media (max-width: 420px) {
   .styleguide-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* Past runs: Actions holds four buttons in one wrapping row; the equal fixed-layout
+   shares stacked them under each other at 1440 (demo shoot 2026-10-23). */
+#past-runs-table th:nth-child(1) { width: 20%; }
+#past-runs-table th:nth-child(2), #past-runs-table th:nth-child(4) { width: 9%; }
+#past-runs-table th:nth-child(3) { width: 13%; }
+#past-runs-table th:nth-child(5) { width: 8%; }
