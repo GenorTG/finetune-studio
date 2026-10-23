@@ -6,7 +6,6 @@ Pure helpers — no FastAPI routes. Call from ``project_detail_page`` after
 from __future__ import annotations
 
 import re
-
 import time
 from typing import Any
 
