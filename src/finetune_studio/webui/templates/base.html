@@ -176,7 +176,7 @@
     {% set _flow_next = flow_next_step(pid, bc) if flow_next_step is defined else None %}
     <nav id="workspace-subnav" class="workspace-subnav" aria-label="Project flow" data-pid="{{ pid }}" data-flow-page="{{ bc }}">
       <span class="ws-label" title="Files are prepared once, then trained into a model or served by the Smart Brain">Flow</span>
-      <a href="/projects/{{ pid }}" data-link data-tab="overview" class="ws-link {% if bc in ('overview', 'models') %}here{% endif %}" title="Project home">home</a>
+      <a href="/projects/{{ pid }}" data-link data-tab="overview" class="ws-link {% if bc == 'overview' %}here{% endif %}" title="Project home">home</a>
       <a href="/projects/{{ pid }}/wizard" data-link data-tab="wizard" class="ws-link {% if bc == 'quick work' %}here{% endif %}" title="All steps on one page, in order">⚡ quick work</a>
       <span class="ws-sep" aria-hidden="true">|</span>
       <span class="ws-steps-label ws-group" title="1 · Upload, read, edit, parse and mine your files">1 Files &amp; Knowledge</span>
@@ -188,7 +188,7 @@
       <a href="/projects/{{ pid }}/brain" data-link data-tab="brain" class="ws-link {% if bc == 'smart brain' %}here{% endif %}" title="2 · Smart Brain: answer from the files without training (search index, chat with sources, standalone server)">2 Smart Brain</a>
       <span class="ws-sep" aria-hidden="true">|</span>
       <a href="/projects/{{ pid }}/testing" data-link data-tab="testing" class="ws-link {% if bc == 'testing' %}here{% endif %}" title="3 · Score the model or the Smart Brain on your own questions">3 test</a>
-      <a href="/projects/{{ pid }}/export" data-link data-tab="export" class="ws-link {% if bc == 'export' %}here{% endif %}" title="4 · Export / use the trained model">4 use it</a>
+      <a href="/projects/{{ pid }}/export" data-link data-tab="export" class="ws-link {% if bc in ('export', 'models') %}here{% endif %}" title="4 · Export / use the trained model">4 use it</a>
       <span class="ws-sep" aria-hidden="true">|</span>
       <span class="ws-steps-label" aria-hidden="true">also</span>
       <a href="/projects/{{ pid }}/compare" data-link data-tab="compare" class="ws-link {% if bc == 'compare' %}here{% endif %}" title="Same questions to several models, answers side by side, judged afterwards">compare</a>
