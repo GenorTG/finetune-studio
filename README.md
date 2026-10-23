@@ -149,7 +149,7 @@ supervised fine-tune (SFT) with LoRA or QLoRA. The studio handles:
 - Configurable LoRA rank, target modules, batch size
 - A merge step that produces a self-contained checkpoint you can load in
   chat
-- Per past-run Actions (⭐ Set Production, ▶ Inference, ⬇ Download) so
+- Per past-run Actions (⭐ Set production, ▶ Inference, ⬇ Download) so
   you can promote / inspect / pull down any of your previous runs
 
 ### Use case 3 — Benchmark before you ship
@@ -224,7 +224,7 @@ The larger pieces, roughly in the order you meet them:
   actions, zip export, per-file usage chain (file → pairs → datasets →
   runs → Smart Brain), knowledge search (facts + passages, edit in place),
   thumbnails, columns picker, 7-day
-  trash with restore-all.
+  trash (select and restore).
 - **Chunk-coverage fallback** — dataset export can fill chunks without an
   approved generated pair with verbatim extractive pairs. The project data
   audit reports coverage issues; this is a data-coverage check, not a
@@ -307,7 +307,7 @@ thumbnails, sortable + pickable columns, pagination, ⬇ zip export, a
 reject a fact in place), ℹ️ a per-file usage chain (file → parse → pairs →
 datasets → runs → Smart Brain), a built-in **parsed-text editor** (corrections
 feed mining and the next Smart Brain build without touching the original), and a
-7-day soft-delete trash with restore-all. Every readable upload is parsed once,
+7-day soft-delete trash (select and restore). Every readable upload is parsed once,
 on arrival; training and the Smart Brain both read that parse.
 
 ![Files](docs/screenshots/04_files.png)
@@ -347,7 +347,7 @@ connecting to embedding vectors in real time.
 
 Configure an adapter run, watch loss curves live. Base-model and preset
 pickers recommend rank/LR/epochs from your base size and dataset size. Each
-past run in the **Past runs** table carries Actions (⭐ Set Production,
+past run in the **Past runs** table carries Actions (⭐ Set production,
 ▶ Inference, ⬇ Download) so you can promote / inspect / pull down any of
 your previous runs without re-opening individual pages. The CpuChip sprite
 flickers as the GPU accelerates.
