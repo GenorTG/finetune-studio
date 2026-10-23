@@ -66,7 +66,7 @@ LEGACY_HELPER_GGUF_BASENAMES: tuple[str, ...] = ("gemma-4-12b-it-uncensored-Q4_K
 # a small KV cache; the 30B weights MUST all be memory-resident (3B active is
 # compute, not memory).
 ALTERNATE_HELPER_PROVIDER_ID: str = "local-qwen30b-a3b"
-ALTERNATE_HELPER_LABEL: str = "Helper · Qwen3-30B-A3B Uncensored GGUF"
+ALTERNATE_HELPER_LABEL: str = "Helper · Qwen3-30B-A3B Instruct GGUF"
 ALTERNATE_HELPER_GGUF_BASENAME: str = "Qwen3-30B-A3B-Instruct-2507-IQ4_XS.gguf"
 
 # Loader defaults for the seeded local_gguf provider.
