@@ -40,6 +40,10 @@ class ProjectCounts:
     approved: int
     datasets: int
     runs_done: int
+    runs_active: int = 0
+
+
+_RUN_ACTIVE = {"queued", "loading", "training", "running", "saving", "merging"}
 
 
 def project_counts(pid: str) -> ProjectCounts:
@@ -49,13 +53,15 @@ def project_counts(pid: str) -> ProjectCounts:
 
     sources = list_sources(pid)
     pairs = qa_fs.list_qa_pairs(pid)
+    runs = db.list_runs(pid)
     return ProjectCounts(
         files=len(sources),
         parsed=sum(1 for s in sources if s.ready),
         pending=sum(1 for p in pairs if p.get("status", "pending") == "pending"),
         approved=sum(1 for p in pairs if p.get("status") == "approved"),
         datasets=len(db.list_datasets(pid)),
-        runs_done=sum(1 for r in db.list_runs(pid) if r.get("status") == "done"),
+        runs_done=sum(1 for r in runs if r.get("status") == "done"),
+        runs_active=sum(1 for r in runs if r.get("status") in _RUN_ACTIVE),
     )
 
 
@@ -84,6 +90,8 @@ def next_for(page: str, c: ProjectCounts) -> tuple[str, str, str] | None:
     if page == "training":
         if not c.datasets:
             return ("/data-prep", "Build a dataset first", "Mine, approve and export pairs, or upload a JSONL dataset here.")
+        if c.runs_active and not c.runs_done:
+            return ("", "Wait for the run to finish", "Live status below follows it; test it on Testing when it is done.")
         if not c.runs_done:
             return ("", "Start a training run", "Pick the dataset and a preset below, then press Start.")
         return None

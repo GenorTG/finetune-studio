@@ -20,6 +20,7 @@ def counts(**kw: int) -> fn.ProjectCounts:
     ("pairs", counts(files=3, parsed=3, pending=40, approved=5), "Export the approved pairs", ""),
     ("training", counts(files=3, parsed=3, approved=5), "Build a dataset first", "/data-prep"),
     ("training", counts(files=3, parsed=3, approved=5, datasets=1), "Start a training run", ""),
+    ("training", counts(datasets=1, runs_active=1), "Wait for the run to finish", ""),
 ])
 def test_next_step_follows_the_state(page: str, state: fn.ProjectCounts, title: str, href: str) -> None:
     got = fn.next_for(page, state)
