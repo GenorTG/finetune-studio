@@ -278,4 +278,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_ds_pref.add_argument("--seed", type=int, default=42, help="Seed for candidate order and the split preview")
     p_ds_pref.add_argument("--json", action="store_true", help="Print the summary as JSON")
 
+    p_ds_study = dataset_sub.add_parser(
+        "build-study",
+        help="Write each approved fact several ways (reworded questions, restated answers, a passage) as an SFT dataset")
+    p_ds_study.add_argument("--project", required=True, help="Project id or name")
+    p_ds_study.add_argument("--reworded", type=int, default=2, metavar="N", help="Reworded questions per pair (0-5, default 2)")
+    p_ds_study.add_argument("--restated", type=int, default=1, metavar="N", help="Restated answers per pair (0-5, default 1)")
+    p_ds_study.add_argument("--no-passage", action="store_true", help="Skip the short passage per pair")
+    p_ds_study.add_argument("--json", action="store_true", help="Print the summary as JSON")
+
     return parser

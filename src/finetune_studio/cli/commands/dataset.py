@@ -7,6 +7,7 @@ files; no running server needed.
 
 Also `fts dataset build-preference`: author DPO preference pairs (chosen vs rejected answers) from the
 approved pairs; loads the helper model itself when none is resident and unloads it afterwards.
+And `fts dataset build-study`: each approved fact written several ways (data.prep.study_set), same helper rules.
 
 Examples:
   fts dataset build --project my-docs
@@ -14,6 +15,7 @@ Examples:
   fts dataset build --project my-docs --force
   fts dataset build --project my-docs --no-grounding --fmt openai --out exports/plain.jsonl
   fts dataset build-preference --project my-docs --kinds hallucination,abstain --max-pairs 60 --json
+  fts dataset build-study --project my-docs --reworded 2 --restated 1
 """
 from __future__ import annotations
 
@@ -27,6 +29,7 @@ from fastapi import HTTPException
 
 from finetune_studio import db
 from finetune_studio.data.prep import preference as pref
+from finetune_studio.data.prep import study_set as study
 from finetune_studio.data.prep.dataset_build import (
     BuiltDataset,
     ExportBlocked,
@@ -188,14 +191,46 @@ def _build_preference(args: argparse.Namespace) -> None:
         _print_preference_summary(summary)
 
 
+def _build_study(args: argparse.Namespace) -> None:
+    db.init_db()
+    project = resolve_project(args.project)
+    pid = str(project["id"])
+    try:
+        opts = study.StudyOptions(reworded=args.reworded, restated=args.restated, passage=not args.no_passage)
+        from finetune_studio.data.mining.scheduler import helper_info
+        with pref.helper_loaded_for_cli():  # seats the helper (and unloads a GGUF it loaded) around the build
+            built = study.build_study_dataset(
+                pid, opts, generate=pref.helper_generate(max_tokens=1200, temperature=0.7),
+                workers=int(helper_info().get("concurrency") or 1),
+                progress=None if args.json else lambda p: print(
+                    f"\r{p['done']}/{p['planned']} pairs", end="", file=sys.stderr, flush=True))
+    except study.NoUsableRows as exc:
+        raise DatasetBuildError(f"{exc} Dropped: {json.dumps(exc.report.as_dict()['dropped'])}") from exc
+    except (study.StudySetError, pref.PreferenceBuildError, ValueError) as exc:
+        raise DatasetBuildError(str(exc)) from exc
+    summary = {"project": {"id": pid, "name": project.get("name")},
+               "dataset": {"id": built.dataset.get("id"), "name": built.dataset.get("name"), "path": built.path,
+                           "rows": built.rows},
+               **built.report.as_dict()}
+    if args.json:
+        print(json.dumps(summary, indent=2))
+    else:
+        print(file=sys.stderr)
+        kept = ", ".join(f"{n} {k}" for k, n in summary["kept"].items())
+        print(f"Study set: {built.rows} rows ({summary['pairs']} pairs + {kept}) -> {built.path}")
+        if summary["dropped"]:
+            print("Dropped by quality checks: " + ", ".join(f"{k} {n}" for k, n in summary["dropped"].items()))
+
+
 def cmd_dataset(args: argparse.Namespace) -> None:
     sub = getattr(args, "dataset_command", None)
-    if sub not in ("build", "build-preference"):
-        print("Usage: fts dataset build|build-preference --project <name|id> [options]  "
+    builders = {"build": _build, "build-preference": _build_preference, "build-study": _build_study}
+    if sub not in builders:
+        print("Usage: fts dataset build|build-preference|build-study --project <name|id> [options]  "
               "(see `fts dataset <command> --help`)", file=sys.stderr)
         sys.exit(1)
     try:
-        (_build_preference if sub == "build-preference" else _build)(args)
+        builders[sub](args)
     except DatasetBuildError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)

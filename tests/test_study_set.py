@@ -127,3 +127,33 @@ def test_data_prep_page_has_the_study_card(client) -> None:
     page = client.get(f"/projects/{pid}/data-prep").text
     for el in ("dp-study-card", "dp-study-build", "dp-study-reworded", "dp-study-progress"):
         assert f'id="{el}"' in page
+
+
+def test_cli_build_study_registers_the_dataset(monkeypatch, capsys) -> None:
+    import sys
+    from contextlib import contextmanager
+
+    from finetune_studio import db
+    from finetune_studio.cli import _registry
+    from finetune_studio.data.fs import qa as qa_fs
+    from finetune_studio.data.prep import preference
+
+    db.init_db()
+    proj = db.create_project("study-cli", base_model="x/test")
+    qa_fs.write_qa_pair(proj["id"], {**PAIR, "status": "approved"})
+
+    @contextmanager
+    def loaded():
+        yield None
+
+    reply = _reply(questions=["Under which reference number is Amendment No. 2 filed?"])
+    monkeypatch.setattr(preference, "helper_loaded_for_cli", loaded)
+    monkeypatch.setattr(preference, "helper_generate", lambda **_: (lambda _p: reply))
+    monkeypatch.setattr(sys, "argv", ["fts", "dataset", "build-study", "--project", "study-cli",
+                                      "--reworded", "1", "--restated", "0", "--no-passage", "--json"])
+    try:
+        _registry.main()
+    except SystemExit as exc:
+        assert not exc.code
+    out = json.loads(capsys.readouterr().out)
+    assert out["dataset"]["rows"] == 2 and out["kept"]["reworded"] == 1
