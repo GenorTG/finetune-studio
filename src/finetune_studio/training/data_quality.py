@@ -244,8 +244,9 @@ def generate_fixes(analysis: dict) -> list:
                          "advice": "Delete examples with empty messages from the JSONL file, "
                                    "then re-run `fts analyze` to confirm."})
         elif issue["type"] == "language":
-            fixes.append({"action": "augment_language", "priority": "medium",
-                         "command": "fts augment INPUT --output OUTPUT --type language"})
+            fixes.append({"action": "balance_language", "priority": "medium",
+                         "advice": "Add real examples in the under-represented language (approved pairs "
+                                   "from documents in that language); copies of template rows do not help."})
         elif issue["type"] == "length":
             fixes.append({"action": "balance_length", "priority": "medium",
                          "advice": "Trim or split examples that are far longer or shorter than "
