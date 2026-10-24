@@ -190,20 +190,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_analyze.add_argument("data", help="Path to training data (JSONL)")
     p_analyze.add_argument("--json", action="store_true")
 
-    # ── augment (data augmentation) ──
-    p_aug = sub.add_parser("augment", help="Augment training data to fix weaknesses")
-    p_aug.add_argument("data", help="Path to training data (JSONL)")
-    p_aug.add_argument("--output", required=True, help="Output augmented data")
-    p_aug.add_argument("--type", default="all", help="Comma-separated augmentation types: knowledge, refusal, language, hallucination, persona, all")
-
-    # ── optimize (config recommendation) ──
-    p_opt = sub.add_parser("optimize", help="Get training config recommendations")
-    p_opt.add_argument("data", help="Path to training data (JSONL)")
-    p_opt.add_argument("--lr", type=float, help="Current learning rate")
-    p_opt.add_argument("--epochs", type=int, help="Current epochs")
-    p_opt.add_argument("--lora-rank", type=int, help="Current LoRA rank")
-    p_opt.add_argument("--json", action="store_true")
-
     # ── validate-hallucination ──
     p_val_h = sub.add_parser("validate-hallucination", help="Check training data for hallucination risks")
     p_val_h.add_argument("data", help="Path to training data (JSONL)")

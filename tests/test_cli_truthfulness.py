@@ -231,8 +231,6 @@ def test_suite_json_with_every_case_errored_still_exits_nonzero_without_a_score(
     [
         ("analyze", "data.jsonl", "--fix"),
         ("analyze", "data.jsonl", "--output", "out.jsonl"),
-        ("augment", "data.jsonl", "--output", "o.jsonl", "--count", "10"),
-        ("augment", "data.jsonl", "--output", "o.jsonl", "--ratio", "0.5"),
         ("benchmark", "model.gguf", "--max-tokens", "8"),
         ("benchmark", "model.gguf", "--temperature", "0.5"),
         ("benchmark", "model.gguf", "--real"),
@@ -278,45 +276,14 @@ def test_every_parser_option_is_read_by_its_handler() -> None:
     assert not unread, f"parser options never read by their handler: {unread}"
 
 
-# ── fts augment: --type values must reach the augmenter ──────────────────────
+# ── fts augment / fts optimize were fake and are removed (2026-10-24) ───────
 
 
-def _write_jsonl(path: Path) -> Path:
-    path.write_text(
-        json.dumps({"messages": [{"role": "user", "content": "q"},
-                                 {"role": "assistant", "content": "a"}]}) + "\n",
-        encoding="utf-8",
-    )
-    return path
-
-
-def test_augment_type_aliases_reach_generators(monkeypatch, capsys, tmp_path: Path) -> None:
-    from finetune_studio.training import data_augmentation
-
-    seen: dict[str, list[str]] = {}
-
-    def fake_augment(self, data, weaknesses=None):
-        seen["weaknesses"] = list(weaknesses or [])
-        return list(data)
-
-    monkeypatch.setattr(data_augmentation.DataAugmenter, "augment_dataset", fake_augment)
-    src = _write_jsonl(tmp_path / "in.jsonl")
-    out_path = tmp_path / "out.jsonl"
-    code, out = run_cli(monkeypatch, capsys, "augment", str(src), "--output", str(out_path),
-                        "--type", "language,persona")
-    assert code == 0, out
-    assert {"language_balance", "persona_preservation"} <= set(seen["weaknesses"])
-    assert "language" not in seen["weaknesses"]  # alias must not leak through
-
-
-def test_augment_unknown_type_fails_instead_of_being_ignored(monkeypatch, capsys, tmp_path: Path) -> None:
-    src = _write_jsonl(tmp_path / "in.jsonl")
-    out_path = tmp_path / "out.jsonl"
-    code, out = run_cli(monkeypatch, capsys, "augment", str(src), "--output", str(out_path),
-                        "--type", "bogus")
-    assert code != 0
-    assert "bogus" in out
-    assert not out_path.exists()
+@pytest.mark.parametrize("command", ["augment", "optimize"])
+def test_removed_fake_commands_are_unknown(monkeypatch, capsys, command: str) -> None:
+    code, out = run_cli(monkeypatch, capsys, command, "data.jsonl")
+    assert code == 2
+    assert "invalid choice" in out
 
 
 # ── fts benchmark: output must not claim settings it does not apply ──────────

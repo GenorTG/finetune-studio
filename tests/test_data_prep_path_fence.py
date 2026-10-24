@@ -189,9 +189,9 @@ def test_file_library_raw_download_fenced(env) -> None:
     assert r.status_code == 403
 
 
-# ── /api/data/{analyze,augment,optimize,validate-hallucination,convert} ─────
+# ── /api/data/{analyze,validate-hallucination,convert} ─────
 
-_QUALITY = ("analyze", "augment", "optimize", "hallucination-check", "convert")
+_QUALITY = ("analyze", "hallucination-check", "convert")
 
 
 def _quality_body(route: str, path: str, output: str | None = None, **extra) -> dict:
@@ -236,13 +236,13 @@ def test_quality_routes_fenced(env, route: str, use_project: bool) -> None:
     assert r.status_code == 200, r.text
 
 
-def test_quality_augment_writes_inside_project(env) -> None:
+def test_quality_convert_writes_inside_project(env) -> None:
     client, pid, pdir, _ = env
     inside = _jsonl(pdir / "in.jsonl")
-    out = pdir / "out.jsonl"
+    out = pdir / "out.json"
     r = client.post(
-        "/api/data/augment",
-        json={"path": str(inside), "output": str(out), "project_id": pid},
+        "/api/data/convert",
+        json={"path": str(inside), "output": str(out), "target_format": "json", "project_id": pid},
     )
     assert r.status_code == 200, r.text
     if r.json()["status"] == "ok":

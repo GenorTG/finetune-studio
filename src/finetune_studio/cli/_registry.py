@@ -16,7 +16,6 @@ from finetune_studio.cli._parser import build_parser
 from finetune_studio.cli.commands.accel import cmd_accel
 from finetune_studio.cli.commands.access import cmd_auth, cmd_server
 from finetune_studio.cli.commands.analyze import cmd_analyze
-from finetune_studio.cli.commands.augment import cmd_augment
 from finetune_studio.cli.commands.benchmark import cmd_benchmark
 from finetune_studio.cli.commands.brain import cmd_brain
 from finetune_studio.cli.commands.compare import cmd_compare
@@ -25,7 +24,6 @@ from finetune_studio.cli.commands.dataset import cmd_dataset
 from finetune_studio.cli.commands.files import cmd_files
 from finetune_studio.cli.commands.jobs import cmd_jobs
 from finetune_studio.cli.commands.models import cmd_models
-from finetune_studio.cli.commands.optimize import cmd_optimize
 from finetune_studio.cli.commands.service import cmd_down, cmd_service, cmd_up
 from finetune_studio.cli.commands.suite import cmd_suite
 from finetune_studio.cli.commands.supervisor import (
@@ -60,8 +58,6 @@ COMMANDS = {
     "compare": cmd_compare,
     "benchmark": cmd_benchmark,
     "analyze": cmd_analyze,
-    "augment": cmd_augment,
-    "optimize": cmd_optimize,
     "validate-hallucination": cmd_validate_hallucination,
     "vram": cmd_vram,
     "accel": cmd_accel,

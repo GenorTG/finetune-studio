@@ -39,14 +39,13 @@ def test_relative_path_and_output_both_resolve_in_project(env) -> None:
     row = json.dumps({"question": "q", "answer": "a"}) + "\n"
     (pdir / "in.jsonl").write_text(row, encoding="utf-8")
     (cwd / "in.jsonl").write_text(row * 2, encoding="utf-8")  # decoy in cwd
-    r = client.post("/api/data/augment", json={
-        "path": "in.jsonl", "output": "out.jsonl", "project_id": pid})
+    r = client.post("/api/data/convert", json={
+        "path": "in.jsonl", "output": "out.json", "target_format": "json", "project_id": pid})
     assert r.status_code == 200, r.text
     body = r.json()
     assert Path(body["path"]) == (pdir / "in.jsonl").resolve()
-    assert body["result"]["input_count"] == 1
-    assert (pdir / "out.jsonl").is_file()
-    assert not (cwd / "out.jsonl").exists()
+    assert len(json.loads((pdir / "out.json").read_text(encoding="utf-8"))) == 1
+    assert not (cwd / "out.json").exists()
 
 
 def test_preset_start_honours_top_level_alpha_and_accum(client, tmp_path, monkeypatch) -> None:

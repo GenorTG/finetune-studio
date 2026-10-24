@@ -6,8 +6,8 @@ shape), so every call silently returned ``status: "error"`` behind a
 broad ``except Exception`` — found independently by two documentation-
 audit lanes while reading training/ and benchmarks/compare/. The real
 names/shapes are the same ones the equivalent ``fts`` CLI commands
-already use correctly (cli/commands/{optimize,augment,
-validate_hallucination,convert}.py).
+already use correctly (cli/commands/{validate_hallucination,
+convert}.py).
 """
 
 from __future__ import annotations
@@ -39,26 +39,6 @@ def _data_dir_is_tmp(tmp_path, monkeypatch):
 
 
 class TestQualityRoutes:
-    def test_optimize_uses_real_class_and_succeeds(self, client, mock_settings, tmp_path):
-        p = _write_jsonl(tmp_path)
-        r = client.post("/api/data/optimize", json={"path": str(p)})
-        assert r.status_code == 200
-        body = r.json()
-        assert body["status"] == "ok", body
-        assert "recommendations" in body["result"]
-
-    def test_augment_uses_real_class_and_succeeds(self, client, mock_settings, tmp_path):
-        p = _write_jsonl(tmp_path)
-        out = tmp_path / "out.jsonl"
-        r = client.post(
-            "/api/data/augment", json={"path": str(p), "output": str(out)},
-        )
-        assert r.status_code == 200
-        body = r.json()
-        assert body["status"] == "ok", body
-        assert body["result"]["output_count"] >= body["result"]["input_count"]
-        assert out.exists()
-
     def test_hallucination_check_uses_real_class_and_succeeds(self, client, mock_settings, tmp_path):
         p = _write_jsonl(tmp_path)
         r = client.post("/api/data/hallucination-check", json={"path": str(p)})
@@ -95,13 +75,20 @@ class TestQualityRoutes:
         assert "Cannot convert" in body["detail"]
 
     def test_crashed_command_is_a_500_not_a_200(self, client, mock_settings, tmp_path, monkeypatch):
-        from finetune_studio.training import config_optimizer
+        from finetune_studio.training import data_quality
 
-        def boom(self, data, cfg):
-            raise RuntimeError("optimizer exploded")
+        def boom(self, path):
+            raise RuntimeError("analyzer exploded")
 
-        monkeypatch.setattr(config_optimizer.TrainingConfigOptimizer, "analyze_and_recommend", boom)
-        r = client.post("/api/data/optimize", json={"path": str(_write_jsonl(tmp_path))})
+        monkeypatch.setattr(data_quality.DataQualityAnalyzer, "analyze", boom)
+        r = client.post("/api/data/analyze", json={"path": str(_write_jsonl(tmp_path))})
         assert r.status_code == 500
-        assert r.json()["code"] == "optimize_failed"
-        assert "optimizer exploded" in r.json()["detail"]
+        assert r.json()["code"] == "analyze_failed"
+        assert "analyzer exploded" in r.json()["detail"]
+
+    @pytest.mark.parametrize("route", ["augment", "optimize"])
+    def test_template_augment_and_heuristic_optimize_are_gone(self, client, mock_settings, tmp_path, route):
+        """Removed 2026-10-24: augment padded data with copies of 20 hard-coded
+        trivia/refusal pairs; optimize advised from letter and keyword counts."""
+        r = client.post(f"/api/data/{route}", json={"path": str(_write_jsonl(tmp_path))})
+        assert r.status_code in (404, 405)

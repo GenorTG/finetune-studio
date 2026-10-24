@@ -20,23 +20,12 @@ def run_cli(monkeypatch, capsys, *argv: str) -> tuple[int, str]:
     return code, cap.out + cap.err
 
 
-@pytest.mark.parametrize("cmd", ["analyze", "optimize", "validate-hallucination"])
+@pytest.mark.parametrize("cmd", ["analyze", "validate-hallucination"])
 def test_missing_data_file_is_clean_error(monkeypatch, capsys, tmp_path, cmd):
     code, out = run_cli(monkeypatch, capsys, cmd, str(tmp_path / "nope.jsonl"))
     assert code == 1
     assert "Traceback" not in out
     assert "nope.jsonl" in out
-
-
-def test_augment_missing_input_and_bad_output_dir(monkeypatch, capsys, tmp_path):
-    code, out = run_cli(monkeypatch, capsys, "augment", str(tmp_path / "x.jsonl"),
-                        "--output", str(tmp_path / "o.jsonl"))
-    assert code == 1 and "Traceback" not in out
-    src = tmp_path / "in.jsonl"
-    src.write_text('{"messages":[{"role":"user","content":"a"},{"role":"assistant","content":"b"}]}\n')
-    code, out = run_cli(monkeypatch, capsys, "augment", str(src),
-                        "--output", str(tmp_path / "nodir" / "o.jsonl"))
-    assert code == 1 and "Traceback" not in out
 
 
 def test_brain_needs_exactly_one_target_and_an_index(monkeypatch, capsys, tmp_path):

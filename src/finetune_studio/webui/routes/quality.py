@@ -4,8 +4,6 @@ WHAT THIS FILE DOES
 ===================
 Exposes the data-quality and training-quality CLI commands to the WebUI:
   - analyze          → /api/data/analyze
-  - augment          → /api/data/augment
-  - optimize         → /api/data/optimize
   - validate-hallucination → /api/data/hallucination-check
   - convert          → /api/data/convert
 
@@ -65,7 +63,7 @@ def _load_jsonl(path: str) -> list[dict]:
     """Read one JSON object per line, skipping malformed lines.
 
     Matches the loading behavior of the equivalent ``fts`` CLI commands
-    (``cli/commands/{optimize,augment,validate_hallucination}.py``) so the
+    (``cli/commands/validate_hallucination.py``) so the
     WebUI and CLI paths see the same data for the same file.
     """
     data = []
@@ -95,79 +93,6 @@ def data_analyze(req: DataJobRequest) -> DataJobResponse:
         return DataJobResponse(status="ok", command="analyze", path=req.path, result=report)
     except Exception as exc:
         raise _failed("analyze", exc) from exc
-
-
-# ── CLI: fts augment ─────────────────────────────────────────────────────
-@router.post("/augment", response_model=DataJobResponse)
-def data_augment(req: DataJobRequest) -> DataJobResponse:
-    """Augment training data to address weaknesses identified by analyze."""
-    _fence(req)
-    if not Path(req.path).exists():
-        raise HTTPException(status_code=404, detail=f"File not found: {req.path}")
-    try:
-        from finetune_studio.training.data_augmentation import DataAugmenter
-        from finetune_studio.training.data_quality import DataQualityAnalyzer
-
-        data = _load_jsonl(req.path)
-        analysis = DataQualityAnalyzer().analyze(req.path)
-        weaknesses = []
-        for issue in analysis.get("issues", []):
-            issue_type = issue.get("type", "")
-            if "language" in issue_type:
-                weaknesses.append("language_balance")
-            elif "hallucination" in issue_type:
-                weaknesses.append("hallucination_guard")
-            elif "empty" in issue_type:
-                weaknesses.append("refusal")
-        weaknesses = sorted(set(weaknesses)) or ["knowledge", "refusal"]
-
-        augmented = DataAugmenter().augment_dataset(data, weaknesses)
-
-        output_path = req.output or str(Path(req.path).with_suffix(".augmented.jsonl"))
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.writelines(
-                json_mod.dumps(item, ensure_ascii=False) + "\n" for item in augmented
-            )
-
-        result = {
-            "weaknesses": weaknesses,
-            "input_count": len(data),
-            "output_count": len(augmented),
-            "output_path": output_path,
-        }
-        return DataJobResponse(status="ok", command="augment", path=req.path, result=result)
-    except Exception as exc:
-        raise _failed("augment", exc) from exc
-
-
-# ── CLI: fts optimize ────────────────────────────────────────────────────
-@router.post("/optimize", response_model=DataJobResponse)
-def data_optimize(req: DataJobRequest) -> DataJobResponse:
-    """Recommend training hyperparameters based on dataset characteristics."""
-    _fence(req)
-    if not Path(req.path).exists():
-        raise HTTPException(status_code=404, detail=f"File not found: {req.path}")
-    try:
-        from finetune_studio.training.config_optimizer import TrainingConfigOptimizer
-
-        data = _load_jsonl(req.path)
-        optimizer = TrainingConfigOptimizer()
-        recommendations = optimizer.analyze_and_recommend(data, {})
-        result = {
-            "recommendations": [
-                {
-                    "parameter": r.parameter,
-                    "current": r.current_value,
-                    "recommended": r.recommended_value,
-                    "reason": r.reason,
-                    "priority": r.priority,
-                }
-                for r in recommendations
-            ],
-        }
-        return DataJobResponse(status="ok", command="optimize", path=req.path, result=result)
-    except Exception as exc:
-        raise _failed("optimize", exc) from exc
 
 
 # ── CLI: fts validate-hallucination ─────────────────────────────────────
