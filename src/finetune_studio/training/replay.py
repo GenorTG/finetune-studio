@@ -28,6 +28,7 @@ PROMPT_DATASET = "databricks/databricks-dolly-15k"
 PROMPT_SET_VERSION = 1
 MAX_REPLAY_ROWS = 4000
 DEFAULT_MAX_NEW_TOKENS = 384
+MAX_PROMPT_TOKENS = 1024
 _CONTEXT_CATEGORIES = frozenset({"closed_qa", "information_extraction", "summarization"})
 _THINK = re.compile(r"<think>|</think>", re.IGNORECASE)
 
@@ -79,11 +80,18 @@ def _cache_path(model_path: str, system_prompt: str, seed: int) -> Path:
 
 
 def generate_answers(model: Any, tokenizer: Any, prompts: list[str], *, system_prompt: str = "",
-                     max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS, batch_size: int = 8,
+                     max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS, batch_size: int = 32,
+                     max_prompt_tokens: int = MAX_PROMPT_TOKENS,
                      progress: ProgressFn | None = None) -> list[tuple[str, str]]:
-    """Greedy answers of ``model`` (the untrained base) to ``prompts``; dropped ones are left out."""
+    """Greedy answers of ``model`` (the untrained base) to ``prompts``; dropped ones are left out.
+
+    Prompts run shortest first (batches pad to their longest member) and longer than ``max_prompt_tokens`` are
+    skipped. A batch that runs out of memory is retried at half the size, down to one prompt, so the same code
+    fits any model on any card; the smaller size is kept for the rest of the run.
+    """
     import torch
 
+    from finetune_studio import accel
     from finetune_studio.training.formatting import (
         chat_stop_token_ids,
         render_chat_text,
@@ -91,20 +99,34 @@ def generate_answers(model: Any, tokenizer: Any, prompts: list[str], *, system_p
     )
 
     stop = chat_stop_token_ids(tokenizer, getattr(model, "generation_config", None))
+    texts = {p: render_chat_text(tokenizer, with_system_prompt([{"role": "user", "content": p}], system_prompt),
+                                 generation=True, enable_thinking=False) for p in prompts}
+    lengths = {p: len(tokenizer(texts[p], add_special_tokens=False)["input_ids"]) for p in prompts}
+    queue = sorted((p for p in prompts if lengths[p] <= max_prompt_tokens), key=lengths.__getitem__)
     side = tokenizer.padding_side
     tokenizer.padding_side = "left"
     was_training = model.training
     model.eval()
     out: list[tuple[str, str]] = []
+    done = 0
     try:
-        for start in range(0, len(prompts), batch_size):
-            batch = prompts[start:start + batch_size]
-            texts = [render_chat_text(tokenizer, with_system_prompt([{"role": "user", "content": p}], system_prompt),
-                                      generation=True, enable_thinking=False) for p in batch]
-            enc = tokenizer(texts, return_tensors="pt", padding=True, add_special_tokens=False).to(model.device)
-            with torch.no_grad():
-                gen = model.generate(**enc, max_new_tokens=max_new_tokens, do_sample=False, eos_token_id=stop or None,
-                                     pad_token_id=tokenizer.pad_token_id, use_cache=True)
+        while done < len(queue):
+            batch = queue[done:done + batch_size]
+            enc = tokenizer([texts[p] for p in batch], return_tensors="pt", padding=True,
+                            add_special_tokens=False).to(model.device)
+            try:
+                with torch.no_grad():
+                    gen = model.generate(**enc, max_new_tokens=max_new_tokens, do_sample=False,
+                                         eos_token_id=stop or None, pad_token_id=tokenizer.pad_token_id,
+                                         use_cache=True)
+            except Exception as exc:
+                if not accel.is_oom_error(exc) or batch_size == 1:
+                    raise
+                del enc
+                accel.empty_cache()
+                batch_size = max(1, batch_size // 2)
+                log.info("replay: out of memory, retrying with %d prompts per batch", batch_size)
+                continue
             for prompt, ids in zip(batch, gen[:, enc["input_ids"].shape[1]:], strict=True):
                 ids = ids.tolist()
                 ended = any(t in stop for t in ids)
@@ -112,8 +134,9 @@ def generate_answers(model: Any, tokenizer: Any, prompts: list[str], *, system_p
                                           skip_special_tokens=True).strip()
                 if ended and answer and not _THINK.search(answer):
                     out.append((prompt, answer))
+            done += len(batch)
             if progress:
-                progress(min(start + batch_size, len(prompts)), len(prompts))
+                progress(done, len(queue))
     finally:
         tokenizer.padding_side = side
         if was_training:

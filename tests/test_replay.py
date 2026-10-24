@@ -54,6 +54,8 @@ class _Tok:
         return "|".join(m["content"] for m in messages) + ">"
 
     def __call__(self, texts, return_tensors=None, padding=False, add_special_tokens=False):
+        if isinstance(texts, str):
+            return {"input_ids": [ord(c) for c in texts]}
         width = max(len(t) for t in texts)
         ids = torch.tensor([[0] * (width - len(t)) + [ord(c) for c in t] for t in texts])
 
@@ -182,3 +184,23 @@ def test_dropped_answers_are_topped_up_in_rounds(tmp_path, monkeypatch) -> None:
     rows = replay.replay_rows(None, None, model_path="/m/b", n=30, prompt_loader=lambda *a, **k: _dolly(400))
     assert len(rows) == 30
     assert len(asked) == len(set(asked))  # no prompt is asked twice
+
+
+class _OomOnce(_Model):
+    """Runs out of memory on the first batch bigger than one prompt."""
+
+    def __init__(self) -> None:
+        self.batches: list[int] = []
+
+    def generate(self, input_ids, max_new_tokens, **kw):
+        self.batches.append(len(input_ids))
+        if len(input_ids) > 1 and len(self.batches) == 1:
+            raise torch.OutOfMemoryError("CUDA out of memory. Tried to allocate 1.25 GiB")
+        return super().generate(input_ids, max_new_tokens, **kw)
+
+
+def test_out_of_memory_halves_the_batch_and_long_prompts_are_skipped() -> None:
+    model = _OomOnce()
+    out = replay.generate_answers(model, _Tok(), ["aa", "bbbb", "c" * 50, "d"], batch_size=4, max_prompt_tokens=20)
+    assert sorted(out) == [("aa", "ok"), ("bbbb", "ok"), ("d", "ok")]  # the 50-char prompt is skipped
+    assert model.batches == [3, 2, 1]  # OOM at 3, then halves to 2 and keeps that size
