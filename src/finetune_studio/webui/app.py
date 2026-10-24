@@ -440,6 +440,7 @@ from finetune_studio.webui.routes import (
     data_prep,
     data_prep_chat,
     data_prep_preference,
+    data_prep_study,
     guide_chat,
     hf_models,
     knowledge,
@@ -470,6 +471,7 @@ app.include_router(data_prep.router, prefix="/api", tags=["data-prep"])  # type:
 app.include_router(data_prep_chat.router, prefix="/api", tags=["data-prep-chat"])  # type: ignore[has-type]  # /api/projects/{pid}/data-prep/chat*
 app.include_router(mining.router, tags=["mining"])  # type: ignore[has-type]  # /api/projects/{pid}/mining/*
 app.include_router(data_prep_preference.router, prefix="/api", tags=["data-prep-preference"])  # type: ignore[has-type]  # /api/projects/{pid}/data-prep/preference*
+app.include_router(data_prep_study.router, prefix="/api", tags=["data-prep-study"])  # type: ignore[has-type]  # /api/projects/{pid}/data-prep/study*
 app.include_router(guide_chat.router, prefix="/api", tags=["guide"])  # type: ignore[has-type]  # /api/guide/* (SSE chat + KB)
 app.include_router(data_prep._pages)  # type: ignore[has-type]  # HTML page /projects/{pid}/data-prep
 app.include_router(hf_models.router, prefix="/api")  # type: ignore[has-type]  # /api/hf/* + /api/shared-models/*

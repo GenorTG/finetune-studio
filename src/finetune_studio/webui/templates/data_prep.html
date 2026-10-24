@@ -199,6 +199,42 @@
   <div id="dp-results" class="text-sm muted">Loading…</div>
 </div>
 
+<details class="card mb-6" id="dp-study-card">
+  <summary class="card-head">
+    <div>
+      <div class="card-title">Study set (each fact several ways)</div>
+      <div class="card-sub">For an adapter that must recall facts: adds re-worded questions, re-said answers and a short passage per approved pair.</div>
+    </div>
+    <span class="pill outline" id="dp-study-approved">0 approved pairs</span>
+  </summary>
+  <div class="text-sm mb-2">
+    A fine-tuned model answers a fact asked in new words only when it trained on the fact in several different forms;
+    more epochs over one wording mostly memorise that wording. The helper writes the extra forms; each one must keep every
+    number, date and code of your reviewed answer and add none, or it is dropped. Questions close to your quiz questions
+    are dropped so the quiz stays a fair test.
+  </div>
+  <div class="text-xs dim mb-3">
+    <b>When to use it:</b> before training an adapter on facts (measured on the Korvane test corpus: adding three
+    re-worded questions per pair took recall of re-worded quiz questions from 15 to 48 of 102). It does not teach the model
+    to say “not in the documents”; the Smart Brain does that. Needs approved pairs and the helper model.
+  </div>
+  <div class="flex gap-2 wrap items-center dp-pref-controls">
+    <label class="text-sm" for="dp-study-reworded">Re-worded questions</label>
+    <input type="number" id="dp-study-reworded" min="0" max="5" value="2" aria-label="Re-worded questions per pair">
+    <label class="text-sm" for="dp-study-restated">Re-said answers</label>
+    <input type="number" id="dp-study-restated" min="0" max="5" value="1" aria-label="Re-said answers per pair">
+    <label class="text-sm"><input type="checkbox" id="dp-study-passage" checked> Passage</label>
+    <span class="spacer"></span>
+    <button class="btn sm primary" type="button" id="dp-study-build" title="Write the study set and register it for Training">Build study set</button>
+  </div>
+  <div id="dp-study-progress" hidden>
+    <div class="hpbar" role="progressbar" aria-label="Building the study set" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="dp-study-bar"><div class="hpbar-fill" id="dp-study-fill"></div></div>
+    <div class="text-xs dim" id="dp-study-progress-text" role="status" aria-live="polite"></div>
+  </div>
+  <pre id="dp-study-status" role="status" aria-live="polite" class="dp-status-pre below" hidden></pre>
+  <div id="dp-study-result" class="dp-exported-panel text-sm" hidden></div>
+</details>
+
 <details class="card mb-6" id="dp-pref-card">
   <summary class="card-head">
     <div>
@@ -1931,8 +1967,10 @@ var DP_PREF_DROP_LABELS = {
 };
 
 function dpPrefSyncApproved(approved) {
-  var pill = document.getElementById('dp-pref-approved');
-  if (pill) pill.textContent = approved + ' approved pair' + (approved === 1 ? '' : 's');
+  ['dp-pref-approved', 'dp-study-approved'].forEach(function (id) {
+    var pill = document.getElementById(id);
+    if (pill) pill.textContent = approved + ' approved pair' + (approved === 1 ? '' : 's');
+  });
 }
 
 function dpPrefStatus(msg, state) {
@@ -2043,6 +2081,107 @@ async function dpPrefBuild() {
 (function dpWirePreference() {
   var btn = document.getElementById('dp-pref-build');
   if (btn) btn.addEventListener('click', dpPrefBuild);
+})();
+
+// ── Study set (data/prep/study_set.py) ──
+var DP_STUDY_DROP_LABELS = {
+  question_lost_value: 'question lost a number or code', question_lost_name: 'question lost a name',
+  question_leaks_answer: 'question gave the answer away', question_duplicate: 'repeated question',
+  question_length: 'question too short or long', near_heldout_quiz: 'too close to a quiz question',
+  answer_lost_value: 'answer lost a number, date or code', answer_new_value: 'answer added a value not in the source',
+  answer_same_as_reviewed: 'answer barely changed', answer_duplicate: 'repeated answer',
+  answer_length: 'answer too short or long', unparseable_reply: 'helper reply was not JSON'
+};
+
+function dpStudyStatus(msg, state) {
+  var el = document.getElementById('dp-study-status');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.className = state === 'error' ? 'dp-pref-err' : '';
+  el.hidden = !msg;
+}
+
+function dpStudyKept(kept) {
+  return Object.keys(kept || {}).map(function (k) { return (kept[k] || 0) + ' ' + k; }).join(', ');
+}
+
+function dpStudyRenderProgress(p) {
+  var planned = p.planned || 0, done = p.done || 0;
+  var pct = planned ? Math.min(100, Math.round(100 * done / planned)) : 0;
+  document.getElementById('dp-study-fill').style.width = pct + '%';
+  document.getElementById('dp-study-bar').setAttribute('aria-valuenow', String(pct));
+  document.getElementById('dp-study-progress-text').textContent = planned
+    ? done + ' of ' + planned + ' pairs · kept ' + dpStudyKept(p.kept) + ' (one helper call per pair)'
+    : 'Starting — waiting for the helper…';
+}
+
+function dpStudyDrops(dropped) {
+  return Object.keys(dropped || {}).map(function (r) {
+    return escapeHtml(DP_STUDY_DROP_LABELS[r] || r) + ': ' + dropped[r];
+  });
+}
+
+function dpStudyRenderResult(d) {
+  var panel = document.getElementById('dp-study-result');
+  var drops = dpStudyDrops(d.dropped);
+  panel.innerHTML =
+    '<div><b>' + d.dataset.rows + ' rows</b> (' + d.pairs + ' approved pairs + ' + escapeHtml(dpStudyKept(d.kept)) +
+    ') written to <span class="mono">' + escapeHtml(d.dataset.name) + '</span></div>' +
+    (d.calls_failed ? '<div class="dp-pref-warn mt-1.5">⚠ ' + d.calls_failed + ' helper calls failed; those pairs have only their original row.</div>' : '') +
+    (drops.length ? '<details class="text-xs dim mt-1.5"><summary>' + drops.length +
+      ' kinds of text dropped by quality checks</summary><ul class="dp-drop-list"><li>' +
+      drops.join('</li><li>') + '</li></ul></details>' : '') +
+    '<div class="dp-ds-row mt-2"><span class="text-xs dim">Next step</span>' +
+    '<a class="btn sm primary" id="dp-study-train" data-link href="' + escapeHtml(d.train_url) + '">Train with this dataset →</a></div>';
+  panel.hidden = false;
+}
+
+async function dpStudyBuild() {
+  var btn = document.getElementById('dp-study-build');
+  var reworded = parseInt(document.getElementById('dp-study-reworded').value, 10);
+  var restated = parseInt(document.getElementById('dp-study-restated').value, 10);
+  var passage = document.getElementById('dp-study-passage').checked;
+  if (!(reworded >= 0 && reworded <= 5 && restated >= 0 && restated <= 5)) {
+    dpStudyStatus('Use 0 to 5 per kind.', 'error'); return;
+  }
+  if (!reworded && !restated && !passage) { dpStudyStatus('Pick at least one kind.', 'error'); return; }
+  document.getElementById('dp-study-result').hidden = true;
+  dpStudyStatus('', 'info');
+  btn.disabled = true;
+  var progress = document.getElementById('dp-study-progress');
+  progress.hidden = false;
+  dpStudyRenderProgress({});
+  var base = '/api/projects/' + encodeURIComponent(_prepPid) + '/data-prep/study';
+  var timer = setInterval(async function () {
+    try {
+      var pr = await fetch(base + '/progress', { cache: 'no-store' });
+      if (pr.ok) { var p = await pr.json(); if (p.running) dpStudyRenderProgress(p); }
+    } catch (e) { /* transient poll error: the build request reports the real outcome */ }
+  }, 1000);
+  try {
+    var r = await fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reworded: reworded, restated: restated, passage: passage }) });
+    var d = {};
+    try { d = await r.json(); } catch (e2) { /* non-JSON error body */ }
+    if (!r.ok) {
+      var drops = dpStudyDrops(d.dropped);
+      dpStudyStatus(String(d.detail || ('Build failed (HTTP ' + r.status + ')')) + (drops.length ? '\n' + drops.join('\n') : ''), 'error');
+      return;
+    }
+    dpStudyRenderResult(d);
+    if (window.fts && fts.notify) fts.notify('Built a study set of ' + d.dataset.rows + ' rows', 'success');
+  } catch (e) {
+    dpStudyStatus('Build failed: ' + ((e && e.message) || e), 'error');
+  } finally {
+    clearInterval(timer);
+    btn.disabled = false;
+    progress.hidden = true;
+  }
+}
+
+(function dpWireStudy() {
+  var btn = document.getElementById('dp-study-build');
+  if (btn) btn.addEventListener('click', dpStudyBuild);
 })();
 
 (function dpWireReviewControls() {
