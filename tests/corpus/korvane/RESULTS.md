@@ -61,7 +61,7 @@ After DPO (loss 0.10) recall did not improve (15.7 %) and abstention stayed 0/20
 
 ## 6. Not done / open
 
-- A paraphrase-augmentation experiment (3-10 reviewed-answer / re-worded-question variants per fact) to see how far SFT recall can go; estimated 1-2 h per run.
+- ~~A paraphrase-augmentation experiment~~ done 2026-10-23: §21.
 - Evaluate with the adapter on the 4-bit base (no merge) to split "QLoRA-merge loss" from "under-training".
 - Extended-tier files, API-helper benchmark rerun, delegate/background audit of remaining long operations.
 
@@ -502,3 +502,35 @@ declining barely generalises: 2 of 20 unseen unanswerable questions (a CFO's sal
 confident invented value ("The Wi-Fi password of the HAM-2 gate cabin is ham2024."). Template declines teach the wording, not when
 the model lacks a fact. Keep the advice: answer from the Smart Brain (retrieval) when "I don't know" matters, and treat an adapter's
 answers to out-of-scope questions as unreliable.
+
+## 21. Re-worded questions in SFT: does recall rise? (2026-10-23, throwaway project `paraphrase-exp-1023` 62d98639, deleted after; results in `results/2026-10-23-paraphrase/`)
+
+§3/§20 adapters answer 12-26 % of the paraphrased quiz: each fact is trained under one wording of its question. This run keeps every
+reviewed ANSWER and adds re-worded QUESTIONS: `scripts/corpus_paraphrase.py --in golden/approved_pairs_core_2026-10-08.jsonl.gz` (API
+helper `deepseek-v4-flash`, 3 variants per pair; a variant must keep every number/code and most names of the original question, leak no
+answer value, and is dropped when it equals or nearly equals (>= 0.8 token overlap) any quiz or unanswerable question). 2,455 unique golden
+pairs -> 7,301 variants kept, 7 pairs without one, **1 dropped as too close to a quiz question**: 9,756 rows. Same settings as §20 run A
+(Qwen3.5-9B QLoRA, rank 64 / alpha 128, lr 1e-4, batch 2 x 4, max 1,024 tokens, completion-only loss, no system prompt, merged), same quiz
+(`scripts/corpus_eval.py`: 102 paraphrased answerable + 20 held-out unanswerable, no retrieval, substring matcher).
+
+| Run | Rows | Epochs / steps | Train time | Final loss | Paraphrase recall | Declines on unknown |
+|---|---|---|---|---|---|---|
+| §20 A golden (baseline) | 2,491 | 3 / 843 | 17 min | 0.236 | 15 / 102 = 14.7 % | 0 / 20 |
+| §20 B golden + 240 declines | 2,731 | 3 / ~920 | not logged | 0.280 | 15 / 102 = 14.7 % | 2 / 20 |
+| **C1 golden + 3 rewordings** | 9,756 | 1 / 1,098 | 24 min | 0.262 | **25 / 102 = 24.5 %** | 0 / 20 |
+| **C3 golden + 3 rewordings** | 9,756 | 3 / 3,294 | 62 min | 0.008 | **48 / 102 = 47.1 %** | 0 / 20 |
+
+Reading (C1): with about the same number of passes over each fact (4 wordings x 1 epoch vs 1 wording x 3 epochs; 1,098 vs 843
+steps) recall goes from 15
+to 25 of 102. A and B, two near-identical baseline runs, each passed 15 but only 7 in common (23 distinct), so single facts are noisy;
+C1 passes 10 facts neither baseline run passed and misses 8 that one of them passed. The gain is larger than that noise but it is one run.
+Declining did not change: 0 / 20, every unanswerable question still gets a confident invented answer.
+
+Reading (C3): three epochs over the same 9,756 rows nearly double C1: 48 of 102, about three times the §20 baseline under the same
+matcher. 20 facts pass in both C1 and C3, 28 only in C3, 5 only in C1. The training loss ends at 0.008 (C1: 0.26), so the rows are
+close to memorised, yet more than half of the reworded quiz questions still miss: the quiz wordings differ from all four trained ones,
+and memorising four wordings carries over to a fifth only for some facts. Declining is still 0 / 20 (e.g. "The Wi-Fi password for the
+HAM-2 gate cabin is `cabin-ham2-#2024`."). Re-worded questions are cheap (one API call per pair, minutes) and are the first thing to
+add when an adapter must recall facts, with 3 epochs over the augmented set; the Smart Brain remains the way to get both recall and
+"not in the documents" (§15: 94 of 102 and 20 / 20 declines with the untrained base as reader).
+

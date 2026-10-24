@@ -136,8 +136,8 @@ handles:
 > support questions, how to follow our style guide."*
 
 An adapter teaches **how to answer** much better than it teaches a set of documents. On the fictional
-test company (1,130 facts, Qwen3.5-9B) a fine-tune alone answered 10–28 % of reworded quiz questions; with
-the Smart Brain it was 94 of 102. Details: [How much does fine-tuning actually teach?](#how-much-does-fine-tuning-actually-teach-measured)
+test company (1,130 facts, Qwen3.5-9B) a fine-tune alone answered 10–28 % of reworded quiz questions (47 % once
+the training set held reworded questions too); with the Smart Brain it was 94 of 102. Details: [How much does fine-tuning actually teach?](#how-much-does-fine-tuning-actually-teach-measured)
 Put the facts in the Smart Brain and train the adapter on how you want answers phrased.
 
 The **Training** workflow lets you point the studio at a JSONL of
@@ -191,6 +191,7 @@ Qwen3.5-9B, QLoRA on one RTX 3090.
 | Base model, no training, no Smart Brain | 3 / 4 / 95 | 6 |
 | Fine-tuned, 6 epochs on ~2,450 reviewed pairs | 19–28 / 23 / 51–60 | **0** |
 | Fine-tuned + 240 "I don't know" training rows | 15 of 102 correct (simple matcher) | 2 |
+| Fine-tuned, 3 epochs, each pair + 3 reworded questions | 48 of 102 correct (simple matcher; 15 without rewording) | **0** |
 | Base model + Smart Brain | 76–97 / 2–5 / 3–21 | **20** |
 | Fine-tuned + Smart Brain | 82–94 / 3–5 / 5–15 | 0–2 |
 
@@ -201,7 +202,8 @@ What I take from it:
 
 - **Fine-tuning learns some facts, not all of them.** About a quarter of the reworded questions come back
   right and another fifth half-right (right entity, wrong number). Six epochs beat three; quantising the
-  merged model to GGUF q4 cost up to 9 points.
+  merged model to GGUF q4 cost up to 9 points. Training each pair under 3 extra reworded questions
+  (one cheap API call per pair) took the simple-matcher score from 15 to 48 of 102 in one run.
 - **A fine-tuned model stops saying "I don't know".** The base model declines questions its documents don't
   cover; after fact training it invents a confident answer for all 20. Adding 240 example declines to the
   training data only brought that to 2 of 20.
