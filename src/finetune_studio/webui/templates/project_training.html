@@ -324,7 +324,7 @@
           <input type="checkbox" name="save_checkpoints" value="1" id="save-checkpoints-check" checked>
           <span class="text-xs">Save checkpoints during training</span>
         </label>
-        <label class="grid-full" title="Before the adapter exists, the base model answers general prompts (Dolly-15k); that share of the training mix is its own answers, so the adapter keeps general chat and instruction following while it learns your data. The first run on a base model generates them (minutes), later runs reuse them. 0 = off.">
+        <label class="grid-full" title="Before the adapter exists, the base model answers general prompts (Dolly-15k); that share of the training mix is its own answers, so the adapter keeps general chat and instruction following while it learns your data. The first run on a base model generates them (measured: about one answer per second for a 9B in 4-bit on an RTX 3090, so 30 % of a 9,000-row set adds about an hour), later runs on that base reuse them. 0 = off.">
           <span class="block text-xs muted mb-1" for="replay-percent">Keep general skills: replay share of the mix (%)</span>
           <input type="number" name="replay_percent" id="replay-percent" value="0" min="0" max="50" step="5" class="input">
         </label>
