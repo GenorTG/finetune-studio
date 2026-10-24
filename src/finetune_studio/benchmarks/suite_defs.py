@@ -139,8 +139,10 @@ class SuiteDefinition:
                 f"(offline{ver} · not industry){count}"
             )
         if self.suite_type == "auto":
+            # Built from the run's own training rows, asked word for word: it checks memorisation,
+            # not whether the model answers the facts in new words.
             n = self.case_count or 0
-            return f"auto · {self.title or self.name} ({n} cases)"
+            return f"auto · training questions (memorisation) · {self.title or self.name} ({n} cases)"
         title = self.title or self.name
         if self.source == "project_qa":
             n = self.case_count or 0
@@ -297,7 +299,8 @@ def list_builtin_real_suites() -> list[SuiteDefinition]:
 
 def format_auto_suite_label(suite_name: str, case_count: int) -> str:
     """Label for a project auto-generated suite."""
-    return f"auto · {suite_name} ({case_count} cases)"
+    return (f"auto · {suite_name} ({case_count} cases): the training questions word for word, a memorisation "
+            "check; a quiz in new words (Testing -> import) shows recall")
 
 
 def _sort_key(entry: dict[str, Any]) -> tuple[int, str]:

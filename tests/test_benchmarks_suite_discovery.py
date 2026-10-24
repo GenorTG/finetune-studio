@@ -137,7 +137,7 @@ def test_auto_suites_rows_listed_for_project(
     assert len(auto) == 1
     assert auto[0]["name"] == "held_out"
     assert auto[0]["path"] == str(auto_path)
-    assert auto[0]["label"] == "auto · held_out (3 cases)"
+    assert auto[0]["label"] == "auto · training questions (memorisation) · held_out (3 cases)"
     assert _names_of_type(suites, "synthetic_smoke") == set(_EXPECTED_SMOKE)
     assert _names_of_type(suites, "synthetic_offline") == set(_EXPECTED_OFFLINE)
     assert suites[-1]["suite_type"] == "auto"
@@ -218,4 +218,4 @@ def test_auto_suites_of_two_runs_with_one_name_carry_their_run(
             "INSERT INTO auto_suites (id, run_id, project_id, suite_name, suite_path, case_count, "
             "categories_json, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", rows)
     labels = sorted(s["label"] for s in _discover_suites(proj["id"]) if s.get("suite_type") == "auto")
-    assert labels == sorted(f"auto · golden · run {r[1]} (3 cases)" for r in rows)
+    assert labels == sorted(f"auto · training questions (memorisation) · golden · run {r[1]} (3 cases)" for r in rows)
