@@ -27,7 +27,9 @@ log = logging.getLogger(__name__)
 PROMPT_DATASET = "databricks/databricks-dolly-15k"
 PROMPT_SET_VERSION = 1
 MAX_REPLAY_ROWS = 4000
-DEFAULT_MAX_NEW_TOKENS = 384
+# Answers that hit the limit are dropped; at 384 tokens 44 % of a 9B's answers did, so the replay kept only
+# the short ones (a brevity bias on top of the one fact SFT already adds). 768 keeps most long answers.
+DEFAULT_MAX_NEW_TOKENS = 768
 MAX_PROMPT_TOKENS = 1024
 _CONTEXT_CATEGORIES = frozenset({"closed_qa", "information_extraction", "summarization"})
 _THINK = re.compile(r"<think>|</think>", re.IGNORECASE)
@@ -71,11 +73,11 @@ def load_prompts(n: int, *, seed: int = 0, cache_dir: str = "data/benchmarks/hf_
     return out
 
 
-def _cache_path(model_path: str, system_prompt: str, seed: int) -> Path:
+def _cache_path(model_path: str, system_prompt: str, seed: int, max_new_tokens: int) -> Path:
     from finetune_studio.data.fs.paths import root
 
     key = json.dumps([str(Path(model_path).resolve()) if Path(model_path).exists() else model_path,
-                      system_prompt, seed, PROMPT_SET_VERSION])
+                      system_prompt, seed, PROMPT_SET_VERSION, max_new_tokens])
     return root() / "replay" / f"{hashlib.sha256(key.encode()).hexdigest()[:20]}.jsonl"
 
 
@@ -146,11 +148,11 @@ def generate_answers(model: Any, tokenizer: Any, prompts: list[str], *, system_p
 
 def replay_rows(model: Any, tokenizer: Any, *, model_path: str, n: int, system_prompt: str = "", seed: int = 0,
                 progress: ProgressFn | None = None, prompt_loader: Callable[..., Any] | None = None,
-                batch_size: int = 32) -> list[dict[str, Any]]:
+                batch_size: int = 32, max_new_tokens: int = DEFAULT_MAX_NEW_TOKENS) -> list[dict[str, Any]]:
     """``n`` replay rows (``{"messages": [...]}``), from the cache when it already holds enough for this base."""
     if n <= 0:
         return []
-    cache = _cache_path(model_path, system_prompt, seed)
+    cache = _cache_path(model_path, system_prompt, seed, max_new_tokens)
     cached: list[dict[str, Any]] = []
     if cache.is_file():
         cached = [json.loads(line) for line in cache.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -167,7 +169,7 @@ def replay_rows(model: Any, tokenizer: Any, *, model_path: str, n: int, system_p
             break
         tried.update(todo)
         fresh = generate_answers(model, tokenizer, todo, system_prompt=system_prompt, progress=progress,
-                                 batch_size=batch_size)
+                                 batch_size=batch_size, max_new_tokens=max_new_tokens)
         cached += [{"messages": [*([{"role": "system", "content": system_prompt}] if system_prompt else []),
                                  {"role": "user", "content": p}, {"role": "assistant", "content": a}]}
                    for p, a in fresh]
