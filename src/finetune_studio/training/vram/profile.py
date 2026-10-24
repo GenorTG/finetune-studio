@@ -75,6 +75,7 @@ def profile_training(
 
         from finetune_studio.hf_env import load_tokenizer
         from finetune_studio.models.hf_loader import load_causal_lm
+        from finetune_studio.training.lora_targets import discover_lora_targets
         tokenizer = load_tokenizer(model_path)
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
@@ -83,8 +84,7 @@ def profile_training(
         model = load_causal_lm(model_path, force_4bit=(method == "qlora"))
         lora_config = LoraConfig(
             r=lora_rank, lora_alpha=lora_rank * 2,
-            target_modules=["q_proj", "k_proj", "v_proj", "o_proj",
-                             "gate_proj", "up_proj", "down_proj"],
+            **discover_lora_targets(model, lora_rank).peft_kwargs(),
             lora_dropout=0, bias="none", task_type="CAUSAL_LM",
         )
         model = get_peft_model(model, lora_config)

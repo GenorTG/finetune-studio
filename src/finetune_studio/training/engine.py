@@ -180,10 +180,9 @@ class TrainingConfig:
     # Advanced quantization
     export_imatrix: bool = False
     imatrix_calibration: str = ""
-    lora_target_modules: list = field(default_factory=lambda: [
-        "q_proj", "k_proj", "v_proj", "o_proj",
-        "gate_proj", "up_proj", "down_proj",
-    ])
+    # Empty = every linear layer of the loaded language model (training/lora_targets.py);
+    # a list overrides it.
+    lora_target_modules: list = field(default_factory=list)
     training_mode: str = "sft"  # sft | dpo | kto | tool_sft | continued_pretraining | reasoning_distillation
     preference_beta: float = 0.1  # DPO/KTO KL strength (TRL + DPO-paper default)
     # DPO only: weight of an extra NLL-on-chosen term (TRL ``loss_type=["sigmoid","sft"]``).
@@ -751,7 +750,7 @@ class TrainingEngine:
         model = get_peft_model(model, LoraConfig(
             r=cfg.lora_rank,
             lora_alpha=cfg.lora_alpha,
-            target_modules=cfg.lora_target_modules,
+            **self._lora_targets(model),
             lora_dropout=0,
             bias="none",
             task_type="CAUSAL_LM",
@@ -863,6 +862,15 @@ class TrainingEngine:
             update_run(run_id, **fields)
         except Exception:  # best-effort run-row write
             log.exception("Failed to update run %s", run_id)
+
+    def _lora_targets(self, model: Any) -> dict[str, Any]:
+        """``LoraConfig`` target kwargs for ``model`` (config override or every text linear layer), logged."""
+        from finetune_studio.training.lora_targets import resolve_lora_targets
+        targets = resolve_lora_targets(model, self.config.lora_rank, self.config.lora_target_modules)
+        line = targets.describe()
+        log.info(line)
+        self.state.log_lines.append(line)
+        return targets.peft_kwargs()
 
     def _load_model_with_fallback(self, model_path, tokenizer):
         """Load the base model: full GPU offload -> 4-bit (OOM) -> RAM+VRAM mix.
@@ -1054,7 +1062,7 @@ class TrainingEngine:
             self._mark_stopped()
             return
         model = FastLanguageModel.get_peft_model(
-            model, r=cfg.lora_rank, target_modules=cfg.lora_target_modules,
+            model, r=cfg.lora_rank, target_modules=self._lora_targets(model)["target_modules"],
             lora_alpha=cfg.lora_alpha, lora_dropout=0, bias="none",
             use_gradient_checkpointing="unsloth", random_state=3407,
         )
@@ -1162,7 +1170,7 @@ class TrainingEngine:
             return
         lora_config = LoraConfig(
             r=cfg.lora_rank, lora_alpha=cfg.lora_alpha,
-            target_modules=cfg.lora_target_modules, lora_dropout=0,
+            **self._lora_targets(model), lora_dropout=0,
             bias="none", task_type="CAUSAL_LM",
         )
         model = get_peft_model(model, lora_config)
