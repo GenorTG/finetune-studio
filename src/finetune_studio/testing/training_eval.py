@@ -141,30 +141,35 @@ def cases_from_training_jsonl(
             if not isinstance(example, dict):
                 skipped += 1
                 continue
-            qa = _extract_qa(example)
-            if qa is None:
+            case = _case_from_example(example, seen_names, len(cases))
+            if case is None:
                 skipped += 1
                 continue
-            question, answer = qa
-            category = _categorize(question, answer)
-            _diff, judge_hint = _analyze_difficulty(question, answer)
-            base = _slugify(question[:60]) or f"case_{len(cases)}"
-            n = seen_names.get(base, 0)
-            seen_names[base] = n + 1
-            name = base if n == 0 else f"{base}_{n + 1}"
-            cases.append(
-                BenchmarkCase(
-                    name=name,
-                    question=question,
-                    correct_answer=answer,
-                    category=category,
-                    context=judge_hint,
-                    source_id=str(example.get("source_id") or ""),
-                    chunk_idx=int(example.get("chunk_idx") or 0),
-                )
-            )
+            cases.append(case)
 
     return cases, skipped
+
+
+def _case_from_example(example: dict[str, Any], seen_names: dict[str, int], index: int) -> BenchmarkCase | None:
+    """One training row as a quiz case (unique name per suite), None when it holds no Q/A."""
+    qa = _extract_qa(example)
+    if qa is None:
+        return None
+    question, answer = qa
+    category = _categorize(question, answer)
+    _diff, judge_hint = _analyze_difficulty(question, answer)
+    base = _slugify(question[:60]) or f"case_{index}"
+    n = seen_names.get(base, 0)
+    seen_names[base] = n + 1
+    return BenchmarkCase(
+        name=base if n == 0 else f"{base}_{n + 1}",
+        question=question,
+        correct_answer=answer,
+        category=category,
+        context=judge_hint,
+        source_id=str(example.get("source_id") or ""),
+        chunk_idx=int(example.get("chunk_idx") or 0),
+    )
 
 
 def resolve_project_dataset(
@@ -228,17 +233,36 @@ def build_heldout_eval(
 
     This is the meaningful quality score. The full approved dataset remains
     available as the separately labelled leakage check, but it must not be
-    presented as generalization evidence.
+    presented as generalization evidence. The slice is the trainer's own
+    (``training.data.sft_validation_rows``): rows of one fact stay together, so a
+    held-out question is never answered by a trained rewording of itself.
     """
+    from finetune_studio.training.data import sft_validation_rows
+
     ds = resolve_project_dataset(project_id, dataset_id)
-    # Full pool read (no head cap) — the 10% slice must be able to come from
-    # anywhere in the dataset, not just its first 5000 rows.
-    all_cases, skipped = cases_from_training_jsonl(str(ds["data_path"]), max_cases=None)
-    import random
-    shuffled = list(all_cases)
-    random.Random(42).shuffle(shuffled)
-    split = int(len(shuffled) * 0.9)
-    cases = shuffled[split:split + max_cases]
+    rows: list[dict[str, Any]] = []
+    skipped = 0
+    with open(str(ds["data_path"]), encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                skipped += 1
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
+            else:
+                skipped += 1
+    seen: dict[str, int] = {}
+    cases = []
+    for row in sft_validation_rows(rows):
+        case = _case_from_example(row, seen, len(cases))
+        if case is None:
+            skipped += 1
+        elif len(cases) < max_cases:
+            cases.append(case)
     if not cases:
         raise ValueError("dataset has no held-out validation examples")
     meta = TrainingEvalMeta(

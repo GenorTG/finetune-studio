@@ -32,6 +32,11 @@ _PROVENANCE_PAREN = re.compile(
 )
 
 
+
+# Rows of one fact share this key (data.prep.study_set writes it); the split keeps them together.
+GROUP_KEY = "pair_id"
+_GROUP = "_split_group"
+
 def clean_answer_for_training(answer: str) -> str:
     """Remove display-only provenance from the learned assistant response.
 
@@ -130,6 +135,8 @@ def format_for_sft(data: list, system_prompt: str = "") -> list:
         row = {"messages": msgs}
         if "tools" in item:
             row["tools"] = item["tools"]
+        if item.get(GROUP_KEY):
+            row[_GROUP] = str(item[GROUP_KEY])  # read and removed by split_data
         formatted.append(row)
     return formatted
 
@@ -277,11 +284,40 @@ def format_for_unpaired(data: list, system_prompt: str = "") -> list[dict[str, o
 
 
 def split_data(data: list, train_ratio: float = 0.9, seed: int = 42):
+    """Seeded train / validation split. Rows of one fact (same ``pair_id``: a pair and its study-set
+    rewordings) land on the same side, else the validation rows are other wordings of trained facts
+    and score memorisation. Rows without a group split one by one, exactly as before groups existed."""
     import random
-    shuffled = data.copy()
-    random.Random(seed).shuffle(shuffled)
-    if len(shuffled) < 2:
-        return shuffled, []
-    split = int(len(shuffled) * train_ratio)
-    split = min(max(1, split), len(shuffled) - 1)
-    return shuffled[:split], shuffled[split:]
+    groups = [row.pop(_GROUP, None) if isinstance(row, dict) else None for row in data]
+    if not any(groups):
+        shuffled = data.copy()
+        random.Random(seed).shuffle(shuffled)
+        if len(shuffled) < 2:
+            return shuffled, []
+        split = int(len(shuffled) * train_ratio)
+        split = min(max(1, split), len(shuffled) - 1)
+        return shuffled[:split], shuffled[split:]
+    members: dict[str, list] = {}
+    for i, (row, group) in enumerate(zip(data, groups, strict=True)):
+        members.setdefault(f"g:{group}" if group else f"r:{i}", []).append(row)
+    order = list(members)
+    rng = random.Random(seed)
+    rng.shuffle(order)
+    if len(order) < 2:
+        return [r for k in order for r in members[k]], []
+    split = min(max(1, int(len(order) * train_ratio)), len(order) - 1)
+    train = [r for k in order[:split] for r in members[k]]
+    rng.shuffle(train)  # a fact's rows must not sit next to each other in the epoch order
+    return train, [r for k in order[split:] for r in members[k]]
+
+
+def sft_validation_rows(data: list, train_ratio: float = 0.9, seed: int = 42) -> list:
+    """The raw rows the SFT trainer holds out: the same formatter, groups and seed as ``split_data``."""
+    kept, formatted = [], []
+    for row in data:
+        out = format_for_sft([row]) if isinstance(row, dict) else []
+        if out:
+            kept.append(row)
+            formatted.append(out[0])
+    raw_of = {id(f): r for f, r in zip(formatted, kept, strict=True)}
+    return [raw_of[id(f)] for f in split_data(formatted, train_ratio, seed)[1]]
