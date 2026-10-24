@@ -884,6 +884,11 @@ class TrainingEngine:
 
         rows = replay_rows(model, tokenizer, model_path=cfg.model_path, n=n,
                            system_prompt=getattr(self, "_bake_prompt", ""), progress=progress)
+        import gc
+
+        from finetune_studio import accel
+        gc.collect()
+        accel.empty_cache()  # generation's cached blocks would otherwise squeeze the first training steps
         line = (f"Replay: {len(rows)} general rows answered by the base model "
                 f"({len(rows) / max(1, train_rows + len(rows)):.0%} of the mix; asked for {n})")
         log.info(line)
