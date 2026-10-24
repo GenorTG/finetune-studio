@@ -123,7 +123,7 @@ def generate_answers(model: Any, tokenizer: Any, prompts: list[str], *, system_p
 
 def replay_rows(model: Any, tokenizer: Any, *, model_path: str, n: int, system_prompt: str = "", seed: int = 0,
                 progress: ProgressFn | None = None, prompt_loader: Callable[..., Any] | None = None,
-                batch_size: int = 16) -> list[dict[str, Any]]:
+                batch_size: int = 32) -> list[dict[str, Any]]:
     """``n`` replay rows (``{"messages": [...]}``), from the cache when it already holds enough for this base."""
     if n <= 0:
         return []
@@ -137,7 +137,7 @@ def replay_rows(model: Any, tokenizer: Any, *, model_path: str, n: int, system_p
         if missing <= 0:
             break
         done = {r["messages"][-2]["content"] for r in cached}
-        want = int(missing * 1.5) + 8
+        want = int(missing * 1.2) + 8  # ~1 in 6 answers hits the token limit; later rounds top up
         prompts = load_prompts(len(done) + len(tried) + want, seed=seed, loader=prompt_loader)
         todo = [p for p in prompts if p not in done and p not in tried][:want]
         if not todo:
