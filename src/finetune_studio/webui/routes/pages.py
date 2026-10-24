@@ -548,6 +548,10 @@ async def benchmarks_page(request: Request, pid: str, bid: str = ""):
         )
     elif len(comparison_runs) == 2:
         cmp_default_a, cmp_default_b = comparison_runs[0], comparison_runs[1]
+    # A benchmarked base model is the honest baseline: "did training help on these questions?"
+    cmp_base = base_run if base_run and db.list_benchmarks(base_run["id"]) else None
+    if cmp_base and done_runs:
+        cmp_default_a, cmp_default_b = cmp_base["id"], done_runs[0]["id"]
 
     # Selected (``?bid=``) or latest benchmark detail for the per-case table (QABUG-012).
     latest_cases: list = []
@@ -582,6 +586,7 @@ async def benchmarks_page(request: Request, pid: str, bid: str = ""):
             "all_benchmarks": all_benchmarks,
             "comparison_runs": comparison_runs,
             "cmp_default_a": cmp_default_a,
+            "cmp_base": cmp_base,
             "cmp_default_b": cmp_default_b,
             "cases": latest_cases,
             "scores": latest_scores,

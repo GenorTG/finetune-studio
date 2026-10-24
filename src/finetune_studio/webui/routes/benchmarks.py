@@ -234,15 +234,21 @@ def _primary_score(scores: dict | None) -> float | None:
     return None
 
 
-def _suite_scores_for_run(run_id: str) -> dict[str, float | None]:
-    """Latest primary score per suite_name for a training run."""
-    out: dict[str, float | None] = {}
+def _latest_bench_per_suite(run_id: str) -> dict[str, dict]:
+    """Latest benchmark per suite_name for a training run."""
+    out: dict[str, dict] = {}
     for bench in db.list_benchmarks(run_id):  # already ran_at DESC
-        suite = str(bench.get("suite_name") or "unknown")
-        if suite in out:
-            continue
-        out[suite] = _primary_score(bench.get("scores"))
+        out.setdefault(str(bench.get("suite_name") or "unknown"), bench)
     return out
+
+
+def _paired(bench_a: dict | None, bench_b: dict | None) -> dict[str, Any] | None:
+    """Per-question McNemar of B against A on the same suite, None when either side is missing."""
+    if not bench_a or not bench_b:
+        return None
+    from finetune_studio.testing.paired import case_outcomes, compare_outcomes
+    result = compare_outcomes(case_outcomes(db.list_cases(bench_a["id"])), case_outcomes(db.list_cases(bench_b["id"])))
+    return result.as_dict()
 
 
 async def _execute_benchmark(
@@ -632,6 +638,8 @@ async def compare_runs(pid: str, run_a: str = "", run_b: str = "") -> dict[str, 
 
     Baseline is run_a; delta is run_b − run_a. Uses each run's latest
     benchmark per suite_name and the primary numeric score (pass_rate, etc.).
+    ``paired`` is the per-question McNemar test (testing/paired.py): a delta
+    whose gained/lost split could be chance says "could be noise".
     """
     # The project is validated FIRST, like every other project route
     # (_project_or_404): otherwise a bad pid is reported as the unrelated
@@ -658,8 +666,10 @@ async def compare_runs(pid: str, run_a: str = "", run_b: str = "") -> dict[str, 
             status_code=400,
         )
 
-    a_by_suite = _suite_scores_for_run(run_a)
-    b_by_suite = _suite_scores_for_run(run_b)
+    a_bench = _latest_bench_per_suite(run_a)
+    b_bench = _latest_bench_per_suite(run_b)
+    a_by_suite = {k: _primary_score(v.get("scores")) for k, v in a_bench.items()}
+    b_by_suite = {k: _primary_score(v.get("scores")) for k, v in b_bench.items()}
     if not a_by_suite and not b_by_suite:
         return JSONResponse(
             {"detail": "no benchmarks for either run"},
@@ -679,6 +689,7 @@ async def compare_runs(pid: str, run_a: str = "", run_b: str = "") -> dict[str, 
                 "run_a": float(av),
                 "run_b": float(bv),
                 "delta": diff,
+                "paired": _paired(a_bench.get(suite), b_bench.get(suite)),
             })
             deltas[suite] = {
                 "run_a": float(av),
@@ -691,6 +702,7 @@ async def compare_runs(pid: str, run_a: str = "", run_b: str = "") -> dict[str, 
                 "run_a": av,
                 "run_b": bv,
                 "delta": None,
+                "paired": None,
             })
             deltas[suite] = {"run_a": av, "run_b": bv, "delta": "—"}
 

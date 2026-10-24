@@ -223,6 +223,7 @@
         <span class="block text-xs muted mb-1">Run A (baseline)</span>
         <select id="cmp-run-a" class="select w-full">
           <option value="">— pick run A —</option>
+          {% if cmp_base %}<option value="{{ cmp_base.id }}" {% if cmp_base.id == cmp_default_a %}selected{% endif %}>base model (untrained)</option>{% endif %}
           {% for run in runs %}
           <option value="{{ run.id }}" {% if run.id == cmp_default_a %}selected{% endif %}>
             {{ run.name }} · {{ run.status }}
@@ -234,6 +235,7 @@
         <span class="block text-xs muted mb-1">Run B</span>
         <select id="cmp-run-b" class="select w-full">
           <option value="">— pick run B —</option>
+          {% if cmp_base %}<option value="{{ cmp_base.id }}" {% if cmp_base.id == cmp_default_b %}selected{% endif %}>base model (untrained)</option>{% endif %}
           {% for run in runs %}
           <option value="{{ run.id }}" {% if run.id == cmp_default_b %}selected{% endif %}>
             {{ run.name }} · {{ run.status }}
@@ -250,7 +252,7 @@
         <div class="text-xs muted mb-2" id="cmp-baseline-note">Baseline is Run A · diff is Run B − Run A</div>
         <table class="table" id="cmp-table">
           <thead>
-            <tr><th>Suite</th><th>Run A score</th><th>Run B score</th><th>Δ</th></tr>
+            <tr><th>Suite</th><th>Run A score</th><th>Run B score</th><th>Δ</th><th title="Per question: gained = B passes where A fails, lost = the reverse. The exact McNemar test says whether that split could be chance.">Same questions</th></tr>
           </thead>
           <tbody id="cmp-tbody"></tbody>
         </table>
@@ -318,6 +320,14 @@
     var n = Number(d);
     if (Number.isNaN(n)) return "—";
     return (n >= 0 ? "+" : "") + (Number.isInteger(n) ? String(n) : n.toFixed(1));
+  }
+
+  // Per-question McNemar from the compare API (testing/paired.py).
+  function fmtPaired(p) {
+    if (!p || !p.paired) return "—";
+    var pv = p.p_value < 0.001 ? "p < 0.001" : "p = " + p.p_value.toFixed(3);
+    var word = p.verdict === "could be noise" ? "could be noise" : (p.verdict === "better" ? "B is better" : "B is worse");
+    return "+" + p.gained + " / −" + p.lost + " of " + p.paired + " · " + pv + " · " + word;
   }
 
   function deltaClass(d) {
@@ -405,7 +415,7 @@
         hideCmpEmpty();
         var aName = (data.run_a && data.run_a.name) || "Run A";
         var bName = (data.run_b && data.run_b.name) || "Run B";
-        note.textContent = "Baseline is Run A (" + aName + ") · diff is Run B (" + bName + ") − Run A";
+        note.textContent = "Baseline is Run A (" + aName + ") · diff is Run B (" + bName + ") − Run A · a difference marked \u201ccould be noise\u201d is within what two identical runs can differ by";
         rows.forEach(function (row) {
           var tr = document.createElement("tr");
           var dCls = deltaClass(row.delta);
@@ -413,8 +423,11 @@
             '<td class="mono"></td>' +
             '<td class="mono">' + fmtScore(row.run_a) + "</td>" +
             '<td class="mono">' + fmtScore(row.run_b) + "</td>" +
-            '<td class="mono' + (dCls ? " " + dCls : "") + '">' + fmtDelta(row.delta) + "</td>";
+            '<td class="mono' + (dCls ? " " + dCls : "") + '">' + fmtDelta(row.delta) + "</td>" +
+            '<td class="mono"></td>';
           tr.firstChild.textContent = row.suite || "—";
+          tr.lastChild.textContent = fmtPaired(row.paired);
+          if (row.paired && row.paired.verdict === "could be noise") tr.lastChild.classList.add("muted");
           tbody.appendChild(tr);
         });
       }
