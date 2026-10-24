@@ -20,7 +20,8 @@ _QUANT_SUFFIXES: tuple[str, ...] = (
     "-4bit",
 )
 
-_PREFERRED_ORGS: tuple[str, ...] = ("unsloth", "Qwen", "qwen")
+# Re-uploaders whose 16-bit copies sit next to their 4-bit ones; the base's own publisher is tried first.
+_PREFERRED_ORGS: tuple[str, ...] = ("unsloth",)
 
 
 class MergeBaseNotFound(Exception):
@@ -202,22 +203,11 @@ def _find_in_app_hf_models(bare_repo: str, preferred_orgs: tuple[str, ...] | Non
     return str(hits[0][1])
 
 
-def _suggested_16bit_repo(bare_repo: str) -> str:
-    """Human-facing Hub id to download when nothing is local."""
-    # Qwen3-style: capitalize segments while keeping dots (qwen3-0.6b → Qwen3-0.6B).
-    if bare_repo.lower().startswith("qwen"):
-        parts = bare_repo.split("-")
-        pretty: list[str] = []
-        for i, p in enumerate(parts):
-            if i == 0:
-                pretty.append(p[0].upper() + p[1:] if p else p)
-            elif p.replace(".", "", 1).isdigit() or (p and p[0].isdigit()):
-                # 0.6b → 0.6B
-                pretty.append(p[:-1] + p[-1].upper() if p[-1:].isalpha() else p)
-            else:
-                pretty.append(p)
-        return f"Qwen/{'-'.join(pretty)}"
-    return f"Qwen/{bare_repo}"
+def _suggested_16bit_repo(org: str | None, bare_repo: str) -> str:
+    """Hub id to suggest when nothing is local: the publisher's own 16-bit repo, else the unsloth copy."""
+    if org and org.lower() != "unsloth":
+        return f"{org}/{bare_repo}"
+    return f"unsloth/{bare_repo}"
 
 
 def resolve_merge_base(base_model: str) -> str:
@@ -262,9 +252,9 @@ def resolve_merge_base(base_model: str) -> str:
         if hit:
             return hit
 
-    suggested = _suggested_16bit_repo(bare)
+    suggested = _suggested_16bit_repo(org, bare)
     raise MergeBaseNotFound(
         f"No local 16-bit base found for quantized model {base!r}. "
-        f"Download {suggested} (or unsloth/{bare}) on the HF models page, "
+        f"Download the 16-bit {bare} (e.g. {suggested}) on the HF models page, "
         f"then re-run merge."
     )

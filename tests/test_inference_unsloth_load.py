@@ -13,21 +13,6 @@ import pytest
 from finetune_studio.testing.inference import InferenceEngine
 
 
-def test_looks_like_qwen3_from_path() -> None:
-    assert InferenceEngine._looks_like_qwen3("/out/qwen3-0.6b/merged") is True
-    assert InferenceEngine._looks_like_qwen3("/models/llama-3-8b") is False
-
-
-def test_looks_like_qwen3_from_config(tmp_path: Path) -> None:
-    merged = tmp_path / "merged"
-    merged.mkdir()
-    (merged / "config.json").write_text(
-        json.dumps({"model_type": "qwen3", "architectures": ["Qwen3ForCausalLM"]}),
-        encoding="utf-8",
-    )
-    assert InferenceEngine._looks_like_qwen3(str(merged)) is True
-
-
 def test_load_hf_uses_transformers_not_unsloth(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

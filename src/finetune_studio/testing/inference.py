@@ -119,27 +119,6 @@ class InferenceEngine:
         finally:
             self._loading_path = None
 
-    @staticmethod
-    def _looks_like_qwen3(model_path: str) -> bool:
-        """True when path/config indicates a Qwen3 (or Qwen3.5) checkpoint."""
-        import json
-        from pathlib import Path
-
-        lowered = model_path.lower().replace("\\", "/")
-        if "qwen3" in lowered:
-            return True
-        cfg_path = Path(model_path) / "config.json"
-        if not cfg_path.is_file():
-            return False
-        try:
-            with open(cfg_path, encoding="utf-8") as f:
-                cfg = json.load(f)
-            model_type = str(cfg.get("model_type", "")).lower()
-            architectures = [str(a).lower() for a in (cfg.get("architectures") or [])]
-            return model_type.startswith("qwen3") or any("qwen3" in a for a in architectures)
-        except Exception:  # noqa: BLE001
-            return False
-
     def _load_hf(self, model_path, device, max_seq_length=None, load_in_4bit=False):
         """Load HF checkpoints with plain transformers (E2E-40).
 
