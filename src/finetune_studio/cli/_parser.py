@@ -169,7 +169,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_bench.add_argument(
         "--suite",
         default="all",
-        help="Real suite: all, mmlu, gsm8k, hellaswag (or comma-separated)",
+        help="Real suite: all, mmlu, gsm8k, hellaswag, ifeval (or comma-separated)",
     )
     p_bench.add_argument(
         "--num-samples",

@@ -1,4 +1,4 @@
-"""Focused tests for real MMLU / GSM8K / HellaSwag evaluators (mocked HF)."""
+"""Focused tests for real MMLU / GSM8K / HellaSwag evaluators (mocked HF); IFEval: tests/test_ifeval.py."""
 
 from __future__ import annotations
 
@@ -79,7 +79,7 @@ class _ScriptedEngine:
 
 
 def test_real_suite_paths_and_catalog() -> None:
-    assert list_real_families() == ["mmlu", "gsm8k", "hellaswag"]
+    assert list_real_families() == ["mmlu", "gsm8k", "hellaswag", "ifeval"]
     assert real_suite_path("mmlu") == "real://mmlu"
     assert parse_real_suite_path("real://gsm8k") == "gsm8k"
     assert is_real_suite_path("real://hellaswag") is True
@@ -89,6 +89,7 @@ def test_real_suite_paths_and_catalog() -> None:
         "mmlu_real",
         "gsm8k_real",
         "hellaswag_real",
+        "ifeval_real",
     }
     for s in suites:
         assert s.suite_type == "real"
@@ -102,7 +103,7 @@ def test_discover_includes_real_suites(tmp_path, monkeypatch) -> None:
     monkeypatch.chdir(tmp_path)
     suites = discover_suites()
     real = [s for s in suites if s["suite_type"] == "real"]
-    assert len(real) == 3
+    assert len(real) == 4
     assert all(s["is_real_benchmark"] for s in real)
     assert all(s["path"].startswith("real://") for s in real)
     assert suites[0]["suite_type"] == "real"

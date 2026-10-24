@@ -1,11 +1,11 @@
-"""`fts benchmark` — run official HuggingFace benchmarks (MMLU, GSM8K, HellaSwag)."""
+"""`fts benchmark` — run official HuggingFace benchmarks (MMLU, GSM8K, HellaSwag, IFEval)."""
 from __future__ import annotations
 
 import json as json_mod
 import os
 import sys
 
-_KNOWN_SUITES = ("mmlu", "hellaswag", "gsm8k")
+_KNOWN_SUITES = ("mmlu", "hellaswag", "gsm8k", "ifeval")
 
 
 def cmd_benchmark(args) -> None:
@@ -17,7 +17,7 @@ def cmd_benchmark(args) -> None:
         sys.exit(1)
 
     if args.suite == "all":
-        benchmarks = ["mmlu", "hellaswag", "gsm8k"]
+        benchmarks = list(_KNOWN_SUITES)
     else:
         benchmarks = [b.strip() for b in args.suite.split(",") if b.strip()]
     unknown = [b for b in benchmarks if b not in _KNOWN_SUITES]

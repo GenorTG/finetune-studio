@@ -60,6 +60,7 @@ def test_missing_known_suite_files_not_listed(
         "mmlu_real",
         "gsm8k_real",
         "hellaswag_real",
+        "ifeval_real",
     }
     assert all(
         s.get("suite_type")

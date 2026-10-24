@@ -325,6 +325,17 @@ def score_numeric(
     )
 
 
+def score_ifeval(*, correct_answer: str, model_answer: str) -> StrictScore:
+    """IFEval strict: pass only when every encoded instruction is followed (benchmarks/ifeval.py)."""
+    from finetune_studio.benchmarks.ifeval import SCORING_METHOD, check_response
+
+    if not (model_answer or "").strip():
+        return StrictScore("fail", SCORING_METHOD, "no_answer", "empty answer")
+    ok, failed = check_response(correct_answer, model_answer)
+    reason = "every instruction followed" if ok else "not followed: " + ", ".join(failed)
+    return StrictScore("pass" if ok else "fail", SCORING_METHOD, "valid", reason)
+
+
 def score_strict(
     *,
     question: str,
@@ -335,6 +346,10 @@ def score_strict(
 
     Returns None for anything else: the case stays unjudged rather than being string-matched.
     """
+    from finetune_studio.benchmarks.ifeval import is_ifeval_answer
+
+    if is_ifeval_answer(correct_answer):
+        return score_ifeval(correct_answer=correct_answer, model_answer=model_answer)
     kind = detect_task_kind(question, correct_answer)
     if kind == "multiple_choice":
         return score_multiple_choice(

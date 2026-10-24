@@ -1,4 +1,4 @@
-"""Official HuggingFace industry benchmarks: MMLU, GSM8K, HellaSwag.
+"""Official HuggingFace industry benchmarks: MMLU, GSM8K, HellaSwag, IFEval.
 
 Loads official test/validation splits, formats prompts, and scores with
 strict MCQ / normalized GSM8K finals (no substring credit). Unit tests must
@@ -16,6 +16,8 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Literal, Protocol
 
 from finetune_studio.testing.strict_scoring import (
+    StrictScore,
+    score_ifeval,
     score_multiple_choice,
     score_numeric,
 )
@@ -23,7 +25,7 @@ from finetune_studio.testing.suite import BenchmarkCase
 
 _log = logging.getLogger(__name__)
 
-RealFamily = Literal["mmlu", "gsm8k", "hellaswag"]
+RealFamily = Literal["mmlu", "gsm8k", "hellaswag", "ifeval"]
 SampleOrder = Literal["dataset", "seeded_shuffle"]
 
 REAL_SUITE_SCHEME = "real://"
@@ -36,6 +38,7 @@ OFFICIAL_CASE_COUNTS: dict[RealFamily, int] = {
     "mmlu": 14042,  # cais/mmlu · all · test
     "gsm8k": 1319,  # openai/gsm8k · main · test
     "hellaswag": 10042,  # Rowan/hellaswag · validation
+    "ifeval": 541,  # google/IFEval · train (its only split)
 }
 
 MCQ_PROMPT_PREFIX = (
@@ -218,6 +221,24 @@ REAL_SPECS: dict[RealFamily, RealBenchmarkSpec] = {
         source_url="https://huggingface.co/datasets/Rowan/hellaswag",
         revision=None,
     ),
+    "ifeval": RealBenchmarkSpec(
+        family="ifeval",
+        name="ifeval_real",
+        title="IFEval (instruction following)",
+        description=(
+            "google/IFEval verifiable instructions (word counts, no commas, JSON, bullets ...). "
+            "Strict prompt-level scoring over the prompts whose checks need no extra library "
+            "(benchmarks/ifeval.py) — shows lost chat ability after fine-tuning. Requires HF cache."
+        ),
+        dataset_id="google/IFEval",
+        dataset_config=None,
+        split="train",
+        official_case_count=OFFICIAL_CASE_COUNTS["ifeval"],
+        prompt_protocol="zero_shot_prompt_as_is",
+        scoring_method="ifeval_strict",
+        source_url="https://huggingface.co/datasets/google/IFEval",
+        revision=None,
+    ),
 }
 
 
@@ -244,7 +265,7 @@ def is_real_suite_path(path: str) -> bool:
 
 def list_real_families() -> list[RealFamily]:
     """Ordered list of supported real benchmark families."""
-    return ["mmlu", "gsm8k", "hellaswag"]
+    return ["mmlu", "gsm8k", "hellaswag", "ifeval"]
 
 
 def _coerce_response(raw: str | dict[str, Any]) -> str:
@@ -425,11 +446,45 @@ def gsm8k_row_to_case(row: Mapping[str, Any] | Any, index: int) -> BenchmarkCase
     )
 
 
+def ifeval_row_to_case(row: Mapping[str, Any] | Any, index: int) -> BenchmarkCase:
+    """Convert one google/IFEval row: the prompt as is, the instructions to verify as the answer key."""
+    from finetune_studio.benchmarks.ifeval import encode_answer
+
+    ids = [str(i) for i in _row_get(row, "instruction_id_list")]
+    return BenchmarkCase(
+        name=f"ifeval_{int(_row_get(row, 'key')):05d}",
+        question=str(_row_get(row, "prompt")),
+        correct_answer=encode_answer(ids, list(_row_get(row, "kwargs"))),
+        category=ids[0].split(":")[0] if ids else "ifeval",
+    )
+
+
+def _ifeval_supported(row: Mapping[str, Any] | Any) -> bool:
+    from finetune_studio.benchmarks.ifeval import is_supported
+
+    return is_supported([str(i) for i in _row_get(row, "instruction_id_list")])
+
+
 _ROW_CONVERTERS: dict[RealFamily, Callable[[Any, int], BenchmarkCase]] = {
     "mmlu": mmlu_row_to_case,
     "hellaswag": hellaswag_row_to_case,
     "gsm8k": gsm8k_row_to_case,
+    "ifeval": ifeval_row_to_case,
 }
+# Families whose split holds rows this app cannot score; sampling runs over the scorable rows only.
+_ROW_FILTERS: dict[RealFamily, Callable[[Any], bool]] = {"ifeval": _ifeval_supported}
+
+# Generation budget per family: MCQ needs a letter, GSM8K a worked solution, IFEval a full answer.
+DEFAULT_MAX_TOKENS: dict[RealFamily, int] = {"mmlu": 16, "hellaswag": 16, "gsm8k": 256, "ifeval": 1024}
+
+
+def score_real_case(family: RealFamily, case: BenchmarkCase, prediction: str) -> StrictScore:
+    """The family's published strict scorer for one answer."""
+    if family == "gsm8k":
+        return score_numeric(correct_answer=case.correct_answer, model_answer=prediction)
+    if family == "ifeval":
+        return score_ifeval(correct_answer=case.correct_answer, model_answer=prediction)
+    return score_multiple_choice(correct_answer=case.correct_answer, model_answer=prediction)
 
 
 def build_metadata(
@@ -512,7 +567,9 @@ class RealBenchmarkSuite:
     ) -> tuple[list[BenchmarkCase], BenchmarkMetadata]:
         """Materialize BenchmarkCases from the official split."""
         ds = self.load_split(family)
-        split_size = len(ds)
+        keep = _ROW_FILTERS.get(family)
+        rows = [i for i in range(len(ds)) if keep(ds[i])] if keep else None
+        split_size = len(rows) if rows is not None else len(ds)
         sample_count = resolve_sample_count(
             split_size=split_size,
             num_samples=num_samples,
@@ -524,7 +581,8 @@ class RealBenchmarkSuite:
         converter = _ROW_CONVERTERS[family]
         cases: list[BenchmarkCase] = []
         for idx in indices:
-            cases.append(converter(ds[idx], idx))
+            row_idx = rows[idx] if rows is not None else idx
+            cases.append(converter(ds[row_idx], row_idx))
         meta = build_metadata(
             family,
             sample_count=sample_count,
@@ -558,7 +616,7 @@ class RealBenchmarkSuite:
         )
         spec = REAL_SPECS[family]
         if max_tokens is None:
-            max_tokens = 256 if family == "gsm8k" else 16
+            max_tokens = DEFAULT_MAX_TOKENS[family]
 
         results: list[CaseEvalResult] = []
         subject_hits: dict[str, list[bool]] = {}
@@ -574,16 +632,7 @@ class RealBenchmarkSuite:
             pred = _coerce_response(raw)
             elapsed = (time.time() - t0) * 1000
 
-            if family == "gsm8k":
-                scored = score_numeric(
-                    correct_answer=case.correct_answer,
-                    model_answer=pred,
-                )
-            else:
-                scored = score_multiple_choice(
-                    correct_answer=case.correct_answer,
-                    model_answer=pred,
-                )
+            scored = score_real_case(family, case, pred)
 
             is_correct = scored.verdict == "pass"
             if is_correct:
@@ -723,14 +772,7 @@ class RealBenchmarkSuite:
             )
             pred = _coerce_response(raw)
             elapsed = (time.time() - t0) * 1000
-            if family == "gsm8k":
-                scored = score_numeric(
-                    correct_answer=case.correct_answer, model_answer=pred
-                )
-            else:
-                scored = score_multiple_choice(
-                    correct_answer=case.correct_answer, model_answer=pred
-                )
+            scored = score_real_case(family, case, pred)
             is_correct = scored.verdict == "pass"
             if is_correct:
                 correct += 1

@@ -273,8 +273,10 @@ async def _execute_benchmark(
     # Real MCQ/GSM8K prompts need short generations; keep caller max_tokens
     # but default cooler sampling for strict extraction.
     run_temperature = 0.0 if real_meta else 0.3
-    if real_meta and real_meta.get("family") == "gsm8k":
-        eff_max_tokens = max(max_tokens, 256)
+    if real_meta and real_meta.get("family") in ("gsm8k", "ifeval"):
+        # Worked solutions / full answers: never cut below the family's budget.
+        from finetune_studio.benchmarks.real_benchmarks import DEFAULT_MAX_TOKENS
+        eff_max_tokens = max(max_tokens, DEFAULT_MAX_TOKENS[real_meta["family"]])
     elif real_meta:
         eff_max_tokens = min(max_tokens, 32)
     else:
