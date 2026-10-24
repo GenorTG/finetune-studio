@@ -545,6 +545,18 @@ async def start_training(request: Request):
         return JSONResponse({
             "detail": "training_mode must be one of: " + ", ".join(sorted(supported_training_modes)),
         }, status_code=400)
+    raw_replay = body.get("replay_percent")
+    if raw_replay not in (None, ""):
+        try:
+            replay_percent = float(raw_replay)
+        except (TypeError, ValueError):
+            return JSONResponse({"detail": "replay_percent must be a number"}, status_code=400)
+        if not 0 <= replay_percent <= 50:
+            return JSONResponse({"detail": "replay_percent must be between 0 and 50"}, status_code=400)
+        if replay_percent and training_mode not in ("sft", "tool_sft"):
+            return JSONResponse({"detail": "replay mixes in chat answers, so it is for SFT runs only"},
+                                status_code=400)
+        config.replay_fraction = replay_percent / 100
     if training_mode in PREFERENCE_MODES:
         # LoRA preference tuning needs its own optimizer scale (see PREFERENCE_DEFAULTS);
         # the SFT preset/form defaults would wreck the base model. Explicit values and
@@ -665,6 +677,7 @@ async def start_training(request: Request):
             "validation_split": 0.1,
             "preference_beta": config.preference_beta if training_mode in PREFERENCE_MODES else None,
             "preference_sft_weight": config.preference_sft_weight if training_mode == "dpo" else None,
+            "replay_percent": round(config.replay_fraction * 100, 1) or None,
             "start_run_id": start_run_id or None,
         },
         system_prompt=system_prompt,

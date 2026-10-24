@@ -189,6 +189,9 @@ class TrainingConfig:
     # 0 = plain DPO. Counters likelihood displacement, where DPO lowers the chosen
     # answer's probability too and a short run forgets facts (see HANDOFF "DPO quality").
     preference_sft_weight: float = 0.0
+    # SFT only: share of the final training mix made of general prompts answered by the base model itself
+    # (training/replay.py). 0 = off; ~0.3 keeps instruction following while an adapter learns facts.
+    replay_fraction: float = 0.0
 
 @dataclass
 class TrainingState:
@@ -600,6 +603,7 @@ class TrainingEngine:
                 with open(prompt_path, "w") as f:
                     f.write(system_prompt)
             train_data, val_data = split_data(formatted)
+            self._bake_prompt = bake_prompt
             if self._stop_requested():
                 self._mark_stopped()
                 return
@@ -862,6 +866,29 @@ class TrainingEngine:
             update_run(run_id, **fields)
         except Exception:  # best-effort run-row write
             log.exception("Failed to update run %s", run_id)
+
+    def _replay(self, model: Any, tokenizer: Any, train_rows: int) -> list[dict]:
+        """Replay rows answered by the base model (before the adapter exists), logged; [] when off."""
+        cfg = self.config
+        if cfg.replay_fraction <= 0 or getattr(cfg, "training_mode", "sft") not in ("sft", "tool_sft"):
+            return []
+        from finetune_studio.training.replay import replay_row_count, replay_rows
+        if not getattr(getattr(tokenizer, "tokenizer", tokenizer), "chat_template", None):
+            raise ValueError("Replay needs a chat model: this base has no chat template to answer general prompts "
+                             "with. Set the replay share to 0 for it.")
+        n = replay_row_count(train_rows, cfg.replay_fraction)
+
+        def progress(done: int, total: int) -> None:
+            self.state.message = f"Replay: the base model is answering general prompts ({done}/{total})…"
+            self._notify()
+
+        rows = replay_rows(model, tokenizer, model_path=cfg.model_path, n=n,
+                           system_prompt=getattr(self, "_bake_prompt", ""), progress=progress)
+        line = (f"Replay: {len(rows)} general rows answered by the base model "
+                f"({len(rows) / max(1, train_rows + len(rows)):.0%} of the mix; asked for {n})")
+        log.info(line)
+        self.state.log_lines.append(line)
+        return rows
 
     def _lora_targets(self, model: Any) -> dict[str, Any]:
         """``LoraConfig`` target kwargs for ``model`` (config override or every text linear layer), logged."""
@@ -1165,6 +1192,10 @@ class TrainingEngine:
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
         model = self._load_model_with_fallback(cfg.model_path, tokenizer)
+        if self._stop_requested():
+            self._mark_stopped()
+            return
+        train_data = [*train_data, *self._replay(model, tokenizer, len(train_data))]
         if self._stop_requested():
             self._mark_stopped()
             return
