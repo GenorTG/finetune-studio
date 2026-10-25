@@ -75,3 +75,26 @@ def test_local_model_missing_only_flags_absent_local_paths(tmp_path) -> None:
     assert local_model_missing(str(tmp_path / "gone.gguf")) is True
     assert local_model_missing("Qwen/Qwen3.5-9B") is False  # Hub id, not a local path
     assert local_model_missing("") is False
+
+
+def test_target_model_refuses_a_folder_no_loader_can_open(tmp_path) -> None:
+    import pytest
+
+    from finetune_studio.webui.testing_models import target_model, unloadable_model_dir
+
+    run_dir = tmp_path / "runs" / "abc"
+    (run_dir / "adapter").mkdir(parents=True)
+    (run_dir / "checkpoint-10").mkdir()
+    with pytest.raises(ValueError, match="not a model folder"):
+        target_model("pid", str(run_dir))
+    merged = tmp_path / "merged"
+    merged.mkdir()
+    (merged / "config.json").write_text("{}")
+    assert target_model("pid", str(merged)) == str(merged)
+    (run_dir / "adapter" / "adapter_config.json").write_text("{}")
+    assert not unloadable_model_dir(str(run_dir / "adapter"))
+    gguf_dir = tmp_path / "gguf"
+    gguf_dir.mkdir()
+    (gguf_dir / "model-q4_k_m.gguf").write_bytes(b"x")
+    assert not unloadable_model_dir(str(gguf_dir))
+    assert not unloadable_model_dir("Qwen/Qwen3.5-9B")
