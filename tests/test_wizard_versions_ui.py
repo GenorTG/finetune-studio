@@ -25,6 +25,8 @@ def test_wizard_template_calls_every_version_endpoint() -> None:
         '"/api/projects/" + PID + "/versions"',               # list + pin
         'base + "/lineage"',                                  # lineage walk
         'window.api.del("/api/projects/" + PID + "/versions/"',  # delete
+        "sel.value = picked ? keep : (vs.length ? vs[0].id : \"\")",  # default: the newest version
+        "delete s.dataset.userPicked",                        # a pin resets the pick, so the next pin continues
     ):
         assert needle in html, needle
 
