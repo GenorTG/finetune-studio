@@ -32,7 +32,12 @@ SuiteSource = Literal[
     "huggingface",
     "project_qa",
     "project_import",
+    "project_heldout_reworded",
 ]
+
+# Stem prefix of a reworded held-out quiz (testing/reworded_quiz.py) in the project's suites folder.
+HELDOUT_REWORDED_PREFIX = "heldout-reworded"
+HELDOUT_REWORDED_LABEL = "held-out facts, new wording"
 
 _FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
@@ -144,6 +149,8 @@ class SuiteDefinition:
             n = self.case_count or 0
             return f"auto · training questions (memorisation) · {self.title or self.name} ({n} cases)"
         title = self.title or self.name
+        if self.source == "project_heldout_reworded":
+            return format_heldout_reworded_label(title, self.case_count or 0)
         if self.source == "project_qa":
             n = self.case_count or 0
             return f"local · {title} ({n} cases)"
@@ -297,6 +304,11 @@ def list_builtin_real_suites() -> list[SuiteDefinition]:
     return out
 
 
+def format_heldout_reworded_label(title: str, case_count: int) -> str:
+    """Label for a reworded held-out quiz: facts the trainer held out, asked in words no dataset row uses."""
+    return f"{HELDOUT_REWORDED_LABEL} · {title} ({case_count} cases)"
+
+
 def format_auto_suite_label(suite_name: str, case_count: int) -> str:
     """Label for a project auto-generated suite."""
     return (f"auto · {suite_name} ({case_count} cases): the training questions word for word, a memorisation "
@@ -387,13 +399,15 @@ def discover_suites(project_id: str | None = None) -> list[dict[str, Any]]:
         for f in sorted(suites_dir(project_id).glob("*.json")) if suites_dir(project_id).is_dir() else []:
             if any(e.get("path") == str(f) for e in found.values()):
                 continue   # the full-corpus suite is written into this folder too: listed once, above
+            reworded = f.stem.startswith(HELDOUT_REWORDED_PREFIX + "-")
             found[f"project_import:{f.stem}"] = SuiteDefinition(
                 name=f.stem,
                 path=str(f),
-                title=f.stem,
-                description=f"Imported quiz: {f.name}",
+                title=f.stem.removeprefix(HELDOUT_REWORDED_PREFIX + "-") if reworded else f.stem,
+                description=(f"Held-out facts, new wording: the trainer's held-out slice, each question reworded "
+                             f"once ({f.name})" if reworded else f"Imported quiz: {f.name}"),
                 suite_type="local",
-                source="project_import",
+                source="project_heldout_reworded" if reworded else "project_import",
                 case_count=_case_count_from_file(f),
             ).as_dict()
 

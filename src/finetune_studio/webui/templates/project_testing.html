@@ -85,6 +85,24 @@
     <div id="t-suite-import-msg" class="text-xs dim mt-1" role="status" aria-live="polite"></div>
   </details>
 
+  <details class="mt-2" id="t-reworded-box">
+    <summary class="text-xs muted">Build a reworded quiz · held-out facts, new wording</summary>
+    <div class="text-xs dim mt-1">Takes the trainer's own held-out slice of a dataset (facts it never trained on; rows of one fact stay together)
+      and asks the helper <span class="mono">{{ helper_label }}</span> to reword each held-out question once. A rewording that drops a number, code
+      or name, gives the answer away or repeats a dataset question is dropped. Study sets built later stay away from these questions.
+      The auto-suite asks the training questions word for word: that one is a memorisation check.</div>
+    <div class="flex gap-2 items-center mt-1">
+      <select id="t-rq-ds" aria-label="Dataset for the reworded quiz" class="select">
+        <option value="">— latest project dataset —</option>
+        {% for d in training_datasets %}
+        <option value="{{ d.id }}">{{ d.name }} · {{ d.qa_count or 0 }} pairs</option>
+        {% endfor %}
+      </select>
+      <button type="button" class="btn sm" id="t-rq-btn">Build reworded quiz</button>
+    </div>
+    <div id="t-rq-msg" class="text-xs dim mt-1" role="status" aria-live="polite"></div>
+  </details>
+
   <div id="t-opts-brain" class="grid grid-12 gap-3 items-end mt-3" hidden>
     <div class="col-span-6">
       <label class="block text-xs muted mb-1" for="t-brain-corpus">Index folder (optional)</label>
@@ -248,6 +266,7 @@
     $('t-opts-dataset').hidden = m !== 'dataset';
     $('t-suite-wrap').style.display = m === 'dataset' ? 'none' : '';
     $('t-suite-import-box').style.display = m === 'dataset' ? 'none' : '';
+    $('t-reworded-box').style.display = m === 'dataset' ? 'none' : '';
     syncRunButton();
   }
 
@@ -298,20 +317,52 @@
       let data;
       try { data = await api.post('/api/benchmarks/projects/' + encodeURIComponent(PID) + '/suites/import', form); }
       catch (e) { msg.textContent = 'Import failed: ' + e.message; return; }
-      const sel = $('t-suite');
-      let opt = Array.from(sel.options).find(function(o) { return o.value === data.path; });
-      if (!opt) { opt = document.createElement('option'); opt.value = data.path; sel.appendChild(opt); }
       // Same label as the server lists after a reload (suite_defs.SuiteDefinition.label); the import message says the rest.
-      const label = 'local · ' + data.name + ' (' + data.case_count + ' cases)';
-      opt.textContent = label;
-      opt.setAttribute('data-name', data.name); opt.setAttribute('data-type', 'local');
-      opt.setAttribute('data-source', 'project_import'); opt.setAttribute('data-label', label);
-      sel.value = data.path;
-      window.onSuitePicked();
+      addSuiteOption(data.path, 'local · ' + data.name + ' (' + data.case_count + ' cases)', 'project_import', data.name);
       msg.textContent = 'Imported ' + data.name + ': ' + data.case_count + ' questions' +
         (data.abstain_cases ? ' (' + data.abstain_cases + ' unanswerable)' : '') + ' — selected above.';
     } catch (e) {
       msg.textContent = 'Import failed: ' + ((e && e.message) || e);
+    }
+  }
+
+  function addSuiteOption(path, label, source, name) {
+    const sel = $('t-suite');
+    let opt = Array.from(sel.options).find(function(o) { return o.value === path; });
+    if (!opt) { opt = document.createElement('option'); opt.value = path; sel.appendChild(opt); }
+    opt.textContent = label;
+    opt.setAttribute('data-name', name); opt.setAttribute('data-type', 'local');
+    opt.setAttribute('data-source', source); opt.setAttribute('data-label', label);
+    sel.value = path;
+    window.onSuitePicked();
+  }
+
+  async function buildRewordedQuiz() {
+    const btn = $('t-rq-btn'), msg = $('t-rq-msg');
+    const progressUrl = '/api/projects/' + encodeURIComponent(PID) + '/testing/reworded-quiz/progress';
+    const body = {};
+    if ($('t-rq-ds').value) body.dataset_id = $('t-rq-ds').value;
+    btn.disabled = true;
+    msg.textContent = 'Rewording the held-out questions…';
+    const timer = setInterval(async function() {
+      if (!root.isConnected) { clearInterval(timer); return; }
+      try {
+        const p = await api.get(progressUrl);
+        if (p.running && p.planned) msg.textContent = 'Rewording held-out questions: ' + p.done + ' / ' + p.planned + ' (' + p.kept + ' kept)…';
+      } catch (e) { /* the build call reports the real outcome */ }
+    }, 1500);
+    try {
+      const d = await api.post('/api/projects/' + encodeURIComponent(PID) + '/testing/reworded-quiz', body);
+      addSuiteOption(d.path, d.label, 'project_heldout_reworded', d.name);
+      const dropped = Object.keys(d.dropped || {}).map(function(k) { return k + ' ' + d.dropped[k]; }).join(', ');
+      msg.textContent = 'Saved ' + d.label + ' from ' + d.dataset.name + ': ' + d.kept + ' of ' + d.facts + ' held-out facts reworded'
+        + (dropped ? ' (dropped: ' + dropped + ')' : '') + (d.calls_failed ? ', ' + d.calls_failed + ' helper calls failed' : '')
+        + (d.skipped_grounded ? ', ' + d.skipped_grounded + ' grounded rows skipped' : '') + ' — selected above.';
+    } catch (e) {
+      msg.textContent = 'Could not build the reworded quiz: ' + ((e && e.message) || e);
+    } finally {
+      clearInterval(timer);
+      btn.disabled = false;
     }
   }
 
@@ -715,6 +766,7 @@
   // ── Wiring ─────────────────────────────────────────────────────────────
   document.querySelectorAll('input[name="t-mode"]').forEach(function(el) { el.addEventListener('change', syncMode); });
   $('t-suite-import-btn').addEventListener('click', importQuiz);
+  $('t-rq-btn').addEventListener('click', buildRewordedQuiz);
   $('t-auto-judge').addEventListener('change', saveJudgeDefaults);
   $('t-judge-provider').addEventListener('change', saveJudgeDefaults);
   $('rv-judge-new').addEventListener('click', function() { startJudge(true); });

@@ -194,6 +194,26 @@ def resolve_project_dataset(
     raise LookupError("no project training dataset registered — export approved data first")
 
 
+def read_dataset_rows(path: str) -> tuple[list[dict[str, Any]], int]:
+    """The JSONL dataset's object rows, and how many lines were not one."""
+    rows: list[dict[str, Any]] = []
+    skipped = 0
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except json.JSONDecodeError:
+                skipped += 1
+                continue
+            if isinstance(row, dict):
+                rows.append(row)
+            else:
+                skipped += 1
+    return rows, skipped
+
+
 def build_training_eval(
     project_id: str,
     *,
@@ -240,21 +260,7 @@ def build_heldout_eval(
     from finetune_studio.training.data import sft_validation_rows
 
     ds = resolve_project_dataset(project_id, dataset_id)
-    rows: list[dict[str, Any]] = []
-    skipped = 0
-    with open(str(ds["data_path"]), encoding="utf-8") as f:
-        for line in f:
-            if not line.strip():
-                continue
-            try:
-                row = json.loads(line)
-            except json.JSONDecodeError:
-                skipped += 1
-                continue
-            if isinstance(row, dict):
-                rows.append(row)
-            else:
-                skipped += 1
+    rows, skipped = read_dataset_rows(str(ds["data_path"]))
     seen: dict[str, int] = {}
     cases = []
     for row in sft_validation_rows(rows):

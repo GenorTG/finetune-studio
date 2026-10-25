@@ -168,7 +168,8 @@ def near_quiz(question: str, quiz: Iterable[tuple[str, set[str]]]) -> bool:
     return any(n == qn or _jaccard(t, qt) >= NEAR_QUIZ_JACCARD for qn, qt in quiz)
 
 
-def _parse(reply: str) -> dict[str, Any]:
+def parse_reply(reply: str) -> dict[str, Any]:
+    """The JSON object in a helper reply (thinking blocks stripped); ValueError when there is none."""
     text = _THINK.sub("", reply or "")
     m = re.search(r"\{.*\}", text, re.DOTALL)
     if not m:
@@ -200,7 +201,7 @@ def _row(question: str, answer: str, item: dict[str, Any], kind: str) -> dict[st
 def study_rows_for(item: dict[str, Any], reply: str, opts: StudyOptions, quiz: list[tuple[str, set[str]]],
                    report: StudyReport) -> list[dict[str, Any]]:
     """The gated new rows for one pair from the helper's reply (the original row is added by the caller)."""
-    data = _parse(reply)
+    data = parse_reply(reply)
     q, a = item["question"], item["answer"]
     allowed = values(a) | values(q) | values(str(item.get("chunk_text") or ""))
     seen = {normalize_question(q)}
