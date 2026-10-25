@@ -81,8 +81,16 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/finetune_studio"]
 
-[tool.hatch.build.targets.wheel.force-include]
-"src/finetune_studio/benchmarks/fixtures" = "finetune_studio/benchmarks/fixtures"
+# The benchmark fixtures (JSON) live inside the package, so `packages` already ships them; a force-include
+# of the same dir added every file twice and broke `uv build` (release workflow).
+
+[tool.hatch.build.targets.sdist]
+# What an install from source needs; the test corpus and dev docs stay in git only.
+include = [
+  "src/finetune_studio", "scripts", "pyproject.toml", "VERSION", "CHANGELOG.md", "README.md",
+  "LICENSE", "CONTRIBUTING.md", "install.sh", "install-service.sh", "update.sh", "run.sh", "Makefile",
+]
+exclude = ["**/__pycache__"]
 
 [tool.ruff.lint.isort]
 # A runtime `datasets/` directory sits in the repo root on dev boxes (gitignored) and would make

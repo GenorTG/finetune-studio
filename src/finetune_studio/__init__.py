@@ -5,7 +5,7 @@ This package is the APPLICATION LAYER for our AI workflow:
   - Evaluate models on industry benchmarks (benchmarks/)
   - Compare models side-by-side (compare/)
   - Serve models via a web UI (webui/)
-  - Manage RAG documents (rag/)
+  - Smart Brain retrieval (smart_brain/)
   - Inspect and validate training data (data/)
 
 It depends on the finetune_studio.templates module for:
@@ -22,32 +22,19 @@ from finetune_studio.accel.env import (
 
 _apply_device_policy()
 
-_BASE_VERSION = "0.1.0"
-__version__ = _BASE_VERSION
-# Human-facing maturity label; keep the package version semantic.
-__release_channel__ = "EARLY BETA"
+# Versioning (CONTRIBUTING.md "Versions and releases"): VERSION holds the SemVer of the release line,
+# changed only by scripts/release.py; a release is the tag v<VERSION> on main.
+from finetune_studio.version import (  # after the device policy on purpose
+    build_version,
+    release_channel,
+    release_version,
+)
 
-
-def build_version() -> str:
-    """Full per-commit build version ``MAJOR.MINOR.PATCH.BUILD``.
-
-    Reads the repo-root ``VERSION`` file (auto-bumped by the pre-commit hook
-    so every commit is a new version). Falls back to the base package version
-    + ``.0`` when the file is absent (e.g. wheel installs).
-    """
-    from pathlib import Path
-
-    for cand in (Path(__file__).resolve().parents[2] / "VERSION",
-                 Path(__file__).resolve().parents[1] / "VERSION"):
-        try:
-            v = cand.read_text(encoding="utf-8").strip()
-            if v:
-                return v
-        except OSError:
-            pass
-    return f"{_BASE_VERSION}.0"
-
-
-# Every consumer of __version__ (UI chip, /api/system/version) gets the
-# per-commit build string; pyproject metadata keeps the base semver.
+__release__ = release_version()
+# The exact code: "1.2.3" on a tagged release, "1.2.3+dev.<sha8>" in a dev checkout. The UI chip and
+# /api/system/version show this; pyproject's version is __release__.
 __version__ = build_version()
+# Human-facing maturity label: BETA for 0.x and -rc/-beta versions, STABLE from 1.0.0.
+__release_channel__ = release_channel(__release__)
+
+__all__ = ["__release__", "__release_channel__", "__version__", "build_version", "release_version"]

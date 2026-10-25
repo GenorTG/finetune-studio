@@ -245,9 +245,10 @@ The larger pieces, roughly in the order you meet them:
   for fully offline semantic search).
 - **Parsed-text editor** — fix a bad parse in-app; corrections feed
   mining and the next Smart Brain build while raw bytes stay immutable.
-- **Per-commit build chip + Linux in-app update** — the header pins the exact
-  deployed version (`v0.1.0.N`); on Linux, Settings → Apply update pulls,
-  repairs, migrates and restarts. Windows updates are manual.
+- **Versioned releases + in-app update** — tagged SemVer releases with a
+  [changelog](CHANGELOG.md); the header shows `vX.Y.Z` on a release and
+  `vX.Y.Z+<branch>.<sha>` on any other commit. Settings → Apply update pulls,
+  repairs, migrates and restarts.
 - **Dark and light themes** — switch themes in the UI; responsive layout
   and theme behavior have dedicated regression checks.
 

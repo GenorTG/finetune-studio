@@ -1,4 +1,4 @@
-.PHONY: help install install-cpu install-conda install-llama check update run webui test lint codemap codemap-check hooks clean
+.PHONY: help install install-cpu install-conda install-llama check update run webui test lint codemap codemap-check hooks clean release-status release-prepare release-finish
 
 help:
 	@echo "Finetune Studio — common targets:"
@@ -13,7 +13,10 @@ help:
 	@echo "  make lint            ruff check src/ (never fails; run ruff directly)"
 	@echo "  make codemap         regenerate docs/CODEMAP.md"
 	@echo "  make codemap-check   fail if docs/CODEMAP.md is stale"
-	@echo "  make hooks           install the per-commit VERSION bump hook"
+	@echo "  make hooks           install the branch-rule git hooks (once per clone)"
+	@echo "  make release-status  what dev holds since the last release tag"
+	@echo "  make release-prepare BUMP=minor   cut release/vX.Y.Z from dev, PR -> main"
+	@echo "  make release-finish V=X.Y.Z       tag main after the merge, PR sync -> dev"
 	@echo "  make clean           remove .venv + caches"
 
 install:
@@ -60,6 +63,18 @@ codemap-check:
 
 hooks:
 	bash scripts/install-hooks.sh
+
+# Releases (CONTRIBUTING.md "Versions and releases"): prepare -> merge the PR into main -> finish.
+release-status:
+	python3 scripts/release.py status
+
+release-prepare:
+	@test -n "$(BUMP)" || { echo "usage: make release-prepare BUMP=major|minor|patch|X.Y.Z"; exit 2; }
+	python3 scripts/release.py prepare $(BUMP)
+
+release-finish:
+	@test -n "$(V)" || { echo "usage: make release-finish V=X.Y.Z"; exit 2; }
+	python3 scripts/release.py finish $(V)
 
 clean:
 	rm -rf .venv data/*.db __pycache__ */__pycache__ */*/__pycache__ .pytest_cache
