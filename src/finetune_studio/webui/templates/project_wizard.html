@@ -167,12 +167,24 @@
     </div><span class="pill outline" id="wiz-version-pill">…</span></div>
     <form id="wiz-version-form" class="flex gap-2 wrap m-0">
       <input class="input" id="wiz-version-label" placeholder="label (e.g. v3-my-corpus)">
+      <select class="select" id="wiz-version-parent" aria-label="Builds on version"
+              title="The earlier version this one continues from; its lineage shows the whole chain.">
+        <option value="">builds on: nothing (new line)</option>
+      </select>
       <button class="btn sm primary" type="submit">Pin version</button>
     </form>
     <div class="flex gap-2 wrap mt-2">
       <a class="btn sm" href="/projects/{{ pid }}/export" data-link>Export model</a>
       <a class="btn sm" href="/projects/{{ pid }}/chat" data-link>Chat with it</a>
       <span class="text-xs dim" id="wiz-version-list"></span>
+    </div>
+    <div id="wiz-versions" class="mt-2" hidden>
+      <div class="text-xs muted mb-1">Saved versions</div>
+      <table class="table compact" id="wiz-versions-table">
+        <thead><tr><th>Version</th><th>Label</th><th>Saved</th><th>Builds on</th><th>Contents</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <pre id="wiz-version-detail" class="debug-pre text-xs" hidden></pre>
     </div>
   </div>
 
@@ -259,6 +271,9 @@
       </div><span class="pill outline" id="flow-version-pill">…</span></div>
       <form id="flow-version-form" class="flex gap-2 wrap m-0">
         <input class="input" id="flow-version-label" placeholder="label (e.g. v3-my-corpus)">
+        <select class="select" id="flow-version-parent" aria-label="Builds on version">
+          <option value="">builds on: nothing (new line)</option>
+        </select>
         <button class="btn sm primary" type="submit">Save version</button>
       </form>
       <div class="flex gap-2 wrap mt-2">
@@ -417,12 +432,103 @@
           var t = document.getElementById(lid);
           if (t) t.textContent = names;
         });
+        renderVersions(vs);
         line("versions pinned: " + vs.length);
       }).catch(function (e) { pill("wiz-version", "error", false); pill("flow-version", "error", false); line("versions: ERROR " + e); });
     }
   }
   window.wizRefresh = wizRefresh;
   window.flowCheck = wizRefresh;  /* advanced cards reuse the same checks */
+
+  /* Saved versions: the table under Step 6, the "builds on" pickers, and per-version lineage / contents / delete
+     (GET/DELETE /api/projects/{pid}/versions/{vid}, GET …/{vid}/lineage). */
+  function versionName(v) { return "v" + v.version_number + (v.label ? " " + v.label : ""); }
+  function cell(tr, text) { var td = document.createElement("td"); td.textContent = text; tr.appendChild(td); return td; }
+  function manifestCounts(v) {
+    var m = {};
+    try { m = JSON.parse(v.manifest_json || "{}"); } catch (e) { m = {}; }
+    return (m.datasets || []).length + " dataset(s) · " + (m.training_runs || []).length + " run(s) · "
+      + (m.brain_builds || []).length + " brain build(s)";
+  }
+  function renderVersions(vs) {
+    var byId = {};
+    vs.forEach(function (v) { byId[v.id] = v; });
+    ["wiz-version-parent", "flow-version-parent"].forEach(function (sid) {
+      var sel = document.getElementById(sid);
+      if (!sel) return;
+      var keep = sel.value;
+      while (sel.options.length > 1) sel.remove(1);
+      vs.forEach(function (v) {
+        var o = document.createElement("option");
+        o.value = v.id;
+        o.textContent = "builds on: " + versionName(v);
+        sel.appendChild(o);
+      });
+      sel.value = keep && byId[keep] ? keep : (vs.length ? vs[0].id : "");
+    });
+    var wrap = document.getElementById("wiz-versions");
+    var body = document.querySelector("#wiz-versions-table tbody");
+    if (!wrap || !body) return;
+    wrap.hidden = vs.length === 0;
+    body.textContent = "";
+    vs.forEach(function (v) {
+      var tr = document.createElement("tr");
+      cell(tr, "v" + v.version_number);
+      cell(tr, v.label || "—");
+      cell(tr, v.created_at ? new Date(v.created_at * 1000).toLocaleString() : "—");
+      var parent = v.parent_version_id ? byId[v.parent_version_id] : null;
+      cell(tr, parent ? versionName(parent) : (v.parent_version_id ? "(deleted version)" : "—"));
+      cell(tr, manifestCounts(v));
+      var actions = cell(tr, "");
+      var show = document.createElement("button");
+      show.type = "button"; show.className = "btn sm"; show.textContent = "Lineage";
+      show.setAttribute("data-version-lineage", v.id);
+      show.addEventListener("click", function () { showVersion(v.id); });
+      var del = document.createElement("button");
+      del.type = "button"; del.className = "btn sm danger"; del.textContent = "Delete";
+      del.setAttribute("data-version-delete", v.id);
+      del.addEventListener("click", function () { deleteVersion(v); });
+      actions.appendChild(show); actions.appendChild(del);
+      body.appendChild(tr);
+    });
+  }
+  async function showVersion(vid) {
+    var out = document.getElementById("wiz-version-detail");
+    if (!out) return;
+    out.hidden = false;
+    out.textContent = "Loading…";
+    try {
+      var base = "/api/projects/" + PID + "/versions/" + encodeURIComponent(vid);
+      var both = await Promise.all([api(base), api(base + "/lineage")]);
+      var v = both[0], chain = both[1].lineage || [];
+      var m = v.manifest || {};
+      var lines = ["Lineage: " + chain.map(versionName).join(" → ")];
+      (m.datasets || []).forEach(function (d) { lines.push("Dataset: " + (d.name || d.id) + " (" + (d.qa_count || 0) + " pairs)"); });
+      (m.training_runs || []).forEach(function (r) {
+        lines.push("Training run: " + r.run_id + " · " + (r.status || "?")
+          + (r.final_loss != null ? " · final loss " + Number(r.final_loss).toFixed(3) : ""));
+      });
+      (m.brain_builds || []).forEach(function (b) { lines.push("Smart Brain build: " + b.build_id + " · " + (b.chunk_count || 0) + " chunks"); });
+      if (v.notes) lines.push("Notes: " + v.notes);
+      out.textContent = lines.join("\n");
+    } catch (e) {
+      out.textContent = "Could not load this version: " + e.message;
+    }
+  }
+  async function deleteVersion(v) {
+    var ok = window.fts && window.fts.confirm
+      ? await window.fts.confirm("Delete " + versionName(v) + "? Only the saved record goes; datasets, runs and models stay.",
+                                 { danger: true, okText: "Delete version" })
+      : window.confirm("Delete " + versionName(v) + "?");
+    if (!ok) return;
+    try {
+      await window.api.del("/api/projects/" + PID + "/versions/" + encodeURIComponent(v.id));
+      line("Version " + versionName(v) + " deleted.");
+      var out = document.getElementById("wiz-version-detail");
+      if (out) out.hidden = true;
+      wizRefresh("version");
+    } catch (e) { line("Delete version failed: " + e.message); }
+  }
 
   /* ── quick-mode actions ── */
   var busy = false;
@@ -820,7 +926,10 @@
 
   function pinVersion(formId, labelId, fallback) {
     var label = (document.getElementById(labelId) || {}).value || "";
-    post("/api/projects/" + PID + "/versions", { label: label || fallback })
+    var parentSel = document.getElementById(formId.replace("-form", "-parent"));
+    var body = { label: label || fallback };
+    if (parentSel && parentSel.value) body.parent_version_id = parentSel.value;
+    post("/api/projects/" + PID + "/versions", body)
       .then(function (v) {
         line("Version v" + v.version_number + " pinned.");
         wizRefresh("version");

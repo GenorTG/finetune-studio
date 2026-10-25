@@ -163,6 +163,8 @@ def _controls() -> dict[str, Control]:
         ("wizard.run_all", "wizard", "#wiz-run-all", "Run everything at once"),
         ("wizard.train_step", "wizard", "#wiz-step-train", "Step 4 · Train"),
         ("wizard.epochs", "wizard", "#wiz-epochs", "Epochs override"),
+        ("wizard.version_parent", "wizard", "#wiz-version-parent", "Builds on version"),
+        ("wizard.versions", "wizard", "#wiz-versions-table", "Saved versions"),
         # chat
         ("chat.message_box", "chat", "#chat-input", "Chat message box"),
         # models / inference / settings
