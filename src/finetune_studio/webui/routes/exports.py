@@ -144,6 +144,8 @@ async def export_run(pid: str, rid: str, request: Request):
       auto_merge: bool (default true; single-quant mode)
       quants: list of GGUF quants (multi-format mode)
       quant: single GGUF quant (single-quant mode)
+      imatrix: bool (GGUF, multi-format mode) — measure an importance matrix on the run's training text and
+               quantize with it; files go to ``<output>/gguf-imatrix/`` beside the plain ones
     """
     body: object = {}
     if request.headers.get("content-type", "").startswith("application/json"):
@@ -187,16 +189,21 @@ async def export_run(pid: str, rid: str, request: Request):
 
     # AWQ and GPTQ are not supported formats; they are refused here with the
     # clear removal message (not a generic "unsupported").
+    imatrix = body.get("imatrix", False)
+    if not isinstance(imatrix, bool):
+        return _err("imatrix must be true or false")
     use_multi = (
         "quants" in body
+        or imatrix
         or fmt in ("abliterated", "merged", "awq", "gptq")
         or bool(body.get("force")) and "quant" not in body
     )
     if use_multi:
         quants_raw = body.get("quants")
         quants = [str(q) for q in quants_raw] if isinstance(quants_raw, list) else None
-        refused = validate_export_request(
-            run, fmt=fmt, quants=quants, force=bool(body.get("force", False)),
+        refused = await asyncio.to_thread(  # reads the run's dataset when imatrix is on: never on the loop
+            validate_export_request, run, fmt=fmt, quants=quants, force=bool(body.get("force", False)),
+            imatrix=imatrix,
         )
         if refused is not None:
             payload = ExportResult.from_raw(refused).model_dump(exclude_none=False)
@@ -208,7 +215,8 @@ async def export_run(pid: str, rid: str, request: Request):
         return _start(
             pid, rid, fmt=fmt, quant=label, quants=quants,
             work=("multi_export_work", {"run": run, "fmt": fmt, "quants": quants,
-                                        "force": bool(body.get("force", False)), "base_model": base_model}),
+                                        "force": bool(body.get("force", False)), "base_model": base_model,
+                                        "imatrix": imatrix}),
         )
 
     if fmt != "gguf":

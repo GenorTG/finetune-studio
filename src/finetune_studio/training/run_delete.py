@@ -7,7 +7,7 @@ delete did before 2026-10-01. Both routes (``/api/projects/{pid}/runs/{rid}`` an
 
 What is removed on disk: the run's ``output_path`` directory, and only when it is this run's own directory
 (``output/.../runs/<rid>`` or any ``<...>/<rid>`` under the ``output`` root). A custom ``output_dir`` shared by
-several runs (``POST /runs/{id}/set-output`` accepts any path) is kept and the response says so: deleting one
+several runs (an older ``output_dir`` setting could point anywhere) is kept and the response says so: deleting one
 run must never take another run's weights with it.
 
 A run whose training or export job is still alive is not deleted (:class:`RunBusy`, a 409): stop the job first.

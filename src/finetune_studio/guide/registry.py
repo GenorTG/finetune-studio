@@ -157,6 +157,7 @@ def _controls() -> dict[str, Control]:
         # export
         ("export.runs", "export", "#export-runs", "Training runs"),
         ("export.gguf_quants", "export", "#gguf-quants", "GGUF quantizations"),
+        ("export.gguf_imatrix", "export", "#gguf-imatrix", "Importance matrix (imatrix)"),
         ("export.start", "export", "#export-btn", "Export selected"),
         ("export.trained_exports", "export", "#trained-exports-table", "Trained exports"),
         # wizard

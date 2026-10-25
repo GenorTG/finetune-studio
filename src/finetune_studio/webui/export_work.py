@@ -14,7 +14,6 @@ from __future__ import annotations
 import logging
 import os
 import shutil
-from time import time
 
 from finetune_studio import db
 from finetune_studio.training import export_job
@@ -69,15 +68,16 @@ def multi_export_work(
     quants: list[str] | None,
     force: bool,
     base_model: str | None,
+    imatrix: bool = False,
 ) -> Work:
-    """GGUF (multi-quant) / abliterated / merged export of ``run``."""
+    """GGUF (multi-quant, optionally with an importance matrix) / abliterated / merged export of ``run``."""
 
     def work(ctx: export_job.ExportContext) -> None:
         from finetune_studio.training.run_export import export_trained_run
 
         _release_gpu_caches()
         raw = export_trained_run(
-            run, fmt=fmt, quants=quants, force=force, base_model=base_model,
+            run, fmt=fmt, quants=quants, force=force, base_model=base_model, imatrix=imatrix,
         )
         # Always coerce through ExportResult so numpy/tensors cannot break the
         # row writer after a successful GPU merge/abliteration.
@@ -213,56 +213,5 @@ def single_quant_work(
             log.info("auto-merge for export: %s", merged_dir)
         os.makedirs(os.path.dirname(out_path), exist_ok=True)
         run_single_quant_gguf(eid, merged_dir, out_path, quant)
-
-    return work
-
-
-def imatrix_work(
-    eid: str,
-    *,
-    run: dict,
-    merged_dir: str,
-    output_dir: str,
-    imatrix_path: str,
-    quants: list[str],
-    bits: int,
-    group_size: int,
-) -> Work:
-    """imatrix-weighted GGUF quantization of the run's merged model."""
-
-    def work(ctx: export_job.ExportContext) -> None:
-        from finetune_studio.db.connection import cursor, new_id
-        from finetune_studio.training.advanced_quant import quantize_gguf_imatrix
-
-        result = quantize_gguf_imatrix(
-            model_path=merged_dir, output_dir=output_dir,
-            imatrix_path=imatrix_path, quants=quants,
-        )
-        if result.get("error"):
-            raise RuntimeError(str(result["error"]))
-        exported = result.get("exported") or {}
-        failed = {q: v["error"] for q, v in exported.items() if v.get("error")}
-        if not exported or len(failed) == len(exported):
-            detail = "; ".join(f"{q}: {e}" for q, e in failed.items())
-            raise RuntimeError(f"imatrix quantization produced no files ({detail})")
-        ctx.phase(export_job.PHASE_FINALIZING, "registering the quantized files")
-        size = int(result.get("size_bytes") or 0)
-        with cursor() as c:
-            c.execute(
-                "INSERT INTO quant_exports (id, run_id, project_id, model_path, "
-                "output_path, method, bits, group_size, size_bytes, status, created_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (new_id(), run["id"], run.get("project_id", ""), merged_dir,
-                 output_dir, "imatrix", bits, group_size, size, "done", time()),
-            )
-        note = f"{len(failed)} of {len(exported)} quants failed: {failed}" if failed else ""
-        db.update_export(eid, error=note[:1000])
-        db.mark_export_done(
-            eid, output_path=result.get("output_dir") or output_dir,
-            size_bytes=size, size_human=human_size(size),
-        )
-        if failed:
-            # mark_done leaves ``error`` alone, so the partial-failure note stays.
-            log.warning("imatrix export %s: %s", eid, note)
 
     return work

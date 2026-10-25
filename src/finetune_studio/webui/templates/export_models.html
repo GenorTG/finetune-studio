@@ -142,6 +142,13 @@
       </label>
       {% endfor %}
     </div>
+    <label class="flex items-start gap-1 mt-2 text-xs" for="gguf-imatrix">
+      <input type="checkbox" id="gguf-imatrix" class="mt-1" {% if not caps.imatrix %}disabled title="{{ caps.imatrix_hint }}"{% endif %}>
+      <span><b>Importance matrix (imatrix)</b>{% if not caps.imatrix %} <span class="pill outline">unavailable</span>{% endif %}
+        <span class="dim">— before quantizing, measure which weights this run&rsquo;s training data relies on and keep
+        those more precise: better q4/q3/q2 quality at the same file size, a few minutes extra. The files go to
+        <code>gguf-imatrix/</code> beside the plain ones; f16 and q8_0 are written without it.</span></span>
+    </label>
   </div>
 
   <div class="p-2 pt-0 flex items-center gap-2">
@@ -386,7 +393,7 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
   // ── controls ──
   const lockable = () => Array.from(document.querySelectorAll(
     '#export-btn, #export-force, #export-base-model, input[name="export-run"], ' +
-    'input[name="export-format"], input[name="gguf-quant"]'));
+    'input[name="export-format"], input[name="gguf-quant"], #gguf-imatrix'));
   function setLocked(locked, hint) {
     lockable().forEach((el) => {
       if (locked && !el.disabled) { el.disabled = true; el.dataset.jobLock = '1'; }
@@ -598,7 +605,10 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
     const force = $('export-force').checked;
     const queue = formats.map((fmt) => {
       const body = { format: fmt, force };
-      if (fmt === 'gguf') body.quants = quants;
+      if (fmt === 'gguf') {
+        body.quants = quants;
+        if ($('gguf-imatrix').checked) body.imatrix = true;   // server refuses with the reason if no quant uses it
+      }
       if (baseModel) body.base_model = baseModel;
       return { format: fmt, body };
     });
