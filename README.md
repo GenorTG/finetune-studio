@@ -207,6 +207,11 @@ What I take from it:
 - **A fine-tuned model stops saying "I don't know".** The base model declines questions its documents don't
   cover; after fact training it invents a confident answer for all 20. Adding 240 example declines to the
   training data only brought that to 2 of 20.
+- **Fact training costs some general skill.** Asked the same seeded questions as the base model, a fact
+  adapter followed instructions worse (IFEval 83 % -> 68-70 %, clearly more questions lost than gained) and
+  dropped about 6 points on MMLU. Mixing in 30 % of the base model's own answers to general prompts (the
+  replay option on the Training page) kept IFEval at 83 % but cut fact recall from 53 to 37 of 102, so it is
+  a trade-off and off by default.
 - **For facts, the Smart Brain wins clearly**: up to 97 of 102 with sources, and it declines correctly.
   So the app recommends the Smart Brain for "know my documents" and an adapter for "answer in this style".
 
