@@ -9,6 +9,14 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-25
+
+First tagged release (beta, Linux only). What the app does at this point, each part measured on the fictional Korvane
+corpus (`tests/corpus/korvane/RESULTS.md`): Files & Knowledge (upload, parse, OCR, Vision reader) → per-file mining
+into reviewed question/answer pairs → LoRA / QLoRA training (study set, replay) → Testing with an AI judge, paired
+Compare (McNemar) and IFEval / MMLU benchmarks → Smart Brain retrieval and chat → GGUF export. Earlier builds were
+numbered `0.1.0.N`, one per commit.
+
 ### Added
 - Release system: `VERSION` holds the SemVer of the release line, `scripts/release.py` (`make release-prepare`,
   `make release-finish`) cuts `release/vX.Y.Z` from `dev`, and a pushed `vX.Y.Z` tag on `main` becomes a GitHub
@@ -35,3 +43,6 @@ turns that section into the release's notes.
 - The legacy `/api/data/{upload,validate,dedup,analyze,convert,hallucination-check}` routes: nothing in the UI or
   CLI called them (project files go through Files & Knowledge and Data prep; `fts analyze` / `fts validate-hallucination`
   are unchanged). Unused code: `templates.TemplateManager`, `HallucinationGuardrail` and a few helpers nothing called.
+
+[Unreleased]: https://github.com/GenorTG/finetune-studio/compare/v0.2.0...dev
+[0.2.0]: https://github.com/GenorTG/finetune-studio/releases/tag/v0.2.0
