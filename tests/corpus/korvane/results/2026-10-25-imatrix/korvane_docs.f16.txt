@@ -1,0 +1,2 @@
+perplexity: calculating perplexity over 40 chunks, n_ctx=512, batch_size=2048, n_seq=4
+Final estimate: PPL = 4.0472 +/- 0.11389

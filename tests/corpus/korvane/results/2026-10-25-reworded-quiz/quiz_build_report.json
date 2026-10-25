@@ -1,0 +1,20 @@
+{
+ "name": "heldout-reworded-korvane_golden_2491",
+ "path": "<FTS_ROOT>/projects/<pid>/suites/heldout-reworded-korvane_golden_2491.json",
+ "label": "held-out facts, new wording · korvane_golden_2491 (188 cases)",
+ "case_count": 188,
+ "dataset": {
+  "id": "972d6225",
+  "name": "korvane_golden_2491"
+ },
+ "heldout_rows": 250,
+ "facts": 250,
+ "skipped_grounded": 0,
+ "calls_failed": 0,
+ "kept": 188,
+ "dropped": {
+  "question_lost_name": 3,
+  "question_same_wording": 1,
+  "question_lost_value": 8
+ }
+}
