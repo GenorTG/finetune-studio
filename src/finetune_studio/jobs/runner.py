@@ -27,6 +27,7 @@ KINDS: dict[str, str] = {
     "testrun": "finetune_studio.jobs.kinds.testrun:run",
     "judge": "finetune_studio.jobs.kinds.judge:run",
     "compare": "finetune_studio.jobs.kinds.compare:run",
+    "usecase_ab": "finetune_studio.jobs.kinds.usecase_ab:run",
     "mining": "finetune_studio.jobs.kinds.mining:run",
     "download": "finetune_studio.jobs.kinds.download:run",
     "brain_build": "finetune_studio.jobs.kinds.brain_build:run",

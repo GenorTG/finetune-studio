@@ -51,7 +51,8 @@ from finetune_studio.testing.suite import BenchmarkCase, CaseResult, run_suite
 log = logging.getLogger(__name__)
 
 KIND_RUN, KIND_JUDGE, KIND_COMPARE = "testrun", "judge", "compare"
-_KINDS = (KIND_RUN, KIND_JUDGE, KIND_COMPARE)
+KIND_USECASE_AB = "usecase_ab"  # style A/B judge of a use-case evaluation (usecases.evaluate)
+_KINDS = (KIND_RUN, KIND_JUDGE, KIND_COMPARE, KIND_USECASE_AB)
 _PREFIXES = tuple(f"{k}-" for k in _KINDS)
 STOP_GRACE_S = 60.0                 # a question or a judge call in flight finishes, then the job stops
 _STOP_MARK = "stop_requested"       # in the job folder: the page shows "stopping"
@@ -343,6 +344,10 @@ def run_in_job(ctx: Any) -> dict[str, Any]:
     except Exception as exc:
         log.exception("test run %s failed", bid)
         status, error = "failed", str(exc)
+    if status == "done":
+        from finetune_studio.usecases.evaluate import apply_scoring
+
+        apply_scoring(bid, spec.config)  # extraction / classification suites are scored by code, not judged
     try:
         run_store.finish_run(bid, status=status, time_ms=int((time.time() - t0) * 1000), error=error,
                              extra_scores=extra)

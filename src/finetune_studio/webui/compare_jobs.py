@@ -126,6 +126,10 @@ def run_in_job(ctx: Any) -> dict[str, Any]:
                 _run_one(spec, model, bid, row["owner_run_id"], stop)
                 if stop.is_set():
                     status = "cancelled"
+                else:
+                    from finetune_studio.usecases.evaluate import apply_scoring
+
+                    apply_scoring(bid, spec.config)  # extraction / classification: scored by code, not judged
             except Exception as exc:
                 log.exception("compare %s: model %s failed", group_id, model.label)
                 status, error = "failed", str(exc)
