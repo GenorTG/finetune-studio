@@ -591,3 +591,55 @@ orders), `security` → `tier1-support` 6 (how-to questions about 2FA and passwo
 run had none. Easy synthetic data: this proves the flow and that the held-out comparison sees a real difference, not how a
 use case does on messy real tickets. Found and fixed on the way: the dataset check called one-word answers a problem for a
 use-case dataset; the dataset label repeated "254 rows"; p-values under 0.001 printed as 0.000.
+
+## 24. Reworded held-out quiz, live: Korvane golden pairs, Qwen3.5-9B (2026-10-25, throwaway project `rq-live-20261025` a0a005c9, deleted after; results in `results/2026-10-25-reworded-quiz/`)
+
+First live run of **Testing → Build a reworded quiz** on the service (:7860, `dev` 989ca09), through the endpoints the page
+calls. Data: the 2,491 reviewed golden pairs as one SFT dataset (`messages`, `source_id`, `chunk_idx`; no `pair_id`), so the
+trainer's own split holds out 250 rows (10 %, seed 42) and their sibling phrasings stay in training.
+
+| Step | Result |
+|---|---|
+| Training (QLoRA preset, max seq 1024, adapter only) | 4-bit picked automatically; 843 steps in ~19 min, final loss 0.185 |
+| Quiz build (helper: local Gemma 4 12B QAT, seated on Inference first) | 250 held-out facts, first 200 reworded, **188 kept** in 2 min; dropped: lost a value 8, lost a name 3, same wording 1; 0 failed calls |
+| Answers (temp 0.3, 512 tokens; trained = merged export 17.9 GB, base = `__base__`) | trained 1.1 s/question; base ~11 s (long generic answers) |
+| Judge (default `api-helper`, deepseek-v4.1-flash, auto) | trained **21 pass / 12 partial / 155 fail (11.2 %)**; base **5 / 7 / 176 (2.7 %)** |
+| Paired (exact McNemar on pass) | trained-only 20, base-only 4, **p = 0.0015** |
+
+What the 21 trained passes rest on (heuristic: the answer's value tokens appear in a training row from the same chunk): 12 of
+the 50 facts with such a sibling pass (24 %), 9 of the 138 without one (6.5 %). The quiz measures transfer from sibling
+phrasings, not new facts. Trained misses are confident and specific (wrong value, no "not in the documents"), same as §20.
+One reworded question added a premise ("the **second** review meeting"); the gates check values and names, not added premises.
+
+Findings on the way: without a loaded helper the build refuses with 409 `no_model` naming the helper to load (honest);
+`POST /api/testing/run-suite` accepts a raw run folder (adapter + checkpoints, no tokenizer at the root) and fails only inside the
+job (tokenizer error). The page never offers that path (it lists merged/GGUF exports and the base), so it is API-only.
+
+## 25. Importance-matrix GGUF export, live: same run, Q4_K_M plain vs imatrix (2026-10-25, project a0a005c9, deleted after; results in `results/2026-10-25-imatrix/`)
+
+First live run of the Export page's **Importance matrix (imatrix)** option (`dev` 71d2b26) on §24's trained run (merged
+Qwen3.5-9B). The calibration text is the run's training file (2,491 Q/A pairs, 300 KB); `llama-imatrix` measured 128 chunks of
+512 tokens on the f16 intermediate with `--fit on`, inheriting the service's pin to the RTX 3090 (GTX 1070 untouched).
+
+| Step | Time |
+|---|---|
+| HF → f16 GGUF | < 1 min |
+| Measure the importance matrix (GPU, ~16.5 GB of the f16 model offloaded by `--fit`) | ~2 min |
+| Quantize Q4_K_M with `--imatrix` (CPU) | ~5 min |
+| Whole job (Export page endpoint, one tracked export) | 8.1 min; `gguf-imatrix/model-q4_k_m.gguf` 5.2 GB + `imatrix.dat` 5 MB; f16 intermediate and calibration file removed |
+
+Quality: KL divergence of each Q4_K_M against the f16 logits (`llama-perplexity --kl-divergence`, 40 x 512 tokens), on two
+texts that were **not** calibration text: the raw Korvane source documents (in-domain prose, the facts' origin) and six public
+docs of this repo (general technical English).
+
+| Text (f16 PPL) | Q4_K_M | Mean KLD | 99 % KLD | Same top token | RMS Δp |
+|---|---|---|---|---|---|
+| Korvane documents (4.05) | plain | 0.0315 | 0.339 | 94.4 % | 4.36 % |
+| | **imatrix** | **0.0196 (−38 %)** | **0.197** | **95.4 %** | **3.40 %** |
+| Repo docs (21.6) | plain | 0.0833 | 0.609 | 86.7 % | 6.90 % |
+| | **imatrix** | **0.0468 (−44 %)** | **0.323** | **89.9 %** | **5.08 %** |
+
+Same file size, clearly closer to the full model on both texts, the larger gain on text unlike the calibration data. One
+model, one quant: q3/q2 (where imatrix matters most) were not measured. Browser check on a sandbox: the option sits under
+the quant list, is disabled with the reason when `llama-imatrix` is missing, and a run without its training file is refused
+with "this run's training data file is missing or empty…" shown on the page.
