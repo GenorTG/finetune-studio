@@ -1,0 +1,49 @@
+name: release
+
+# A pushed vX.Y.Z tag (scripts/release.py finish) becomes a GitHub Release: the tag must sit on main and
+# agree with VERSION, pyproject and its CHANGELOG section (release.py verify-tag); the sdist + wheel are
+# built from the tag and attached; the notes are that CHANGELOG section. 0.x and -rc/-beta tags are marked
+# pre-release (1.0.0 is the first stable Linux release). Tags are immutable (ruleset "release tags").
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - name: Verify tag, VERSION, pyproject, CHANGELOG
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          git fetch --no-tags origin main
+          python3 scripts/release.py verify-tag "$TAG" --main-ref origin/main
+      - name: Build sdist + wheel
+        run: uv build --out-dir dist
+      - name: Publish the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          python3 scripts/release.py notes "$TAG" > notes.md
+          printf '\n\n---\nLinux install: `git clone --branch %s https://github.com/%s && cd finetune-studio && bash install.sh`.\nAn existing clone on `main`: `bash update.sh`. The wheel/sdist are for packaging; `install.sh` pins the GPU stack.\n' "$TAG" "$GITHUB_REPOSITORY" >> notes.md
+          pre=""   # same rule as finetune_studio.version.is_prerelease: 0.x or a -suffix
+          case "${TAG#v}" in 0.*|*-*) pre="--prerelease" ;; esac
+          (cd dist && sha256sum * > SHA256SUMS)
+          gh release create "$TAG" dist/* --verify-tag --title "Finetune Studio $TAG" --notes-file notes.md $pre

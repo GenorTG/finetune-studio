@@ -112,28 +112,26 @@ async def health():
 async def version():
     """Exact build identity of the running service.
 
-    ``version`` is MAJOR.MINOR.PATCH.BUILD from the repo VERSION file — the
-    pre-commit hook bumps BUILD every commit, so this pins the deployed code
-    to one commit. ``git_commit`` is the short SHA when git metadata exists.
+    ``version`` is the build string (``1.2.3`` on a tagged release, ``1.2.3+<branch>.<sha8>`` in a
+    dev checkout), ``release`` the SemVer from VERSION, ``git_commit`` the short SHA. All of it is
+    re-read per request (from files, no subprocess), so a long-lived service never reports the
+    build it booted with.
     """
-    from pathlib import Path
+    from finetune_studio.version import (
+        build_version,
+        git_info,
+        is_prerelease,
+        release_channel,
+        release_version,
+    )
 
-    from finetune_studio import __release_channel__, build_version
-
-    # Anchored to the package, not the cwd; VERSION is re-read per request so a
-    # long-lived service never reports the build it booted with.
-    git_dir = Path(__file__).resolve().parents[4] / ".git"
-    commit = ""
-    try:
-        head = git_dir / "HEAD"
-        if head.is_file():
-            ref = head.read_text(encoding="utf-8").strip()
-            if ref.startswith("ref:"):
-                refpath = git_dir / ref.split(": ", 1)[1]
-                if refpath.is_file():
-                    commit = refpath.read_text(encoding="utf-8").strip()[:8]
-            else:
-                commit = ref[:8]  # detached HEAD
-    except OSError:
-        pass
-    return {"version": build_version(), "channel": __release_channel__, "git_commit": commit}
+    release = release_version()
+    info = git_info()
+    return {
+        "version": build_version(),
+        "release": release,
+        "channel": release_channel(release),
+        "prerelease": is_prerelease(release),
+        "git_commit": info.commit[:8],
+        "git_branch": info.branch,
+    }

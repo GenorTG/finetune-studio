@@ -1,0 +1,40 @@
+name: branch-policy
+
+# The required `branch-policy` check on every PR into main or dev (rules: scripts/branch_policy.py,
+# CONTRIBUTING.md "Branches"): main takes only release/vX.Y.Z and hotfix/vX.Y.Z with a matching VERSION
+# and CHANGELOG section; dev takes <type>/<slug>, sync/vX.Y.Z and dependabot/*, never a VERSION change.
+# Branch names and labels reach the script through env, never interpolated into the shell.
+
+on:
+  pull_request:
+    branches: [main, dev]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+
+permissions: {}
+
+concurrency:
+  group: branch-policy-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  branch-policy:
+    name: branch-policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Check the PR against the branch rules
+        env:
+          BASE: ${{ github.event.pull_request.base.ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          python3 scripts/branch_policy.py --base "$BASE" --head "$HEAD_REF" \
+            --base-ref "$BASE_SHA" --head-ref HEAD --labels "$LABELS"
