@@ -2,8 +2,8 @@
 
 The helper does the tedious model work (mining Q&A, suite generation, preference pairs, the Guide).
 Settings → "Helper model" picks who holds that seat: the local GGUF on this machine (default) or an
-OpenAI-compatible API provider the user connected. The API key is write-only: it is stored in the
-local provider DB (never in the repo) and no endpoint returns it.
+OpenAI-compatible API provider the user connected. The API key is write-only: it is stored encrypted
+in the local provider DB (``access.vault``, never in the repo) and no endpoint returns it.
 """
 from __future__ import annotations
 
@@ -99,6 +99,7 @@ def _public_state() -> dict[str, Any]:
             "base_url": (api or {}).get("base_url", ""),
             "model": (api or {}).get("model_id", ""),
             "key_set": bool((api or {}).get("api_key_set")),
+            "key_state": (api or {}).get("api_key_state") or "unset",
             "reasoning_effort": str((extra.get("body") or {}).get("reasoning_effort") or ""),
             "preset": str(extra.get("preset") or ""),
             "concurrency": _stored_concurrency(extra),

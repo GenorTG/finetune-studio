@@ -1,6 +1,13 @@
 /* ============================================================
    Settings page — debug info loader + tutorial replay
    ============================================================ */
+// Saved API keys are encrypted at rest; "unreadable" means the vault key was lost and the key must be entered again.
+// Top level: the helper and vision cards below are wired outside the debug-info closure.
+function keyStateText(a) {
+  if (a.key_state === 'unreadable') return '(saved key unreadable: enter it again)';
+  return a.key_set ? '(saved, encrypted)' : '(not set)';
+}
+
 (async function () {
   const $ = (id) => document.getElementById(id);
 
@@ -355,7 +362,7 @@ function wireHelper() {
     $('helper-api-effort').value = h.api.reasoning_effort || '';
     $('helper-api-concurrency').value = h.api.concurrency || '';
     $('helper-api-key').value = '';
-    $('helper-key-state').textContent = h.api.key_set ? '(set)' : '(not set)';
+    $('helper-key-state').textContent = keyStateText(h.api);
     showFields();
   }
 
@@ -446,7 +453,7 @@ function wireVision() {
     $('vision-api-url').value = v.api.base_url || '';
     $('vision-api-model').value = v.api.model || '';
     $('vision-api-key').value = '';
-    $('vision-key-state').textContent = v.api.key_set ? '(set)' : '(not set)';
+    $('vision-key-state').textContent = keyStateText(v.api);
     showFields();
     setStatus('Current: ' + v.label);
   }

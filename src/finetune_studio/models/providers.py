@@ -6,8 +6,8 @@ The `ModelManager` enforces one local model loaded at a time — when a new
 local model is requested, the previous one is unloaded first. Embeddings
 have their own resident model that is never unloaded.
 
-Providers are configured in `model_providers` table and stored as plain rows;
-API keys live in that table (or env vars for server-side use).
+Providers are configured in the `model_providers` table; API keys live there
+encrypted (``access.vault``), or in env vars for server-side use.
 """
 
 from __future__ import annotations
