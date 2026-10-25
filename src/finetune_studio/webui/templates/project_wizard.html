@@ -456,7 +456,14 @@
     ["wiz-version-parent", "flow-version-parent"].forEach(function (sid) {
       var sel = document.getElementById(sid);
       if (!sel) return;
+      /* Default: the newest version, so each pin continues the line. A pick the user made since the last pin
+         (another version, or "nothing") is kept across refreshes; pinning clears it. */
       var keep = sel.value;
+      var picked = sel.dataset.userPicked === "1" && (keep === "" || byId[keep]);
+      if (!sel.dataset.pickWired) {
+        sel.dataset.pickWired = "1";
+        sel.addEventListener("change", function () { sel.dataset.userPicked = "1"; });
+      }
       while (sel.options.length > 1) sel.remove(1);
       vs.forEach(function (v) {
         var o = document.createElement("option");
@@ -464,7 +471,7 @@
         o.textContent = "builds on: " + versionName(v);
         sel.appendChild(o);
       });
-      sel.value = keep && byId[keep] ? keep : (vs.length ? vs[0].id : "");
+      sel.value = picked ? keep : (vs.length ? vs[0].id : "");
     });
     var wrap = document.getElementById("wiz-versions");
     var body = document.querySelector("#wiz-versions-table tbody");
@@ -931,6 +938,10 @@
     if (parentSel && parentSel.value) body.parent_version_id = parentSel.value;
     post("/api/projects/" + PID + "/versions", body)
       .then(function (v) {
+        ["wiz-version-parent", "flow-version-parent"].forEach(function (sid) {
+          var s = document.getElementById(sid);
+          if (s) delete s.dataset.userPicked;   /* the next pin builds on this new version again */
+        });
         line("Version v" + v.version_number + " pinned.");
         wizRefresh("version");
       })

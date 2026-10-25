@@ -27,6 +27,8 @@ turns that section into the release's notes.
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
 ### Fixed
+- Quick work, Step 6: after pinning a version, **Builds on** moves to that new version, so the next pin continues
+  the line instead of branching from the one before.
 - Testing / Compare: picking a folder no loader can open (a training run's own folder, with only `adapter/` and
   checkpoints) is refused at once with what to do (export the run first), instead of starting a run that failed
   inside the job with a tokenizer error.
