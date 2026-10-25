@@ -1,6 +1,6 @@
 name: CI
 
-# Lint + codemap and an `install.sh --plan` smoke (Linux + macOS) run beside the test suite, which is split
+# Lint + codemap and an `install.sh --plan` smoke run beside the test suite, which is split
 # over 5 CPU-only shards. `ci-ok` aggregates everything into one check so branch protection needs only that.
 # No GPU job: GPU paths are proven on real hardware (see docs/DESIGN.md); tests/test_vram.py (real model on a
 # GPU) and the standalone playwright scripts are excluded in scripts/ci_shard.py with their reasons.
@@ -61,20 +61,15 @@ jobs:
       - name: Codemap
         run: make codemap-check
 
-  # `bash install.sh --plan` against fake hardware (FTS_ACCEL_FIXTURE): NVIDIA / AMD / Intel / Apple / none,
-  # plus the --cpu and --gpu overrides. Needs no venv or torch, so it finishes in seconds and fails fast; the
-  # macOS leg runs the installer under bash 3.2, which no other job does (tests/test_accel_plan.py covers the
-  # Linux vendors inside the shards, not Apple and not bash 3.2).
+  # `bash install.sh --plan` against fake hardware (FTS_ACCEL_FIXTURE): every vendor fixture plus the --cpu and
+  # --gpu overrides. Needs no venv or torch, so it finishes in seconds and fails fast. Linux only: no other
+  # platform is supported before 1.0.0 (CONTRIBUTING.md).
   plan-smoke:
-    name: install.sh --plan (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
+    name: install.sh --plan
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
