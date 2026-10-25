@@ -1,6 +1,13 @@
 /* ============================================================
    Settings page — debug info loader + tutorial replay
    ============================================================ */
+// Saved API keys are encrypted at rest; "unreadable" means the vault key was lost and the key must be entered again.
+// Top level: the helper and vision cards below are wired outside the debug-info closure.
+function keyStateText(a) {
+  if (a.key_state === 'unreadable') return '(saved key unreadable: enter it again)';
+  return a.key_set ? '(saved, encrypted)' : '(not set)';
+}
+
 (async function () {
   const $ = (id) => document.getElementById(id);
 
@@ -12,12 +19,6 @@
 
   function row(label, value) {
     return `<div class="debug-label">${label}</div><div class="debug-value">${value || "—"}</div>`;
-  }
-
-  // Saved API keys are encrypted at rest; "unreadable" means the vault key was lost and the key must be entered again.
-  function keyStateText(a) {
-    if (a.key_state === 'unreadable') return '(saved key unreadable: enter it again)';
-    return a.key_set ? '(saved, encrypted)' : '(not set)';
   }
 
   function humanBytes(n) {
