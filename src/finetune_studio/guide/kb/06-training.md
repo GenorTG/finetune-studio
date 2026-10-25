@@ -8,6 +8,7 @@ keywords: train training start base model dataset preset smoke balanced precisio
 Teach a base model your dataset. Hours, not minutes for large bases; the page keeps live progress and survives reloads.
 
 ## Workflow
+0. For extraction, classification, house style or distilling a big model, start from a use case (see use-cases): the **Start from a use case** card builds the dataset and a held-out test and fills this form.
 1. Pick a **Training route** (see training-routes). SFT is the default for Q&A pairs.
 2. Pick the **Base model** (Transformers/safetensors only; GGUF is inference-only).
 3. Pick data: **From this project** (the dataset exported on Pairs) or **Upload my own** (JSONL/JSON/CSV). Picking one runs the dataset check; Start stays disabled until a dataset is chosen.
@@ -16,6 +17,7 @@ Teach a base model your dataset. Hours, not minutes for large bases; the page ke
 6. Watch **Live status** (step, loss, ETA). Afterwards: Testing, then Export; set a run as production from Past runs.
 
 ## Key controls
+- `#uc-card` — Start from a use case (see use-cases).
 - `#train-form` — the training form.
 - `#train-base-model` — base model dropdown.
 - `#dataset-select` — registered project datasets.

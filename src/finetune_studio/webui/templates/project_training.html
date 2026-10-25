@@ -109,6 +109,70 @@
 </div>
 {% endif %}
 
+{# ── Use cases (usecases/ API, plan §7.6): build a dataset + held-out test from a template, fill the form,
+   then compare a finished run with its untrained base. Logic: static/js/usecases.js. ── #}
+<div class="card mb-6" id="uc-card" data-pid="{{ pid }}">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Start from a use case</div>
+      <div class="card-sub">Jobs a LoRA does well: extraction, classification, house style, distilling a big model.
+        Upload examples; the app checks them, keeps a fair held-out test, fills the form below with settings sized to
+        your data, and after training compares the run with its untrained base on that test.</div>
+    </div>
+  </div>
+  <div id="uc-list" aria-live="polite"><div class="text-xs muted">Loading use cases…</div></div>
+  <details id="uc-new" class="mt-3">
+    <summary class="text-sm">New use case…</summary>
+    <div class="grid grid-2 gap-4 mt-2">
+      <label>
+        <span class="block text-xs muted mb-1">Template</span>
+        <select id="uc-template" class="select" aria-label="Use-case template"></select>
+      </label>
+      <label>
+        <span class="block text-xs muted mb-1">Name</span>
+        <input type="text" id="uc-name" class="input" placeholder="e.g. Ticket routing" maxlength="80">
+      </label>
+      <div class="grid-full text-xs" id="uc-template-help"></div>
+      <label class="grid-full">
+        <span class="block text-xs muted mb-1">Examples file (.jsonl: one example per line, or a .json list)</span>
+        <input type="file" id="uc-file" accept=".jsonl,.json" class="input">
+      </label>
+      <label class="grid-full" data-uc-opt="instruction">
+        <span class="block text-xs muted mb-1">Instruction (the system turn of every training row and of the test; empty = the template's)</span>
+        <textarea id="uc-instruction" class="textarea" rows="2"></textarea>
+      </label>
+      <label class="grid-full" data-uc-opt="labels" hidden>
+        <span class="block text-xs muted mb-1">Labels, comma separated (empty = every label in the file)</span>
+        <input type="text" id="uc-labels" class="input">
+      </label>
+      <label class="grid-full" data-uc-opt="schema" hidden>
+        <span class="block text-xs muted mb-1">JSON schema the outputs must follow (optional)</span>
+        <textarea id="uc-schema" class="textarea mono" rows="3"></textarea>
+      </label>
+      <label class="grid-full" data-uc-opt="style_guide" hidden>
+        <span class="block text-xs muted mb-1">Style guide (optional; the untrained base gets it too, so the test is fair)</span>
+        <textarea id="uc-style-guide" class="textarea" rows="2"></textarea>
+      </label>
+      <label data-uc-opt="teacher_provider_id" hidden>
+        <span class="block text-xs muted mb-1">Teacher for missing answers (an API provider)</span>
+        <select id="uc-teacher" class="select" aria-label="Teacher provider">
+          <option value="">— the answers are in the file —</option>
+        </select>
+      </label>
+      <label data-uc-opt="teacher" hidden>
+        <span class="block text-xs muted mb-1">Teacher model name (recorded with the dataset)</span>
+        <input type="text" id="uc-teacher-name" class="input">
+      </label>
+    </div>
+    <div class="flex gap-2 mt-3 items-center wrap">
+      <button type="button" class="btn primary sm" id="uc-build-btn" disabled title="Pick a template and a file first">Check examples and build</button>
+      <span class="text-xs muted" id="uc-build-status" role="status"></span>
+    </div>
+    <div id="uc-build-result" class="text-xs mt-2" hidden aria-live="polite"></div>
+  </details>
+  <div id="uc-report" class="mt-3" hidden aria-live="polite"></div>
+</div>
+
 <div class="card mb-6">
   <div class="card-head">
     <div>
@@ -726,6 +790,26 @@
     return select;
   }
 
+  // The use-case card (static/js/usecases.js) picks its dataset through this hook, so the hidden fields, the
+  // dataset check and the Start button follow the same path as a manual pick.
+  window.ftsTraining = {
+    selectDataset(id, path, label) {
+      const picker = ensureDatasetSelect();
+      let opt = Array.from(picker.options).find((o) => o.value === id);
+      if (!opt) {
+        opt = document.createElement("option");
+        opt.value = id;
+        opt.setAttribute("data-path", path);
+        opt.textContent = label;
+        picker.insertBefore(opt, picker.options[1] || null);
+      }
+      opt.selected = true;
+      tabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === "project"));
+      panels.forEach((p) => p.classList.toggle("active", p.dataset.panel === "project"));
+      onDatasetPicked();
+    },
+  };
+
   // Deep-link from Data Prep: /training?dataset=latest | <dataset id>[&mode=dpo]
   // (must run after the change listener above is wired, or the hidden dataset fields stay empty)
   // Prefills that registered dataset (and the training route) so one click lands ready-to-run.
@@ -1309,4 +1393,6 @@
   }
 })();
 </script>
+<script src="/static/js/usecases.js?v=2"></script>
+<script>window.ftsUsecases && window.ftsUsecases.mount(document.getElementById("uc-card"));</script>
 {% endblock %}

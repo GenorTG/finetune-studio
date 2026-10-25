@@ -52,6 +52,9 @@ gh pr create --base dev --fill
 gh pr merge --squash --delete-branch        # after ci-ok and branch-policy are green
 ```
 
+**A feature ships with its UI.** An HTTP route, CLI command, MCP tool or any other programmatic entry point lands
+in the same PR as the web UI that drives it (and its Guide registry + KB entry). An API-only feature is not done.
+
 Commit messages: imperative, saying what changed and why, one logical change each.
 CHANGELOG lines are for users: what they can now do, or what no longer breaks.
 

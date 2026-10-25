@@ -9,6 +9,15 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+### Added
+- Training page: **Start from a use case**. Pick extraction, classification, house style or distillation, upload
+  examples, and the app checks every row (unusable ones are listed by row number), keeps a held-out test, fills the
+  training form with settings sized to the data, and after training compares the run with its untrained base on that
+  test (paired McNemar, or the blind A/B judge for style). `?usecase=<id>` opens the page with the form filled.
+
+### Changed
+- The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
+
 ## [0.2.0] - 2026-10-25
 
 First tagged release (beta, Linux only). What the app does at this point, each part measured on the fictional Korvane

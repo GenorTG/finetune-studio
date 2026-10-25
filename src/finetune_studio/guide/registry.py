@@ -109,6 +109,12 @@ def _controls() -> dict[str, Control]:
         ("brain.rerank_toggle", "brain", "#s-rerank-enabled", "Rerank toggle"),
         ("brain.hybrid_toggle", "brain", "#s-hybrid-enabled", "Hybrid toggle"),
         # training
+        ("training.usecases", "training", "#uc-card", "Start from a use case"),
+        ("training.usecase_new", "training", "#uc-new", "New use case form"),
+        ("training.usecase_template", "training", "#uc-template", "Use-case template"),
+        ("training.usecase_file", "training", "#uc-file", "Use-case examples file"),
+        ("training.usecase_build", "training", "#uc-build-btn", "Check examples and build"),
+        ("training.usecase_report", "training", "#uc-report", "Use-case evaluation and results"),
         ("training.route", "training", "#training-mode-help", "Training route help line"),
         ("training.base_model", "training", "#train-base-model", "Base model"),
         ("training.dataset_select", "training", "#dataset-select", "Project dataset picker"),
