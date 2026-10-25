@@ -223,7 +223,7 @@
     <li>· <b style="color:var(--accent)">Project versions</b> — immutable manifests pinning datasets + sources + corpora + runs + base model, with lineage</li>
     <li>· <b style="color:var(--accent)">Standalone Smart Brain</b> — the index ships as a self-installing tarball (MCP + HTTP, <code style="color:var(--amber)">setup.sh</code>, optional bundled embedder + reranker for fully offline semantic search)</li>
     <li>· <b style="color:var(--accent)">Parsed-text editor</b> — fix a bad parse in-app; corrections feed mining + the next Smart Brain build while raw bytes stay immutable</li>
-    <li>· <b style="color:var(--accent)">Per-commit build chip + Linux in-app update</b> — Settings → Apply update pulls, repairs, migrates, and restarts; Windows updates are manual</li>
+    <li>· <b style="color:var(--accent)">Versioned releases + Linux in-app update</b> — tagged SemVer releases with a changelog; Settings → Apply update pulls, repairs, migrates, and restarts</li>
     <li>· <b style="color:var(--accent)">Dark and light themes</b> — switch themes in the UI; regression checks cover theme and responsive behavior</li>
   </ul>
 </div></section>
@@ -297,7 +297,7 @@
 
 <section id="quickstart"><div class="wrap">
   <h2>QUICKSTART</h2>
-  <p class="lead">Linux and macOS use install.sh; native Windows uses install.ps1 or install.bat. Each installer selects a compatible accelerator stack.</p>
+  <p class="lead">Linux only (NVIDIA GPU or CPU) until the stable 1.0.0. install.sh selects a compatible accelerator stack.</p>
 <pre class="codeblock"><span class="p">$</span> git clone https://github.com/GenorTG/finetune-studio.git
 <span class="p">$</span> cd finetune-studio
 <span class="p">$</span> ./install.sh                    <span class="c"># detects hardware; starts on localhost by default</span>
@@ -310,7 +310,7 @@
   <h2>DOCS</h2>
   <div class="docs">
     <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/TUTORIAL.md"><b>TUTORIAL.md</b>your first model, end to end — workflow, tips, first-run pitfalls</a>
-    <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/INSTALL.md"><b>INSTALL.md</b>install on Linux / macOS / Windows, prerequisites, troubleshooting</a>
+    <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/INSTALL.md"><b>INSTALL.md</b>install on Linux, prerequisites, troubleshooting</a>
     <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/DEPENDENCIES.md"><b>DEPENDENCIES.md</b>every dep → where it's used, GPU-wheel story</a>
     <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/DEPLOYMENT.md"><b>DEPLOYMENT.md</b>service, update pipeline, generic ops notes</a>
     <a href="https://github.com/GenorTG/finetune-studio/blob/main/docs/ATTRIBUTIONS.md"><b>ATTRIBUTIONS.md</b>packages, versions, licenses</a>

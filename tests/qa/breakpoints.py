@@ -10,7 +10,7 @@ Run after `systemctl restart finetune-studio` to ensure the latest CSS
 is loaded.
 
 Usage:
-  python3 tests/test_breakpoints.py
+  python3 tests/qa/breakpoints.py
 """
 import os
 import re
@@ -18,7 +18,7 @@ import sys
 from pathlib import Path
 
 # Add repo root to path so we can import finetune_studio if needed
-REPO = Path(__file__).resolve().parent.parent
+REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
 
 from playwright.sync_api import sync_playwright

@@ -1,25 +1,22 @@
 # Deployment & Update Pipeline
 
-> How Finetune Studio is installed, run, and updated on Linux hosts. Windows has a separate installer and launcher; the Linux self-update and systemd steps below do not apply there.
+> How Finetune Studio is installed, run, and updated on Linux, the only supported platform until 1.0.0.
+> `main` holds the latest release (tagged `vX.Y.Z`, see [CHANGELOG](../CHANGELOG.md)); `update.sh` follows the branch the checkout is on.
 > The update pipeline is **self-healing**: a failed venv/deps state is repaired,
 > not just reported. Two triggers: shell (`./update.sh`) or the web UI
 > (**Settings → Updates** card, backed by `/api/system/update`).
 
 ## 1. First install
 
-Linux/macOS:
-
 ```bash
 git clone https://github.com/GenorTG/finetune-studio && cd finetune-studio
 ./install.sh            # GPU-aware, idempotent
 ```
 
-Windows PowerShell uses `install.ps1`; Command Prompt uses `install.bat`. Both launch the app with `run.bat`. The Windows installer/runtime has not been verified in the current Linux-hosted review.
-
 `install.sh` steps:
 1. **Accelerator detection** (`scripts/accel_plan.py`, shared by every installer) — NVIDIA
    (`nvidia-smi`, the driver's CUDA level + each GPU's compute capability), AMD (`rocm-smi`/
-   `rocminfo`/`/opt/rocm`), Intel (`sycl-ls`/`xpu-smi`/`clinfo`), Apple (Metal), plus
+   `rocminfo`/`/opt/rocm`), Intel (`sycl-ls`/`xpu-smi`/`clinfo`), plus
    `lspci`/sysfs for GPUs whose driver is missing (installs the GPU wheels anyway and prints
    the driver hint). CPU wheels only when no GPU of any vendor exists. Preview with
    `bash install.sh --plan`; override with `--gpu nvidia|amd|intel|none` or `--cpu`.

@@ -1,42 +1,26 @@
 #!/usr/bin/env bash
-# pre-commit: every commit gets a new build version (Genor's rule 2026-09-20).
-# VERSION = MAJOR.MINOR.PATCH.BUILD — BUILD increments once per commit, so the
-# UI chip / /api/system/version always pin the exact deployed code.
-#
-# This MUST be pre-commit, not commit-msg: git snapshots the commit tree
-# BEFORE commit-msg runs, so a bump staged there lands in the NEXT commit
-# (this bit us on eaf19d8 — the deployed file said 0.1.0.2, the tree 0.1.0.3).
-# pre-commit's `git add` is included in the commit being made.
-#
-# Escape hatches:
-#   - FTS_NO_BUMP=1 git commit …   → no bump (env var, not message token)
-#   - a commit that only touches VERSION → no bump (manual version resets)
+# pre-commit: branch rules (CONTRIBUTING.md "Branches"), enforced before GitHub's rulesets see anything.
+#   - no commits on main or dev: branch from dev (feat/…, fix/…, chore/…), PR back into dev
+#   - VERSION changes only on release/vX.Y.Z or hotfix/vX.Y.Z (scripts/release.py does the bump)
+# Emergency escape (never routine): FTS_ALLOW_PROTECTED_COMMIT=1 git commit …
 set -euo pipefail
 
-cd "$(git rev-parse --show-toplevel)"
+branch="$(git symbolic-ref --short -q HEAD || true)"
+[ "${FTS_ALLOW_PROTECTED_COMMIT:-0}" = "1" ] && exit 0
 
-if [ "${FTS_NO_BUMP:-0}" = "1" ]; then
-  exit 0
+case "$branch" in
+  main|dev)
+    echo "pre-commit: no commits on '$branch'. Branch from dev:" >&2
+    echo "  git switch dev && git pull --ff-only && git switch -c feat/<slug>   (or fix/, chore/, docs/ …)" >&2
+    exit 1 ;;
+esac
+
+if git diff --cached --name-only | grep -qx 'VERSION'; then
+  case "$branch" in
+    release/v*|hotfix/v*|sync/v*) ;;
+    *)
+      echo "pre-commit: VERSION changes only on release/hotfix branches (make release-prepare BUMP=…)." >&2
+      echo "  unstage it: git restore --staged VERSION && git checkout VERSION" >&2
+      exit 1 ;;
+  esac
 fi
-
-STAGED="$(git diff --cached --name-only)"
-[ -z "$STAGED" ] && exit 0
-if [ -z "$(printf '%s\n' "$STAGED" | grep -v '^VERSION$' || true)" ]; then
-  exit 0
-fi
-
-if [ ! -f VERSION ]; then
-  echo "pre-commit: VERSION file missing — creating 0.1.0.0" >&2
-  echo "0.1.0.0" > VERSION
-fi
-
-V="$(tr -d '[:space:]' < VERSION)"
-if ! printf '%s' "$V" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$'; then
-  echo "pre-commit: VERSION '$V' is not MAJOR.MINOR.PATCH.BUILD — fix it or use FTS_NO_BUMP=1" >&2
-  exit 1
-fi
-
-NEW="$(printf '%s' "$V" | awk -F. '{printf "%d.%d.%d.%d", $1, $2, $3, $4+1}')"
-printf '%s\n' "$NEW" > VERSION
-git add VERSION
-echo "pre-commit: build version $V -> $NEW"

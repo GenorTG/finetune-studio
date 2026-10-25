@@ -530,13 +530,6 @@ class RealBenchmarkSuite:
         self._dataset_loader = dataset_loader or _default_load_dataset
         os.makedirs(cache_dir, exist_ok=True)
 
-    def list_available(self) -> dict[str, str]:
-        """Human-readable catalog of supported real suites."""
-        return {
-            family: f"{spec.title} — {spec.dataset_id} {spec.split} "
-            f"({spec.official_case_count} official cases)"
-            for family, spec in REAL_SPECS.items()
-        }
 
     def load_split(self, family: RealFamily) -> Any:
         """Load the official split (or inject via ``dataset_loader``)."""

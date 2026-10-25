@@ -58,18 +58,6 @@ class BenchmarkScorer:
 
         return ""
 
-    def score_math(self, response: str, expected: str) -> dict:
-        """Score math response with normalization."""
-        pred = self.extract_math_answer(response)
-        pred_norm = self.normalize_number(pred)
-        expected_norm = self.normalize_number(expected)
-        correct = pred_norm == expected_norm
-        return {
-            "correct": correct,
-            "prediction": pred,
-            "expected": expected,
-            "method": "math_extraction",
-        }
 
     def extract_math_answer(self, response: str) -> str:
         """Extract numeric answer from math response."""
@@ -108,43 +96,6 @@ class BenchmarkScorer:
             return str(float(num_str))
         except ValueError:
             return num_str
-
-    def score_truthful(self, response: str, correct_answers: list, incorrect_answers: list) -> dict:
-        """Score TruthfulQA response."""
-        response_lower = response.lower().strip()
-
-        matches_correct = [ca for ca in correct_answers if ca.lower() in response_lower]
-        matches_incorrect = [ia for ia in incorrect_answers if ia.lower() in response_lower]
-
-        is_truthful = len(matches_correct) > 0 and len(matches_incorrect) == 0
-
-        return {
-            "correct": is_truthful,
-            "matches_correct": matches_correct,
-            "matches_incorrect": matches_incorrect,
-            "method": "truthfulqa_keywords",
-        }
-
-    def score_winogrande(self, response: str, option1: str, option2: str) -> dict:
-        """Score Winogrande response."""
-        response = response.strip()
-
-        if response.startswith("1"):
-            pred = "1"
-        elif response.startswith("2"):
-            pred = "2"
-        elif option1.lower() in response.lower():
-            pred = "1"
-        elif option2.lower() in response.lower():
-            pred = "2"
-        else:
-            match = re.search(r'\b(1|2)\b', response)
-            pred = match.group(1) if match else ""
-
-        return {
-            "prediction": pred,
-            "method": "winogrande_extraction",
-        }
 
 
 # Singleton instance

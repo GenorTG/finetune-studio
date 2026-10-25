@@ -435,7 +435,6 @@ from finetune_studio.webui.routes import (
     brain_export,
     chat_v2,
     comparison,
-    data,
     data_editor,
     data_prep,
     data_prep_chat,
@@ -448,7 +447,6 @@ from finetune_studio.webui.routes import (
     models,
     pages,
     projects,
-    quality,
     system,
     testing,
     testing_reworded,
@@ -460,12 +458,10 @@ app.include_router(pages.router)  # type: ignore[has-type]
 app.include_router(models.router, prefix="/api/models", tags=["models"])  # type: ignore[has-type]
 app.include_router(models.inference_router, prefix="/api/inference", tags=["inference"])  # type: ignore[has-type]
 app.include_router(training.router, prefix="/api/training", tags=["training"])  # type: ignore[has-type]
-app.include_router(data.router, prefix="/api/data", tags=["data"])  # type: ignore[has-type]
 app.include_router(testing.router, prefix="/api/testing", tags=["testing"])  # type: ignore[has-type]
 app.include_router(comparison.router, prefix="/api/compare", tags=["compare"])  # type: ignore[has-type]
 app.include_router(comparison.pages)  # type: ignore[has-type]  # HTML page /projects/{pid}/compare
 app.include_router(projects.router, prefix="/api/projects", tags=["projects"])  # type: ignore[has-type]
-app.include_router(quality.router)  # type: ignore[has-type]  # already self-prefixed /api/data
 app.include_router(benchmarks.router, prefix="/api/benchmarks", tags=["benchmarks"])  # type: ignore[has-type]
 app.include_router(data_editor.router, prefix="/api/data-editor", tags=["data-editor"])  # type: ignore[has-type]
 app.include_router(chat_v2.router, prefix="/api/chat-v2", tags=["chat-v2"])  # type: ignore[has-type]

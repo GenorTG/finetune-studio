@@ -2,50 +2,9 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
-
-from finetune_studio import db
-from finetune_studio.config import settings
-from finetune_studio.data.fs import paths
-from finetune_studio.webui.app import app
-
-
-@pytest.fixture
-def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    data_dir = tmp_path / "data"
-    data_dir.mkdir()
-    monkeypatch.setattr(settings, "db_path", str(data_dir / "x.db"))
-    monkeypatch.setattr(settings, "data_dir", str(data_dir))
-    root = tmp_path / "fts_root"
-    (root / "projects").mkdir(parents=True)
-    monkeypatch.setattr(paths, "_ROOT", root)
-    monkeypatch.setattr(paths, "_PROJECTS", root / "projects")
-    cwd = tmp_path / "cwd"
-    cwd.mkdir()
-    monkeypatch.chdir(cwd)
-    db.init_db()
-    client = TestClient(app)
-    pid = client.post("/api/projects", json={"name": "bc", "base_model": "x/t"}).json()["id"]
-    return client, pid, paths.project_dir(pid), cwd
-
-
-def test_relative_path_and_output_both_resolve_in_project(env) -> None:
-    client, pid, pdir, cwd = env
-    pdir.mkdir(parents=True, exist_ok=True)
-    row = json.dumps({"question": "q", "answer": "a"}) + "\n"
-    (pdir / "in.jsonl").write_text(row, encoding="utf-8")
-    (cwd / "in.jsonl").write_text(row * 2, encoding="utf-8")  # decoy in cwd
-    r = client.post("/api/data/convert", json={
-        "path": "in.jsonl", "output": "out.json", "target_format": "json", "project_id": pid})
-    assert r.status_code == 200, r.text
-    body = r.json()
-    assert Path(body["path"]) == (pdir / "in.jsonl").resolve()
-    assert len(json.loads((pdir / "out.json").read_text(encoding="utf-8"))) == 1
-    assert not (cwd / "out.json").exists()
 
 
 def test_preset_start_honours_top_level_alpha_and_accum(client, tmp_path, monkeypatch) -> None:

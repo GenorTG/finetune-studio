@@ -30,7 +30,7 @@ from pathlib import Path
 
 from playwright.sync_api import sync_playwright
 
-OUT = Path(os.environ.get("FTS_QA_SHOTS") or Path(__file__).resolve().parent.parent / ".tmp" / "qa-shots" / "phase-bd")
+OUT = Path(os.environ.get("FTS_QA_SHOTS") or Path(__file__).resolve().parents[2] / ".tmp" / "qa-shots" / "phase-bd")
 BASE = os.environ.get("FTS_BASE", "http://127.0.0.1:7860").rstrip("/")
 PROJECT_ID = "264f8765"
 SMALL_CONFIG = {

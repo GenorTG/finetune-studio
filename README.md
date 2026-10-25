@@ -39,7 +39,7 @@ fts webui
 
 Open http://localhost:7860. The first visit offers a short onboarding tour. By default only this computer can open it; to use it from other devices, set a password
 (the installer asks, or **Settings -> Access & network**, or `fts auth set-password`): see
-[docs/INSTALL.md](docs/INSTALL.md#5-access-who-can-open-the-web-ui). Prerequisites and Windows/macOS notes: [docs/INSTALL.md](docs/INSTALL.md).
+[docs/INSTALL.md](docs/INSTALL.md#5-access-who-can-open-the-web-ui). Prerequisites: [docs/INSTALL.md](docs/INSTALL.md). **Linux only** (NVIDIA GPU or CPU) until the stable 1.0.0; Windows and macOS are not supported.
 
 ---
 
@@ -245,9 +245,10 @@ The larger pieces, roughly in the order you meet them:
   for fully offline semantic search).
 - **Parsed-text editor** — fix a bad parse in-app; corrections feed
   mining and the next Smart Brain build while raw bytes stay immutable.
-- **Per-commit build chip + Linux in-app update** — the header pins the exact
-  deployed version (`v0.1.0.N`); on Linux, Settings → Apply update pulls,
-  repairs, migrates and restarts. Windows updates are manual.
+- **Versioned releases + Linux in-app update** — tagged SemVer releases with a
+  [changelog](CHANGELOG.md); the header shows `vX.Y.Z` on a release and
+  `vX.Y.Z+<branch>.<sha>` on any other commit. Settings → Apply update pulls,
+  repairs, migrates and restarts.
 - **Dark and light themes** — switch themes in the UI; responsive layout
   and theme behavior have dedicated regression checks.
 
@@ -517,7 +518,7 @@ Full list with versions and licenses → **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTI
 
 - **[docs/TUTORIAL.md](docs/TUTORIAL.md)** — end-to-end first-model tutorial (users start here)
 - **[docs/DESIGN.md](docs/DESIGN.md)** — layout, rules and checks for contributors
-- **[docs/INSTALL.md](docs/INSTALL.md)** — install on Linux / macOS / Windows, prerequisites, troubleshooting
+- **[docs/INSTALL.md](docs/INSTALL.md)** — install on Linux, prerequisites, troubleshooting
 - **[docs/DEPENDENCIES.md](docs/DEPENDENCIES.md)** — every dependency mapped to its consumers
 - **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** — service, update pipeline, generic ops notes
 - **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTIONS.md)** — every package, version, license

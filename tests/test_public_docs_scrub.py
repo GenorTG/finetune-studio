@@ -92,9 +92,13 @@ def test_public_docs_disclose_provider_data_and_platform_update_scope() -> None:
 
     assert "data needed for that feature may be sent" in pages
     assert "Linux in-app update" in readme
-    assert "Windows updates are manual" in readme
     assert "Linux in-app update" in pages
-    assert "Windows updates are manual" in pages
+    # Linux is the only supported platform until 1.0.0 (Genor 2026-10-25): the docs say so and
+    # no longer offer Windows/macOS install paths.
+    assert "Windows and macOS are not supported" in readme
+    assert "Linux only" in pages
+    for text in (readme, pages):
+        assert "install.ps1" not in text and "macOS use install.sh" not in text
 
 
 def test_tutorial_distinguishes_adapter_learning_from_smart_brain_retrieval() -> None:

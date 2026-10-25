@@ -1,99 +1,133 @@
-"""Per-commit build versioning (Genor's rule 2026-09-20).
+"""SemVer release version + build identity (CONTRIBUTING.md "Versions and releases").
 
-VERSION = MAJOR.MINOR.PATCH.BUILD at the repo root; the pre-commit hook bumps
-BUILD on every commit, so the UI chip and /api/system/version pin the exact
-deployed code. The hook MUST be pre-commit: git snapshots the commit tree
-before commit-msg runs, so a bump staged there lands one commit late (the
-original bug caught by the E2E). These tests lock the COMMITTED value, not
-just the working file.
+VERSION holds MAJOR.MINOR.PATCH[-pre] and only scripts/release.py changes it. The app shows the plain
+version on the tagged release commit and ``<version>+<branch>.<sha8>`` everywhere else, read from
+``.git`` files without a subprocess (loose refs, packed refs, annotated tags, linked worktrees).
 """
 from __future__ import annotations
 
-import os
 import re
-import shutil
 import subprocess
 from pathlib import Path
 
-_VERSION_RE = re.compile(r"^\d+\.\d+\.\d+\.\d+$")
+import pytest
+
+from finetune_studio import version as V
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_build_version_format_and_file_agreement() -> None:
-    from finetune_studio import __version__, build_version
+def _git(repo: Path, *args: str) -> str:
+    return subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True, text=True).stdout.strip()
 
-    assert _VERSION_RE.match(__version__), __version__
-    assert __version__ == build_version()
-    assert __version__ == (REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip()
+
+@pytest.fixture
+def repo(tmp_path: Path) -> Path:
+    r = tmp_path / "r"
+    r.mkdir()
+    _git(r, "init", "-q", "-b", "dev")
+    _git(r, "config", "user.email", "t@t")
+    _git(r, "config", "user.name", "t")
+    _git(r, "config", "core.hooksPath", "/dev/null")
+    (r / "VERSION").write_text("1.4.0\n")
+    _git(r, "add", "VERSION")
+    _git(r, "commit", "-q", "-m", "init")
+    return r
+
+
+def test_repo_version_file_is_semver_and_matches_pyproject() -> None:
+    v = (REPO_ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    assert V.SEMVER_RE.match(v), v
+    py = re.search(r'(?m)^version\s*=\s*"([^"]*)"', (REPO_ROOT / "pyproject.toml").read_text())
+    assert py and py.group(1) == v, "pyproject version must equal VERSION (scripts/release.py sets both)"
+
+
+def test_package_exports_release_and_build() -> None:
+    import finetune_studio as fs
+
+    assert fs.__release__ == V.release_version()
+    assert fs.__version__.split("+", 1)[0] == fs.__release__
+    assert fs.__release_channel__ in ("BETA", "STABLE")
 
 
 def test_system_version_endpoint(client) -> None:
-    from finetune_studio import __version__
-
     r = client.get("/api/system/version")
     assert r.status_code == 200
     body = r.json()
-    assert body["version"] == __version__
-    assert _VERSION_RE.match(body["version"])
-    assert body["channel"]
+    assert body["release"] == V.release_version()
+    assert body["version"] == V.build_version()
+    assert body["channel"] == V.release_channel(body["release"])
+    assert isinstance(body["prerelease"], bool)
+    assert set(body) >= {"git_commit", "git_branch"}
 
 
-def _git(repo: Path, *args: str, env: dict | None = None) -> str:
-    p = subprocess.run(["git", *args], cwd=repo, check=True,
-                       capture_output=True, text=True, env=env)
-    return p.stdout.strip()
+@pytest.mark.parametrize("v,pre,channel", [
+    ("0.2.0", True, "BETA"), ("1.0.0-rc.1", True, "BETA"), ("1.0.0", False, "STABLE"),
+    ("2.3.4", False, "STABLE"), ("0.1.0.532", True, "BETA"),
+])
+def test_prerelease_and_channel(v: str, pre: bool, channel: str) -> None:
+    assert V.is_prerelease(v) is pre
+    assert V.release_channel(v) == channel
 
 
-def test_precommit_hook_bumps_the_COMMITTED_version(tmp_path: Path) -> None:
-    """The version inside the commit tree must equal the post-hook value.
-
-    Regression: the commit-msg variant staged 0.1.0.N+1 but committed N —
-    every deployment ran one build behind its own VERSION file.
-    """
-    repo = tmp_path / "r"
-    (repo / "scripts" / "git-hooks").mkdir(parents=True)
-    shutil.copy(REPO_ROOT / "scripts" / "git-hooks" / "pre-commit",
-                repo / "scripts" / "git-hooks" / "pre-commit")
-    _git(repo, "init", "-q")
-    _git(repo, "config", "user.email", "t@t")
-    _git(repo, "config", "user.name", "t")
-    _git(repo, "config", "core.hooksPath", "scripts/git-hooks")
-
-    def committed_version() -> str:
-        return _git(repo, "show", "HEAD:VERSION")
-
-    (repo / "a.txt").write_text("1", encoding="utf-8")
-    _git(repo, "add", "a.txt")
-    _git(repo, "commit", "-q", "-m", "first")
-    assert committed_version().endswith(".1"), committed_version()
-    assert (repo / "VERSION").read_text(encoding="utf-8").strip() == committed_version()
-
-    (repo / "a.txt").write_text("2", encoding="utf-8")
-    _git(repo, "add", "a.txt")
-    _git(repo, "commit", "-q", "-m", "second")
-    assert int(committed_version().rsplit(".", 1)[1]) == 2, committed_version()
-
-    # env escape hatch
-    before = committed_version()
-    (repo / "a.txt").write_text("3", encoding="utf-8")
-    _git(repo, "add", "a.txt")
-    e = dict(os.environ, FTS_NO_BUMP="1")
-    _git(repo, "commit", "-q", "-m", "docs only", env=e)
-    assert committed_version() == before
-
-    # a VERSION-only commit must not bump again (loop guard)
-    (repo / "VERSION").write_text("9.9.9.9\n", encoding="utf-8")
-    _git(repo, "add", "VERSION")
-    _git(repo, "commit", "-q", "-m", "reset version")
-    assert committed_version() == "9.9.9.9"
+def test_untagged_commit_shows_branch_and_sha(repo: Path) -> None:
+    sha = _git(repo, "rev-parse", "HEAD")
+    assert V.git_info(repo) == V.GitInfo(branch="dev", commit=sha, tags=())
+    assert V.build_version(repo) == f"1.4.0+dev.{sha[:8]}"
 
 
-def test_hook_scripts_are_executable_and_valid_bash() -> None:
-    hook = REPO_ROOT / "scripts" / "git-hooks" / "pre-commit"
-    installer = REPO_ROOT / "scripts" / "install-hooks.sh"
-    assert hook.stat().st_mode & 0o111, "pre-commit must be executable"
-    assert installer.stat().st_mode & 0o111, "install-hooks.sh must be executable"
-    for script in (hook, installer):
-        r = subprocess.run(["bash", "-n", str(script)],
-                           capture_output=True, text=True, check=False)
-        assert r.returncode == 0, r.stderr
+def test_branch_slug_is_build_metadata_safe(repo: Path) -> None:
+    _git(repo, "switch", "-q", "-c", "feat/x_y")
+    sha = _git(repo, "rev-parse", "HEAD")
+    assert V.build_version(repo) == f"1.4.0+feat-x-y.{sha[:8]}"
+
+
+@pytest.mark.parametrize("annotated", [False, True])
+@pytest.mark.parametrize("packed", [False, True])
+def test_tagged_release_commit_shows_the_plain_version(repo: Path, annotated: bool, packed: bool) -> None:
+    if annotated:
+        _git(repo, "tag", "-a", "v1.4.0", "-m", "rel")
+    else:
+        _git(repo, "tag", "v1.4.0")
+    if packed:
+        _git(repo, "pack-refs", "--all")
+        assert not (repo / ".git" / "refs" / "tags" / "v1.4.0").exists()
+    assert "v1.4.0" in V.git_info(repo).tags
+    assert V.build_version(repo) == "1.4.0"
+    (repo / "f").write_text("x")
+    _git(repo, "add", "f")
+    _git(repo, "commit", "-q", "-m", "after")
+    assert V.build_version(repo).startswith("1.4.0+dev.")
+
+
+def test_packed_branch_ref_and_detached_head(repo: Path) -> None:
+    sha = _git(repo, "rev-parse", "HEAD")
+    _git(repo, "pack-refs", "--all")
+    assert V.git_info(repo).commit == sha
+    _git(repo, "switch", "-q", "--detach")
+    assert V.build_version(repo) == f"1.4.0+detached.{sha[:8]}"
+
+
+def test_linked_worktree(repo: Path, tmp_path: Path) -> None:
+    wt = tmp_path / "wt"
+    _git(repo, "worktree", "add", "-q", "-b", "fix/a", str(wt))
+    sha = _git(wt, "rev-parse", "HEAD")
+    assert (wt / ".git").is_file()
+    assert V.git_info(wt).branch == "fix/a"
+    assert V.build_version(wt) == f"1.4.0+fix-a.{sha[:8]}"
+
+
+def test_no_git_metadata_reports_the_plain_version(tmp_path: Path) -> None:
+    (tmp_path / "VERSION").write_text("3.1.4\n")
+    assert V.git_info(tmp_path) == V.GitInfo()
+    assert V.build_version(tmp_path) == "3.1.4"
+
+
+def test_missing_version_file_falls_back_to_package_metadata(tmp_path: Path) -> None:
+    from importlib.metadata import PackageNotFoundError, version
+
+    try:
+        expected = version("finetune-studio")
+    except PackageNotFoundError:
+        expected = "0.0.0"
+    assert V.release_version(tmp_path) == expected

@@ -6,6 +6,8 @@ version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
+    # Work lands on dev (CONTRIBUTING.md); main only takes releases.
+    target-branch: dev
     schedule:
       interval: weekly
       day: monday

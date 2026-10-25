@@ -105,10 +105,18 @@ elif [ "$NO_PULL" = "0" ]; then
     if [ -f "$_real_home/.ssh/config" ]; then
         _git_ssh="ssh -F $_real_home/.ssh/config"
     fi
-    if ! env -i HOME="$_real_home" PATH="/usr/local/bin:/usr/bin:/bin" \
-            GIT_SSH_COMMAND="$_git_ssh" git pull --ff-only origin main 2>&1; then
-        warn "git pull failed (local may be ahead or divergent). Using local code."
-    fi
+    # Pull the branch this checkout is on: `main` = releases (users), `dev` = development (the dev box).
+    # Any other branch (a feature branch) is work in progress and is left alone (CONTRIBUTING.md).
+    _branch="$(git symbolic-ref --short -q HEAD || true)"
+    case "$_branch" in
+        main|dev)
+            if ! env -i HOME="$_real_home" PATH="/usr/local/bin:/usr/bin:/bin" \
+                    GIT_SSH_COMMAND="$_git_ssh" git pull --ff-only origin "$_branch" 2>&1; then
+                warn "git pull failed (local may be ahead or divergent). Using local code."
+            fi ;;
+        *)
+            warn "on '${_branch:-a detached HEAD}', not main or dev: skipping git pull (update a feature branch yourself)." ;;
+    esac
 else
     log "skipping git pull (--no-pull)."
 fi
