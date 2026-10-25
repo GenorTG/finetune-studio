@@ -3,8 +3,9 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-PROMPT_VERSION = "mining-v4"   # v3: neighbouring text around a chunk (records split across chunks); v4: corrections found
-#                                 by the whole-file pass reach the chunks that hold the old value
+PROMPT_VERSION = "mining-v5"   # v3: neighbouring text around a chunk (records split across chunks); v4: corrections found
+#                                 by the whole-file pass reach the chunks that hold the old value; v5: comparisons keep
+#                                 their direction ("beat the budget" was mined as "missed", RESULTS §16)
 
 INVENTORY_SYSTEM = """You list the data points of a company document so that nothing in it is forgotten when it is turned into \
 training questions.
@@ -59,6 +60,8 @@ sentence with several facts becomes several pairs.
 - Every answer is a complete sentence that states the exact values as written in the passage (keep numbers, units, codes and \
 names verbatim). Never add information that is not in the passage.
 - When the passage corrects or supersedes a value, the answer gives the current value and says it replaced the earlier one.
+- Keep the direction of every comparison exactly as written: beat/missed, above/below, over/under, rose/fell, \
+ahead/behind, before/after, more/less. Never turn one into the other.
 - For chat logs, e-mails and minutes: state the fact itself (what was decided, measured, promised, when, by whom). Never write \
 "What did <person> say at <time>?" questions or answers that just quote a message.
 - Never ask the same fact twice in different words.
