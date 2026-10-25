@@ -1,0 +1,140 @@
+{
+ "E1": {
+  "compare_vs_base": [
+   {
+    "suite": "gsm8k_real",
+    "run_a": 75.0,
+    "run_b": 70.0,
+    "paired": {
+     "paired": 100,
+     "both_pass": 59,
+     "gained": 11,
+     "lost": 16,
+     "both_fail": 14,
+     "p_value": 0.44206833839416504,
+     "verdict": "could be noise"
+    }
+   },
+   {
+    "suite": "ifeval_real",
+    "run_a": 83.3,
+    "run_b": 70.0,
+    "paired": {
+     "paired": 120,
+     "both_pass": 78,
+     "gained": 6,
+     "lost": 22,
+     "both_fail": 14,
+     "p_value": 0.0037191659212112427,
+     "verdict": "worse"
+    }
+   },
+   {
+    "suite": "mmlu_real",
+    "run_a": 78.0,
+    "run_b": 72.5,
+    "paired": {
+     "paired": 200,
+     "both_pass": 135,
+     "gained": 10,
+     "lost": 21,
+     "both_fail": 34,
+     "p_value": 0.07075554598122835,
+     "verdict": "could be noise"
+    }
+   }
+  ]
+ },
+ "E2": {
+  "compare_vs_base": [
+   {
+    "suite": "gsm8k_real",
+    "run_a": 75.0,
+    "run_b": 79.0,
+    "paired": {
+     "paired": 100,
+     "both_pass": 68,
+     "gained": 11,
+     "lost": 7,
+     "both_fail": 14,
+     "p_value": 0.480682373046875,
+     "verdict": "could be noise"
+    }
+   },
+   {
+    "suite": "ifeval_real",
+    "run_a": 83.3,
+    "run_b": 68.3,
+    "paired": {
+     "paired": 120,
+     "both_pass": 76,
+     "gained": 6,
+     "lost": 24,
+     "both_fail": 14,
+     "p_value": 0.001430906355381012,
+     "verdict": "worse"
+    }
+   },
+   {
+    "suite": "mmlu_real",
+    "run_a": 78.0,
+    "run_b": 72.0,
+    "paired": {
+     "paired": 200,
+     "both_pass": 132,
+     "gained": 12,
+     "lost": 24,
+     "both_fail": 32,
+     "p_value": 0.06524533522315323,
+     "verdict": "could be noise"
+    }
+   }
+  ]
+ },
+ "E3": {
+  "compare_vs_base": [
+   {
+    "suite": "gsm8k_real",
+    "run_a": 75.0,
+    "run_b": 79.0,
+    "paired": {
+     "paired": 100,
+     "both_pass": 68,
+     "gained": 11,
+     "lost": 7,
+     "both_fail": 14,
+     "p_value": 0.480682373046875,
+     "verdict": "could be noise"
+    }
+   },
+   {
+    "suite": "ifeval_real",
+    "run_a": 83.3,
+    "run_b": 83.3,
+    "paired": {
+     "paired": 120,
+     "both_pass": 92,
+     "gained": 8,
+     "lost": 8,
+     "both_fail": 12,
+     "p_value": 1.0,
+     "verdict": "could be noise"
+    }
+   },
+   {
+    "suite": "mmlu_real",
+    "run_a": 78.0,
+    "run_b": 76.5,
+    "paired": {
+     "paired": 200,
+     "both_pass": 148,
+     "gained": 5,
+     "lost": 8,
+     "both_fail": 39,
+     "p_value": 0.5810546875,
+     "verdict": "could be noise"
+    }
+   }
+  ]
+ }
+}

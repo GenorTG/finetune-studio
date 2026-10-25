@@ -1,0 +1,58 @@
+{
+ "regate": {
+  "in": 11773,
+  "out": 9384,
+  "dropped": {
+   "question_leaks_answer": 3,
+   "question_lost_value": 6,
+   "answer_lost_value": 13,
+   "answer_new_value": 3
+  }
+ },
+ "run": "979ec4ab",
+ "C3_vs_E1": {
+  "paired": 102,
+  "both_pass": 40,
+  "gained": 11,
+  "lost": 8,
+  "both_fail": 43,
+  "p_value": 0.6476058959960938,
+  "verdict": "could be noise"
+ },
+ "C3_vs_E2": {
+  "paired": 102,
+  "both_pass": 41,
+  "gained": 12,
+  "lost": 7,
+  "both_fail": 42,
+  "p_value": 0.359283447265625,
+  "verdict": "could be noise"
+ },
+ "E1_vs_E2": {
+  "paired": 102,
+  "both_pass": 39,
+  "gained": 14,
+  "lost": 12,
+  "both_fail": 37,
+  "p_value": 0.8450189828872681,
+  "verdict": "could be noise"
+ },
+ "E2_vs_E3": {
+  "paired": 102,
+  "both_pass": 29,
+  "gained": 8,
+  "lost": 24,
+  "both_fail": 41,
+  "p_value": 0.0070003666914999485,
+  "verdict": "worse"
+ },
+ "C3_vs_E3": {
+  "paired": 102,
+  "both_pass": 29,
+  "gained": 8,
+  "lost": 19,
+  "both_fail": 46,
+  "p_value": 0.052238985896110535,
+  "verdict": "could be noise"
+ }
+}

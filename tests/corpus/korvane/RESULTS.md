@@ -534,3 +534,39 @@ HAM-2 gate cabin is `cabin-ham2-#2024`."). Re-worded questions are cheap (one AP
 add when an adapter must recall facts, with 3 epochs over the augmented set; the Smart Brain remains the way to get both recall and
 "not in the documents" (§15: 94 of 102 and 20 / 20 declines with the untrained base as reader).
 
+
+## 22. LoRA quality: targets, forgetting, study set, replay (2026-10-24, throwaway project `e1-lora-targets-1024` 96591d08, deleted after; results in `results/2026-10-24-lora-quality/`)
+
+Plan and literature: the local research note of 2026-10-24. All runs: Qwen3.5-9B QLoRA, rank 64 / alpha 128, lr 1e-4, batch 2 x 4, max 1,024
+tokens, completion-only loss, no system prompt, 3 epochs, merged; quiz = §21's (102 reworded answerable + 20 unanswerable, substring
+matcher). New this time: every comparison is **paired per question** (exact McNemar, `testing/paired.py`, now in Benchmarks -> Compare), and
+a **general-ability probe** on the same seeded questions for base and run: MMLU 200, GSM8K 100, IFEval 120 (strict, the new `real://ifeval`).
+
+| Run | Training rows | Reworded quiz | Paired vs C3 | IFEval (base 83.3) | MMLU (base 78.0) | GSM8K (base 75) |
+|---|---|---|---|---|---|---|
+| C3 (§21) | golden + 3 reworded questions, 9,756 | 48 / 102 | — | not measured | — | — |
+| E1: C3 data, LoRA targets read from the model (adds the linear-attention mixers of 24 / 32 layers) | 9,756 | 51 / 102 | +11 / −8, p 0.65 | **70.0**, −22 / +6, p 0.004 | 72.5, p 0.07 | 70, p 0.44 |
+| E2: study set, 4 rows per pair (original, 1 reworded question, 1 restated answer, 1 passage) | 9,384 | 53 / 102 | +12 / −7, p 0.36 | **68.3**, −24 / +6, p 0.001 | 72.0, p 0.07 | 79, p 0.48 |
+| E3: E2 rows + 29 % replay (3,449 answers of the base model itself to Dolly-15k prompts) | 9,384 + 3,449 | **37 / 102** | E2: −24 / +8, p 0.007 | **83.3**, +8 / −8, p 1.0 | 76.5, p 0.58 | 79, p 0.48 |
+
+Declines on the 20 unanswerable questions: 0 / 20 in every run.
+
+Reading:
+- **Targets (E1).** Training the linear-attention projections too changes nothing measurable (+11 / −8 is the noise level of two
+  identical runs, §20). The targets are now discovered from the loaded model for any architecture (`training/lora_targets.py`), so the
+  fix is about correctness on other models, not a gain on this one.
+- **Forgetting is real and significant.** Both fact adapters lose instruction following: IFEval drops 13-15 points, and per question
+  the losses outnumber the gains 22-24 to 6 (p ≤ 0.004). MMLU drops ~6 points (p ≈ 0.07, borderline). GSM8K answers became 6x shorter
+  (346 s vs 2,183 s for 100 problems) at about the same accuracy. This matches the literature (Thinking Machines: IFEval 85 -> 45 on a
+  company-docs run) and had never been measured here.
+- **Study set (E2).** At the same 4 rows per fact, a restated answer and a passage instead of two more question rewordings gives 53
+  vs 48 / 51: no measurable difference. Recall on reworded questions plateaus around 50 % at this data size; the big Active-Reading gains
+  came from far more diverse material per fact. The study set is still the cheap way to get §21's gain without writing rewordings by hand.
+- **Replay (E3) is a trade-off, not a free fix.** With 29 % of the mix being the base model's own answers, instruction following is
+  fully kept (IFEval 83.3 = base, 8 gained / 8 lost), MMLU is back within noise and GSM8K answers are as long as the base's again
+  (1,346 s vs 346 s for 100 problems). But fact recall falls from 53 to 37 of 102 (24 lost / 8 gained vs E2, p = 0.007). E3 also ran
+  at batch 1 x 8 instead of 2 x 4 (the longer replay rows ran out of memory at batch 2; same effective batch) and its replay answers
+  were generated with a 384-token limit, which drops long answers (since raised to 768). So the app keeps replay opt-in (default 0)
+  and says what it costs; a smaller share (10-15 %) is the next thing to measure.
+- **Adapter-only GGUF** is not an option for these adapters: llama.cpp `convert_lora_to_gguf.py` raises `NotImplementedError` in its
+  Qwen3.5 v-head reorder for the linear-attention LoRA tensors. Merge-then-GGUF (what the app does) works.
