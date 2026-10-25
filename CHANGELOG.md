@@ -21,7 +21,8 @@ turns that section into the release's notes.
 ### Security
 - Saved API keys (helper, Vision reader) are now stored encrypted instead of as plain text: a copied database or
   backup carries no usable key. Keys saved by earlier versions are encrypted on the next start; Settings shows
-  "saved, encrypted", or asks for the key again if the encryption key file was lost.
+  "saved, encrypted", or asks for the key again if the encryption key file was lost. A plain-text judge key left in
+  `settings.json` by an old version is deleted.
 
 ## [0.2.0] - 2026-10-25
 

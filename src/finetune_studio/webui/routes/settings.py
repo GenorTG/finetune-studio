@@ -17,14 +17,23 @@ log = logging.getLogger(__name__)
 SETTINGS_PATH = access_paths.root() / "settings.json"     # $FTS_ROOT, like every other piece of app state
 
 
+# Secrets an older version kept in settings.json as plain text; removed from the file the first time it is read.
+_LEGACY_SECRET_KEYS = ("judge_api_key",)
+
+
 def _load() -> dict[str, Any]:
     if not SETTINGS_PATH.exists():
         return {}
     try:
-        return json.loads(SETTINGS_PATH.read_text())
+        data = json.loads(SETTINGS_PATH.read_text())
     except (OSError, ValueError) as e:
         log.warning("settings read failed: %s", e)
         return {}
+    if isinstance(data, dict) and any(k in data for k in _LEGACY_SECRET_KEYS):
+        data = {k: v for k, v in data.items() if k not in _LEGACY_SECRET_KEYS}
+        _save(data)
+        log.info("removed a plain-text legacy API key from %s", SETTINGS_PATH)
+    return data
 
 
 def _save(data: dict[str, Any]) -> None:
