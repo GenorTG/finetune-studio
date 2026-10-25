@@ -75,7 +75,7 @@ def test_templates_package_has_no_dead_duplicate_docstring_statement():
     import pathlib
 
     pkg_root = pathlib.Path(__file__).resolve().parents[1] / "src" / "finetune_studio"
-    for rel in ("templates/__init__.py", "templates/manager.py"):
+    for rel in ("templates/__init__.py", "templates/renderer.py"):  # manager.py was removed (dead code)
         tree = ast.parse((pkg_root / rel).read_text())
         # A dead duplicate docstring shows up as a second top-level `Expr`
         # node containing a `Constant` string immediately after the first.
