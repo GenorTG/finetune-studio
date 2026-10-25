@@ -14,6 +14,9 @@ turns that section into the release's notes.
   examples, and the app checks every row (unusable ones are listed by row number), keeps a held-out test, fills the
   training form with settings sized to the data, and after training compares the run with its untrained base on that
   test (paired McNemar, or the blind A/B judge for style). `?usecase=<id>` opens the page with the form filled.
+- Quick work, Step 6: saved versions are listed with what each one holds (datasets, training runs, Smart Brain
+  build). A new version **builds on** an earlier one (the latest by default), **Lineage** shows the chain
+  (v1 → v2 → v3), and **Delete** removes a version record without touching its datasets, runs or models.
 
 ### Changed
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
