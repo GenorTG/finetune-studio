@@ -108,7 +108,8 @@ async def _create(pid: str, body: CreateBody) -> JSONResponse:
     except rows.RowsError as exc:
         return _err(str(exc), 422, code="invalid_examples", errors=exc.errors, teacher=teacher_report)
     manifest = await asyncio.to_thread(store.create, pid, body.name, prepared, teacher_report=teacher_report)
-    return JSONResponse({**manifest, "train_url": f"/projects/{pid}/training?dataset={manifest['dataset']['id']}"},
+    # ?usecase= fills the whole Training form (dataset + the plan's settings), not only the dataset picker.
+    return JSONResponse({**manifest, "train_url": f"/projects/{pid}/training?usecase={manifest['id']}"},
                         status_code=201)
 
 

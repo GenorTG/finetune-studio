@@ -181,7 +181,9 @@ async def dataset_health_route(pid: str, did: str, request: Request):
     training_mode = request.query_params.get("training_mode", "sft")
     if training_mode not in {"sft", "dpo", "kto", "tool_sft", "continued_pretraining", "reasoning_distillation"}:
         return JSONResponse({"detail": "unsupported training_mode"}, status_code=400)
-    return await asyncio.to_thread(check_dataset, path, training_mode=training_mode)
+    # A use case's rows are short by design (a label, a JSON object): don't tell the user that is a problem.
+    return await asyncio.to_thread(check_dataset, path, training_mode=training_mode,
+                                   short_answers_expected=ds.get("source") == "usecase")
 
 
 @router.post("/projects/{pid}/datasets/{did}/dedup")

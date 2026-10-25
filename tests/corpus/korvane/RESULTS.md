@@ -570,3 +570,24 @@ Reading:
   and says what it costs; a smaller share (10-15 %) is the next thing to measure.
 - **Adapter-only GGUF** is not an option for these adapters: llama.cpp `convert_lora_to_gguf.py` raises `NotImplementedError` in its
   Qwen3.5 v-head reorder for the linear-attention LoRA tensors. Merge-then-GGUF (what the app does) works.
+
+## 23. Use-case UI end to end: ticket routing (classification), Qwen3.5-9B (2026-10-25, sandbox instance, deleted after)
+
+Not Korvane: the first run of the Training page's **Start from a use case** card, driven in a real browser (sandbox on :7893,
+own `HOME`/`FTS_ROOT`/DB, RTX 3090 by the saved device choice). Data: 320 synthetic support tickets, 4 company routing labels
+(`finance`, `logistics`, `security`, `tier1-support`; 80 each, varied openers/closers, seed 7). The labels follow house rules a
+prompted model can only guess (a refund for a broken parcel is `finance`, a 2FA how-to is `security`).
+
+| Step | Result |
+|---|---|
+| Build (card: template, file, Check examples and build) | 317 examples (3 duplicates dropped) → 254 training rows + 63 held-out questions (stratified) |
+| Form filled by the card | SFT, system prompt mode none, 2 epochs, LR 1e-4, rank 64 / alpha 128, batch 2 x 4, max seq 512, dataset picked, Start enabled |
+| Training (Start training, form as filled) | 4-bit picked automatically (18 GiB bf16 > free VRAM - headroom); 58 steps in 3.9 min, final loss 0.0026 |
+| Evaluate (card: Start comparison, temp 0, 32 tokens) | untrained base **76.2 %** (48/63), trained run **100 %** (63/63); both replied with a label only 100 % |
+| Paired (McNemar) | gained 15, lost 0, both right 48, both wrong 0; p < 0.001 → **better** |
+
+Base errors, from the card's confusion matrix: `finance` → `logistics` 5 and → `tier1-support` 3 (refunds for damaged or late
+orders), `security` → `tier1-support` 6 (how-to questions about 2FA and passwords), `tier1-support` → `logistics` 1. The trained
+run had none. Easy synthetic data: this proves the flow and that the held-out comparison sees a real difference, not how a
+use case does on messy real tickets. Found and fixed on the way: the dataset check called one-word answers a problem for a
+use-case dataset; the dataset label repeated "254 rows"; p-values under 0.001 printed as 0.000.
