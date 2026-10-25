@@ -28,7 +28,8 @@ pathlib.Path(out).write_bytes(b"gguf-data")
 QUANTIZE = '''\
 #!/bin/sh
 # usage: llama-quantize [--imatrix FILE] IN OUT TYPE
-if [ "$1" = "--imatrix" ]; then shift 2; fi
+IMATRIX=""
+if [ "$1" = "--imatrix" ]; then IMATRIX="$2"; shift 2; fi
 if [ -n "$FAKE_QUANT_GRANDCHILD_PIDFILE" ]; then
   sleep 300 &
   echo $! > "$FAKE_QUANT_GRANDCHILD_PIDFILE"
@@ -39,7 +40,26 @@ if [ -n "$FAKE_QUANT_FAIL" ]; then
   echo "$FAKE_QUANT_FAIL" >&2
   exit 5
 fi
-echo quantized > "$2"
+echo "quantized imatrix=$IMATRIX" > "$2"
+'''
+
+IMATRIX = '''\
+#!/bin/sh
+# usage: llama-imatrix -m MODEL -f TEXT -o OUT [options]; records the calibration text it was given
+OUT=""; TEXT=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -o) OUT="$2"; shift 2 ;;
+    -f) TEXT="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+if [ -n "$FAKE_IMATRIX_FAIL" ]; then
+  echo "$FAKE_IMATRIX_FAIL" >&2
+  exit 6
+fi
+cp "$TEXT" "$OUT.seen-calibration"
+echo imatrix > "$OUT"
 '''
 
 
@@ -50,6 +70,9 @@ def install_fake_llama(root: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     quant = root / "build" / "bin" / "llama-quantize"
     quant.write_text(QUANTIZE)
     quant.chmod(quant.stat().st_mode | stat.S_IXUSR)
+    imatrix = root / "build" / "bin" / "llama-imatrix"
+    imatrix.write_text(IMATRIX)
+    imatrix.chmod(imatrix.stat().st_mode | stat.S_IXUSR)
     monkeypatch.delenv("FTS_SKIP_EXPORT", raising=False)
     monkeypatch.setattr(
         "finetune_studio.training.gguf_convert.llama_cpp_search_paths", lambda: [str(root)],
@@ -81,11 +104,12 @@ class EngineStub:
     def __init__(self) -> None:
         self.config = None
 
-    def _do_export_gguf(self, output_dir: str, force: bool = False) -> dict:
+    def _do_export_gguf(self, output_dir: str, force: bool = False, *, subdir: str = "gguf",
+                        calibration_text: str = "") -> dict:
         from finetune_studio.training.gguf_convert import convert_merged_to_gguf
 
         quants = list(self.config.gguf_quants) or ["f16", "q8_0"]
         return convert_merged_to_gguf(
-            os.path.join(output_dir, "merged"), os.path.join(output_dir, "gguf"),
-            quants, force=force,
+            os.path.join(output_dir, "merged"), os.path.join(output_dir, subdir),
+            quants, force=force, calibration_text=calibration_text,
         )

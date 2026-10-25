@@ -177,9 +177,6 @@ class TrainingConfig:
     # "runtime" = don't bake, save separately for inference-time use
     # "none" = no system prompt at all
     system_prompt_mode: str = "bake"
-    # Advanced quantization
-    export_imatrix: bool = False
-    imatrix_calibration: str = ""
     # Empty = every linear layer of the loaded language model (training/lora_targets.py);
     # a list overrides it.
     lora_target_modules: list = field(default_factory=list)
@@ -1175,8 +1172,6 @@ class TrainingEngine:
             self._maybe_merge(model, tokenizer, cfg.output_dir)
         if cfg.export_gguf:
             self._export_gguf_after_train(model, tokenizer)
-        if cfg.export_imatrix:
-            self._do_export_imatrix(cfg.output_dir)
         self._auto_suite_non_fatal()
         # Optional: Abliteration (de-censor)
         if getattr(cfg, 'abliterate', False):
@@ -1394,31 +1389,6 @@ class TrainingEngine:
             self._notify()
             return {"error": str(e)}
 
-    def _do_export_imatrix(self, output_dir: str) -> dict:
-        """Export the merged model using imatrix-based GGUF quantization."""
-        merged_dir = os.path.join(output_dir, "merged")
-        if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
-            return {"skipped": True, "reason": "no merged model"}
-        imatrix_dir = os.path.join(output_dir, "imatrix")
-        self.state.message = "Exporting imatrix GGUF..."
-        self._notify()
-        try:
-            from finetune_studio.training.advanced_quant import quantize_gguf_imatrix
-            result = quantize_gguf_imatrix(
-                model_path=merged_dir,
-                output_dir=imatrix_dir,
-                imatrix_path=getattr(self.config, 'imatrix_calibration', ''),
-                quants=getattr(self.config, 'gguf_quants', ['q4_k_m', 'q5_k_m', 'q8_0']),
-            )
-            self.state.message = "Imatrix GGUF exported."
-            self._notify()
-            return result
-        except Exception as e:
-            log.exception("Imatrix GGUF export failed")
-            self.state.message = f"Imatrix GGUF export failed: {e}"
-            self._notify()
-            return {"error": str(e)}
-
     def _auto_generate_suite(self) -> dict:
         """Auto-generate a benchmark suite from training data (full coverage)."""
         data_path = getattr(self.config, 'data_path', '')
@@ -1466,16 +1436,17 @@ class TrainingEngine:
         self._notify()
         return result
 
-    def _do_export_gguf(self, output_dir: str, force: bool = False) -> dict:
+    def _do_export_gguf(self, output_dir: str, force: bool = False, *, subdir: str = "gguf",
+                        calibration_text: str = "") -> dict:
         """Export the merged model to GGUF via llama.cpp (shared converter).
 
-        Saves to ``<output_dir>/gguf/``. Success only when requested quants
+        Saves to ``<output_dir>/<subdir>/`` (``gguf`` by default). Success only when requested quants
         produce non-empty ``.gguf`` files. Uses ``convert_hf_to_gguf.py`` and
-        ``llama-quantize`` discovered via ``gguf_convert``.
+        ``llama-quantize`` discovered via ``gguf_convert``; ``calibration_text`` adds the importance matrix.
         """
         from finetune_studio.training.gguf_convert import convert_merged_to_gguf
 
-        gguf_dir = os.path.join(output_dir, "gguf")
+        gguf_dir = os.path.join(output_dir, subdir)
         merged_dir = os.path.join(output_dir, "merged")
         if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
             return {
@@ -1493,7 +1464,7 @@ class TrainingEngine:
         self.state.message = f"Exporting GGUF ({', '.join(quants)})..."
         self._notify()
         result = convert_merged_to_gguf(
-            merged_dir, gguf_dir, quants, force=force,
+            merged_dir, gguf_dir, quants, force=force, calibration_text=calibration_text,
         )
         if result.get("ok"):
             size_h = result.get("size_human") or _human_size(

@@ -25,8 +25,9 @@ def test_probe_export_capabilities_shape() -> None:
     caps = probe_export_capabilities()
     assert isinstance(caps, ExportCapabilities)
     data = caps.as_dict()
-    assert set(data) >= {"gguf", "gguf_hint", "gguf_script"}
-    assert isinstance(data["gguf"], bool)
+    assert set(data) >= {"gguf", "gguf_hint", "gguf_script", "imatrix", "imatrix_hint"}
+    assert isinstance(data["gguf"], bool) and isinstance(data["imatrix"], bool)
+    assert data["imatrix"] == (data["imatrix_hint"] == "")
     if not data["gguf"]:
         assert "convert_hf_to_gguf" in data["gguf_hint"]
 
@@ -40,6 +41,9 @@ def test_export_template_disables_unavailable_formats() -> None:
     assert "unavailable" in html
     # Always offer merged as a truthful fallback.
     assert 'value="merged"' in html
+    # The importance-matrix option is disabled without its tools and sent as ``imatrix: true``.
+    assert 'id="gguf-imatrix"' in html and "caps.imatrix" in html
+    assert "body.imatrix = true" in html
 
 
 def test_export_page_marks_gguf_unavailable(client) -> None:

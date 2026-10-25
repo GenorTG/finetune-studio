@@ -18,10 +18,14 @@ from typing import Any
 from finetune_studio.training import export_job
 from finetune_studio.training.gguf_convert import (  # noqa: F401 — re-export
     GGUF_CONVERTER_MISSING_MSG,
+    LLAMA_IMATRIX_MISSING_MSG,
+    LLAMA_QUANTIZE_MISSING_MSG,
     convert_merged_to_gguf,
     find_gguf_convert_script,
+    find_llama_imatrix,
     find_llama_quantize,
     gguf_filename_matches_quant,
+    imatrix_applies,
     llama_cpp_search_paths,
     normalize_gguf_quant,
     verify_gguf_artifacts,
@@ -32,6 +36,10 @@ SUPPORTED_EXPORT_FORMATS: frozenset[str] = frozenset(
 )
 
 DEFAULT_GGUF_QUANTS: list[str] = ["f16", "q8_0", "q4_k_m", "q5_k_m"]
+
+# An importance-matrix export lands beside the plain one, never over it (same quant names, different weights).
+IMATRIX_SUBDIR = "gguf-imatrix"
+IMATRIX_CALIBRATION_CHARS = 300_000   # ~75k tokens: more than the 128 chunks x 512 tokens llama-imatrix measures
 
 
 def validate_base_model(base_model: str) -> str:
@@ -167,15 +175,51 @@ def _export_failure(
     return out
 
 
+def imatrix_calibration_text(data_path: str, *, max_chars: int = IMATRIX_CALIBRATION_CHARS) -> str:
+    """The run's training text (every turn of every row, in file order) for measuring an importance matrix.
+
+    Reads JSONL rows in the shapes training accepts (``messages`` / ``conversations`` turns, or ``text`` /
+    ``prompt``+``completion``) and stops at ``max_chars``. Empty when the file is missing or holds no text.
+    """
+    import json
+
+    if not data_path or not os.path.isfile(data_path):
+        return ""
+    parts: list[str] = []
+    total = 0
+    with open(data_path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(row, dict):
+                continue
+            turns = row.get("messages") or row.get("conversations") or []
+            texts = [str(t.get("content") or t.get("value") or "") for t in turns if isinstance(t, dict)]
+            if not texts:
+                texts = [str(row.get(k) or "") for k in ("text", "prompt", "completion", "instruction", "output")]
+            block = "\n".join(t.strip() for t in texts if t.strip())
+            if not block:
+                continue
+            parts.append(block)
+            total += len(block) + 2
+            if total >= max_chars:
+                break
+    return "\n\n".join(parts)[:max_chars]
+
+
 def _export_gguf(
     engine: Any,
     *,
     output_path: str,
     quant_list: list[str],
     force: bool,
+    subdir: str = "gguf",
+    calibration_text: str = "",
 ) -> dict[str, Any]:
     """Run GGUF conversion and only succeed when artifacts verify non-empty."""
-    gguf_dir = os.path.join(output_path, "gguf")
+    gguf_dir = os.path.join(output_path, subdir)
     existing = verify_gguf_artifacts(gguf_dir, quant_list)
     if existing["ok"] and not force:
         return {
@@ -203,10 +247,13 @@ def _export_gguf(
         )
 
     # TrainingEngine._do_export_gguf uses convert_merged_to_gguf; tests may patch it.
-    try:
-        result = engine._do_export_gguf(output_path, force=force)
-    except TypeError:
-        result = engine._do_export_gguf(output_path)
+    if calibration_text or subdir != "gguf":
+        result = engine._do_export_gguf(output_path, force=force, subdir=subdir, calibration_text=calibration_text)
+    else:
+        try:
+            result = engine._do_export_gguf(output_path, force=force)
+        except TypeError:
+            result = engine._do_export_gguf(output_path)
 
     if result.get("ok") is True and result.get("files"):
         return {
@@ -297,6 +344,7 @@ def validate_export_request(
     fmt: str = "gguf",
     quants: list[str] | None = None,
     force: bool = False,
+    imatrix: bool = False,
 ) -> dict[str, Any] | None:
     """Cheap pre-flight: a failure payload for a request that cannot succeed.
 
@@ -326,6 +374,10 @@ def validate_export_request(
         )
     if not (run.get("output_path") or "").strip():
         return _export_failure("run has no output_path", format=fmt_norm)
+    if imatrix:
+        refused = _imatrix_refusal(run, fmt_norm, list(quants or DEFAULT_GGUF_QUANTS))
+        if refused is not None:
+            return refused
     if (
         fmt_norm == "gguf"
         and find_gguf_convert_script() is None
@@ -340,6 +392,24 @@ def validate_export_request(
     return None
 
 
+def _imatrix_refusal(run: dict[str, Any], fmt_norm: str, quants: list[str]) -> dict[str, Any] | None:
+    """Why an importance-matrix export cannot run, or None."""
+    if fmt_norm != "gguf":
+        return _export_failure("the importance matrix only applies to a GGUF export", format=fmt_norm)
+    if not imatrix_applies(quants):
+        return _export_failure(
+            "the importance matrix only changes llama-quantize types (Q4_K_M, Q5_K_M, Q6_K, IQ…); "
+            "f16, bf16 and Q8_0 are written without it, so pick at least one of those",
+            format="gguf", quants=quants)
+    if os.environ.get("FTS_SKIP_EXPORT") != "1" and find_llama_imatrix() is None:
+        return _export_failure(LLAMA_IMATRIX_MISSING_MSG, format="gguf")
+    if not imatrix_calibration_text(str(run.get("data_path") or ""), max_chars=1):
+        return _export_failure(
+            "this run's training data file is missing or empty, so there is no text to measure the importance "
+            "matrix on; export without it", format="gguf")
+    return None
+
+
 def export_trained_run(
     run: dict[str, Any],
     *,
@@ -347,15 +417,17 @@ def export_trained_run(
     quants: list[str] | None = None,
     force: bool = False,
     base_model: str | None = None,
+    imatrix: bool = False,
 ) -> dict[str, Any]:
     """Merge if needed, then export ``run`` to ``fmt``.
 
-    Returns a dict with ``ok`` / ``status`` / ``error`` plus format fields.
+    ``imatrix`` (GGUF only) measures an importance matrix on the run's training text and quantizes with it, into
+    ``<output>/gguf-imatrix/``. Returns a dict with ``ok`` / ``status`` / ``error`` plus format fields.
     Failures always set ``ok=False`` and ``status="failed"``.
     """
     fmt_norm = (fmt or "gguf").strip().lower()
     refused = validate_export_request(
-        run, fmt=fmt_norm, quants=quants, force=force,
+        run, fmt=fmt_norm, quants=quants, force=force, imatrix=imatrix,
     )
     if refused is not None:
         return refused
@@ -386,6 +458,11 @@ def export_trained_run(
     engine.config = cfg
 
     if fmt_norm == "gguf":
+        if imatrix:
+            return _export_gguf(
+                engine, output_path=output_path, quant_list=quant_list, force=force, subdir=IMATRIX_SUBDIR,
+                calibration_text=imatrix_calibration_text(str(run.get("data_path") or "")),
+            )
         return _export_gguf(
             engine,
             output_path=output_path,

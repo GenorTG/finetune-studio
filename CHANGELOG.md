@@ -18,8 +18,19 @@ turns that section into the release's notes.
   build). A new version **builds on** an earlier one (the latest by default), **Lineage** shows the chain
   (v1 → v2 → v3), and **Delete** removes a version record without touching its datasets, runs or models.
 
+- Export page: **Importance matrix (imatrix)** for GGUF. Before quantizing, the app measures which weights the
+  run's own training data relies on (llama.cpp's `llama-imatrix`, sized to the free GPU memory) and quantizes with
+  that: better q4/q3/q2 quality at the same file size. The files go to the run's `gguf-imatrix/` folder beside the
+  plain ones; the option is disabled, with the reason, when the tool is missing.
+
 ### Changed
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
+
+### Removed
+- `POST /api/training/runs/{id}/quantize`, `GET /api/training/runs/{id}/quant-exports` and
+  `POST /api/training/runs/{id}/set-output`: API-only, never used, and the quantize route needed an importance-matrix
+  file nobody had. The Export page's importance-matrix option replaces it. The hidden `export_imatrix` /
+  `imatrix_calibration` training fields are gone too.
 
 ### Security
 - Saved API keys (helper, Vision reader) are now stored encrypted instead of as plain text: a copied database or

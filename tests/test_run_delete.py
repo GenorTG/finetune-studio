@@ -81,7 +81,7 @@ def test_a_shared_or_foreign_output_dir_is_kept_and_said_so(client, cwd: Path) -
     assert out.is_dir(), "a directory that is not named after the run may hold other runs' weights"
     assert db.get_run(rid) is None
 
-    # A path outside output/ (``set-output`` accepts any path) is never removed, even when named after the run.
+    # A path outside output/ (an older output_dir setting could point anywhere) is never removed, even when named after the run.
     rid2 = db.create_run(project_id=pid, name="elsewhere", settings_obj={})["id"]
     elsewhere = cwd / "models" / rid2
     elsewhere.mkdir(parents=True)

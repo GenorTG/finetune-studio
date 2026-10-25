@@ -318,7 +318,7 @@ def _activity_summary(path: str, method: str, http_status: int = 200, error_deta
             return "Start training run"
         if "/run-suite" in path:
             return "Run test suite"
-        if any(x in path for x in ("/export-gguf", "/quantize", "/export")):
+        if any(x in path for x in ("/export-gguf", "/export")):
             return "Export model"
         if "/load" in path and "models" in path:
             return "Load model"

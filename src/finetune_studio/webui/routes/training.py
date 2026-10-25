@@ -4,7 +4,6 @@ import asyncio
 import json
 import logging
 import math
-import os
 import re
 from pathlib import Path
 
@@ -501,8 +500,6 @@ async def start_training(request: Request):
                 project_id=project_id,
                 abliterate=_coerce_bool(body.get("abliterate", False)),
                 abliteration_strength=float(body.get("abliteration_strength", 1.0)),
-                export_imatrix=_coerce_bool(body.get("export_imatrix", False)),
-                imatrix_calibration=body.get("imatrix_calibration", ""),
             )
         _apply_checkpoint_fields(config, body)
     except (ValueError, TypeError, OverflowError) as e:
@@ -835,90 +832,3 @@ async def trigger_auto_suite(run_id: str, request: Request):
         "helper_label": (helper or {}).get("label") or DEFAULT_HELPER_LABEL,
         **result,
     }
-
-
-@router.post("/runs/{run_id}/quantize")
-async def quantize_run(run_id: str, request: Request):
-    """Start an imatrix GGUF quantization of a run as a tracked export job.
-
-    Returns ``202 {ok, export_id, status: "queued"}`` at once; progress and the
-    final result live in the export row (``GET /projects/{pid}/exports/{id}``,
-    SSE ``.../events``). One export at a time: ``409`` while another runs.
-    """
-    from finetune_studio import db
-    from finetune_studio.training.gguf_convert import (
-        find_gguf_convert_script,
-        find_llama_quantize,
-    )
-    from finetune_studio.webui import export_jobs
-
-    body = await request.json()
-    method = body.get("method", "imatrix")
-    run = db.get_run(run_id)
-    if not run:
-        return JSONResponse({"detail": "run not found"}, status_code=404)
-    output_path = (run.get("output_path") or "").strip()
-    if not output_path:
-        return JSONResponse({"detail": "run has no output_path"}, status_code=409)
-    merged_dir = os.path.join(output_path, "merged")
-    if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
-        return JSONResponse({"detail": "no merged model to quantize"}, status_code=409)
-    if method != "imatrix":
-        return JSONResponse({"detail": f"unknown method: {method}"}, status_code=400)
-    imatrix_path = body.get("imatrix_path", "")
-    if not imatrix_path or not os.path.isfile(imatrix_path):
-        return JSONResponse(
-            {"detail": f"imatrix file not found: {imatrix_path or '(none given)'}"},
-            status_code=422,
-        )
-    if not find_gguf_convert_script():
-        return JSONResponse({"detail": "llama.cpp convert script not found"}, status_code=422)
-    if not find_llama_quantize():
-        return JSONResponse({"detail": "llama-quantize not found"}, status_code=422)
-    quants = [str(q) for q in body.get("quants", ["q4_k_m", "q5_k_m", "q8_0"])]
-    try:
-        row = export_jobs.start_job(
-            project_id=run.get("project_id", ""), run_id=run_id, fmt="imatrix",
-            quant=",".join(quants), quants=quants,
-            work=("imatrix_work", {"run": run, "merged_dir": merged_dir,
-                                   "output_dir": os.path.join(output_path, "imatrix"),
-                                   "imatrix_path": imatrix_path, "quants": quants,
-                                   "bits": int(body.get("bits", 4)),
-                                   "group_size": int(body.get("group_size", 128))}),
-        )
-    except export_jobs.ExportBusy as busy:
-        return JSONResponse(
-            {"ok": False, "status": "busy", "detail": str(busy),
-             "active_export_id": busy.active.get("id")},
-            status_code=409,
-        )
-    return JSONResponse(
-        {"ok": True, "export_id": row["id"], "status": "queued",
-         "project_id": row["project_id"]},
-        status_code=202,
-    )
-
-
-@router.get("/runs/{run_id}/quant-exports")
-async def list_quant_exports(run_id: str):
-    """List all quantization exports for a run."""
-    from finetune_studio.db.connection import cursor
-    with cursor() as c:
-        rows = c.execute("SELECT id, model_path, output_path, method, bits, group_size, size_bytes, status, created_at FROM quant_exports WHERE run_id = ? ORDER BY created_at DESC", (run_id,)).fetchall()
-    return [{"id": r[0], "model_path": r[1], "output_path": r[2], "method": r[3], "bits": r[4], "group_size": r[5], "size_bytes": r[6], "status": r[7], "created_at": r[8]} for r in rows]
-
-
-@router.post("/runs/{run_id}/set-output")
-async def set_run_output(run_id: str, request: Request):
-    """Update a run's output_path."""
-    from finetune_studio import db
-    body = await request.json()
-    output_path = str(body.get("output_path") or "").strip()
-    if not output_path:
-        return JSONResponse({"detail": "no output_path"}, status_code=400)
-    if not db.get_run(run_id):
-        return JSONResponse({"detail": "run not found"}, status_code=404)
-    db.update_run(run_id, output_path=output_path)
-    return {"ok": True, "run_id": run_id, "output_path": output_path}
-
-
