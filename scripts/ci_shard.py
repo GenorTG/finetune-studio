@@ -24,12 +24,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 EXCLUDED = frozenset({
     "tests/test_vram.py",              # profiles a real model on a physical GPU
-    # Standalone playwright scripts against a live WebUI (FTS_BASE) (zero pytest tests, `__main__` only);
-    # collecting them just fails on `import playwright`, which is not a project dependency.
-    "tests/test_breakpoints.py",
-    "tests/test_breakpoints_visual.py",
-    "tests/test_phase_bd.py",
-    "tests/test_phase_bd_api.py",
+    # The standalone playwright scripts against a live WebUI live in tests/qa/ (no test_ prefix), so
+    # neither pytest nor this glob collects them.
 })
 
 # Measured seconds per file on a GitHub-hosted ubuntu runner (CI run 37432258997, `--durations=0`); only files that matter.

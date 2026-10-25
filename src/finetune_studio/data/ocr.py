@@ -210,31 +210,6 @@ def ocr_image(image_path: str | Path, languages: str = DEFAULT_LANGS,
                 pass
 
 
-def ocr_image_object(img, languages: str = DEFAULT_LANGS,
-                    psm: int = 3, oem: int = 1) -> str:
-    """OCR a PIL.Image directly (no disk roundtrip)."""
-    try:
-        import pytesseract
-    except ImportError as e:
-        raise RuntimeError("pytesseract not installed: pip install pytesseract") from e
-    if not _tesseract_cmd():
-        raise RuntimeError(
-            "tesseract binary not found on PATH. Install with: "
-            + install_hint()
-        )
-    _ensure_tessdata(languages)
-    # pytesseract respects TESSDATA_PREFIX env var
-    old_prefix = os.environ.get("TESSDATA_PREFIX")
-    os.environ["TESSDATA_PREFIX"] = _tessdata_prefix()
-    try:
-        return pytesseract.image_to_string(img, lang=languages, config=f"--psm {psm} --oem {oem}")
-    finally:
-        if old_prefix is None:
-            os.environ.pop("TESSDATA_PREFIX", None)
-        else:
-            os.environ["TESSDATA_PREFIX"] = old_prefix
-
-
 def ocr_pdf(pdf_path: str | Path, languages: str = DEFAULT_LANGS, dpi: int = 200) -> list[dict]:
     """OCR every page of a PDF. Returns [{"page": i, "text": "..."}, ...].
 
