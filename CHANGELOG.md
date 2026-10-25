@@ -26,6 +26,11 @@ turns that section into the release's notes.
 ### Changed
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
+### Fixed
+- Testing / Compare: picking a folder no loader can open (a training run's own folder, with only `adapter/` and
+  checkpoints) is refused at once with what to do (export the run first), instead of starting a run that failed
+  inside the job with a tokenizer error.
+
 ### Removed
 - `POST /api/training/runs/{id}/quantize`, `GET /api/training/runs/{id}/quant-exports` and
   `POST /api/training/runs/{id}/set-output`: API-only, never used, and the quantize route needed an importance-matrix

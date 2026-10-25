@@ -30,6 +30,21 @@ def local_model_missing(path: str) -> bool:
     return p.startswith(("/", "~", "./", "../")) and not os.path.exists(os.path.expanduser(p))
 
 
+def unloadable_model_dir(path: str) -> bool:
+    """True when ``path`` is an existing local folder no loader can open (no config.json, adapter or .gguf).
+
+    A training run's own folder (``adapter/`` + ``checkpoint-*``) is the usual case: it has to be exported first.
+    """
+    p = os.path.expanduser((path or "").strip())
+    if not os.path.isdir(p):
+        return False
+    try:
+        names = os.listdir(p)
+    except OSError:
+        return False
+    return not ({"config.json", "adapter_config.json"} & set(names) or any(n.endswith(".gguf") for n in names))
+
+
 def is_run_done(run: dict[str, Any]) -> bool:
     """True when a training run is finished successfully."""
     return (run.get("status") or "").lower() in _DONE_STATUSES
@@ -130,4 +145,7 @@ def target_model(pid: str, override: str) -> str:
             raise ValueError("no model to test: pick one in the Model list, or run training + merge/export first")
     if local_model_missing(chosen):
         raise ValueError(f"model not found on disk: {chosen} (re-create it, or pick another model)")
+    if override and override != BASE_MODEL_CHOICE and unloadable_model_dir(chosen):
+        raise ValueError(f"not a model folder: {chosen} has no config.json, adapter or .gguf file (a training run's "
+                         "folder? export the run as merged or GGUF on the Export page and test that)")
     return chosen
