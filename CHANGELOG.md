@@ -26,5 +26,7 @@ turns that section into the release's notes.
   longer offer Windows or macOS paths, and CI no longer runs a macOS leg. `docs/INSTALL.md` "Updating" now uses `update.sh`.
 
 ### Fixed
+- Mining keeps the direction of comparisons as written (beat/missed, above/below, rose/fell …): a board pack's
+  "beat the budget" had been mined as "missed". Mining prompts are now `mining-v5`.
 - `uv build` failed because the benchmark fixtures were added to the wheel twice; the sdist no longer ships the
   25 MB test corpus.

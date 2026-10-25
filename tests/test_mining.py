@@ -562,3 +562,17 @@ def test_a_name_after_an_initial_is_a_name() -> None:
     kept = [{"q": "Form?", "a": "The form is KC-QF-140."}, {"q": "Raised?", "a": "KC-QF-140 was raised on 3 October."}]
     new = [{"q": "Who closed KC-QF-140?", "a": "The form KC-QF-140 was closed by T. Kowarzik."}]
     assert drop_redundant(new, kept) == new        # was dropped: 'Kowarzik' read as a sentence start
+
+
+def test_mine_and_fix_prompts_keep_comparison_direction() -> None:
+    """RESULTS §16: 'beat the budget by 1.3m' was mined as 'missed'; both stages must forbid flipping."""
+    from finetune_studio.data.mining import prompts
+
+    mine = prompts.mine_messages("Board pack", "Q3 revenue beat the budget by 1.3m.", ["revenue vs budget"])
+    fix = prompts.fix_messages("Board pack", "Q3 revenue beat the budget by 1.3m.", ["revenue vs budget"],
+                               rejected=[("Did Q3 revenue meet the budget?", "It missed it.", "direction flipped")])
+    for msgs in (mine, fix):
+        system = msgs[0]["content"]
+        assert "Keep the direction of every comparison exactly as written" in system
+        assert "beat/missed" in system and "Never turn one into the other" in system
+    assert prompts.PROMPT_VERSION == "mining-v5"
