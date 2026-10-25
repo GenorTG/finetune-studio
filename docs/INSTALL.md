@@ -1,6 +1,8 @@
 # Installation Guide
 
-Install Finetune Studio on **Linux** (Ubuntu / Fedora / Arch), **Windows 10/11**, or **macOS**. The repository has platform-specific installers; the Windows installer is maintained, but has not been exercised in the current Linux-hosted production review.
+Install Finetune Studio on **Linux** (Ubuntu / Debian, Fedora, Arch), with an NVIDIA GPU or on the CPU. **Linux is the only supported platform** until the stable 1.0.0 release; Windows and macOS are not supported or tested.
+
+Releases are tagged `vX.Y.Z` on the `main` branch ([CHANGELOG](../CHANGELOG.md), [GitHub Releases](https://github.com/GenorTG/finetune-studio/releases)); `main` always holds the latest release.
 
 ---
 
@@ -34,12 +36,10 @@ If something fails, read the relevant section below.
 ### How to install each prerequisite from the official source
 
 **Python**
-- Linux:   `sudo apt install python3 python3-venv python3-dev` (Debian/Ubuntu) or `sudo dnf install python3 python3-devel` (Fedora) or `sudo pacman -S python` (Arch)
-- macOS:   `brew install python@3.12`  (https://brew.sh) — or download from https://www.python.org/downloads/macos/
-- Windows: download the official installer from https://www.python.org/downloads/windows/ — **make sure to check "Add python.exe to PATH"**
+- `sudo apt install python3 python3-venv python3-dev` (Debian/Ubuntu), `sudo dnf install python3 python3-devel` (Fedora) or `sudo pacman -S python` (Arch)
 
 **Git**
-- All OSes: download from https://git-scm.com/downloads — or `apt install git` / `brew install git`
+- `apt install git` / `dnf install git` / `pacman -S git` (or https://git-scm.com/downloads)
 
 **NVIDIA driver**
 - Install a current driver from https://www.nvidia.com/drivers.
@@ -48,7 +48,7 @@ If something fails, read the relevant section below.
 - If you have an AMD GPU, see the **AMD / CPU-only** section below.
 
 **Node.js** (only for running tests)
-- All OSes: download LTS from https://nodejs.org/ — or `brew install node` / `apt install nodejs npm`
+- download LTS from https://nodejs.org/ — or `apt install nodejs npm`
 
 ---
 
@@ -69,7 +69,7 @@ chmod +x install.sh
 ```
 
 This will:
-1. Detect the GPU (NVIDIA / AMD / Intel / Apple; CPU only when there is none) and create a Python venv in `.venv/` (with `uv`)
+1. Detect the GPU (NVIDIA; AMD / Intel are best effort; CPU only when there is none) and create a Python venv in `.venv/` (with `uv`)
 2. Install the newest PyTorch build your driver supports and pin it (`.venv/torch-constraints.txt`)
 3. Install `llama-cpp-python` with GPU offload, the app dependencies and the `parsers` extra used for document ingestion
 4. Build the llama.cpp CLI (`.llama.cpp/`, used for GGUF export) for the same GPU backend
@@ -84,7 +84,7 @@ Useful flags (`./install.sh --help` lists all):
 | `--repair` | diagnose and fix a broken install (mixed torch, missing deps, CPU build on a GPU host) |
 | `--cpu`, `--gpu <vendor>` | override detection. The choice is remembered in `.venv/fts-force-vendor`, so later `--check`, `--repair` and `update.sh` keep it; run `--gpu <vendor>` to change it |
 
-On Linux, `./update.sh` pulls, checks/repairs the environment, syncs dependencies, migrates the database, and restarts the service running this checkout; `./update.sh --check` is the read-only mode. Install the optional Linux systemd service with `./install-service.sh`. Windows uses the PowerShell/batch installer and `run.bat`; the self-update and systemd scripts are Linux-only.
+On Linux, `./update.sh` pulls, checks/repairs the environment, syncs dependencies, migrates the database, and restarts the service running this checkout; `./update.sh --check` is the read-only mode. Install the optional systemd user service with `./install-service.sh`.
 
 The installer does not install Playwright or browser binaries. See
 [`../tests/README_E2E.md`](../tests/README_E2E.md) for the separate browser-test
@@ -94,7 +94,7 @@ If `./install.sh` doesn't exist or is broken, do it manually:
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
+source .venv/bin/activate
 python -m pip install --upgrade pip wheel
 # GPU install: do not hard-code a CUDA wheel index; it depends on the driver and GPU.
 # Run ./install.sh --plan and use its torch_index, or let the installer choose it.
@@ -114,23 +114,17 @@ build requires CUDA:
 # CPU-only GGUF:
 python -m pip install llama-cpp-python
 
-# NVIDIA GPU GGUF (Linux/Windows, requires CUDA toolkit installed):
+# NVIDIA GPU GGUF (requires the CUDA toolkit):
 CMAKE_ARGS="-DGGML_CUDA=on" python -m pip install llama-cpp-python --force-reinstall --no-cache-dir
 
-# Apple Silicon (Metal):
-CMAKE_ARGS="-DGGML_METAL=on" python -m pip install llama-cpp-python --force-reinstall --no-cache-dir
 ```
 
 ### 4. Start the studio
 
-Linux/macOS:
-
 ```bash
 ./run.sh                          # or: source .venv/bin/activate && fts webui
-bash install-service.sh           # optional Linux systemd user service
+bash install-service.sh           # optional systemd user service
 ```
-
-Windows: run `run.bat` from the checkout directory. The included systemd service installer is Linux-only; on Windows, keep the launcher open or configure a service manager separately.
 
 Open http://localhost:7860 in a modern browser. The first visit offers the onboarding tutorial.
 
@@ -187,7 +181,7 @@ API token hashes, sessions; mode 0600). No plain password or token is ever store
 
 ---
 
-## Per-OS notes
+## Per-distribution notes
 
 ### Linux (Ubuntu / Debian)
 
@@ -217,33 +211,6 @@ sudo dnf install -y cuda-toolkit
 sudo pacman -S python python-pip git base-devel
 sudo pacman -S nvidia nvidia-utils cuda
 ```
-
-### macOS (Intel / Apple Silicon)
-
-```bash
-# Install Homebrew first: https://brew.sh
-brew install python@3.12 git cmake
-
-# For Apple Silicon (M1/M2/M3/M4) — Metal acceleration works automatically.
-# For Intel Macs — inference is CPU-only.
-
-# No NVIDIA driver needed. CUDA toolkit not needed.
-```
-
-### Windows 10 / 11
-
-1. Install Python 3.12 or 3.13 and Git. For NVIDIA acceleration, install a current NVIDIA driver; the installer chooses a compatible PyTorch build. A CUDA Toolkit is only needed if building llama.cpp components from source.
-2. In PowerShell:
-   ```powershell
-   git clone https://github.com/GenorTG/finetune-studio.git
-   cd finetune-studio
-   .\install.ps1
-   .\run.bat
-   ```
-   Alternatively, run `install.bat` from Command Prompt, then `run.bat`.
-3. Open http://localhost:7860. If Windows Firewall prompts because you enabled network access, allow only the networks you intend to use.
-
-The PowerShell installer supports `-Cpu`, `-Gpu nvidia|amd|intel|none`, `-NoGguf`, and `-NoLlamaCpp`. Its optional llama.cpp CLI build may require CMake, Git, Visual Studio Build Tools, and a CUDA toolkit for NVIDIA source builds. Windows installer/runtime behavior still needs verification on a Windows host.
 
 ---
 
@@ -275,20 +242,14 @@ python -m pip install llama-cpp-python    # GGUF CPU inference
 
 ## Verifying the install
 
-Run the environment check from the checkout. On Unix:
+Run the environment check from the checkout:
 
 ```bash
 source .venv/bin/activate
 fts doctor
 ```
 
-On Windows PowerShell:
-
-```powershell
-.\.venv\Scripts\python.exe -m finetune_studio doctor
-```
-
-Then start the WebUI (`fts webui` on Unix, `run.bat` on Windows) and open http://localhost:7860. The default listener is local-only; enable LAN/Tailscale access in **Settings → Access & network** only when needed.
+Then start the WebUI (`fts webui`) and open http://localhost:7860. The default listener is local-only; enable LAN/Tailscale access in **Settings → Access & network** only when needed.
 
 ---
 
@@ -302,8 +263,6 @@ Then start the WebUI (`fts webui` on Unix, `run.bat` on Windows) and open http:/
 | `libstdc++.so.6: version not found` | Old base image | `conda install -c conda-forge libstdcxx-ng` or use newer Ubuntu |
 | HF downloads fail | Firewall or proxy | Set `HF_HUB_OFFLINE=1` and pre-download, or configure proxy |
 | WebUI loads but the Smart Brain build OOMs | Not enough RAM/VRAM | Use a smaller embedder (e.g. `all-MiniLM-L6-v2`) |
-| Windows: `failed to build llama-cpp-python` | Missing Visual Studio Build Tools | Install "Desktop development with C++" from Visual Studio Installer |
-| macOS: `Library not loaded: libomp.dylib` | Missing OpenMP runtime | `brew install libomp` |
 
 ---
 
@@ -311,10 +270,12 @@ Then start the WebUI (`fts webui` on Unix, `run.bat` on Windows) and open http:/
 
 ```bash
 cd finetune-studio
-git pull
-source .venv/bin/activate
-python -m pip install -e ".[parsers]" --upgrade
+bash update.sh          # pulls main (the latest release), repairs the venv, syncs deps, migrates, restarts
+bash update.sh --check  # read-only: what would change
 ```
+
+Settings → **Apply update** runs the same script from the web UI. To pin one release instead:
+`git fetch --tags && git checkout vX.Y.Z && bash update.sh --no-pull`. What changed: [CHANGELOG](../CHANGELOG.md).
 
 Models and Smart Brain indexes live in `~/.finetune-studio/` — they persist across
 updates.

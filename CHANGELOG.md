@@ -22,6 +22,8 @@ turns that section into the release's notes.
 - The version in the UI is `X.Y.Z` on a tagged release and `X.Y.Z+<branch>.<sha>` on any other commit; the
   per-commit `0.1.0.N` build counter and its `pre-commit` bump are gone. The channel label reads BETA for 0.x.
 - `update.sh` pulls the branch the checkout is on (`main` or `dev`) and leaves feature branches alone.
+- Linux (NVIDIA GPU or CPU) is the only supported platform until 1.0.0: the install docs and the project page no
+  longer offer Windows or macOS paths, and CI no longer runs a macOS leg. `docs/INSTALL.md` "Updating" now uses `update.sh`.
 
 ### Fixed
 - `uv build` failed because the benchmark fixtures were added to the wheel twice; the sdist no longer ships the
