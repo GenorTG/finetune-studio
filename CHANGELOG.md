@@ -18,6 +18,11 @@ turns that section into the release's notes.
 ### Changed
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
+### Security
+- Saved API keys (helper, Vision reader) are now stored encrypted instead of as plain text: a copied database or
+  backup carries no usable key. Keys saved by earlier versions are encrypted on the next start; Settings shows
+  "saved, encrypted", or asks for the key again if the encryption key file was lost.
+
 ## [0.2.0] - 2026-10-25
 
 First tagged release (beta, Linux only). What the app does at this point, each part measured on the fictional Korvane

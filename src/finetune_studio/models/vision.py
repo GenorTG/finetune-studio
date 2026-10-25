@@ -116,7 +116,7 @@ def describe() -> dict[str, Any]:
         label = "Off (OCR only)"
     return {"mode": seat.mode, "local_model": seat.local_model, "label": label,
             "api": {"configured": bool(api), "base_url": api.get("base_url", ""), "model": api.get("model_id", ""),
-                    "key_set": bool(api.get("api_key_set"))}}
+                    "key_set": bool(api.get("api_key_set")), "key_state": api.get("api_key_state") or "unset"}}
 
 
 def fit_image(data: bytes, max_side: int = MAX_SIDE_PX) -> bytes:

@@ -14,6 +14,12 @@
     return `<div class="debug-label">${label}</div><div class="debug-value">${value || "—"}</div>`;
   }
 
+  // Saved API keys are encrypted at rest; "unreadable" means the vault key was lost and the key must be entered again.
+  function keyStateText(a) {
+    if (a.key_state === 'unreadable') return '(saved key unreadable: enter it again)';
+    return a.key_set ? '(saved, encrypted)' : '(not set)';
+  }
+
   function humanBytes(n) {
     if (!n) return "—";
     if (n > 1024 * 1024 * 1024) return (n / 1024 / 1024 / 1024).toFixed(1) + " GB";
@@ -355,7 +361,7 @@ function wireHelper() {
     $('helper-api-effort').value = h.api.reasoning_effort || '';
     $('helper-api-concurrency').value = h.api.concurrency || '';
     $('helper-api-key').value = '';
-    $('helper-key-state').textContent = h.api.key_set ? '(set)' : '(not set)';
+    $('helper-key-state').textContent = keyStateText(h.api);
     showFields();
   }
 
@@ -446,7 +452,7 @@ function wireVision() {
     $('vision-api-url').value = v.api.base_url || '';
     $('vision-api-model').value = v.api.model || '';
     $('vision-api-key').value = '';
-    $('vision-key-state').textContent = v.api.key_set ? '(set)' : '(not set)';
+    $('vision-key-state').textContent = keyStateText(v.api);
     showFields();
     setStatus('Current: ' + v.label);
   }
