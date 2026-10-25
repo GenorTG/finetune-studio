@@ -30,3 +30,8 @@ turns that section into the release's notes.
   "beat the budget" had been mined as "missed". Mining prompts are now `mining-v5`.
 - `uv build` failed because the benchmark fixtures were added to the wheel twice; the sdist no longer ships the
   25 MB test corpus.
+
+### Removed
+- The legacy `/api/data/{upload,validate,dedup,analyze,convert,hallucination-check}` routes: nothing in the UI or
+  CLI called them (project files go through Files & Knowledge and Data prep; `fts analyze` / `fts validate-hallucination`
+  are unchanged). Unused code: `templates.TemplateManager`, `HallucinationGuardrail` and a few helpers nothing called.

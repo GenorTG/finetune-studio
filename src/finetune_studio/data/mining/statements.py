@@ -41,10 +41,6 @@ class Statement:
     tokens: frozenset[str]         # distinctive, canonicalised
     header: str = ""               # table rows: the header row that names the columns
 
-    @property
-    def prompt_text(self) -> str:
-        return f"[{self.header}] || {self.text}" if self.header else self.text
-
 
 # ── sentences ─────────────────────────────────────────────────────────────────────────────────────────────────────────
 

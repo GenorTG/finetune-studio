@@ -101,17 +101,6 @@ def apply_effective(case_id: str) -> dict[str, Any] | None:
     return winner
 
 
-def judged_case_ids(benchmark_id: str, *, kind: str, provider_id: str = "") -> set[str]:
-    """Cases that already hold a verdict of ``kind`` (optionally from one provider) — for 'judge only the rest'."""
-    sql = "SELECT DISTINCT case_id FROM case_judgements WHERE benchmark_id = ? AND kind = ? AND verdict != ''"
-    args: list[str] = [benchmark_id, kind]
-    if provider_id:
-        sql += " AND provider_id = ?"
-        args.append(provider_id)
-    with cursor() as c:
-        return {r["case_id"] for r in c.execute(sql, args).fetchall()}
-
-
 def agreement(benchmark_id: str) -> dict[str, Any]:
     """How often each AI judge's verdict matches the human verdict, over cases a human has reviewed."""
     by_case: dict[str, dict[str, list[dict[str, Any]]]] = {}

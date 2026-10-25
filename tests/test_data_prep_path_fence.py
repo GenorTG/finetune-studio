@@ -160,18 +160,6 @@ def test_data_prep_sources_never_take_a_path(env) -> None:
     assert client.get(url).json()["sources"] == []
 
 
-def test_flat_data_routes_confined_to_data_dir(env, tmp_path: Path) -> None:
-    client, _, _, outside = env
-    ext = _jsonl(outside / "ext.jsonl")
-    for method, route in (("get", "validate"), ("post", "dedup")):
-        r = getattr(client, method)(f"/api/data/{route}", params={"path": str(ext)})
-        assert r.status_code == 403, (route, r.text)
-        r = getattr(client, method)(f"/api/data/{route}", params={"path": "../outside/ext.jsonl"})
-        assert r.status_code == 400, (route, r.text)
-    inside = _jsonl(Path(settings.data_dir) / "in.jsonl")
-    assert client.post("/api/data/dedup", params={"path": str(inside)}).json()["original"] == 1
-
-
 def test_file_library_raw_download_fenced(env) -> None:
     client, pid, _, outside = env
     up = client.post(
@@ -189,61 +177,3 @@ def test_file_library_raw_download_fenced(env) -> None:
     assert r.status_code == 403
 
 
-# ── /api/data/{analyze,validate-hallucination,convert} ─────
-
-_QUALITY = ("analyze", "hallucination-check", "convert")
-
-
-def _quality_body(route: str, path: str, output: str | None = None, **extra) -> dict:
-    body: dict = {"path": path, **extra}
-    if output is not None:
-        body["output"] = output
-    if route == "convert":
-        body["target_format"] = "json"
-    return body
-
-
-@pytest.mark.parametrize("route", _QUALITY)
-@pytest.mark.parametrize("use_project", [False, True])
-def test_quality_routes_fenced(env, route: str, use_project: bool) -> None:
-    client, pid, pdir, outside = env
-    extra = {"project_id": pid} if use_project else {}
-    root = pdir if use_project else Path(settings.data_dir)
-    url = f"/api/data/{route}"
-    ext = _jsonl(outside / "ext.jsonl")
-    # outside-absolute input / output
-    assert client.post(url, json=_quality_body(route, str(ext), **extra)).status_code == 403
-    inside = _jsonl(root / "in.jsonl")
-    bad_out = outside / "stolen.out"
-    r = client.post(url, json=_quality_body(route, str(inside), str(bad_out), **extra))
-    assert r.status_code == 403, r.text
-    assert not bad_out.exists()
-    # traversal
-    assert client.post(url, json=_quality_body(route, "../ext.jsonl", **extra)).status_code == 400
-    assert client.post(
-        url, json=_quality_body(route, str(inside), "../x.out", **extra)
-    ).status_code == 400
-    # symlink escape (input and output directory)
-    link = root / "link.jsonl"
-    link.symlink_to(ext)
-    assert client.post(url, json=_quality_body(route, str(link), **extra)).status_code == 403
-    (root / "dl").symlink_to(outside, target_is_directory=True)
-    r = client.post(url, json=_quality_body(route, str(inside), str(root / "dl" / "o.out"), **extra))
-    assert r.status_code == 403, r.text
-    assert not (outside / "o.out").exists()
-    # in-project accepted (200; handlers report job errors in the body)
-    r = client.post(url, json=_quality_body(route, str(inside), **extra))
-    assert r.status_code == 200, r.text
-
-
-def test_quality_convert_writes_inside_project(env) -> None:
-    client, pid, pdir, _ = env
-    inside = _jsonl(pdir / "in.jsonl")
-    out = pdir / "out.json"
-    r = client.post(
-        "/api/data/convert",
-        json={"path": str(inside), "output": str(out), "target_format": "json", "project_id": pid},
-    )
-    assert r.status_code == 200, r.text
-    if r.json()["status"] == "ok":
-        assert out.is_file()

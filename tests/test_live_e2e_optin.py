@@ -7,8 +7,8 @@ LIVE_SCRIPTS = (
     "e2e_functional.py",
     "e2e_training_flow.py",
     "e2e_ui_qa.py",
-    "test_phase_bd.py",
-    "test_phase_bd_api.py",
+    "qa/phase_bd.py",
+    "qa/phase_bd_api.py",
 )
 
 

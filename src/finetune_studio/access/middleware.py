@@ -38,10 +38,6 @@ def listening() -> tuple[str, ...]:
     return _address().binds()
 
 
-def listen_host() -> str:
-    return listening()[0]
-
-
 def exposed_without_password() -> bool:
     """True when other machines can reach this instance and nothing asks them for a password."""
     try:

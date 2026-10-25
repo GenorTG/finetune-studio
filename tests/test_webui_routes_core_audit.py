@@ -1,6 +1,7 @@
 """Regression tests for the B1 (webui/routes core) documentation audit.
 
-Pins three fixes made 2026-10-01:
+Pins fixes made 2026-10-01 (a third, the ``routes/data.py`` upload traversal, went away with the legacy
+``/api/data/*`` routes on 2026-10-25):
 
 1. ``projects.py`` run sub-resource routes used to trust the ``{rid}``
    path param without checking it belongs to the ``{pid}`` in the URL — a
@@ -10,14 +11,9 @@ Pins three fixes made 2026-10-01:
 2. ``routes/updates.py::get_update_status`` documented a ``?full=1`` query
    param in its docstring but never actually declared it on the route, so
    ``full`` was hardcoded ``False`` and the full log text was unreachable.
-3. ``routes/data.py::upload_file`` joined the client-supplied filename
-   directly into ``settings.data_dir`` without sanitizing it, allowing a
-   crafted filename (e.g. ``../../x``) to write outside the data directory.
 """
 
 from __future__ import annotations
-
-import os
 
 import pytest
 from fastapi.testclient import TestClient
@@ -124,32 +120,3 @@ def test_update_status_full_param_returns_untruncated_log(client):
 # ── data.py: upload filename must not escape data_dir ─────────────────────
 
 
-def test_upload_sanitizes_path_traversal_filename(client, tmp_path, monkeypatch):
-    # routes/data.py did ``from finetune_studio.config import settings`` at
-    # import time, binding its own module-level name to that object. Patch
-    # the attribute on that same object in place (not finetune_studio.config
-    # .settings, which other fixtures may have already replaced wholesale)
-    # so the route actually observes the override.
-    from finetune_studio.webui.routes import data as data_route_module
-
-    data_dir = tmp_path / "data_dir"
-    data_dir.mkdir()
-    monkeypatch.setattr(data_route_module.settings, "data_dir", str(data_dir))
-
-    outside_marker = tmp_path / "escaped.txt"
-    assert not outside_marker.exists()
-
-    resp = client.post(
-        "/api/data/upload",
-        files={"file": ("../escaped.txt", b"payload", "text/plain")},
-    )
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["name"] == "escaped.txt", "filename must be reduced to its basename"
-    assert not outside_marker.exists(), (
-        "upload must never write outside settings.data_dir via a "
-        "directory-traversal filename"
-    )
-    written = data_dir / "escaped.txt"
-    assert written.is_file()
-    assert written.read_bytes() == b"payload"

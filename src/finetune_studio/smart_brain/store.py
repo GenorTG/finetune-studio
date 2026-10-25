@@ -307,39 +307,6 @@ class BrainIndex:
         out["size_bytes"] = total
         return out
 
-    def unshare_models(self) -> dict:
-        """Reverse of bundle_models — switch manifest refs BACK to shared:
-        references and remove the local copies. Use this when you don't need
-        a self-contained copy anymore (e.g. you exported and now want to
-        free disk space)."""
-        out = {"embedder_removed": False, "reranker_removed": False, "bytes_freed": 0}
-        if not self.manifest_path.exists():
-            return out
-        m = Manifest.from_json(read_json(self.manifest_path))
-        # Re-register in shared store from local copy (it's faster than re-fetch)
-        for kind, current, attr_embed, attr_rerank in [
-            ("embedder", m.embedding_model.name, "name", None),
-            ("reranker", m.rag_settings.reranker, None, "reranker"),
-        ]:
-            if current.startswith(f"{'embedder_local' if kind == 'embedder' else 'reranker_local'}:"):
-                local_path = Path(current.split(":", 1)[1])
-                if local_path.exists():
-                    # Compute size before delete
-                    sz = sum(p.stat().st_size for p in local_path.rglob("*") if p.is_file())
-                    out["bytes_freed"] += sz
-                    out[f"{kind}_removed"] = True
-                    # Re-register into shared store
-                    sm_ref = _sm.register(m.extra.get("shared_model_paths", {}).get(kind, "?"),
-                                           kind=kind, src_dir=local_path, prefer_cached=True)
-                    if kind == "embedder":
-                        m.embedding_model.name = sm_ref.to_compact()
-                        m.rag_settings.embedder = sm_ref.to_compact()
-                    else:
-                        m.rag_settings.reranker = sm_ref.to_compact()
-                    shutil.rmtree(local_path)
-        m.updated_at = time.time()
-        write_json(self.manifest_path, m.to_json())
-        return out
 
     def export_bundle(self, out_path: str | Path | None = None,
                      fmt: str = "tar",
