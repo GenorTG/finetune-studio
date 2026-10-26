@@ -47,7 +47,7 @@ def authoritative_readiness_reply(tool_calls: list[dict], reply: str) -> str:
 
 def _fallback_reply(tool_calls: list[dict]) -> str:
     if not tool_calls:
-        return "The helper model returned no answer. Try again, or rephrase the question."
+        return "The assistant returned no answer. Try again, or rephrase the question."
     names = ", ".join(dict.fromkeys(tc["name"] for tc in tool_calls))
     return (
         f"I ran {len(tool_calls)} tool call(s) ({names}) but the model did not write a final answer "

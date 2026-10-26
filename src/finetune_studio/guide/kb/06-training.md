@@ -13,7 +13,7 @@ Teach a base model your dataset. Hours, not minutes for large bases; the page ke
 2. Pick the **Base model** (Transformers/safetensors only; GGUF is inference-only).
 3. Pick data: **From this project** (the dataset exported on Pairs) or **Upload my own** (JSONL/JSON/CSV). Picking one runs the dataset check; Start stays disabled until a dataset is chosen.
 4. Pick a **preset** by effort (Smoke, Baseline, Precision, Overkill). The page asks the preset advisor and fills epochs, rank, alpha, learning rate, batch, accumulation and warmup, with the optimizer-step arithmetic and warnings shown. Values stay editable.
-5. Check the advisory for a too-few-steps warning, then **Start training**. The helper model is unloaded automatically before training.
+5. Check the advisory for a too-few-steps warning, then **Start training**. A local assistant model is unloaded automatically before training.
 6. Watch **Live status** (step, loss, ETA). Afterwards: Testing, then Export; set a run as production from Past runs.
 
 ## Key controls

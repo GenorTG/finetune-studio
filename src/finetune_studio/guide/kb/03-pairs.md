@@ -5,12 +5,12 @@ page: pairs
 keywords: pairs qa question answer mine mining helper checklist inventory data points gaps fill review approve reject pending exclude complete export dataset grounded retrieved context coverage chunk rounds files
 ---
 ## Purpose
-A model learns from questions and answers, not raw documents. This page mines each parsed file into Q&A pairs with the **helper model**, checks them against a checklist of the file's data points, lets you review them, and exports the approved ones as the training dataset.
+A model learns from questions and answers, not raw documents. This page mines each parsed file into Q&A pairs with the **AI assistant**, checks them against a checklist of the file's data points, lets you review them, and exports the approved ones as the training dataset.
 
 ## Workflow
-1. In **Mine pairs, file by file** tick the files and press **Mine selected** (a local helper loads first, about 50 s; an API helper needs nothing). Each file is one job: **inventory** (its data points: every statement with a number, date, code or name, plus the facts the helper lists, including corrections that span the file), **mining** (pairs written against that checklist), **checking**, **fixing** (open data points sent back, up to three rounds). The table updates live while jobs run.
+1. In **Mine pairs, file by file** tick the files and press **Mine selected** (a local assistant model loads first, about 50 s; an API connection needs nothing). Each file is one job: **inventory** (its data points: every statement with a number, date, code or name, plus the facts the helper lists, including corrections that span the file), **mining** (pairs written against that checklist), **checking**, **fixing** (open data points sent back, up to three rounds). The table updates live while jobs run.
 2. In **Training / Q&A output** review the **Pending** pairs: approve, edit, or reject with a reason. The line above each pair says which data points it states and warns when it is the only pair stating one.
-3. Open a file's **Checklist** to see every data point: approved, awaiting review, open, or excluded. For an open point press **Fill gaps** (the helper tries again and sees your reject reasons), **Write pair**, or **Exclude** it with a reason when it is not a fact worth training on. **Rounds** shows every helper call with its prompt and raw reply.
+3. Open a file's **Checklist** to see every data point: approved, awaiting review, open, or excluded. For an open point press **Fill gaps** (the assistant tries again and sees your reject reasons), **Write pair**, or **Exclude** it with a reason when it is not a fact worth training on. **Rounds** shows every helper call with its prompt and raw reply.
 4. A file is **complete** when every data point is stated by an approved pair or excluded. Export needs every file complete (or an explicit "export anyway").
 5. Optionally tick **Include retrieved context** (default 40% of rows) if the trained model will answer with the Smart Brain's sources; build the Smart Brain first.
 6. **Export approved → Training**, then **Start training with this dataset**.
@@ -18,7 +18,7 @@ A model learns from questions and answers, not raw documents. This page mines ea
 ## Key controls
 - `#dp-mining` — the Mine pairs card.
 - `#dp-mine-selected` — mine the ticked files (inventory, mine, check, fix).
-- `#dp-fill-selected` — ask the helper again for the open data points of the ticked files.
+- `#dp-fill-selected` — ask the assistant again for the open data points of the ticked files.
 - `#dp-files` — the files table: status, data points (approved/excluded of total, open), pairs, actions.
 - `#dp-file-panel` — a file's checklist and rounds.
 - `#dp-filter-pending` — show only pairs awaiting review.

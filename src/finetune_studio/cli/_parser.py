@@ -53,7 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_suite.add_argument("--out", help="Write the transcripts (one JSON object per line) to this file")
     p_suite.add_argument(
         "--judge", nargs="?", const="", default=None, metavar="PROVIDER_ID",
-        help="Afterwards let an AI judge read the answers (provider row id; default: the configured judge / helper seat)",
+        help="Afterwards let an AI judge read the answers (provider row id; default: the AI assistant's Test judge job)",
     )
 
     # ── validate ──
@@ -160,7 +160,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_cmp.add_argument("--report", help="Save the answers (and verdicts, with --judge) as JSON to this file")
     p_cmp.add_argument(
         "--judge", nargs="?", const="", default=None, metavar="PROVIDER_ID",
-        help="Afterwards let an AI judge read every answer (provider row id; default: the configured judge / helper seat)",
+        help="Afterwards let an AI judge read every answer (provider row id; default: the AI assistant's Test judge job)",
     )
 
     # ── benchmark ──

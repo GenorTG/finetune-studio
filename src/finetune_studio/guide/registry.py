@@ -59,7 +59,7 @@ def _pages() -> dict[str, Page]:
         ("models_library", "Model library", "/models/explore", "hf_models.html", False, "Search and download base models from Hugging Face."),
         ("my_models", "My models", "/models", "models_index.html", False, "Models already on disk: downloaded bases and trained exports."),
         ("inference", "Inference", "/inference", "inference.html", False, "Load any model, set context and GPU layers, chat."),
-        ("settings", "Settings", "/settings", "settings.html", False, "Updates, access (password, tokens, network address), test judge, helper model, compute device."),
+        ("settings", "Settings", "/settings", "settings.html", False, "Updates, access (password, tokens, network address), AI assistant (connections, jobs, test judge), compute device."),
         ("overview", "Project overview", "/projects/{pid}", "project.html", True, "Project home: recent runs, models, files, activity."),
         ("wizard", "Quick work", "/projects/{pid}/wizard", "project_wizard.html", True, "One page that chains files, pairs, dataset, training, test."),
         ("files", "Files", "/projects/{pid}/data", "project_data.html", True, "Upload and organise documents; check each one parsed."),

@@ -314,7 +314,7 @@ def helper_missing_message(path: str) -> str:
     """Actionable text for a helper GGUF that is not on disk."""
     rec = RECOMMENDED_LOCAL_HELPER
     return (
-        f"No helper model is installed yet (expected {path}). Open Settings -> AI assistant and press "
+        f"No local assistant model is installed yet (expected {path}). Open Settings -> AI assistant and press "
         f"'Download {rec.label}' ({rec.size_gb:g} GB), pick another installed GGUF there, or connect an API provider."
     )
 

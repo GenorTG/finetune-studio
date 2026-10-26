@@ -45,6 +45,9 @@ turns that section into the release's notes.
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
 ### Fixed
+- The pages, the Guide's knowledge base and error messages now call the model that mines, judges and drafts the
+  **AI assistant**, as Settings does, instead of the old "helper model" / "helper seat"; `/openapi.json` reports the
+  app's real version instead of 0.1.0.
 - A job that needs the local assistant (drafting use-case examples, the reworded quiz, study sets, preference pairs)
   no longer stops at "no helper model loaded" with no way forward: the message now has a **Load the assistant and
   retry** button that loads the job's local model and runs the job again.
