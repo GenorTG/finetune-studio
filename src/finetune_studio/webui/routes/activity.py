@@ -31,7 +31,8 @@ def _now() -> float:
 # Status vocabularies used across every subsystem so the drawer + filters
 # speak one language (running / queued / done / error).
 _DONE_STATES = {"completed", "done", "ready", "succeeded", "success"}
-_ERR_STATES = {"failed", "error", "cancelled", "canceled"}
+_ERR_STATES = {"failed", "error"}
+_CANCELLED_STATES = {"cancelled", "canceled"}   # stopped on request: not an error
 _ACTIVE_STATES = {
     "loading", "training", "saving", "running", "downloading",
     "building", "embedding", "parsing", "in_progress",
@@ -47,6 +48,8 @@ def _norm_status(raw: str) -> str:
         return "done"
     if s in _ERR_STATES:
         return "error"
+    if s in _CANCELLED_STATES:
+        return "cancelled"
     if s in _ACTIVE_STATES:
         return "running"
     return s or "running"
@@ -276,6 +279,8 @@ def _persistent_tasks(projs: _ProjCache) -> list[dict[str, Any]]:
             repo = h.get("repo_id") or "?"
             if status == "error":
                 msg = f"failed: {str(h.get('error') or '')[:60]}"
+            elif status == "cancelled":
+                msg = "cancelled"
             elif status == "done":
                 msg = f"completed → {h.get('path', '')}"
             else:
@@ -417,7 +422,7 @@ def collect_activity() -> dict[str, Any]:
             elif status == "downloading":
                 ui_status = "running"
             elif status == "cancelled":
-                ui_status = "error"
+                ui_status = "cancelled"
             else:
                 ui_status = status
             if ui_status == "done":
@@ -425,6 +430,9 @@ def collect_activity() -> dict[str, Any]:
                 prog = 1.0
             elif ui_status == "error":
                 msg = f"failed: {(entry.get('error') or '')[:60]}"
+                prog = 0
+            elif ui_status == "cancelled":
+                msg = "cancelled"
                 prog = 0
             else:
                 msg = f"{done/1e9:.2f}GB / {total/1e9:.2f}GB" if total else "starting…"

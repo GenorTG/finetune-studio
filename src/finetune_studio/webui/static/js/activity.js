@@ -121,7 +121,13 @@
         const pct = Math.round((t.progress || 0) * 100);
         const isDone = t.status === "done" || t.status === "ready" || t.status === "completed";
         const isErr = t.status === "error";
-        const isActive = !isDone && !isErr;
+        const isCancelled = t.status === "cancelled";
+        const isActive = !isDone && !isErr && !isCancelled;
+        // A running model download can be stopped from here (POST /api/hf/download/cancel).
+        const cancelBtn = t.kind === "download" && isActive && t.id
+          ? `<button type="button" class="btn sm activity-cancel" data-dl-cancel="${escapeHtml(t.id)}"
+                     title="Stop this download; the files already fetched stay in the cache">Cancel download</button>`
+          : "";
         const projectBadge = t.project_name
           ? `<span class="activity-proj">${escapeHtml(t.project_name)}</span>`
           : "";
@@ -166,6 +172,7 @@
                   : ""
               }
             </div>
+            ${cancelBtn}
             ${
               t.url
                 ? `<a href="${escapeHtml(t.url)}" class="activity-goto"
@@ -192,12 +199,28 @@
           else _expanded.delete(key);
         }
       });
+      const cancel = row.querySelector("[data-dl-cancel]");
+      if (cancel) cancel.addEventListener("click", (ev) => { ev.stopPropagation(); cancelDownload(cancel); });
       // The GO TO link itself — stop propagation so click doesn't toggle.
       const goto = row.querySelector(".activity-goto");
       if (goto) {
         goto.addEventListener("click", (ev) => ev.stopPropagation());
       }
     });
+  }
+
+  async function cancelDownload(btn) {
+    btn.disabled = true;
+    try {
+      const r = await fetch("/api/hf/download/cancel?job_id=" + encodeURIComponent(btn.dataset.dlCancel), { method: "POST" });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || ("HTTP " + r.status));
+      window.fts?.notify?.("Download " + (d.status || "cancelled"), "success");
+    } catch (e) {
+      btn.disabled = false;
+      window.fts?.notify?.("Could not cancel the download: " + (e.message || e), "error");
+    }
+    refresh();
   }
 
   function updateBadge(count) {

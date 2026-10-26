@@ -183,6 +183,7 @@ def _controls() -> dict[str, Control]:
         ("settings.updates", "settings", "#btn-update-check", "Check for updates"),
         ("settings.judge_auto", "settings", "#judge-auto", "Judge automatically after a test run"),
         ("guide.panel", "overview", "#guide-panel", "The Guide panel"),
+        ("activity.drawer", "models_library", "#activity", "Activity drawer: running jobs; Cancel download stops a model download"),
         ("guide.mode", "overview", "#guide-mode", "Guide actions: ask before each, or hands-free"),
         ("settings.assistant", "settings", "#assistant-card", "AI assistant: connections, main assistant, jobs"),
         ("settings.assistant_main", "settings", "#assistant-main", "Main assistant"),
