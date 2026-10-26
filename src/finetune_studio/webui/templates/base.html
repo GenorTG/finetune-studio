@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/static/css/base.css?v=1">
   <link rel="stylesheet" href="/static/css/components.css?v=2">
   <link rel="stylesheet" href="/static/css/layout.css?v=1">
-  <link rel="stylesheet" href="/static/css/app.css?v=121">
+  <link rel="stylesheet" href="/static/css/app.css?v=122">
   <link rel="stylesheet" href="/static/css/typography.css?v=1">
   <link rel="stylesheet" href="/static/css/access.css?v=3">
   <script src="/static/js/access.js?v=1"></script>
@@ -271,6 +271,11 @@
       <div class="guide-head">
         <span class="guide-title">GUIDE</span>
         <span class="guide-ctx" id="guide-ctx">no project</span>
+        <select class="select guide-mode" id="guide-mode" aria-label="How the guide runs actions"
+                title="Ask: the guide prepares an action and you press Run. Hands-free: it runs the actions itself and carries on.">
+          <option value="ask">Ask before each action</option>
+          <option value="auto">Hands-free</option>
+        </select>
         <button class="guide-hbtn" id="guide-clear" type="button" title="Clear the conversation" aria-label="Clear the conversation">⟲</button>
         <button class="guide-hbtn" id="guide-close" type="button" title="Close the guide" aria-label="Close the guide">✕</button>
       </div>
@@ -278,7 +283,7 @@
       <div class="guide-compose">
         <textarea id="guide-input" rows="2" class="input" aria-label="Ask the guide" placeholder="Ask about any page, setting or step… (Shift+Enter for a new line)"></textarea>
         <div class="guide-compose-row">
-          <span class="guide-hint">Uses the helper model. It guides; you press the buttons.</span>
+          <span class="guide-hint" id="guide-hint">Uses the AI assistant. It prepares actions; you press Run.</span>
           <button class="btn sm" id="guide-stop" type="button" disabled title="Stop">⏹ Stop</button>
           <button class="btn sm primary" id="guide-send" type="button">Send</button>
         </div>
@@ -306,7 +311,7 @@
   <script src="/static/js/tutorial.js?v=17"></script>
   <script src="/static/js/activity.js?v=16"></script>
   <script src="/static/js/service.js?v=5"></script>
-  <script src="/static/js/guide.js?v=2"></script>
+  <script src="/static/js/guide.js?v=3"></script>
   <script>
     window.ftsCopyText = async function (text) {
       try {

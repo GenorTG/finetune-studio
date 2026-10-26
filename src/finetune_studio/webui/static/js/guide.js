@@ -13,6 +13,9 @@
  *   navigate  → ftsSPA.navigate(url)
  *   highlight → pulse one registered control (opens its page first if needed)
  *   prefill   → set registered form fields, visibly flagged, never submitted
+ *   action    → a prepared request (method, URL, body) of the page's own endpoint: a card with Run / Skip in
+ *               "ask" mode, run at once in "auto" (hands-free) mode; the outcome goes back to the guide as the
+ *               next message (ACTION_RESULT / ACTION_SKIPPED) and the conversation continues.
  */
 (function () {
   "use strict";
@@ -21,7 +24,9 @@
   var PENDING = "fts.guide.pending.v1";
   var MAX_STORED = 80;
 
-  var state = { open: false, messages: [], transcript: [], busy: false, abort: null };
+  var MAX_AUTO_ACTIONS = 4;   // hands-free: actions in a row per user message (guide/actions.py MAX_AUTO_ACTIONS)
+  var state = { open: false, messages: [], transcript: [], busy: false, abort: null, mode: "ask",
+                autoRuns: 0, continueAfter: false };
   var chain = Promise.resolve();   // UI effects run strictly in order
   var els = {};
 
@@ -134,6 +139,9 @@
   }
 
   function summarize(name, r) {
+    if (r && r.effect === "action") {
+      return "prepared: " + r.label + (r.mode === "auto" ? " · runs now (hands-free)" : " · waiting for Run");
+    }
     if (!r || typeof r !== "object") return "done";
     if (r.error) return "Error: " + r.error;
     switch (name) {
@@ -219,6 +227,12 @@
       else if (it.k === "assistant") addBubble("assistant", it.text);
       else if (it.k === "error") addBubble("error", it.text, "guide-error");
       else if (it.k === "effect") addEffectLine(it.text, true);
+      else if (it.k === "action") {
+        var a = el("div", "guide-action guide-action-" + (it.state || "skip"));
+        a.appendChild(el("div", "guide-action-title", it.label));
+        a.appendChild(el("div", "guide-action-status", it.status || ""));
+        els.msgs.appendChild(a);
+      }
       else if (it.k === "tool") {
         var c = el("div", "guide-tool " + (it.ok ? "guide-tool-ok" : "guide-tool-err"));
         var h = el("div", "guide-tool-head");
@@ -399,6 +413,125 @@
   }
 
   // ── SSE client ──────────────────────────────────────────────────
+  // ── actions (guide/actions.py) ──────────────────────────────────
+  function compact(d) {
+    if (!d || typeof d !== "object") return String(d == null ? "" : d).slice(0, 300);
+    var keep = {};
+    ["ok", "status", "detail", "code", "id", "run_id", "benchmark_id", "name", "case_count", "examples", "version_number",
+     "label", "steps", "total_steps"].forEach(function (k) { if (d[k] != null) keep[k] = d[k]; });
+    if (Array.isArray(d.jobs)) keep.jobs = d.jobs.length;
+    if (d.build && d.build.build_id) keep.build_id = d.build.build_id;
+    if (d.benchmark && d.benchmark.id) keep.benchmark_id = d.benchmark.id;
+    return JSON.stringify(Object.keys(keep).length ? keep : d).slice(0, 600);
+  }
+
+  async function execute(ev) {
+    // Only a server-prepared request of this app's own API, with the user's own session.
+    if (!/^\/api\//.test(ev.url) || ["GET", "POST", "PUT", "PATCH"].indexOf(ev.method) < 0) {
+      return { ok: false, text: "refused: not an app API request" };
+    }
+    var opts = { method: ev.method, credentials: "same-origin", headers: {} };
+    if (ev.body != null && ev.method !== "GET") { opts.headers["Content-Type"] = "application/json"; opts.body = JSON.stringify(ev.body); }
+    var r = await fetch(ev.url, opts);
+    var type = r.headers.get("content-type") || "";
+    var data = null;
+    if (type.indexOf("application/json") >= 0) data = await r.json().catch(function () { return null; });
+    else {
+      await r.blob().catch(function () { return null; });   // e.g. the dataset export: the counts are in the headers
+      data = { rows: r.headers.get("X-Rows"), grounded_rows: r.headers.get("X-Grounded-Rows") };
+    }
+    var text = r.ok ? compact(data) : ((data && data.detail) || ("HTTP " + r.status));
+    return { ok: r.ok, http: r.status, text: text };
+  }
+
+  function actionCard(ev) {
+    clearEmpty();
+    var card = el("div", "guide-action");
+    card.dataset.action = ev.action;
+    card.appendChild(el("div", "guide-action-title", ev.label));
+    if (ev.detail) card.appendChild(el("div", "guide-action-detail", ev.detail));
+    var buttons = el("div", "guide-action-buttons");
+    var run = el("button", "btn sm primary", "Run");
+    run.type = "button"; run.dataset.guideRun = ev.id;
+    var skip = el("button", "btn sm ghost", "Skip");
+    skip.type = "button"; skip.dataset.guideSkip = ev.id;
+    buttons.appendChild(run); buttons.appendChild(skip);
+    card.appendChild(buttons);
+    var status = el("div", "guide-action-status", "");
+    status.setAttribute("role", "status");
+    card.appendChild(status);
+    els.msgs.appendChild(card);
+    scrollDown();
+    run.addEventListener("click", function () { runAction(ev, card); });
+    skip.addEventListener("click", function () { skipAction(ev, card); });
+    return card;
+  }
+
+  function settle(card, ev, cls, text) {
+    card.classList.add("guide-action-" + cls);
+    var b = card.querySelector(".guide-action-buttons");
+    if (b) b.remove();
+    card.querySelector(".guide-action-status").textContent = text;
+    pushT({ k: "action", label: ev.label, state: cls, status: text });
+  }
+
+  function handBack(content) {
+    state.messages.push({ role: "user", content: content });
+    save();
+    if (state.busy) state.continueAfter = true;   // the reply that proposed it is still streaming
+    else turn();
+  }
+
+  async function runAction(ev, card) {
+    card.querySelector(".guide-action-buttons") && card.querySelectorAll(".guide-action-buttons button").forEach(function (b) { b.disabled = true; });
+    card.querySelector(".guide-action-status").textContent = "running…";
+    var out;
+    try { out = await execute(ev); } catch (e) { out = { ok: false, text: (e && e.message) || String(e) }; }
+    settle(card, ev, out.ok ? "ok" : "err", (out.ok ? "✓ done: " : "✗ failed: ") + out.text);
+    if (out.ok && window.fts && window.fts.notify) window.fts.notify(ev.label + ": started", "success");
+    handBack("ACTION_RESULT " + ev.action + ": " + (out.ok ? "ok" : "failed (HTTP " + (out.http || "?") + ")") + " " + out.text);
+  }
+
+  function skipAction(ev, card) {
+    settle(card, ev, "skip", "Skipped.");
+    state.messages.push({ role: "user", content: "ACTION_SKIPPED " + ev.action + ": the user chose not to run it now." });
+    save();
+  }
+
+  function onAction(ev) {
+    var card = actionCard(ev);
+    if (state.mode === "auto" && state.autoRuns < MAX_AUTO_ACTIONS) {
+      state.autoRuns += 1;
+      runAction(ev, card);
+    } else if (state.mode === "auto") {
+      card.querySelector(".guide-action-status").textContent = "Hands-free stopped after " + MAX_AUTO_ACTIONS +
+        " actions in a row: press Run to go on.";
+    }
+  }
+
+  async function loadMode() {
+    try {
+      var d = await window.api.get("/api/settings/guide");
+      setModeUi(d.action_mode);
+    } catch (e) { /* keep "ask" */ }
+  }
+  function setModeUi(mode) {
+    state.mode = mode === "auto" ? "auto" : "ask";
+    var sel = $("guide-mode");
+    if (sel) sel.value = state.mode;
+    var hint = $("guide-hint");
+    if (hint) hint.textContent = state.mode === "auto"
+      ? "Hands-free: the guide runs actions itself (up to " + MAX_AUTO_ACTIONS + " in a row) and carries on."
+      : "Uses the AI assistant. It prepares actions; you press Run.";
+  }
+  async function saveMode(mode) {
+    try {
+      var d = await window.api.put("/api/settings/guide", { action_mode: mode });
+      setModeUi(d.action_mode);
+      note(state.mode === "auto" ? "Hands-free on: the guide will run the actions it prepares." : "The guide will ask before each action.");
+    } catch (e) { note("Could not change the mode: " + ((e && e.message) || e), "err"); setModeUi(state.mode); }
+  }
+
   async function stream(body, signal, onEvent) {
     var r = await fetch("/api/guide/chat", {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -439,6 +572,22 @@
     addBubble("user", text);
     state.messages.push({ role: "user", content: text });
     pushT({ k: "user", text: text });
+    state.autoRuns = 0;   // hands-free budget is per user message
+    await turn();
+  }
+
+  // Keep the history to turns that were answered, but never drop an action outcome: the guide must know it ran.
+  var lastQuestion = null;
+  function dropUnanswered() {
+    var last = state.messages[state.messages.length - 1];
+    if (last && last.role === "user" && !/^ACTION_(RESULT|SKIPPED) /.test(last.content || "")) {
+      lastQuestion = state.messages.pop();
+    }
+  }
+
+  // One guide reply to state.messages (a user question, or an ACTION_RESULT handed back).
+  async function turn() {
+    if (state.busy) return;
     setBusy(true);
     setThinking("sending…");
     var ctl = new AbortController();
@@ -456,7 +605,10 @@
           var rec = finishCard(c, ev.name, ev.arguments, ev.result);
           pushT({ k: "tool", name: rec.name, args: rec.args, ok: rec.ok, summary: rec.summary });
           setThinking("thinking…");
-        } else if (ev.type === "ui") applyUi(ev.event);
+        } else if (ev.type === "ui") {
+          if (ev.event && ev.event.type === "action") onAction(ev.event);
+          else applyUi(ev.event);
+        }
         else if (ev.type === "final") {
           setThinking(null);
           addBubble("assistant", ev.reply, ev.fallback ? "guide-fallback" : "");
@@ -464,22 +616,26 @@
           pushT({ k: "assistant", text: ev.reply });
         } else if (ev.type === "error") {
           setThinking(null);
-          var msg = ev.error + (ev.status === 409 ? " — configure or load the helper on the Pairs page." : "");
-          addBubble("error", msg, "guide-error");
+          var msg = ev.error;
+          var bubble = addBubble("error", msg, "guide-error");
           pushT({ k: "error", text: msg });
-          state.messages.pop();   // keep the history to turns that were answered
+          dropUnanswered();
+          if (ev.status === 409 && window.fts && window.fts.offerAssistantLoad) {
+            window.fts.offerAssistantLoad(bubble, "guide", function () { state.messages.push(lastQuestion); turn(); });
+          }
         }
       });
     } catch (e) {
       setThinking(null);
       if (e && e.name === "AbortError") note("Stopped.");
-      else { addBubble("error", (e && e.message) || String(e), "guide-error"); pushT({ k: "error", text: (e && e.message) || String(e) }); state.messages.pop(); }
+      else { addBubble("error", (e && e.message) || String(e), "guide-error"); pushT({ k: "error", text: (e && e.message) || String(e) }); dropUnanswered(); }
     } finally {
       setThinking(null);
       setBusy(false);
       state.abort = null;
       save();
       if (state.open) els.input.focus();
+      if (state.continueAfter) { state.continueAfter = false; turn(); }
     }
   }
 
@@ -525,7 +681,7 @@
   ];
   function emptyState() {
     var box = el("div", "guide-empty");
-    box.appendChild(el("p", null, "I can explain any page, check your project, recommend settings, and take you there. I never press Start, Approve, Export or Delete for you."));
+    box.appendChild(el("p", null, "I can explain any page, check your project, recommend settings and take you there. I can also do the work: mine files, build the dataset or the Smart Brain, train, test, pin a version. I ask before each action, unless you switch on Hands-free above. I never approve pairs, export a model or delete anything."));
     var chips = el("div", "guide-chips");
     SUGGESTIONS.forEach(function (s) {
       var b = el("button", "btn sm guide-chip", s);
@@ -556,6 +712,9 @@
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); var t = els.input.value; els.input.value = ""; ask(t); }
     });
     document.addEventListener("fts:navigated", updateContext);
+    var modeSel = $("guide-mode");
+    if (modeSel) modeSel.addEventListener("change", function () { saveMode(modeSel.value); });
+    loadMode();
     if (state.open) open();
     // A navigation that fell back to a full page load keeps its effect in sessionStorage.
     try {
@@ -568,7 +727,8 @@
     } catch (e) { /* ignore */ }
   }
 
-  window.ftsGuide = { open: open, close: close, toggle: toggle, ask: ask, stream: stream, applyUi: applyUi, summarize: summarize };
+  window.ftsGuide = { open: open, close: close, toggle: toggle, ask: ask, stream: stream, applyUi: applyUi, summarize: summarize,
+                      execute: execute };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
 })();
