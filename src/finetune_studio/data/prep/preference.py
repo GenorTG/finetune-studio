@@ -410,10 +410,12 @@ def _try_abstain(item: dict[str, Any], call: Callable[[str], str | None], report
 
 # ── model access ────────────────────────────────────────────────────────
 
-def helper_generate(*, max_tokens: int = 300, temperature: float = 0.7) -> GenerateFn | None:
-    """``generate`` backed by the already-loaded data-prep helper, or ``None`` when it is not loaded."""
+def helper_generate(*, max_tokens: int = 300, temperature: float = 0.7,
+                    job: str = "preference") -> GenerateFn | None:
+    """``generate`` backed by ``job``'s connection (an API connection, or the already-loaded local helper), or
+    ``None`` when it is not usable now."""
     from finetune_studio.data.prep.generator import resolve_generator
-    chat = resolve_generator()
+    chat = resolve_generator(job)
     if chat is None:
         return None
 
@@ -425,8 +427,8 @@ def helper_generate(*, max_tokens: int = 300, temperature: float = 0.7) -> Gener
 
 
 @contextmanager
-def helper_loaded_for_cli():
-    """Yield a helper-backed ``generate``, loading the helper GGUF if no model is resident and unloading it after.
+def helper_loaded_for_cli(job: str = "preference"):
+    """Yield a ``generate`` for ``job``, loading its local GGUF if no model is resident and unloading it after.
 
     CLI only: the server never loads models implicitly (the Pairs page loads the helper explicitly).
     """
@@ -439,17 +441,17 @@ def helper_loaded_for_cli():
     from finetune_studio.models.llama_loader import unload_all_models
     from finetune_studio.models.manager import get_manager
 
-    generate = helper_generate()
+    generate = helper_generate(job=job)
     loaded_here = False
     if generate is None:
-        missing = missing_gguf_for_provider(get_helper_provider_id())
+        missing = missing_gguf_for_provider(get_helper_provider_id(job))
         if missing:
             raise NoGenerator(helper_missing_message(missing))
-        get_manager().load(get_helper_provider_id())
+        get_manager().load(get_helper_provider_id(job))
         loaded_here = True
-        generate = helper_generate()
+        generate = helper_generate(job=job)
     if generate is None:
-        raise NoGenerator(helper_resolution_error())
+        raise NoGenerator(helper_resolution_error(job))
     try:
         yield generate
     finally:
@@ -484,7 +486,7 @@ def build_preference_dataset(pid: str, kinds: tuple[str, ...] = KINDS, max_pairs
         generate = helper_generate()
         if generate is None:
             from finetune_studio.data.prep.generator import helper_resolution_error
-            raise NoGenerator(helper_resolution_error())
+            raise NoGenerator(helper_resolution_error("preference"))
     result = build_preference_rows(items, generate, kinds=kinds, max_pairs=max_pairs, seed=seed,
                                    progress=progress)
     if not result.rows:

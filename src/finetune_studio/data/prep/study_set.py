@@ -331,10 +331,10 @@ def build_study_dataset(pid: str, opts: StudyOptions, *, generate: GenerateFn | 
         from finetune_studio.data.prep.generator import helper_resolution_error
         from finetune_studio.data.prep.preference import NoGenerator, helper_generate
 
-        generate = helper_generate(max_tokens=1200, temperature=0.7)
+        generate = helper_generate(max_tokens=1200, temperature=0.7, job="study")
         if generate is None:
-            raise NoGenerator(helper_resolution_error())
-        workers = workers or int(helper_info().get("concurrency") or 1)
+            raise NoGenerator(helper_resolution_error("study"))
+        workers = workers or int(helper_info("study").get("concurrency") or 1)
     rows, report = build_study_rows(items, generate, opts, avoid_questions=heldout_questions(pid),
                                     workers=workers or 1, progress=progress)
     if not any(report.kept.values()):

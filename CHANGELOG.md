@@ -23,6 +23,13 @@ turns that section into the release's notes.
   that: better q4/q3/q2 quality at the same file size. The files go to the run's `gguf-imatrix/` folder beside the
   plain ones; the option is disabled, with the reason, when the tool is missing.
 
+- Settings: **AI assistant** replaces the separate Helper model and Vision reader cards. One main assistant does every
+  helper job (Guide chat, mining, study sets, reworded quizzes, preference pairs, test judge, use-case teacher,
+  reading pictures). Add any number of API connections next to the local model, each with its own key (stored
+  encrypted, sent only to its own URL, never shown again); pick the main assistant; give any job its own connection
+  and extra instructions; the jobs table says what each job sends to an API. API connections no longer take the
+  one model slot, so asking the Guide something on an API assistant leaves the local model you loaded alone.
+
 ### Changed
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
@@ -34,6 +41,9 @@ turns that section into the release's notes.
   inside the job with a tokenizer error.
 
 ### Removed
+- `GET/PUT /api/settings/helper`, `POST /api/settings/helper/models` and `GET/PUT /api/settings/vision`: replaced by
+  `/api/settings/assistant` (main assistant, jobs) and `/api/settings/connections` (API connections). Saved helper,
+  vision and judge choices carry over (the old `api-helper` / `api-vision` rows become connections).
 - `POST /api/training/runs/{id}/quantize`, `GET /api/training/runs/{id}/quant-exports` and
   `POST /api/training/runs/{id}/set-output`: API-only, never used, and the quantize route needed an importance-matrix
   file nobody had. The Export page's importance-matrix option replaces it. The hidden `export_imatrix` /

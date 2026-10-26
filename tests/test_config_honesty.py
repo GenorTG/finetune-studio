@@ -44,7 +44,7 @@ def test_testing_settings_roundtrip_and_partial_updates(client, settings_file) -
 
 
 @pytest.mark.parametrize("body,fragment", [
-    ({"judge_provider_id": "no-such-provider"}, "unknown provider"),
+    ({"judge_provider_id": "no-such-provider"}, "unknown connection"),
     ({"auto_judge": "yes"}, "auto_judge must be true or false"),
     ({"auto_judge": 1}, "auto_judge must be true or false"),
     ({"auto_judge": None}, "auto_judge must be true or false"),

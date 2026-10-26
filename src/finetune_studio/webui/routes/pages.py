@@ -404,7 +404,7 @@ async def project_testing_page(request: Request, pid: str):
     )
     from finetune_studio.webui.routes.settings import get_test_settings
 
-    helper = get_configured_helper_provider()
+    helper = get_configured_helper_provider("quiz")
     training_datasets = datasets_db.list_datasets(pid)
     return templates.TemplateResponse(
         request,
@@ -422,7 +422,7 @@ async def project_testing_page(request: Request, pid: str):
             "default_judge_provider_id": default_judge_provider_id(),
             "training_datasets": training_datasets,
             "helper_label": (helper or {}).get("label") or DEFAULT_HELPER_LABEL,
-            "helper_provider_id": get_helper_provider_id(),
+            "helper_provider_id": get_helper_provider_id("quiz"),
         },
     )
 

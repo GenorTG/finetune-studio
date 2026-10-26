@@ -206,20 +206,15 @@ def test_sse_route_validates_input(client) -> None:
     assert missing.status_code == 404
 
 
-def test_sse_route_without_a_helper_is_a_clear_409_never_a_silent_switch(client, monkeypatch: pytest.MonkeyPatch) -> None:
-    from unittest.mock import MagicMock
-
-    from finetune_studio.data.prep.generator import HELPER_NO_MODEL_MSG
-
-    mgr = MagicMock()
-    mgr.active.return_value = None
-    engine = MagicMock()
-    engine.model = None
-    monkeypatch.setattr("finetune_studio.models.manager.get_manager", lambda: mgr)
-    monkeypatch.setattr("finetune_studio.webui.app.inference_engine", engine)
+def test_sse_route_without_a_usable_assistant_is_a_clear_error_never_a_silent_switch(client, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The Guide runs on the guide job's connection; when that connection cannot be used, the stream ends with an
+    error naming it, and no other loaded model answers instead."""
+    monkeypatch.setattr("finetune_studio.models.helper.get_helper_provider_id", lambda *_a, **_k: "gone-connection")
     response = client.post("/api/guide/chat", json={"messages": [{"role": "user", "content": "hi"}]})
-    assert response.status_code == 409
-    assert response.json()["detail"] == HELPER_NO_MODEL_MSG
+    events = sse_events(response)
+    errors = [e for e in events if e["type"] == "error"]
+    assert errors and "gone-connection" in errors[0]["error"]
+    assert not any(e["type"] == "final" for e in events)
 
 
 def test_kb_endpoints(client) -> None:

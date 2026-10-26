@@ -177,9 +177,12 @@ def _controls() -> dict[str, Control]:
         ("inference.load", "inference", "#load-btn", "Load model"),
         ("settings.compute", "settings", "#compute-select", "Compute device"),
         ("settings.updates", "settings", "#btn-update-check", "Check for updates"),
-        ("settings.judge", "settings", "#judge-provider", "Default test judge"),
-        ("settings.helper", "settings", "#helper-card", "Helper model (local or API provider)"),
-        ("settings.helper_api_model", "settings", "#helper-api-model", "API helper model name"),
+        ("settings.judge_auto", "settings", "#judge-auto", "Judge automatically after a test run"),
+        ("settings.assistant", "settings", "#assistant-card", "AI assistant: connections, main assistant, jobs"),
+        ("settings.assistant_main", "settings", "#assistant-main", "Main assistant"),
+        ("settings.connections", "settings", "#connections-table", "Connections (local model and API keys)"),
+        ("settings.connection_add", "settings", "#btn-conn-add", "Add API connection"),
+        ("settings.assistant_jobs", "settings", "#assistant-jobs", "Assistant jobs and their instructions"),
         ("settings.access", "settings", "#access-card", "Access & network: password, address, API tokens"),
     ]
     return {r[0]: Control(*r) for r in rows}

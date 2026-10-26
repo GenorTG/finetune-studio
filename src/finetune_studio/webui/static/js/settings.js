@@ -2,7 +2,7 @@
    Settings page — debug info loader + tutorial replay
    ============================================================ */
 // Saved API keys are encrypted at rest; "unreadable" means the vault key was lost and the key must be entered again.
-// Top level: the helper and vision cards below are wired outside the debug-info closure.
+// Top level: the AI assistant card below is wired outside the debug-info closure.
 function keyStateText(a) {
   if (a.key_state === 'unreadable') return '(saved key unreadable: enter it again)';
   return a.key_set ? '(saved, encrypted)' : '(not set)';
@@ -237,30 +237,15 @@ function wireJudge() {
   if (!$('judge-card')) return;
   const setStatus = (m) => { if ($('judge-status')) $('judge-status').textContent = m; };
 
-  function apply(d) {
-    const sel = $('judge-provider');
-    sel.innerHTML = '';
-    (d.providers || []).forEach((p) => {
-      const o = document.createElement('option');
-      o.value = p.id;
-      o.textContent = p.label + (p.is_helper_seat ? ' (helper seat)' : '') + (p.local ? ' · local GPU' : ' · API') +
-        (p.file_missing ? ' — file missing on disk' : '');
-      o.disabled = !!p.file_missing;   // a deleted GGUF would only fail at judge time
-      sel.appendChild(o);
-    });
-    sel.value = d.judge_provider_id || d.effective_judge_provider_id || '';
-    $('judge-auto').checked = !!d.auto_judge;
-  }
-
   async function load() {
-    try {
-      apply(await api.get('/api/settings/testing'));
-    } catch (e) { setStatus('Failed to load: ' + e.message); }
+    try { $('judge-auto').checked = !!(await api.get('/api/settings/testing')).auto_judge; }
+    catch (e) { setStatus('Failed to load: ' + e.message); }
   }
 
   async function save() {
     try {
-      apply(await api.put('/api/settings/testing', { judge_provider_id: $('judge-provider').value, auto_judge: $('judge-auto').checked }));
+      const d = await api.put('/api/settings/testing', { auto_judge: $('judge-auto').checked });
+      $('judge-auto').checked = !!d.auto_judge;
       setStatus('Saved.');
     } catch (e) { setStatus('Failed: ' + e.message); }
   }
@@ -272,68 +257,194 @@ wireJudge();
 
 
 /* ============================================================
-   Helper model — local GGUF or API provider; key is write-only
+   AI assistant — connections (local GGUF + API, keys write-only),
+   the main assistant, and the jobs it does (models/assistant.py)
    ============================================================ */
-function wireHelper() {
+function wireAssistant() {
   const $ = (id) => document.getElementById(id);
-  if (!$('helper-card')) return;
-  const setStatus = (m) => { $('helper-status').textContent = m; };
-  let presets = [];
+  if (!$('assistant-card')) return;
+  const setStatus = (m) => { $('assistant-status').textContent = m; };
+  const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  let st = null;
 
-  function showFields() {
-    $('helper-api-fields').hidden = !$('helper-seat-api').checked;
-    $('helper-local-fields').hidden = $('helper-seat-api').checked;
-    $('btn-helper-clear-key').hidden = !$('helper-seat-api').checked;
+  async function call(method, url, payload) { return api.request(method, url, payload); }
+  async function run(label, fn) {
+    setStatus(label);
+    try { const out = await fn(); return out; }
+    catch (e) { setStatus('Failed: ' + e.message); return null; }
+  }
+
+  // ── render ──
+  function render(d) {
+    st = d;
+    renderMain(d); renderConnections(d); renderLocal(d); renderJobs(d);
+  }
+
+  function renderMain(d) {
+    const sel = $('assistant-main');
+    sel.innerHTML = d.connections.map((c) => {
+      const usable = c.kind !== 'openai_compat' || c.key_set;
+      return `<option value="${esc(c.id)}"${usable ? '' : ' disabled'}>${esc(c.label)}${c.kind === 'openai_compat' ? ' · API' : ' · this machine'}${usable ? '' : ' (no key)'}</option>`;
+    }).join('');
+    sel.value = d.assistant_provider_id;
+  }
+
+  function renderConnections(d) {
+    const body = $('connections-table').querySelector('tbody');
+    body.innerHTML = d.connections.map((c) => {
+      const api = c.kind === 'openai_compat';
+      const where = api ? esc(c.base_url) : (c.present ? 'this machine' : 'this machine · <span class="sev-warning">file missing</span>');
+      const key = api ? esc(keyStateText(c)) : '—';
+      const used = [c.is_assistant ? '<b>main assistant</b>' : '', ...(c.used_by || []).map(esc)].filter(Boolean).join(', ') || '—';
+      const actions = api
+        ? `<button class="btn sm" type="button" data-conn-edit="${esc(c.id)}">Edit</button> ` +
+          `<button class="btn sm" type="button" data-conn-test="${esc(c.id)}">Test</button> ` +
+          `<button class="btn sm danger" type="button" data-conn-remove="${esc(c.id)}"${c.is_assistant ? ' disabled title="Pick another main assistant first"' : ''}>Remove</button>`
+        : `<button class="btn sm" type="button" data-conn-local-test="1">Test</button>`;
+      return `<tr><td class="cell-wrap">${esc(c.label)}</td><td class="text-xs cell-wrap">${where}</td><td class="text-xs cell-wrap">${key}</td><td class="text-xs cell-wrap">${used}</td><td class="cell-wrap">${actions}</td></tr>`;
+    }).join('');
   }
 
   let rec = null;
-  let localPath = '';
-  function applyLocal(local) {
-    localPath = local.model_path || '';
-    rec = local.recommended || null;
-    $('helper-local-path').textContent = localPath || '(none)';
-    $('helper-local-present').textContent = local.present ? '✓ installed' : '✗ file missing';
-    $('helper-local-present').className = local.present ? 'sev-ok' : 'sev-warning';
-    const sel = $('helper-local-select');
-    const cands = local.candidates || [];
-    sel.innerHTML = cands.length
-      ? cands.map((c) => `<option value="${escHtml(c.path)}"${c.path === localPath ? ' selected' : ''}>${escHtml(c.name)}${c.size_gb ? ' · ' + c.size_gb + ' GB' : ''}</option>`).join('')
+  function renderLocal(d) {
+    const row = d.connections.find((c) => c.id === d.local.provider_id) || {};
+    const path = row.path || '';
+    rec = d.local.recommended || null;
+    $('local-path').textContent = path || '(none)';
+    $('local-present').textContent = row.present ? '✓ installed' : '✗ file missing';
+    $('local-present').className = row.present ? 'sev-ok' : 'sev-warning';
+    const cands = d.local.candidates || [];
+    $('local-select').innerHTML = cands.length
+      ? cands.map((c) => `<option value="${esc(c.path)}"${c.path === path ? ' selected' : ''}>${esc(c.name)}${c.size_gb ? ' · ' + c.size_gb + ' GB' : ''}</option>`).join('')
       : '<option value="">No GGUF installed yet</option>';
-    $('btn-helper-local-use').disabled = !cands.length;
-    if (!rec) { $('helper-recommended').hidden = true; return; }
-    $('helper-rec-label').textContent = rec.label;
-    $('helper-rec-meta').textContent = `· ${rec.size_gb} GB · ${rec.license} · ${rec.repo_id}`;
-    $('helper-rec-why').textContent = rec.why;
-    const inUse = rec.installed && localPath === rec.path;
-    const btn = $('btn-helper-rec');
+    $('btn-local-use').disabled = !cands.length;
+    if (!rec) { $('local-recommended').hidden = true; return; }
+    $('local-rec-label').textContent = rec.label;
+    $('local-rec-meta').textContent = `· ${rec.size_gb} GB · ${rec.license} · ${rec.repo_id}`;
+    $('local-rec-why').textContent = rec.why;
+    const inUse = rec.installed && path === rec.path;
+    const btn = $('btn-local-rec');
     btn.textContent = inUse && rec.vision_installed ? 'In use'
       : rec.installed && !rec.vision_installed ? 'Download vision file and use'
         : rec.installed ? 'Use it' : `Download (${rec.size_gb} GB) and use`;
     btn.disabled = inUse && rec.vision_installed;
   }
 
-  const escHtml = (v) => String(v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  function jobOptions(job, d) {
+    const main = d.connections.find((c) => c.id === d.assistant_provider_id) || {};
+    const opts = [];
+    if (job.id === 'vision') opts.push(['off', 'Off (OCR text only)']);
+    const mainLocal = main.kind !== 'openai_compat';
+    opts.push(['', `Main assistant (${main.label || d.assistant_provider_id})` + (job.api_only && mainLocal ? ' — needs an API connection' : '')]);
+    d.connections.forEach((c) => {
+      if (job.api_only && c.kind !== 'openai_compat') return;
+      if (c.kind === 'openai_compat' && !c.key_set) return;
+      opts.push([c.id, c.label + (c.kind === 'openai_compat' ? ' · API' : ' · this machine')]);
+    });
+    if (job.id === 'vision') opts.push(['local-file', 'A local vision GGUF file…']);
+    return opts;
+  }
+
+  function renderJobs(d) {
+    const body = $('assistant-jobs').querySelector('tbody');
+    body.innerHTML = d.jobs.map((j) => {
+      const opts = jobOptions(j, d).map(([v, l]) => `<option value="${esc(v)}"${v === j.setting ? ' selected' : ''}>${esc(l)}</option>`).join('');
+      const instr = j.instructions || '';
+      return `<tr data-job="${esc(j.id)}">
+        <td class="cell-wrap"><b>${esc(j.label)}</b><div class="text-xs dim">${esc(j.does)}</div>
+          <details class="mt-1"${instr ? ' open' : ''}><summary class="text-xs">Extra instructions${instr ? ' (set)' : ''}</summary>
+            <textarea class="input max-w-420 mt-1" rows="3" maxlength="4000" data-job-instr="${esc(j.id)}" aria-label="Extra instructions for ${esc(j.label)}" placeholder="Optional: added in front of this job's own prompt, e.g. 'Write questions in Polish.'">${esc(instr)}</textarea>
+          </details></td>
+        <td class="cell-wrap"><select class="select" data-job-select="${esc(j.id)}" aria-label="Connection for ${esc(j.label)}">${opts}</select>
+          ${j.api_only && j.provider_kind !== 'openai_compat'
+            ? '<div class="text-xs sev-warning mt-1">needs an API connection: pick one here (a local model cannot do this job)</div>'
+            : `<div class="text-xs dim mt-1">now: ${esc(j.provider_label || j.provider_id)}</div>`}</td>
+        <td class="text-xs cell-wrap">${esc(j.sends)}</td>
+        <td><button class="btn sm primary" type="button" data-job-save="${esc(j.id)}">Save</button></td>
+      </tr>`;
+    }).join('');
+    const vision = d.jobs.find((j) => j.id === 'vision') || {};
+    $('vision-local-list').innerHTML = (d.vision_candidates || []).map((c) => `<option value="${esc(c.path)}" label="${esc(c.label)}">`).join('');
+    if (!$('vision-local-model').value) $('vision-local-model').value = vision.local_model || '';
+    $('vision-local-fields').hidden = vision.setting !== 'local-file';
+  }
+
+  // ── connection form ──
+  function openForm(conn) {
+    const c = conn || {};
+    $('conn-form').hidden = false;
+    $('conn-form-title').textContent = conn ? 'Edit ' + c.name : 'New API connection';
+    $('conn-id').value = c.id || '';
+    $('conn-name').value = c.name || '';
+    $('conn-preset').innerHTML = (st.presets || []).map((p) => `<option value="${esc(p.id)}">${esc(p.label)}</option>`).join('');
+    $('conn-preset').value = c.preset || 'custom';
+    $('conn-url').value = c.base_url || '';
+    $('conn-model').value = c.model || '';
+    $('conn-effort').value = c.reasoning_effort || '';
+    $('conn-concurrency').value = c.concurrency || '';
+    $('conn-key').value = '';
+    $('conn-key-state').textContent = conn ? keyStateText(c) : '(not set)';
+    $('btn-conn-clear-key').hidden = !conn;
+    $('conn-name').focus();
+  }
+
+  function formBody(extra) {
+    const id = $('conn-id').value;
+    const b = {
+      name: $('conn-name').value.trim(), preset: $('conn-preset').value, base_url: $('conn-url').value.trim(),
+      model: $('conn-model').value.trim(), reasoning_effort: $('conn-effort').value,
+    };
+    const conc = parseInt($('conn-concurrency').value, 10);
+    if (conc) b.concurrency = conc;
+    if ($('conn-key').value) b.api_key = $('conn-key').value;
+    if (id) b.id = id;
+    return Object.assign(b, extra || {});
+  }
+
+  async function saveForm(extra) {
+    const id = $('conn-id').value;
+    const body = formBody(extra);
+    delete body.id;
+    const d = await run('Saving the connection…', () => id
+      ? call('PUT', '/api/settings/connections/' + encodeURIComponent(id), body)
+      : call('POST', '/api/settings/connections', body));
+    if (!d) return;
+    render(d);
+    const saved = d.connections.find((c) => c.id === d.id);
+    if (saved) openForm(saved);
+    setStatus(extra && extra.clear_key ? 'Key removed.' : 'Connection saved. Pick it as main assistant or for a job below.');
+  }
+
+  async function testConn(body) {
+    const d = await run('Testing the connection…', () => call('POST', '/api/settings/connections/test', body));
+    if (d) setStatus(`Works: "${d.reply}" (answered in ${(d.latency_ms / 1000).toFixed(1)} s).`);
+  }
+
+  async function testLocal() {
+    const d = await run('Loading the local model and asking it… (a 12B takes about a minute)',
+      () => call('POST', '/api/settings/helper/test', {}));
+    if (d) setStatus(`Local model works: "${d.reply}" (${d.load_ms ? `loaded in ${(d.load_ms / 1000).toFixed(0)} s, ` : ''}answered in ${(d.latency_ms / 1000).toFixed(1)} s)${d.load_ms ? '; unloaded again.' : '.'}`);
+  }
 
   async function useLocal(path) {
-    setStatus('Switching the local helper…');
-    try { apply(await call('/api/settings/helper/local', 'POST', { path })); setStatus('Local helper set.'); }
-    catch (e) { setStatus('Failed: ' + e.message); }
+    const d = await run('Switching the local model…', () => call('POST', '/api/settings/helper/local', { path }));
+    if (d) { render(d); setStatus('Local model set.'); }
   }
 
   async function downloadRecommended() {
-    const status = $('helper-rec-status');
-    const btn = $('btn-helper-rec');
+    const status = $('local-rec-status');
+    const btn = $('btn-local-rec');
     if (rec && rec.installed && rec.vision_installed) { await useLocal(rec.path); return; }
     btn.disabled = true;
     status.textContent = 'Starting the download…';
     let started;
-    try { started = await call('/api/settings/helper/recommended/download', 'POST', {}); }
+    try { started = await call('POST', '/api/settings/helper/recommended/download', {}); }
     catch (e) { status.textContent = 'Could not start: ' + e.message; btn.disabled = false; return; }
     // Poll every job until done; the files land in Model library, so leaving the page does not stop them.
     for (;;) {
       let done = 0, total = 0, have = 0, failed = '';
       for (const j of started.jobs) {
-        const d = await call('/api/hf/download/progress?job_id=' + encodeURIComponent(j.job_id), 'GET').catch(() => ({}));
+        const d = await call('GET', '/api/hf/download/progress?job_id=' + encodeURIComponent(j.job_id)).catch(() => ({}));
         total += Number(d.bytes_total || 0); have += Number(d.bytes_done || 0);
         if (d.status === 'completed') done += 1;
         else if (['error', 'failed', 'cancelled', 'crashed', 'stopped'].includes(d.status)) failed = `${j.file}: ${d.error || d.status}`;
@@ -348,137 +459,73 @@ function wireHelper() {
     await useLocal(started.path);
   }
 
-  function apply(h) {
-    presets = h.presets || [];
-    const sel = $('helper-api-preset');
-    sel.innerHTML = presets.map((p) => `<option value="${p.id}">${p.label}</option>`).join('');
-    sel.value = h.api.preset || 'custom';
-    $('helper-seat-local').checked = h.seat === 'local';
-    $('helper-seat-api').checked = h.seat === 'api';
-    $('helper-local-label').textContent = h.local.label ? '— ' + h.local.label : '';
-    applyLocal(h.local || {});
-    $('helper-api-url').value = h.api.base_url || '';
-    $('helper-api-model').value = h.api.model || '';
-    $('helper-api-effort').value = h.api.reasoning_effort || '';
-    $('helper-api-concurrency').value = h.api.concurrency || '';
-    $('helper-api-key').value = '';
-    $('helper-key-state').textContent = keyStateText(h.api);
-    showFields();
+  async function saveJob(id) {
+    const sel = document.querySelector(`[data-job-select="${id}"]`);
+    const instr = document.querySelector(`[data-job-instr="${id}"]`);
+    const body = { provider_id: sel.value, instructions: instr ? instr.value : '' };
+    if (id === 'vision' && sel.value === 'local-file') body.local_model = $('vision-local-model').value.trim();
+    const d = await run('Saving the job…', () => call('PUT', '/api/settings/assistant/jobs/' + encodeURIComponent(id), body));
+    if (d) { render(d); setStatus('Saved: ' + ((d.jobs.find((j) => j.id === id) || {}).label || id) + '.'); }
   }
 
-  function body(extra) {
-    return Object.assign({
-      seat: $('helper-seat-api').checked ? 'api' : 'local',
-      preset: $('helper-api-preset').value,
-      base_url: $('helper-api-url').value.trim(),
-      model: $('helper-api-model').value.trim(),
-      api_key: $('helper-api-key').value,
-      reasoning_effort: $('helper-api-effort').value,
-      concurrency: parseInt($('helper-api-concurrency').value, 10) || undefined,
-    }, extra || {});
-  }
-
-  async function call(url, method, payload) {
-    return api.request(method, url, payload);
-  }
-
-  async function save(extra) {
-    setStatus('Saving…');
-    try { apply(await call('/api/settings/helper', 'PUT', body(extra))); setStatus('Saved.'); }
-    catch (e) { setStatus('Failed: ' + e.message); }
-  }
-
-  $('helper-api-preset').addEventListener('change', () => {
-    const p = presets.find((x) => x.id === $('helper-api-preset').value);
+  // ── events ──
+  $('btn-assistant-main').addEventListener('click', async () => {
+    const d = await run('Changing the main assistant…', () => call('PUT', '/api/settings/assistant', { provider_id: $('assistant-main').value }));
+    if (d) { render(d); setStatus('Main assistant: ' + d.assistant_label + '.'); }
+  });
+  $('btn-conn-add').addEventListener('click', () => openForm(null));
+  $('btn-conn-cancel').addEventListener('click', () => { $('conn-form').hidden = true; });
+  $('btn-conn-save').addEventListener('click', () => saveForm());
+  $('btn-conn-clear-key').addEventListener('click', () => saveForm({ clear_key: true }));
+  $('btn-conn-test').addEventListener('click', () => testConn(formBody()));
+  $('btn-conn-models').addEventListener('click', async () => {
+    const d = await run('Fetching models…', () => call('POST', '/api/settings/connections/models', formBody()));
+    if (!d) return;
+    $('conn-model-list').innerHTML = d.models.map((m) => `<option value="${esc(m)}">`).join('');
+    setStatus(`${d.models.length} models available — type to filter the Model field.`);
+  });
+  $('conn-preset').addEventListener('change', () => {
+    const p = (st.presets || []).find((x) => x.id === $('conn-preset').value);
     if (p && p.id !== 'custom') {
-      $('helper-api-url').value = p.base_url;
-      if (!$('helper-api-model').value) $('helper-api-model').value = p.model;
+      $('conn-url').value = p.base_url;
+      if (!$('conn-model').value) $('conn-model').value = p.model;
+      if (!$('conn-name').value) $('conn-name').value = p.label;
     }
   });
-  document.querySelectorAll('input[name="helper-seat"]').forEach((el) => el.addEventListener('change', showFields));
-  $('btn-helper-save').addEventListener('click', () => save());
-  $('btn-helper-rec').addEventListener('click', downloadRecommended);
-  $('btn-helper-local-use').addEventListener('click', () => { const v = $('helper-local-select').value; if (v) useLocal(v); });
-  $('btn-helper-clear-key').addEventListener('click', () => save({ api_key: '', clear_key: true }));
-  $('btn-helper-test').addEventListener('click', async () => {
-    const local = !$('helper-seat-api').checked;
-    setStatus(local ? 'Loading the local model and asking it… (a 12B takes about a minute)' : 'Testing…');
-    try {
-      const d = await call('/api/settings/helper/test', 'POST', body());
-      const load = d.load_ms ? `loaded in ${(d.load_ms / 1000).toFixed(0)} s, ` : '';
-      setStatus(`Works: "${d.reply}" (${load}answered in ${(d.latency_ms / 1000).toFixed(1)} s)${local && d.load_ms ? '; unloaded again.' : '.'}`);
-    } catch (e) { setStatus('Test failed: ' + e.message); }
-  });
-  $('btn-helper-models').addEventListener('click', async () => {
-    setStatus('Fetching models…');
-    try {
-      const d = await call('/api/settings/helper/models', 'POST', body());
-      $('helper-api-model-list').innerHTML = d.models.map((m) => `<option value="${m}">`).join('');
-      setStatus(`${d.models.length} models available — type to filter the Model field.`);
-    } catch (e) { setStatus('Failed: ' + e.message); }
-  });
-  call('/api/settings/helper', 'GET').then(apply).catch((e) => setStatus('Failed to load: ' + e.message));
-}
-wireHelper();
-
-
-/* ============================================================
-   Vision reader — off / local GGUF with mmproj / API (key write-only)
-   ============================================================ */
-function wireVision() {
-  const $ = (id) => document.getElementById(id);
-  if (!$('vision-card')) return;
-  const setStatus = (m) => { $('vision-status').textContent = m; };
-  const mode = () => (document.querySelector('input[name="vision-mode"]:checked') || {}).value || 'off';
-  async function call(url, method, payload) {
-    return api.request(method, url, payload);
-  }
-
-  function showFields() {
-    $('vision-local-fields').hidden = mode() !== 'local';
-    $('vision-api-fields').hidden = mode() !== 'api';
-  }
-
-  function apply(v) {
-    $('vision-mode-' + v.mode).checked = true;
-    const list = $('vision-local-list');
-    list.innerHTML = '';
-    (v.local_candidates || []).forEach((c) => {
-      const o = document.createElement('option');
-      o.value = c.path; o.label = c.label; list.appendChild(o);
-    });
-    $('vision-local-model').value = v.local_model || '';
-    $('vision-local-model').placeholder = (v.local_candidates || []).length ? 'pick or paste a path'
-      : 'no model with an mmproj in the model folders: paste a GGUF path';
-    $('vision-api-url').value = v.api.base_url || '';
-    $('vision-api-model').value = v.api.model || '';
-    $('vision-api-key').value = '';
-    $('vision-key-state').textContent = keyStateText(v.api);
-    showFields();
-    setStatus('Current: ' + v.label);
-  }
-
-  $('btn-vision-save').addEventListener('click', async () => {
-    const body = { mode: mode(), local_model: $('vision-local-model').value.trim() };
-    if (mode() === 'api') {
-      Object.assign(body, { base_url: $('vision-api-url').value.trim(), model: $('vision-api-model').value.trim(),
-                            api_key: $('vision-api-key').value });
+  $('connections-table').addEventListener('click', async (ev) => {
+    const t = ev.target.closest('button');
+    if (!t) return;
+    if (t.dataset.connEdit) openForm(st.connections.find((c) => c.id === t.dataset.connEdit));
+    else if (t.dataset.connTest) testConn({ id: t.dataset.connTest });
+    else if (t.dataset.connLocalTest) testLocal();
+    else if (t.dataset.connRemove) {
+      const c = st.connections.find((x) => x.id === t.dataset.connRemove);
+      const ok = window.fts && window.fts.confirm
+        ? await window.fts.confirm(`Remove ${c.label} and its saved key? Jobs that used it go back to the main assistant (reading pictures: off).`, { danger: true, okText: 'Remove connection' })
+        : window.confirm(`Remove ${c.label}?`);
+      if (!ok) return;
+      const d = await run('Removing…', () => call('DELETE', '/api/settings/connections/' + encodeURIComponent(c.id)));
+      if (d) { render(d); $('conn-form').hidden = true; setStatus('Connection removed.'); }
     }
-    setStatus('Saving…');
-    try { apply(await call('/api/settings/vision', 'PUT', body)); setStatus('Saved.'); }
-    catch (e) { setStatus('Failed: ' + e.message); }
   });
+  $('assistant-jobs').addEventListener('click', (ev) => {
+    const t = ev.target.closest('button[data-job-save]');
+    if (t) saveJob(t.dataset.jobSave);
+  });
+  $('assistant-jobs').addEventListener('change', (ev) => {
+    const sel = ev.target.closest('select[data-job-select="vision"]');
+    if (sel) $('vision-local-fields').hidden = sel.value !== 'local-file';
+  });
+  $('btn-local-rec').addEventListener('click', downloadRecommended);
+  $('btn-local-use').addEventListener('click', () => { const v = $('local-select').value; if (v) useLocal(v); });
+  $('btn-local-test').addEventListener('click', testLocal);
   $('btn-vision-test').addEventListener('click', async () => {
-    setStatus('Reading a test picture (a local model loads first, up to a minute)…');
-    try {
-      const d = await call('/api/settings/vision/test', 'POST', {});
-      setStatus(`OK: read the code in ${(d.latency_ms / 1000).toFixed(1)} s.`);
-    } catch (e) { setStatus('Failed: ' + e.message); }
+    const d = await run('Reading a test picture (a local model loads first, up to a minute)…', () => call('POST', '/api/settings/vision/test', {}));
+    if (d) setStatus(`Reading pictures works: read the code in ${(d.latency_ms / 1000).toFixed(1)} s.`);
   });
-  document.querySelectorAll('input[name="vision-mode"]').forEach((el) => el.addEventListener('change', showFields));
-  call('/api/settings/vision', 'GET').then(apply).catch((e) => setStatus('Failed to load: ' + e.message));
+  call('GET', '/api/settings/assistant').then(render).catch((e) => setStatus('Failed to load: ' + e.message));
 }
-wireVision();
+wireAssistant();
 
 
 /* ============================================================

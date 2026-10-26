@@ -1,9 +1,10 @@
 """Resolve a chat callable for data-prep Q&A generation.
 
-Data-prep and LLM-assisted suite generation require the configured local
-GGUF helper (``models.helper``). This module never loads a model and
-never silently falls back to a different loaded model (e.g. a project's
-merged 4B on the Inference tab).
+Data-prep and LLM-assisted suite generation run on the job's connection
+(``models.assistant``: the main assistant unless the job names its own). An
+API connection is called through its own client; a local GGUF must already be
+loaded. This module never loads a local model and never silently falls back to
+a different loaded model (e.g. a project's merged 4B on the Inference tab).
 
 Callers that need a non-helper backend must pass an explicit ``provider_id``
 (or ``external_api``) themselves.
@@ -44,24 +45,26 @@ class LoadedBackend(TypedDict, total=False):
     helper_label: str
 
 
-def _manager_helper_backend() -> LoadedBackend | None:
+def _manager_helper_backend(job: str | None = None) -> LoadedBackend | None:
+    from finetune_studio.models import assistant
     from finetune_studio.models.manager import get_manager
 
     mgr = get_manager()
+    pid = get_helper_provider_id(job)
+    seat = mgr.get_provider(pid) or {}
+    if seat.get("kind") == "openai_compat":
+        # An API connection has its own client: no load, no VRAM, and the model on the card stays where it is.
+        client = assistant.connection_client(pid)
+        return {"kind": "provider", "manager": client, "provider_id": pid,
+                "helper_label": assistant.connection_label(seat)}
     active = mgr.active()
-    if active is None:
-        # An API helper costs no VRAM and loads instantly (e.g. after a restart), so it is seated on demand;
-        # the local GGUF is never loaded implicitly, and a model someone else loaded is never displaced.
-        seat = mgr.get_provider(get_helper_provider_id()) or {}
-        if seat.get("kind") != "openai_compat":
-            return None
-        active = mgr.load(seat["id"])
-    if not is_helper_provider(active):
+    # The local GGUF is never loaded implicitly, and a model someone else loaded is never displaced.
+    if active is None or active.get("kind") == "openai_compat" or not is_helper_provider(active):
         return None
     return {
         "kind": "provider",
         "manager": mgr,
-        "provider_id": active.get("id") or get_helper_provider_id(),
+        "provider_id": active.get("id") or pid,
         "helper_label": active.get("label") or active.get("name") or DEFAULT_HELPER_LABEL,
     }
 
@@ -106,45 +109,55 @@ def _loaded_non_helper_path() -> str | None:
     return None
 
 
-def resolve_helper_backend() -> LoadedBackend | None:
-    """Return a backend only when the configured helper is loaded.
+def resolve_helper_backend(job: str | None = None) -> LoadedBackend | None:
+    """Return a backend for ``job`` (default: the main assistant) only when it is usable now.
 
     Preference:
-      1. ModelManager active provider when it is the helper
-      2. ``inference_engine`` when its path is the helper GGUF
+      1. the job's API connection (its own client)
+      2. ModelManager active provider when it is the local helper
+      3. ``inference_engine`` when its path is the helper GGUF
 
     Never returns a non-helper loaded model (no silent fallback).
     """
-    return _manager_helper_backend() or _inference_helper_backend()
+    backend = _manager_helper_backend(job)
+    if backend is not None:
+        return backend
+    seat = get_configured_helper_provider(job) or {}
+    return None if seat.get("kind") == "openai_compat" else _inference_helper_backend()
 
 
-def resolve_loaded_backend(*, prefer_inference: bool = False) -> LoadedBackend | None:
-    """Compatibility wrapper — always resolves the helper only.
-
-    ``prefer_inference`` is accepted for call-site compatibility but ignored:
-    helper resolution never silently prefers a non-helper Inference load.
-    """
-    _ = prefer_inference
-    return resolve_helper_backend()
-
-
-def helper_resolution_error() -> str:
+def helper_resolution_error(job: str | None = None) -> str:
     """Explain why helper resolution failed (wrong model vs not loaded)."""
     other = _loaded_non_helper_path()
     if other:
         return wrong_model_message(other)
-    cfg = get_configured_helper_provider()
+    cfg = get_configured_helper_provider(job)
     if cfg is None:
         return (
-            f"{no_helper_message()} "
-            f"(no provider row for '{get_helper_provider_id()}' yet)."
+            f"{no_helper_message(get_helper_provider_id(job))} "
+            f"(no provider row for '{get_helper_provider_id(job)}' yet)."
         )
-    return no_helper_message()
+    return no_helper_message(cfg.get("id"), cfg.get("label"))
 
 
-def resolve_generator() -> ChatFn | None:
-    """Return a chat callable for the loaded helper, else None."""
-    backend = resolve_helper_backend()
+def resolve_generator(job: str | None = None) -> ChatFn | None:
+    """Return a chat callable for ``job``'s connection (default: the main assistant), else None.
+
+    The job's extra instructions (Settings -> AI assistant) go in front of every call."""
+    from finetune_studio.models.assistant import instruct
+
+    inner = _resolve_raw_generator(job)
+    if inner is None or not job:
+        return inner
+
+    def _with_instructions(messages: list[dict[str, Any]], *args: Any, **kw: Any) -> str:
+        return inner(instruct(job, messages), *args, **kw)
+
+    return _with_instructions
+
+
+def _resolve_raw_generator(job: str | None) -> ChatFn | None:
+    backend = resolve_helper_backend(job)
     if backend is None:
         return None
 

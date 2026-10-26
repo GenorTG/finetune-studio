@@ -192,10 +192,10 @@ def test_omitted_provider_id_409_when_nothing_loaded(
     mgr.load.assert_not_called()
 
 
-def test_resolve_loaded_backend_is_helper_only(
+def test_resolve_helper_backend_is_helper_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """resolve_loaded_backend never returns a non-helper Inference load."""
+    """resolve_helper_backend never returns a non-helper Inference load."""
     from finetune_studio.data.prep import generator as gen_mod
 
     eng = _loaded_engine(path="/models/Qwen3-4B")
@@ -216,15 +216,11 @@ def test_resolve_loaded_backend_is_helper_only(
         eng,
     )
 
-    # prefer_inference ignored — helper manager wins; 4B engine is not used.
-    both = gen_mod.resolve_loaded_backend(prefer_inference=True)
+    # The helper manager wins; the 4B loaded in the inference engine is never used instead.
+    both = gen_mod.resolve_helper_backend()
     assert both is not None
     assert both["kind"] == "provider"
     assert both["manager"] is mgr
-
-    only_other = gen_mod.resolve_loaded_backend(prefer_inference=False)
-    assert only_other is not None
-    assert only_other["kind"] == "provider"
 
 
 def test_agent_created_pairs_keep_one_based_chunk_provenance(fts_root: Path) -> None:

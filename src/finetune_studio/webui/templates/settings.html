@@ -165,15 +165,124 @@
       <p id="access-status" class="text-xs" role="status"></p>
     </div>
 
+    <div class="card mb-4" id="assistant-card">
+      <div class="card-head">
+        <div class="card-title">AI assistant</div>
+        <div class="card-sub">One assistant does the model work for you: mining Q&amp;A pairs, study sets, reworded quizzes, preference pairs, judging tests, use-case teacher answers, reading pictures, and the Guide chat in the corner. Run it on this machine or on an API model; any job can use another connection.</div>
+      </div>
+
+      <div class="mb-4">
+        <label class="block text-xs muted mb-1" for="assistant-main">Main assistant</label>
+        <div class="flex gap-2 items-center wrap">
+          <select id="assistant-main" class="select max-w-420" aria-label="Main assistant"></select>
+          <button class="btn sm primary" type="button" id="btn-assistant-main">Use as main assistant</button>
+        </div>
+        <div class="text-xs dim mt-1">Every job below runs on it unless the job names its own connection. An API connection needs a saved key first.</div>
+      </div>
+
+      <div class="mb-4">
+        <div class="flex gap-2 items-center mb-1">
+          <div class="text-sm font-bold">Connections</div>
+          <button class="btn sm" type="button" id="btn-conn-add">Add API connection</button>
+        </div>
+        <div class="table-scroll">
+          <table class="table compact" id="connections-table">
+            <thead><tr><th>Connection</th><th>Where</th><th>Key</th><th>Used by</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="conn-form" class="card mb-4" hidden>
+        <div class="text-sm font-bold mb-2" id="conn-form-title">New API connection</div>
+        <input type="hidden" id="conn-id" />
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="conn-name">Name</label>
+          <input id="conn-name" type="text" class="input max-w-420" autocomplete="off" placeholder="e.g. OpenRouter" />
+        </div>
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="conn-preset">Provider</label>
+          <select id="conn-preset" class="select settings-field-md"></select>
+        </div>
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="conn-url">API base URL</label>
+          <input id="conn-url" type="text" class="input max-w-420" autocomplete="off" />
+        </div>
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="conn-key">API key <span id="conn-key-state" class="dim">(not set)</span></label>
+          <input id="conn-key" type="password" class="input max-w-420" autocomplete="new-password" placeholder="leave blank to keep the saved key" />
+          <div class="text-xs dim mt-1">Stored encrypted on this computer only (never in a project or the repo), sent only to the URL above, and never shown again.</div>
+        </div>
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="conn-model">Model <button class="btn sm" id="btn-conn-models" type="button">Fetch model list</button></label>
+          <input id="conn-model" type="text" class="input max-w-420" autocomplete="off" list="conn-model-list" />
+          <datalist id="conn-model-list"></datalist>
+        </div>
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="conn-effort">Reasoning effort (only if the model supports it; &ldquo;none&rdquo; is fastest and cheapest for extraction work)</label>
+          <select id="conn-effort" class="select settings-field-md">
+            <option value="">provider default</option>
+            <option value="none">none</option><option value="minimal">minimal</option><option value="low">low</option>
+            <option value="medium">medium</option><option value="high">high</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="block text-xs muted mb-1" for="conn-concurrency">Parallel calls (1–32; the provider's rate limit is the ceiling)</label>
+          <input id="conn-concurrency" type="number" class="input settings-field-sm" min="1" max="32" step="1" />
+        </div>
+        <div class="text-xs mb-3 warn">Whatever a job sends goes to this provider: the jobs table below says what each job sends.</div>
+        <div class="flex gap-2 wrap">
+          <button class="btn sm primary" type="button" id="btn-conn-save">Save connection</button>
+          <button class="btn sm" type="button" id="btn-conn-test" title="One real request with the values above (or the saved key); shows the delay">Test connection</button>
+          <button class="btn sm" type="button" id="btn-conn-clear-key">Clear saved key</button>
+          <button class="btn sm ghost" type="button" id="btn-conn-cancel">Close</button>
+        </div>
+      </div>
+
+      <div class="mb-4" id="assistant-local">
+        <div class="text-sm font-bold mb-1">Local model on this machine</div>
+        <div class="text-xs mb-2">Model file: <span id="local-path" class="mono"></span> <span id="local-present"></span></div>
+        <div class="card helper-recommended mb-3" id="local-recommended">
+          <div class="text-sm"><b>Recommended:</b> <span id="local-rec-label"></span> <span class="dim" id="local-rec-meta"></span></div>
+          <div class="text-xs dim mt-1" id="local-rec-why"></div>
+          <div class="flex gap-2 items-center mt-2">
+            <button class="btn sm primary" type="button" id="btn-local-rec">Download and use</button>
+            <span id="local-rec-status" class="text-xs dim" role="status"></span>
+          </div>
+        </div>
+        <label class="block text-xs muted mb-1" for="local-select">Or use another installed GGUF (download more in Model library)</label>
+        <div class="flex gap-2 items-center wrap">
+          <select id="local-select" class="select settings-field-lg"></select>
+          <button class="btn sm" type="button" id="btn-local-use">Use this model</button>
+          <button class="btn sm" type="button" id="btn-local-test" title="Loads the local model, asks it for one word and unloads it again">Test local model</button>
+        </div>
+        <div class="text-xs dim mt-1">A local model works one request at a time: mining a few documents takes tens of minutes, against a few minutes on an API.</div>
+      </div>
+
+      <div class="mb-2">
+        <div class="text-sm font-bold mb-1">Jobs</div>
+        <div class="table-scroll">
+          <table class="table compact" id="assistant-jobs">
+            <thead><tr><th>Job</th><th>Runs on</th><th>Sends (on an API)</th><th></th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div id="vision-local-fields" class="mt-2" hidden>
+          <label class="block text-xs muted mb-1" for="vision-local-model">Local vision GGUF for reading pictures (needs an mmproj file next to it)</label>
+          <input id="vision-local-model" type="text" class="input settings-field-lg" autocomplete="off" list="vision-local-list" />
+          <datalist id="vision-local-list"></datalist>
+        </div>
+      </div>
+      <div class="flex gap-2 mt-3">
+        <button class="btn sm" type="button" id="btn-vision-test" title="Reads a generated picture with a random code: checks the picture reader really sees, and shows the delay">Test reading pictures</button>
+        <span id="assistant-status" class="text-xs dim" role="status">Idle.</span>
+      </div>
+    </div>
+
     <div class="card mb-4" id="judge-card">
       <div class="card-head">
         <div class="card-title">Test judge</div>
-        <div class="card-sub">After a test run saves the model's raw answers, a judge decides whether each one is correct. The judge is any model you have connected (see the helper model below and the provider list); you can always override it by hand on the Testing page.</div>
-      </div>
-      <div class="mb-3">
-        <label class="block text-xs muted mb-1" for="judge-provider">Default judge</label>
-        <select id="judge-provider" class="select max-w-420" aria-label="Default test judge"></select>
-        <div class="text-xs dim mt-1">A local GGUF judge loads onto the GPU after the run (the tested model is unloaded first); an API judge needs no GPU. Leave on the helper seat unless you want a stronger judge.</div>
+        <div class="card-sub">After a test run saves the model's raw answers, a judge decides whether each one is correct. The judge is the <b>Test judge</b> job of the AI assistant above; you can always pick another judge by hand on the Testing page.</div>
       </div>
       <div class="mb-3">
         <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="judge-auto"> Judge automatically when a test run finishes</label>
@@ -182,113 +291,6 @@
       <div class="flex gap-2 mt-3">
         <button class="btn sm primary" id="btn-judge-save">Save judge settings</button>
         <span id="judge-status" class="text-xs dim">Idle.</span>
-      </div>
-    </div>
-
-    <div class="card mb-4" id="helper-card">
-      <div class="card-head">
-        <div class="card-title">Helper model</div>
-        <div class="card-sub">The helper does the tedious model work for you: mining Q&amp;A pairs from big document sets, building test suites and preference pairs, and answering in the Guide. Run it on this machine, or connect an API provider.</div>
-      </div>
-      <div class="mb-3 flex gap-4 items-center">
-        <label class="flex items-center gap-2"><input type="radio" name="helper-seat" id="helper-seat-local" value="local" /> Local model on this machine <span id="helper-local-label" class="dim text-xs"></span></label>
-        <label class="flex items-center gap-2"><input type="radio" name="helper-seat" id="helper-seat-api" value="api" /> API provider</label>
-      </div>
-      <div id="helper-local-fields" class="mb-3">
-        <div class="text-xs mb-2">Model file: <span id="helper-local-path" class="mono"></span> <span id="helper-local-present"></span></div>
-        <div class="card helper-recommended mb-3" id="helper-recommended">
-          <div class="text-sm"><b>Recommended:</b> <span id="helper-rec-label"></span> <span class="dim" id="helper-rec-meta"></span></div>
-          <div class="text-xs dim mt-1" id="helper-rec-why"></div>
-          <div class="flex gap-2 items-center mt-2">
-            <button class="btn sm primary" type="button" id="btn-helper-rec">Download and use</button>
-            <span id="helper-rec-status" class="text-xs dim" role="status"></span>
-          </div>
-          <div class="text-xs dim mt-2">For picture reading during mining, also enable this model under <a href="#vision-card">Vision reader settings</a>.</div>
-        </div>
-        <label class="block text-xs muted mb-1" for="helper-local-select">Or use another installed GGUF (download more in Model library)</label>
-        <div class="flex gap-2 items-center">
-          <select id="helper-local-select" class="select settings-field-lg"></select>
-          <button class="btn sm" type="button" id="btn-helper-local-use">Use this model</button>
-        </div>
-        <div class="text-xs dim mt-1">A local helper works one request at a time: mining a few documents takes tens of minutes, against a few minutes with an API provider.</div>
-      </div>
-      <div id="helper-api-fields">
-        <div class="mb-3">
-          <label class="block text-xs muted mb-1" for="helper-api-preset">Provider</label>
-          <select id="helper-api-preset" class="select settings-field-md"></select>
-        </div>
-        <div class="mb-3">
-          <label class="block text-xs muted mb-1" for="helper-api-url">API base URL</label>
-          <input id="helper-api-url" type="text" class="input max-w-420" autocomplete="off" />
-        </div>
-        <div class="mb-3">
-          <label class="block text-xs muted mb-1" for="helper-api-key">API key <span id="helper-key-state" class="dim">(not set)</span></label>
-          <input id="helper-api-key" type="password" class="input max-w-420" autocomplete="new-password"
-                 placeholder="leave blank to keep the current key" />
-          <div class="text-xs dim mt-1">Stored on this computer only (never in the project or the repo) and never shown again.</div>
-        </div>
-        <div class="mb-3">
-          <label class="block text-xs muted mb-1" for="helper-api-model">Model <button class="btn sm" id="btn-helper-models" type="button">Fetch model list</button></label>
-          <input id="helper-api-model" type="text" class="input max-w-420" autocomplete="off" list="helper-api-model-list" />
-          <datalist id="helper-api-model-list"></datalist>
-        </div>
-        <div class="mb-3">
-          <label class="block text-xs muted mb-1" for="helper-api-effort">Reasoning effort (only if the model supports it; &ldquo;none&rdquo; is fastest and cheapest for extraction work)</label>
-          <select id="helper-api-effort" class="select settings-field-md">
-            <option value="">provider default</option>
-            <option value="none">none</option><option value="minimal">minimal</option><option value="low">low</option>
-            <option value="medium">medium</option><option value="high">high</option>
-          </select>
-        </div>
-        <div class="mb-3">
-          <label class="block text-xs muted mb-1" for="helper-api-concurrency">Parallel calls while mining (1–32; the provider's rate limit is the ceiling)</label>
-          <input id="helper-api-concurrency" type="number" class="input settings-field-sm" min="1" max="32" step="1" />
-        </div>
-        <div class="text-xs mb-3 warn">With the API helper, the text of the documents you mine and the questions you ask the Guide are sent to that provider.</div>
-      </div>
-      <div class="flex gap-2 mt-3">
-        <button class="btn sm primary" id="btn-helper-save">Save helper settings</button>
-        <button class="btn sm" id="btn-helper-test" title="One real request to the selected helper: the local GGUF is loaded (and unloaded again) or the API values above are checked; shows the delay">Test connection</button>
-        <button class="btn sm" id="btn-helper-clear-key" title="Remove the saved API key">Clear saved key</button>
-        <span id="helper-status" class="text-xs dim">Idle.</span>
-      </div>
-    </div>
-
-    <div class="card mb-4" id="vision-card">
-      <div class="card-head">
-        <div class="card-title">Vision reader</div>
-        <div class="card-sub">Reads pictures inside your documents while mining: scanned pages, charts and tables pasted as images. Without it, those pictures are mined from OCR text, which keeps the numbers but often loses which label each number belongs to.</div>
-      </div>
-      <div class="flex flex-col gap-1 mb-3" role="radiogroup" aria-label="Vision reader">
-        <label class="flex items-center gap-2"><input type="radio" name="vision-mode" id="vision-mode-off" value="off" /> Off: OCR only</label>
-        <label class="flex items-center gap-2"><input type="radio" name="vision-mode" id="vision-mode-local" value="local" /> Local model on this machine (needs an mmproj file next to the GGUF)</label>
-        <label class="flex items-center gap-2"><input type="radio" name="vision-mode" id="vision-mode-api" value="api" /> API vision model</label>
-      </div>
-      <div id="vision-local-fields" class="mb-3">
-        <label class="block text-xs muted mb-1" for="vision-local-model">Vision model: path to a GGUF (suggestions: models found with an mmproj)</label>
-        <input id="vision-local-model" type="text" class="input settings-field-lg" autocomplete="off" list="vision-local-list" />
-        <datalist id="vision-local-list"></datalist>
-        <div class="text-xs dim mt-1">It loads into the one inference worker while a batch with pictures is mined and is unloaded after. With a local helper, pick the helper's own GGUF here (if it has an mmproj) or use an API vision model.</div>
-      </div>
-      <div id="vision-api-fields">
-        <div class="mb-3">
-          <label class="block text-xs muted mb-1" for="vision-api-url">API base URL</label>
-          <input id="vision-api-url" type="text" class="input max-w-420" autocomplete="off" />
-        </div>
-        <div class="mb-3">
-          <label class="block text-xs muted mb-1" for="vision-api-key">API key <span id="vision-key-state" class="dim">(not set)</span></label>
-          <input id="vision-api-key" type="password" class="input max-w-420" autocomplete="new-password" placeholder="leave empty to keep the saved key" />
-        </div>
-        <div class="mb-3">
-          <label class="block text-xs muted mb-1" for="vision-api-model">Model (must accept images)</label>
-          <input id="vision-api-model" type="text" class="input max-w-420" autocomplete="off" />
-        </div>
-        <div class="text-xs mb-3 warn">With an API vision model, the pictures in the documents you mine (scans, charts, page images) are sent to that provider.</div>
-      </div>
-      <div class="flex gap-2 mt-3">
-        <button class="btn sm primary" id="btn-vision-save" type="button">Save vision settings</button>
-        <button class="btn sm" id="btn-vision-test" type="button" title="Reads a generated picture with a random code: checks the model really sees, and shows the delay">Test reading</button>
-        <span id="vision-status" class="text-xs dim">Idle.</span>
       </div>
     </div>
 
@@ -368,6 +370,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/settings.js?v=17"></script>
+<script src="/static/js/settings.js?v=21"></script>
 <script src="/static/js/security.js?v=3"></script>
 {% endblock %}

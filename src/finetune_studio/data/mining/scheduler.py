@@ -38,14 +38,16 @@ class MiningError(Exception):
         self.status = status
 
 
-def helper_info() -> dict[str, Any]:
-    """The seated helper as stored on each job: provider, model, kind, reasoning setting, parallel calls, prompt version."""
+def helper_info(job: str = "mining") -> dict[str, Any]:
+    """The connection a job runs on, as stored on each mining job: provider, model, kind, reasoning setting, parallel
+    calls, prompt version and a tag of the user's extra instructions."""
+    from finetune_studio.models.assistant import instructions_tag
     from finetune_studio.models.helper import (
         get_configured_helper_provider,
         get_helper_provider_id,
     )
 
-    row = get_configured_helper_provider() or {}
+    row = get_configured_helper_provider(job) or {}
     extra = row.get("extra") or {}
     api = row.get("kind") == "openai_compat"
     concurrency = 1
@@ -56,13 +58,14 @@ def helper_info() -> dict[str, Any]:
             concurrency = DEFAULT_API_CONCURRENCY
         concurrency = max(1, min(MAX_API_CONCURRENCY, concurrency))
     return {
-        "provider_id": row.get("id") or get_helper_provider_id(),
+        "provider_id": row.get("id") or get_helper_provider_id(job),
         "label": row.get("label") or row.get("name") or "",
         "kind": row.get("kind") or "",
         "model": row.get("model_id") or "",
         "reasoning_effort": str((extra.get("body") or {}).get("reasoning_effort") or ""),
         "concurrency": concurrency,
         "prompt_version": PROMPT_VERSION,
+        "instructions_tag": instructions_tag(job),
     }
 
 
@@ -193,10 +196,12 @@ class MiningScheduler:
                 problems.append(f"{name}: the parser failed on it ({sources[sid].error or 'no text'})")
         if problems:
             raise MiningError("; ".join(problems))
-        if resolve_generator() is None:
-            raise MiningError(helper_resolution_error())
-        helper = helper_info()
-        helper["target"] = seat.current_target()
+        if resolve_generator("mining") is None:
+            raise MiningError(helper_resolution_error("mining"))
+        from finetune_studio.models.assistant import job_instructions
+
+        helper = helper_info("mining")
+        helper["target"] = {**seat.current_target(), "instructions": job_instructions("mining")}
         helper["vision"] = {"mode": "off", "local_model": ""}
         if kind == "mine" and self._vision_reader(helper) is not None:     # refused here, before anything is queued
             helper["vision"] = seat.vision_seat()
@@ -215,9 +220,9 @@ class MiningScheduler:
         different local helper from the one worker in the middle of mining is refused here, before anything is queued.
         (Only a check: the worker builds its own reader from the recorded seat.)"""
         from finetune_studio.models.helper import paths_match
-        from finetune_studio.models.vision import Reader, VisionError, get_seat
+        from finetune_studio.models.vision import Reader, VisionError, resolve_seat
 
-        seat = get_seat()
+        seat = resolve_seat()
         if seat.mode == "off":
             return None
         if seat.mode == "local" and helper.get("kind") == "local_gguf" and not paths_match(helper.get("model"),

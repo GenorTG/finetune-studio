@@ -95,7 +95,7 @@ SETTING_HELP: dict[str, dict[str, str]] = {
         "kb": "training",
     },
     "api_concurrency": {
-        "meaning": "How many helper calls an API helper serves at once while mining (Settings → Helper model, default 8).",
+        "meaning": "How many calls an API connection serves at once (Settings → AI assistant → the connection's parallel calls, default 8).",
         "guidance": "8 mines a 19-file corpus in minutes; raise it if the provider allows more parallel requests.",
         "pitfall": "Too high and the provider answers 429 (rate limit): calls are retried, but a mining round can still fail.",
         "kb": "helper-model",

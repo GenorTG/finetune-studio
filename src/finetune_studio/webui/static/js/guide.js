@@ -424,13 +424,6 @@
     }
   }
 
-  async function helperProviderId() {
-    try {
-      var prov = await fetch("/api/providers").then(function (r) { return r.json(); });
-      return (prov && prov.helper_provider_id) || null;
-    } catch (e) { return null; }
-  }
-
   function setBusy(b) {
     state.busy = b;
     els.send.disabled = b;
@@ -453,8 +446,7 @@
     var cards = {};
     try {
       var body = { messages: state.messages, project_id: currentProject(), page_path: location.pathname, temperature: 0.2 };
-      var pid = await helperProviderId();
-      if (pid) body.provider_id = pid;
+      // No provider_id: the server uses the "guide" job's connection (Settings -> AI assistant).
       await stream(body, ctl.signal, function (ev) {
         if (ev.type === "status") setThinking(ev.message);
         else if (ev.type === "thinking") setThinking(ev.forced_final ? "writing the final answer…" : "thinking… (step " + ev.round + ")");

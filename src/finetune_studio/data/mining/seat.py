@@ -28,7 +28,7 @@ def current_target() -> dict[str, Any]:
     from finetune_studio.data.prep.generator import resolve_helper_backend
     from finetune_studio.models.helper import get_configured_helper_provider
 
-    backend = resolve_helper_backend()
+    backend = resolve_helper_backend("mining")
     if backend is not None and backend.get("kind") == "provider":
         active = backend["manager"].active() or {}
         if active.get("kind") == "openai_compat":
@@ -36,17 +36,17 @@ def current_target() -> dict[str, Any]:
         return {"kind": "local", "model_path": str(active.get("model_id") or active.get("model_path") or "")}
     if backend is not None:
         return {"kind": "local", "model_path": str(getattr(backend["engine"], "model_path", "") or "")}
-    row = get_configured_helper_provider() or {}           # the seat itself (the generator was resolved elsewhere)
+    row = get_configured_helper_provider("mining") or {}   # the seat itself (the generator was resolved elsewhere)
     if row.get("kind") == "openai_compat":
         return {"kind": "api", "provider_id": str(row.get("id") or "")}
     return {"kind": "local", "model_path": str(row.get("model_id") or "")}
 
 
 def vision_seat() -> dict[str, str]:
-    from finetune_studio.models.vision import get_seat
+    """The picture reader to record on a job, with "main assistant" resolved to a concrete connection."""
+    from finetune_studio.models.vision import resolve_seat
 
-    seat = get_seat()
-    return {"mode": seat.mode, "local_model": seat.local_model}
+    return resolve_seat().as_dict()
 
 
 _providers: dict[str, Any] = {}
@@ -54,26 +54,37 @@ _providers_lock = threading.Lock()
 
 
 def _api_provider(provider_id: str) -> Any:
-    from finetune_studio.models.manager import ModelManager, get_manager
-    from finetune_studio.models.providers import ProviderConfig, build_provider
+    from finetune_studio.models.assistant import connection_client
+    from finetune_studio.models.manager import get_manager
 
     with _providers_lock:
         if provider_id in _providers:
             return _providers[provider_id]
         row = get_manager().get_provider(provider_id)
         if row is None or row.get("kind") != "openai_compat":
-            raise RuntimeError(f"the API helper {provider_id!r} is not configured any more (Settings -> Helper model)")
-        provider = build_provider(ProviderConfig(
-            id=row["id"], name=row.get("name") or row["id"], kind="openai_compat", model_id=row.get("model_id") or "",
-            base_url=row.get("base_url") or "", api_key=ModelManager._api_key_for(row["id"]),
-            extra=dict(row.get("extra") or {})))
-        provider.load()
+            raise RuntimeError(f"the API connection {provider_id!r} is not configured any more (Settings -> AI assistant)")
+        provider = connection_client(provider_id).provider
         _providers[provider_id] = provider
         return provider
 
 
 def chat_for(target: dict[str, Any]) -> ChatFn:
-    """A chat callable for a recorded target (mining worker process). Raises with the reason when it cannot exist."""
+    """A chat callable for a recorded target (mining worker process), with the mining instructions recorded on the job
+    in front of every call. Raises with the reason when it cannot exist."""
+    from finetune_studio.models.assistant import instruct
+
+    chat = _raw_chat_for(target)
+    text = str(target.get("instructions") or "")
+    if not text:
+        return chat
+
+    def _instructed(messages: list[dict[str, Any]], *args: Any, **kw: Any) -> str:
+        return chat(instruct("mining", messages, text), *args, **kw)
+
+    return _instructed
+
+
+def _raw_chat_for(target: dict[str, Any]) -> ChatFn:
     kind = target.get("kind")
     if kind == "api":
         provider = _api_provider(str(target.get("provider_id") or ""))

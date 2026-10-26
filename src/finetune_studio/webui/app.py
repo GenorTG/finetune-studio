@@ -506,11 +506,15 @@ app.include_router(_access.router)  # /login, /api/auth/*, /api/settings/securit
 
 from finetune_studio.webui.routes import helper_settings as _helper_settings
 
-app.include_router(_helper_settings.router)  # type: ignore[has-type]  # /api/settings/helper* (local GGUF or API provider)
+app.include_router(_helper_settings.router)  # type: ignore[has-type]  # /api/settings/helper* (the local model)
+
+from finetune_studio.webui.routes import assistant_settings as _assistant_settings
+
+app.include_router(_assistant_settings.router)  # /api/settings/assistant*, /api/settings/connections* (AI assistant)
 
 from finetune_studio.webui.routes import vision_settings as _vision_settings
 
-app.include_router(_vision_settings.router)  # /api/settings/vision* (Vision reader: off, local GGUF + mmproj, API)
+app.include_router(_vision_settings.router)  # /api/settings/vision/test (the "Reading pictures" job)
 
 from finetune_studio.webui.routes import compute_device as _compute_device
 

@@ -286,3 +286,13 @@ def _no_shared_model_downloads(monkeypatch):
 
     register.real = real_register
     monkeypatch.setattr(sm, "register", register)
+
+
+@pytest.fixture(autouse=True)
+def _private_settings_file(monkeypatch, tmp_path_factory):
+    """Each test gets its own settings.json: a test that saved ``test_auto_judge: true`` made every later run test in
+    the same process chain a judge job onto the local model and time out (test_training_eval after
+    test_testing_jobs / test_testing_routes)."""
+    from finetune_studio.webui.routes import settings as settings_mod
+
+    monkeypatch.setattr(settings_mod, "SETTINGS_PATH", tmp_path_factory.mktemp("settings") / "settings.json")

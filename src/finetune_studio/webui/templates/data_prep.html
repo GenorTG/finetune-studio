@@ -2340,14 +2340,16 @@ function dpSelectedSourceIds() {
   return Array.from(document.querySelectorAll('.dp-source-check:checked')).map(function (box) { return box.value; }).filter(Boolean);
 }
 
-// The local GGUF is loaded on request (never implicitly by the server); an API helper needs nothing.
+// The local GGUF is loaded on request (never implicitly by the server); an API connection needs nothing.
+// Mining runs on the "mining" job's connection (Settings -> AI assistant -> Jobs), by default the main assistant.
 async function dpEnsureHelperLoaded() {
   if (_dpHelper && _dpHelper.kind === 'openai_compat') return;
   var providers = await api.get('/api/providers');
-  var helperId = providers.helper_provider_id || _dpHelperProviderId || 'local-default';
+  var job = (providers.jobs || {}).mining || {};
+  var helperId = job.provider_id || _dpHelperProviderId || 'local-default';
   var active = providers.active || null;
   if (active && active.loaded && active.id === helperId) return;
-  if (providers.helper && providers.helper.kind === 'openai_compat') return;
+  if (job.kind === 'openai_compat') return;
   dpMiningStatus('Loading the helper model…', 'info');
   try {
     await api.post('/api/providers/' + encodeURIComponent(helperId) + '/load', {});

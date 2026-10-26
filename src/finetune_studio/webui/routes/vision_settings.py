@@ -1,7 +1,7 @@
-"""Settings -> Vision reader: the model that reads pictures in documents while mining (``models/vision.py``).
+"""Settings -> AI assistant -> Jobs -> "Reading pictures": the test reading and the local GGUFs that can see.
 
-``off`` (default) keeps OCR text; ``local`` is a GGUF with an mmproj next to it; ``api`` is an OpenAI-compatible vision model
-with its own row (``api-vision``) and write-only key. Nothing is sent to an API until the user seats an API model here.
+The seat itself (off by default, the main assistant, a connection or a local vision GGUF) is saved through
+``PUT /api/settings/assistant/jobs/vision`` (``assistant_settings``). Nothing is sent to an API until the user picks one.
 """
 from __future__ import annotations
 
@@ -10,13 +10,11 @@ import io
 import random
 import time
 from typing import Any
-from urllib.parse import urlparse
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 from finetune_studio.models import vision
-from finetune_studio.models.manager import get_manager
 
 router = APIRouter()
 
@@ -31,64 +29,6 @@ def _local_candidates() -> list[dict[str, str]]:
         if getattr(m, "vision", False) and path.lower().endswith(".gguf") and vision.mmproj_for(path):
             out.append({"path": path, "label": str(getattr(m, "name", "") or path)})
     return sorted(out, key=lambda x: x["label"].lower())
-
-
-def _state() -> dict[str, Any]:
-    return {**vision.describe(), "local_candidates": _local_candidates()}
-
-
-async def _json(request: Request) -> dict[str, Any]:
-    try:
-        body = await request.json()
-    except ValueError:
-        raise HTTPException(status_code=400, detail="invalid JSON") from None
-    if not isinstance(body, dict):
-        raise HTTPException(status_code=400, detail="expected JSON object")
-    return body
-
-
-def _upsert_api_row(body: dict[str, Any]) -> None:
-    mgr = get_manager()
-    row = mgr.get_provider(vision.API_VISION_PROVIDER_ID) or {}
-    url = str(body.get("base_url") or row.get("base_url") or "").strip().rstrip("/")
-    parsed = urlparse(url)
-    if parsed.scheme not in ("http", "https") or not parsed.netloc:
-        raise HTTPException(status_code=400, detail="API base URL must start with http:// or https://")
-    model = str(body.get("model") or row.get("model_id") or "").strip()
-    if not model:
-        raise HTTPException(status_code=400, detail="enter the vision model name")
-    fields: dict[str, Any] = {"id": vision.API_VISION_PROVIDER_ID, "name": "Vision · API", "kind": "openai_compat",
-                              "model_id": model, "base_url": url, "extra": dict(row.get("extra") or {})}
-    key = str(body.get("api_key") or "").strip()
-    if key:
-        fields["api_key"] = key
-    elif body.get("clear_key"):
-        fields["api_key"] = ""
-    mgr.upsert_provider(**fields)
-
-
-@router.get("/api/settings/vision")
-async def get_vision_settings():
-    return await asyncio.to_thread(_state)
-
-
-@router.put("/api/settings/vision")
-async def put_vision_settings(request: Request):
-    body = await _json(request)
-    mode = str(body.get("mode") or "").strip().lower()
-    if mode not in vision.MODES:
-        raise HTTPException(status_code=400, detail=f"mode must be one of {list(vision.MODES)}")
-
-    def _apply() -> dict[str, Any]:
-        if body.get("base_url") or body.get("model") or body.get("api_key") or body.get("clear_key"):
-            _upsert_api_row(body)
-        try:
-            vision.set_seat(vision.Seat(mode=mode, local_model=str(body.get("local_model") or "").strip()))
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from None
-        return _state()
-
-    return await asyncio.to_thread(_apply)
 
 
 def _probe_image(code: str) -> bytes:
@@ -110,7 +50,7 @@ async def test_vision_settings():
     """One real reading of a generated picture with a random code: proves the seated model sees, and how fast."""
     seat = vision.get_seat()
     if seat.mode == "off":
-        return JSONResponse({"ok": False, "detail": "the Vision reader is off"}, status_code=400)
+        return JSONResponse({"ok": False, "detail": "reading pictures is off"}, status_code=400)
     code = str(random.randint(100000, 999999))
 
     def _read() -> dict[str, Any]:
