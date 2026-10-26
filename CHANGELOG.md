@@ -39,6 +39,9 @@ turns that section into the release's notes.
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
 ### Fixed
+- A job that needs the local assistant (drafting use-case examples, the reworded quiz, study sets, preference pairs)
+  no longer stops at "no helper model loaded" with no way forward: the message now has a **Load the assistant and
+  retry** button that loads the job's local model and runs the job again.
 - Quick work, Step 6: after pinning a version, **Builds on** moves to that new version, so the next pin continues
   the line instead of branching from the one before.
 - Testing / Compare: picking a folder no loader can open (a training run's own folder, with only `adapter/` and

@@ -2064,6 +2064,9 @@ async function dpPrefBuild() {
         }).join('\n');
       }
       dpPrefStatus(String(d.detail || ('Build failed (HTTP ' + r.status + ')')) + extra, 'error');
+      if (d.code === 'no_model' && window.fts && fts.offerAssistantLoad) {
+        fts.offerAssistantLoad(document.getElementById('dp-pref-status'), 'preference', dpPrefBuild);
+      }
       return;
     }
     dpPrefRenderProgress({ planned: 1, attempted: 1, kept: d.by_kind });
@@ -2166,6 +2169,9 @@ async function dpStudyBuild() {
     if (!r.ok) {
       var drops = dpStudyDrops(d.dropped);
       dpStudyStatus(String(d.detail || ('Build failed (HTTP ' + r.status + ')')) + (drops.length ? '\n' + drops.join('\n') : ''), 'error');
+      if (d.code === 'no_model' && window.fts && fts.offerAssistantLoad) {
+        fts.offerAssistantLoad(document.getElementById('dp-study-status'), 'study', dpStudyBuild);
+      }
       return;
     }
     dpStudyRenderResult(d);

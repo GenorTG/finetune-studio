@@ -232,6 +232,10 @@
       } catch (e) {
         stop.done = true;
         status.innerHTML = `<span class="sev-error">✕ ${esc(e.message || e)}</span>`;
+        // A local assistant must be loaded first (the server never loads one implicitly): offer it, then retry.
+        if (((e && e.data) || {}).code === 'no_model' && window.fts && window.fts.offerAssistantLoad) {
+          window.fts.offerAssistantLoad(status, 'drafting', startDraft);
+        }
       } finally { syncDraft(); }
     }
 

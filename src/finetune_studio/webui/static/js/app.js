@@ -536,11 +536,53 @@
     box.append(label, ' ', target, ' ', why);
   }
 
+  // A job that runs on the LOCAL assistant needs its GGUF loaded first: the server never loads one implicitly, so a
+  // page that got a 409 ``no_model`` offers this on the user's click. Resolves to the connection's label; an API
+  // connection needs nothing (it answers without a load).
+  async function loadAssistant(job) {
+    const providers = await window.api.get('/api/providers');
+    const j = (providers.jobs || {})[job] || {};
+    const id = j.provider_id || providers.helper_provider_id;
+    if (!id) throw new Error('no assistant connection is set (Settings → AI assistant)');
+    if (j.kind !== 'openai_compat') {
+      const active = providers.active || null;
+      if (!(active && active.loaded && active.id === id)) {
+        await window.api.post('/api/providers/' + encodeURIComponent(id) + '/load', {});
+      }
+    }
+    return j.label || id;
+  }
+
+  // Shows "Load the assistant and retry" in ``box`` after a 409 no_model; on click loads it, then calls ``retry``.
+  function offerAssistantLoad(box, job, retry) {
+    if (!box) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn sm primary ml-2';
+    btn.dataset.loadAssistant = job;
+    btn.textContent = 'Load the assistant and retry';
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Loading the assistant… (a local 12B takes about a minute)';
+      try {
+        const label = await loadAssistant(job);
+        notify('Loaded ' + label, 'success');
+        btn.remove();
+        retry();
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = 'Load the assistant and retry';
+        notify('Could not load the assistant: ' + ((e && e.message) || e), 'error');
+      }
+    });
+    box.appendChild(btn);
+  }
+
   // Page-swap hook called from spa.js after each navigation
   window.fts = {
     notify, api, poll, subscribe, confirm: confirmDialog, prompt: promptDialog, init: delegate, formatJsTime,
     conn: { check: connCheck, start: connStart, stop: connStop },
-    themeToggle, fileTypeLabel, refreshFlowNext,
+    themeToggle, fileTypeLabel, refreshFlowNext, loadAssistant, offerAssistantLoad,
   };
 
   // Run the formatter on full load + after every SPA swap
