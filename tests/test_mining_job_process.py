@@ -113,7 +113,7 @@ def test_mining_runs_in_the_worker_process_against_the_web_apps_db(real_mining, 
     client, stub = real_mining
     pid, sid = _file(client)
     job = _submit(client, pid, sid)
-    assert job["helper"]["target"] == {"kind": "api", "provider_id": "api-helper"}
+    assert job["helper"]["target"] == {"kind": "api", "provider_id": "api-helper", "instructions": ""}
     row = _wait_row(job["id"], lambda r: r.get("status") in TERMINAL)
     assert row["status"] in ("done", "gaps"), row
     assert stub.calls > 0 and db.mining.list_rounds(pid, sid)

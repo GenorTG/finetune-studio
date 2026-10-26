@@ -649,6 +649,17 @@
   text-align: center;
 }
 .table tr.row-hover { transition: background var(--t-fast) var(--ease); }
+/* Settings -> AI assistant: fixed layout split the width evenly, so the action cell (up to three buttons) clipped
+   "Remove" and the job instructions box was squeezed. Give the button columns their room. */
+#connections-table th:nth-child(1) { width: 20%; }
+#connections-table th:nth-child(3) { width: 15%; }
+#connections-table th:last-child { width: 250px; }
+#assistant-jobs th:nth-child(1) { width: 34%; }
+#assistant-jobs th:nth-child(2) { width: 30%; }
+#assistant-jobs th:nth-child(3) { width: 22%; }
+#assistant-jobs th:last-child { width: 90px; }
+#assistant-jobs select,
+#assistant-jobs textarea { width: 100%; max-width: none; }
 .table tr.row-hover:hover { background: var(--bg-panel); }
 .table .name { font-weight: 600; color: var(--accent); }
 /* Overview recent files: equal fixed-layout shares cut names to ~15 characters while the action cell wrapped

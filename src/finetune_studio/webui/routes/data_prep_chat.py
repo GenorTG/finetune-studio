@@ -116,12 +116,13 @@ def parse_gen(body: dict) -> dict[str, Any]:
 
 
 async def resolve_chat_backend(
-    provider_id: str | None, external: dict | None
+    provider_id: str | None, external: dict | None, job: str = "guide"
 ) -> tuple[dict | None, JSONResponse | None]:
-    """Pick the chat backend (explicit provider, external API, or the configured helper).
+    """Pick the chat backend (explicit provider, external API, or ``job``'s connection: the main assistant unless the
+    job names its own).
 
     Returns ``(backend, None)`` or ``(None, error_response)``. Never silently reuses a model that
-    is not the configured helper.
+    is not the configured helper. An API connection gets its own client: the model on the card is left alone.
     """
     backend: dict | None = None
     if external:
@@ -150,6 +151,14 @@ async def resolve_chat_backend(
         cfg = mgr.get_provider(provider_id)
         if not cfg:
             return None, JSONResponse({"detail": f"unknown provider {provider_id}"}, status_code=404)
+        if cfg.get("kind") == "openai_compat":
+            from finetune_studio.models.assistant import connection_client
+
+            try:
+                client = await asyncio.to_thread(connection_client, provider_id)
+            except ValueError as e:
+                return None, JSONResponse({"detail": str(e)}, status_code=409)
+            return {"kind": "provider", "manager": client, "provider_id": provider_id}, None
 
         # Fast path: the global inference engine already holds THIS model.
         # Use it directly to avoid a duplicate Llama() instance racing with
@@ -214,9 +223,9 @@ async def resolve_chat_backend(
             resolve_helper_backend,
         )
 
-        loaded = resolve_helper_backend()
+        loaded = await asyncio.to_thread(resolve_helper_backend, job)
         if loaded is None:
-            return None, JSONResponse({"detail": helper_resolution_error()}, status_code=409)
+            return None, JSONResponse({"detail": helper_resolution_error(job)}, status_code=409)
         backend = dict(loaded)
         log.info(
             "data-prep chat: provider_id omitted; using helper %s backend (%s)",

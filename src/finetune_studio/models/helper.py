@@ -18,15 +18,14 @@ from finetune_studio.models.llama_loader import DEFAULT_N_CTX
 # Stable provider id seeded by ModelManager._ensure_db.
 DEFAULT_HELPER_PROVIDER_ID: str = "local-default"
 
-# The helper *seat*: which provider row does the helper work (data-prep mining, suite generation,
-# preference authoring, the Guide). It is the local GGUF unless the user connected an API provider
-# on Settings, which fills the seat with the ``api-helper`` row. Stored in ``app_state``.
+# The helper *seat* is now the main assistant (``models.assistant``): the connection every helper job uses unless
+# the job names its own. ``api-helper`` is the API connection older versions created; stored in ``app_state``.
 API_HELPER_PROVIDER_ID: str = "api-helper"
 HELPER_SEAT_KEY: str = "helper_seat"
 
 @dataclass(frozen=True)
 class RecommendedHelper:
-    """The local helper the app recommends and can download in one click (Settings -> Helper model)."""
+    """The local helper the app recommends and can download in one click (Settings -> AI assistant)."""
 
     repo_id: str
     revision: str
@@ -50,7 +49,7 @@ RECOMMENDED_LOCAL_HELPER = RecommendedHelper(
     label="Gemma 4 12B QAT (Google)",
     size_gb=7.2,
     license="Apache-2.0",
-    why="Google's official 4-bit QAT build: a capable local helper for grounded pair mining and Guide tools; it can also read document images when enabled as the Vision reader.",
+    why="Google's official 4-bit QAT build: a capable local helper for grounded pair mining and Guide tools; it can also read document images (Settings -> AI assistant -> Jobs -> Reading pictures).",
 )
 
 # Clear UI / error-message label (not the bare filename alone).
@@ -167,23 +166,26 @@ def is_helper_gguf_path(path: str | None) -> bool:
     return base in (DEFAULT_HELPER_GGUF_BASENAME, ALTERNATE_HELPER_GGUF_BASENAME, *LEGACY_HELPER_GGUF_BASENAMES)
 
 
-def get_helper_provider_id() -> str:
-    """Id of the provider row that currently holds the helper seat (default: the local GGUF)."""
-    from finetune_studio.models.manager import ModelManager, get_manager
+def get_helper_provider_id(job: str | None = None) -> str:
+    """Id of the connection that does helper work: the main assistant, or ``job``'s own connection when it has one
+    (``models.assistant``). Never ``"off"``: a switched-off job (vision) resolves to the main assistant here."""
+    from finetune_studio.models import assistant
 
-    seat = ModelManager.get_state(HELPER_SEAT_KEY, DEFAULT_HELPER_PROVIDER_ID) or DEFAULT_HELPER_PROVIDER_ID
-    if seat != DEFAULT_HELPER_PROVIDER_ID and get_manager().get_provider(seat) is None:
-        return DEFAULT_HELPER_PROVIDER_ID  # seat row deleted: never leave the app without a helper
-    return seat
+    if job:
+        pid = assistant.job_provider_id(job)
+        if pid != assistant.OFF:
+            return pid
+    return assistant.assistant_provider_id()
 
 
 def set_helper_provider_id(pid: str) -> None:
-    """Seat ``pid`` as the helper; it must be an existing provider row."""
-    from finetune_studio.models.manager import ModelManager, get_manager
+    """Make ``pid`` the main assistant; it must be an existing provider row."""
+    from finetune_studio.models import assistant
 
-    if get_manager().get_provider(pid) is None:
-        raise ValueError(f"Unknown provider: {pid}")
-    ModelManager.set_state(HELPER_SEAT_KEY, pid)
+    try:
+        assistant.set_assistant_provider_id(pid)
+    except ValueError:
+        raise ValueError(f"Unknown provider: {pid}") from None
 
 
 def is_helper_provider(row: dict[str, Any] | None) -> bool:
@@ -193,8 +195,8 @@ def is_helper_provider(row: dict[str, Any] | None) -> bool:
     pid = (row.get("id") or "")
     if pid in (DEFAULT_HELPER_PROVIDER_ID, ALTERNATE_HELPER_PROVIDER_ID):
         return True
-    if pid == API_HELPER_PROVIDER_ID:
-        return True
+    if pid == API_HELPER_PROVIDER_ID or row.get("kind") == "openai_compat":
+        return True  # every API connection is there to do assistant work (Settings -> AI assistant)
     return is_helper_gguf_path(row.get("model_id") or row.get("model_path"))
 
 
@@ -236,8 +238,10 @@ def annotate_provider(row: dict[str, Any]) -> dict[str, Any]:
     out = dict(row)
     helper = is_helper_provider(out)
     out["is_helper"] = helper
-    if out.get("id") == API_HELPER_PROVIDER_ID:
-        out["label"] = f"Helper · API · {out.get('model_id') or 'model not set'}"
+    if out.get("kind") == "openai_compat":
+        from finetune_studio.models.assistant import connection_label
+
+        out["label"] = connection_label(out)
     elif helper:
         # Keep DB name in sync with the clear label for UI pickers.
         if (out.get("name") or "").strip() in ("", "Local GGUF", "local"):
@@ -254,12 +258,12 @@ def annotate_provider(row: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
-def get_configured_helper_provider() -> dict[str, Any] | None:
-    """Return the helper provider row from ModelManager, or None."""
+def get_configured_helper_provider(job: str | None = None) -> dict[str, Any] | None:
+    """The provider row of the main assistant (or of ``job``'s own connection), or None."""
     from finetune_studio.models.manager import get_manager
 
     mgr = get_manager()
-    by_id = mgr.get_provider(get_helper_provider_id())
+    by_id = mgr.get_provider(get_helper_provider_id(job))
     if by_id is not None:
         return annotate_provider(by_id)
     for row in mgr.list_providers():
@@ -310,13 +314,13 @@ def helper_missing_message(path: str) -> str:
     """Actionable text for a helper GGUF that is not on disk."""
     rec = RECOMMENDED_LOCAL_HELPER
     return (
-        f"No helper model is installed yet (expected {path}). Open Settings -> Helper model and press "
+        f"No helper model is installed yet (expected {path}). Open Settings -> AI assistant and press "
         f"'Download {rec.label}' ({rec.size_gb:g} GB), pick another installed GGUF there, or connect an API provider."
     )
 
 
 def recommended_helper_state() -> dict[str, Any]:
-    """The recommended helper and whether its files are on disk (Settings -> Helper model)."""
+    """The recommended helper and whether its files are on disk (Settings -> AI assistant)."""
     rec = RECOMMENDED_LOCAL_HELPER
     gguf, mmproj = recommended_helper_paths()
     return {

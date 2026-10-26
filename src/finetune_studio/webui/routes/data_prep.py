@@ -61,14 +61,14 @@ async def data_prep_page(request: Request, pid: str):
         get_configured_helper_provider,
         get_helper_provider_id,
     )
-    helper = get_configured_helper_provider()
+    helper = get_configured_helper_provider("mining")
     ctx = {
         "request": request,
         "pid": pid,
         "project": project,
         "models": discovered_models,
         "helper_label": (helper or {}).get("label") or DEFAULT_HELPER_LABEL,
-        "helper_provider_id": get_helper_provider_id(),
+        "helper_provider_id": get_helper_provider_id("mining"),
         # Every parser-supported upload is parsed on arrival; "Use as source" re-queues one that is not.
         "promotable_extensions": sorted(readable_extensions()),
     }
@@ -82,6 +82,7 @@ async def data_prep_page(request: Request, pid: str):
 
 @router.get("/providers")
 async def list_providers():
+    from finetune_studio.models.assistant import jobs_state
     from finetune_studio.models.helper import (
         DEFAULT_HELPER_LABEL,
         get_configured_helper_provider,
@@ -93,9 +94,12 @@ async def list_providers():
     return {
         "providers": mgr.list_providers(),
         "active": mgr.active(),
+        # the main assistant (kept under its helper-era names) and the connection each job runs on
         "helper": helper,
         "helper_provider_id": get_helper_provider_id(),
         "helper_label": (helper or {}).get("label") or DEFAULT_HELPER_LABEL,
+        "jobs": {j["id"]: {"provider_id": j["provider_id"], "kind": j["provider_kind"], "label": j["provider_label"]}
+                 for j in jobs_state()},
     }
 
 

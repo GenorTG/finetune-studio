@@ -283,7 +283,7 @@
       if (!ab) {
         return running ? '' : `<div class="mt-2"><button type="button" class="btn sm primary" data-uc-act="ab"
           data-gid="${esc(r.evaluation.group_id)}">Run the blind A/B judge</button>
-          <span class="text-xs muted">An AI judge (the helper seat) sees both answers in both orders without knowing which is which.</span></div>`;
+          <span class="text-xs muted">An AI judge (the Test judge job, Settings → AI assistant) sees both answers in both orders without knowing which is which.</span></div>`;
       }
       if (ab.status === 'running') return `<div class="mt-2 text-xs">A/B judge: ${ab.done} of ${ab.total} questions…</div>`;
       if (ab.status === 'failed') return `<div class="mt-2 sev-error">✕ A/B judge failed: ${esc(ab.error)}</div>`;

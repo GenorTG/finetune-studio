@@ -61,11 +61,24 @@ _TEST_JUDGE_PROVIDER = "test_judge_provider_id"
 
 
 def get_test_settings() -> dict[str, Any]:
-    """Effective test-judging settings. ``judge_provider_id`` '' means "use the helper seat"."""
+    """Effective test-judging settings. ``judge_provider_id`` '' means "use the main assistant".
+
+    The judge's connection is the ``judge`` job of the assistant (``models.assistant``); a choice saved here by an
+    older version moves there the first time it is read."""
+    from finetune_studio.models import assistant
+
     saved = _load()
+    legacy = str(saved.get(_TEST_JUDGE_PROVIDER) or "").strip()
+    if _TEST_JUDGE_PROVIDER in saved:
+        try:
+            if legacy and not assistant.job_setting("judge"):
+                assistant.set_job("judge", provider_id=legacy)
+        except ValueError:
+            log.warning("dropped the saved judge %r: the connection no longer exists", legacy)
+        _save({k: v for k, v in saved.items() if k != _TEST_JUDGE_PROVIDER})
     return {
         "auto_judge": bool(saved.get(_TEST_AUTO_JUDGE, False)),
-        "judge_provider_id": str(saved.get(_TEST_JUDGE_PROVIDER) or "").strip(),
+        "judge_provider_id": assistant.job_setting("judge"),
     }
 
 
@@ -114,13 +127,12 @@ async def put_testing_settings(request: Request):
             raise HTTPException(status_code=400, detail="auto_judge must be true or false")
         current[_TEST_AUTO_JUDGE] = body["auto_judge"]
     if "judge_provider_id" in body:
-        pid = str(body["judge_provider_id"] or "").strip()
-        if pid:
-            from finetune_studio.models.manager import get_manager
+        from finetune_studio.models import assistant
 
-            if get_manager().get_provider(pid) is None:
-                raise HTTPException(status_code=400, detail=f"unknown provider '{pid}'")
-        current[_TEST_JUDGE_PROVIDER] = pid
+        try:
+            assistant.set_job("judge", provider_id=str(body["judge_provider_id"] or "").strip())
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from None
     _save(current)
     return await get_testing_settings()
 

@@ -98,10 +98,10 @@ def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[tuple[TestC
     monkeypatch.setattr(qa_fs, "project_dir", lambda pid: projects / pid)
     db.init_db()
     helper = FakeHelper()
-    monkeypatch.setattr("finetune_studio.data.prep.generator.resolve_generator", lambda: helper)
+    monkeypatch.setattr("finetune_studio.data.prep.generator.resolve_generator", lambda *_a, **_k: helper)
     # The mining worker (a job; on a thread in tests) resolves the helper recorded on the job, not the web's.
     monkeypatch.setattr("finetune_studio.data.mining.seat.chat_for", lambda target: helper)
-    monkeypatch.setattr("finetune_studio.models.helper.get_configured_helper_provider", lambda: {
+    monkeypatch.setattr("finetune_studio.models.helper.get_configured_helper_provider", lambda *_a, **_k: {
         "id": "api-helper", "kind": "openai_compat", "model_id": "fake-model", "label": "Helper · API · fake",
         "extra": {"concurrency": 3, "body": {"reasoning_effort": "none"}}})
     yield TestClient(app), helper
@@ -233,7 +233,7 @@ def test_requests_the_state_refuses_are_409_and_nothing_is_queued(env, monkeypat
     assert r.status_code == 409 and "already mined" in r.json()["detail"]
     assert client.post(f"/api/projects/{pid}/mining/jobs", json={"source_ids": ["nope"]}).status_code == 404
     assert client.post(f"/api/projects/{pid}/mining/jobs", json={"source_ids": [sid], "kind": "x"}).status_code == 400
-    monkeypatch.setattr("finetune_studio.data.prep.generator.resolve_generator", lambda: None)
+    monkeypatch.setattr("finetune_studio.data.prep.generator.resolve_generator", lambda *_a, **_k: None)
     pid2, sid2 = _project_with_file(client, name="other.txt")
     r = client.post(f"/api/projects/{pid2}/mining/jobs", json={"source_ids": [sid2]})
     assert r.status_code == 409 and not db.mining.list_jobs(pid2)

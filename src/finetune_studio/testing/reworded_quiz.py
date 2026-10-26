@@ -221,10 +221,10 @@ def build_reworded_quiz(pid: str, *, dataset_id: str | None = None, max_question
         from finetune_studio.data.prep.generator import helper_resolution_error
         from finetune_studio.data.prep.preference import NoGenerator, helper_generate
 
-        generate = helper_generate(max_tokens=300, temperature=0.7)
+        generate = helper_generate(max_tokens=300, temperature=0.7, job="quiz")
         if generate is None:
-            raise NoGenerator(helper_resolution_error())
-        workers = workers or int(helper_info().get("concurrency") or 1)
+            raise NoGenerator(helper_resolution_error("quiz"))
+        workers = workers or int(helper_info("quiz").get("concurrency") or 1)
     cases, report = build_reworded_cases(rows, generate, max_questions=max_questions, workers=workers or 1,
                                          progress=progress)
     if not cases:

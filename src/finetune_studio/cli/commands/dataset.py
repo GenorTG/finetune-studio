@@ -198,10 +198,10 @@ def _build_study(args: argparse.Namespace) -> None:
     try:
         opts = study.StudyOptions(reworded=args.reworded, restated=args.restated, passage=not args.no_passage)
         from finetune_studio.data.mining.scheduler import helper_info
-        with pref.helper_loaded_for_cli():  # seats the helper (and unloads a GGUF it loaded) around the build
+        with pref.helper_loaded_for_cli("study"):  # seats the helper (and unloads a GGUF it loaded) around the build
             built = study.build_study_dataset(
-                pid, opts, generate=pref.helper_generate(max_tokens=1200, temperature=0.7),
-                workers=int(helper_info().get("concurrency") or 1),
+                pid, opts, generate=pref.helper_generate(max_tokens=1200, temperature=0.7, job="study"),
+                workers=int(helper_info("study").get("concurrency") or 1),
                 progress=None if args.json else lambda p: print(
                     f"\r{p['done']}/{p['planned']} pairs", end="", file=sys.stderr, flush=True))
     except study.NoUsableRows as exc:

@@ -532,7 +532,7 @@ def test_testing_settings_validation_and_roundtrip(client: TestClient) -> None:
     assert r.status_code == 200 and (r.json()["auto_judge"], r.json()["judge_provider_id"]) == (True, provider)
     assert provider in {p["id"] for p in r.json()["providers"]}
     assert client.get("/api/settings/testing").json()["effective_judge_provider_id"] == provider
-    for bad, fragment in (({"judge_provider_id": "no-such-provider"}, "unknown provider"),
+    for bad, fragment in (({"judge_provider_id": "no-such-provider"}, "unknown connection"),
                           ({"auto_judge": "true"}, "auto_judge must be true or false")):
         r = client.put("/api/settings/testing", json=bad)
         assert r.status_code == 400 and fragment in r.json()["detail"]

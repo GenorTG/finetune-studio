@@ -63,16 +63,18 @@ def test_lost_vault_key_reports_unreadable_not_a_wrong_key():
         vault.unseal(_raw_key("api-y"))
 
 
-def test_helper_settings_never_return_the_key():
+def test_connection_settings_never_return_the_key():
     from fastapi.testclient import TestClient
 
     from finetune_studio.webui.app import app
 
     c = TestClient(app)
-    r = c.put("/api/settings/helper", json={"seat": "local", "base_url": "https://api.example.com/v1", "model": "m",
-                                            "api_key": "sk-never-shown"})
+    r = c.post("/api/settings/connections", json={"name": "Example", "base_url": "https://api.example.com/v1",
+                                                   "model": "m", "api_key": "sk-never-shown"})
     assert r.status_code == 200, r.text
-    body = c.get("/api/settings/helper").text
+    pid = r.json()["id"]
+    body = c.get("/api/settings/assistant").text
     assert "sk-never-shown" not in body
-    assert c.get("/api/settings/helper").json()["api"]["key_state"] == "set"
-    assert "sk-never-shown" not in _raw_key("api-helper")
+    conn = next(x for x in c.get("/api/settings/assistant").json()["connections"] if x["id"] == pid)
+    assert conn["key_state"] == "set"
+    assert "sk-never-shown" not in _raw_key(pid)

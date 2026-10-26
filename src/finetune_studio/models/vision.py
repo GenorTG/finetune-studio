@@ -7,7 +7,12 @@ model is picked here on purpose.
 - ``local``: a GGUF with an mmproj next to it, loaded in the ONE inference worker. If it was not loaded before a batch, it
   is unloaded after. A local helper that is a DIFFERENT GGUF would be evicted by it in the middle of mining, so that
   combination is refused with a reason instead.
-- ``api``: an OpenAI-compatible vision model (its own provider row ``api-vision`` and write-only key).
+- ``api``: an API connection that accepts images (``provider_id``; older installs: the ``api-vision`` row).
+- ``assistant``: whatever the main assistant is (``models.assistant``), resolved when a batch is queued; a local
+  assistant needs an mmproj next to its GGUF.
+
+Settings -> AI assistant -> Jobs -> "Reading pictures" picks the seat; the job's extra instructions go in front of every
+reading.
 """
 from __future__ import annotations
 
@@ -24,7 +29,7 @@ log = logging.getLogger(__name__)
 
 VISION_SEAT_KEY = "vision_reader"
 API_VISION_PROVIDER_ID = "api-vision"
-MODES = ("off", "local", "api")
+MODES = ("off", "local", "api", "assistant")
 MAX_TOKENS = 4096
 MAX_SIDE_PX = 1536        # bounds a picture's image tokens (a 200 dpi page is ~1700x2200 px)
 LOCAL_N_CTX = 16384       # a reading needs the picture + prompt + answer, not the model's 262k window
@@ -61,9 +66,23 @@ class VisionError(RuntimeError):
 class Seat:
     mode: str = "off"
     local_model: str = ""          # GGUF path (local mode)
+    provider_id: str = ""          # API connection (api mode); '' = the legacy ``api-vision`` row
 
     def as_json(self) -> str:
-        return json.dumps({"mode": self.mode, "local_model": self.local_model})
+        return json.dumps({"mode": self.mode, "local_model": self.local_model, "provider_id": self.provider_id})
+
+    def as_dict(self) -> dict[str, str]:
+        return {"mode": self.mode, "local_model": self.local_model, "provider_id": self.provider_id}
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any]) -> Seat:
+        mode = raw.get("mode") if raw.get("mode") in MODES else "off"
+        return cls(mode=str(mode), local_model=str(raw.get("local_model") or ""),
+                   provider_id=str(raw.get("provider_id") or ""))
+
+    @property
+    def api_provider_id(self) -> str:
+        return self.provider_id or API_VISION_PROVIDER_ID
 
 
 def get_seat() -> Seat:
@@ -73,12 +92,25 @@ def get_seat() -> Seat:
         raw = json.loads(ModelManager.get_state(VISION_SEAT_KEY, "") or "{}")
     except ValueError:
         raw = {}
-    mode = raw.get("mode") if raw.get("mode") in MODES else "off"
-    return Seat(mode=mode, local_model=str(raw.get("local_model") or ""))
+    return Seat.from_dict(raw if isinstance(raw, dict) else {})
 
 
-def set_seat(seat: Seat) -> None:
-    from finetune_studio.models.manager import ModelManager, get_manager
+def resolve_seat(seat: Seat | None = None) -> Seat:
+    """``seat`` with ``assistant`` replaced by the main assistant's connection (local GGUF or API)."""
+    from finetune_studio.models.assistant import assistant_provider_id
+    from finetune_studio.models.manager import get_manager
+
+    seat = seat or get_seat()
+    if seat.mode != "assistant":
+        return seat
+    row = get_manager().get_provider(assistant_provider_id()) or {}
+    if row.get("kind") == "openai_compat":
+        return Seat(mode="api", provider_id=str(row["id"]))
+    return Seat(mode="local", local_model=str(row.get("model_id") or ""))
+
+
+def _check(seat: Seat) -> None:
+    from finetune_studio.models.manager import get_manager
 
     if seat.mode not in MODES:
         raise ValueError(f"mode must be one of {MODES}")
@@ -88,10 +120,57 @@ def set_seat(seat: Seat) -> None:
         if not mmproj_for(seat.local_model):
             raise ValueError(f"{Path(seat.local_model).name} has no mmproj*.gguf next to it: it cannot see images")
     if seat.mode == "api":
-        row = get_manager().get_provider(API_VISION_PROVIDER_ID)
-        if not row or not row.get("model_id") or not row.get("api_key_set"):
-            raise ValueError("enter the API vision model and its key first")
+        row = get_manager().get_provider(seat.api_provider_id)
+        if not row or row.get("kind") != "openai_compat":
+            raise ValueError("choose an API connection for reading pictures (Settings -> AI assistant -> Connections)")
+        if not row.get("model_id") or not row.get("api_key_set"):
+            raise ValueError(f"the connection {row.get('name') or row['id']} has no model or no saved key")
+
+
+def set_seat(seat: Seat) -> None:
+    from finetune_studio.models.manager import ModelManager
+
+    _check(seat)
+    if seat.mode == "assistant":
+        _check(resolve_seat(seat))      # a local assistant without an mmproj cannot read pictures: say so now
     ModelManager.set_state(VISION_SEAT_KEY, seat.as_json())
+
+
+def setting_for_jobs(seat: Seat | None = None) -> str:
+    """The seat as the Jobs table shows it: 'off', '' (main assistant), a connection id or 'local-file'."""
+    seat = seat or get_seat()
+    if seat.mode == "off":
+        return "off"
+    if seat.mode == "assistant":
+        return ""
+    if seat.mode == "api":
+        return seat.api_provider_id
+    from finetune_studio.models.helper import paths_match
+    from finetune_studio.models.manager import get_manager
+
+    for row in get_manager().list_providers():
+        if row.get("kind") == "local_gguf" and paths_match(row.get("model_id"), seat.local_model):
+            return str(row["id"])
+    return "local-file"
+
+
+def seat_from_setting(setting: str, local_model: str = "") -> Seat:
+    """The inverse of ``setting_for_jobs`` (a local connection becomes a local seat on its GGUF)."""
+    from finetune_studio.models.manager import get_manager
+
+    setting = (setting or "").strip()
+    if setting == "off":
+        return Seat()
+    if setting == "":
+        return Seat(mode="assistant")
+    if setting == "local-file":
+        return Seat(mode="local", local_model=local_model.strip())
+    row = get_manager().get_provider(setting)
+    if row is None:
+        raise ValueError(f"unknown connection {setting!r}")
+    if row.get("kind") == "openai_compat":
+        return Seat(mode="api", provider_id=setting)
+    return Seat(mode="local", local_model=str(row.get("model_id") or ""))
 
 
 def mmproj_for(gguf_path: str) -> str:
@@ -104,19 +183,22 @@ def mmproj_for(gguf_path: str) -> str:
 
 def describe() -> dict[str, Any]:
     """Public state for Settings and job records (never a key)."""
+    from finetune_studio.models.assistant import connection_label
     from finetune_studio.models.manager import get_manager
 
     seat = get_seat()
-    api = get_manager().get_provider(API_VISION_PROVIDER_ID) or {}
-    if seat.mode == "local":
-        label = f"Local · {Path(seat.local_model).name}"
-    elif seat.mode == "api":
-        label = f"API · {api.get('model_id') or '?'}"
+    real = resolve_seat(seat)
+    api = (get_manager().get_provider(real.api_provider_id) or {}) if real.mode == "api" else {}
+    if real.mode == "local":
+        label = f"Local · {Path(real.local_model).name}"
+    elif real.mode == "api":
+        label = f"API · {connection_label(api) or real.api_provider_id}"
     else:
         label = "Off (OCR only)"
-    return {"mode": seat.mode, "local_model": seat.local_model, "label": label,
-            "api": {"configured": bool(api), "base_url": api.get("base_url", ""), "model": api.get("model_id", ""),
-                    "key_set": bool(api.get("api_key_set")), "key_state": api.get("api_key_state") or "unset"}}
+    if seat.mode == "assistant":
+        label = f"Main assistant ({label})"
+    return {"mode": seat.mode, "local_model": seat.local_model, "provider_id": seat.provider_id, "label": label,
+            "setting": setting_for_jobs(seat)}
 
 
 def fit_image(data: bytes, max_side: int = MAX_SIDE_PX) -> bytes:
@@ -151,14 +233,17 @@ class Reader:
     """Reads figures with the seated vision model. ``close()`` unloads a local model this reader loaded."""
 
     def __init__(self, seat: Seat | None = None) -> None:
-        self.seat = seat or get_seat()
+        self.seat = resolve_seat(seat or get_seat())
         self._lock = threading.Lock()   # one picture at a time on a local GPU; an API takes a few at once anyway
         self._loaded_here = False
         self._api = None
         if self.seat.mode == "off":
-            raise VisionError("no Vision reader is configured (Settings -> Vision reader)")
+            raise VisionError("reading pictures is off (Settings -> AI assistant -> Jobs -> Reading pictures)")
+        if self.seat.mode == "local" and not mmproj_for(self.seat.local_model):
+            raise VisionError(f"{Path(self.seat.local_model).name or 'the local model'} has no mmproj next to it: "
+                              "it cannot see images")
         if self.seat.mode == "api":
-            self._api = self._api_provider()
+            self._api = self._api_provider(self.seat.api_provider_id)
 
     @property
     def label(self) -> str:
@@ -167,20 +252,16 @@ class Reader:
         return str(self._api.config.model_id) if self._api is not None else "?"
 
     @staticmethod
-    def _api_provider():
-        from finetune_studio.models.manager import ModelManager, get_manager
-        from finetune_studio.models.providers import (
-            OpenAICompatProvider,
-            ProviderConfig,
-        )
+    def _api_provider(pid: str):
+        from finetune_studio.models.assistant import connection_client
+        from finetune_studio.models.manager import get_manager
 
-        row = get_manager().get_provider(API_VISION_PROVIDER_ID)
-        if not row or not row.get("api_key_set"):
-            raise VisionError("the API vision model has no key: Settings -> Vision reader")
-        extra = dict(row.get("extra") or {})
-        return OpenAICompatProvider(ProviderConfig(
-            id=API_VISION_PROVIDER_ID, name="Vision · API", kind="openai_compat", model_id=row["model_id"],
-            base_url=row.get("base_url") or "", api_key=ModelManager._api_key_for(API_VISION_PROVIDER_ID), extra=extra))
+        row = get_manager().get_provider(pid)
+        if not row or row.get("kind") != "openai_compat":
+            raise VisionError(f"the connection {pid!r} for reading pictures is gone: Settings -> AI assistant")
+        if not row.get("api_key_set"):
+            raise VisionError(f"the connection {row.get('name') or pid} has no saved key: Settings -> AI assistant")
+        return connection_client(pid).provider
 
     def _engine(self):
         from finetune_studio.models.helper import (
@@ -211,7 +292,9 @@ class Reader:
 
     def read(self, data: bytes, title: str, where: str) -> str:
         """The model's transcription of one picture. Raises ``VisionError`` with the reason on failure."""
-        messages = image_message(READ_PROMPT.format(title=title, where=where), data)
+        from finetune_studio.models.assistant import instruct
+
+        messages = instruct("vision", image_message(READ_PROMPT.format(title=title, where=where), data))
         try:
             if self._api is not None:
                 return clean(self._api.chat(messages, max_tokens=MAX_TOKENS, temperature=0.0, top_p=1.0))

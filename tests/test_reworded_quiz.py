@@ -146,7 +146,7 @@ def test_route_without_a_helper_is_409_with_the_reason(client, monkeypatch) -> N
     pid = client.post("/api/projects", json={"name": "Reworded2"}).json()["id"]
     _register(pid, _dataset())
     monkeypatch.setattr(preference, "helper_generate", lambda **_: None)
-    monkeypatch.setattr(generator, "helper_resolution_error", lambda: "Load the helper on the Pairs page first.")
+    monkeypatch.setattr(generator, "helper_resolution_error", lambda *_a, **_k: "Load the helper on the Pairs page first.")
     r = client.post(f"/api/projects/{pid}/testing/reworded-quiz", json={})
     assert r.status_code == 409
     assert r.json() == {"detail": "Load the helper on the Pairs page first.", "code": "no_model"}

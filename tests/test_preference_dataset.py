@@ -45,7 +45,7 @@ def test_no_approved_pairs_is_an_honest_error_and_writes_nothing() -> None:
 
 def test_without_a_model_nothing_is_fabricated(monkeypatch: pytest.MonkeyPatch) -> None:
     proj = seed_project()
-    monkeypatch.setattr("finetune_studio.data.prep.generator.resolve_generator", lambda: None)
+    monkeypatch.setattr("finetune_studio.data.prep.generator.resolve_generator", lambda *_a, **_k: None)
     with pytest.raises(pref.NoGenerator):
         pref.build_preference_dataset(proj["id"])
     assert list_datasets(proj["id"]) == []
@@ -65,7 +65,7 @@ def test_default_generate_is_the_loaded_helper(monkeypatch: pytest.MonkeyPatch) 
     fake = FakeModel()
     monkeypatch.setattr(
         "finetune_studio.data.prep.generator.resolve_generator",
-        lambda: lambda messages, **kw: fake(messages[-1]["content"]),
+        lambda *_a, **_k: lambda messages, **kw: fake(messages[-1]["content"]),
     )
     built = pref.build_preference_dataset(proj["id"], max_pairs=4)
     assert built.report.total == 4 and fake.calls
