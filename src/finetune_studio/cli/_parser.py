@@ -191,7 +191,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_analyze.add_argument("--json", action="store_true")
 
     # ── validate-hallucination ──
-    p_val_h = sub.add_parser("validate-hallucination", help="Check training data for hallucination risks")
+    p_val_h = sub.add_parser("validate-hallucination", help="Count training answers with dates, figures, URLs or e-mails to check by hand (a pattern scan, not a fact check)")
     p_val_h.add_argument("data", help="Path to training data (JSONL)")
     p_val_h.add_argument("--json", action="store_true")
 

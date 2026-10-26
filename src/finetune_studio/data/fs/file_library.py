@@ -950,32 +950,6 @@ def _validate_rename_name(new_name: str) -> str:
     return name
 
 
-def _current_raw_path(pid: str, file_id: str, current_version: int) -> Path | None:
-    """Resolve the on-disk path for the file's current version.
-
-    Soft-delete moves bytes into .RAW_TRASH without always updating raw_path,
-    so we fall back to a trash glob when the recorded path is missing.
-    """
-    from finetune_studio import db
-    with db.cursor() as c:
-        row = c.execute(
-            "SELECT raw_path FROM file_versions WHERE file_id = ? AND version = ?",
-            (file_id, current_version),
-        ).fetchone()
-    if not row:
-        return None
-    p = Path(row["raw_path"])
-    if p.exists():
-        return p
-    # Soft-deleted: look in trash for {file_id}_*
-    trash = raw_trash_dir(pid)
-    if trash.exists():
-        for cand in trash.glob(f"{file_id}_*"):
-            if cand.is_file():
-                return cand
-    return None
-
-
 def rename_file(pid: str, file_id: str, new_name: str) -> dict:
     """Rename a live file: update project_files.original_name and rename on disk.
 
