@@ -134,5 +134,19 @@ def execute(ctx: JobContext, fn: Any = None) -> int:
                                    "ran_s": round(time.time() - started, 1)}, overwrite=True)
         return EXIT_FAILED
 
+def _leave(code: int) -> None:
+    """End the job process with ``code`` once its exit record is written.
+
+    A stopped or failed kind can leave non-daemon threads behind: a stopped download's Hugging Face call runs on
+    ``snapshot_download``'s executor threads, and a normal exit joins them, so the process kept downloading the
+    whole repository after the row said cancelled. Those threads hold nothing the record depends on: leave now."""
+    if code == EXIT_DONE:
+        sys.exit(code)
+    logging.shutdown()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    _leave(main())

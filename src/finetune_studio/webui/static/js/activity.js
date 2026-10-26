@@ -144,6 +144,7 @@
             <span class="activity-chevron" aria-hidden="true">▸</span>
           </div>
           <div class="activity-msg activity-msg-short">${escapeHtml(shortMsg || "")}</div>
+          ${cancelBtn}
           <div class="activity-expand">
             <div class="activity-msg activity-msg-full">${escapeHtml(t.message || "")}</div>
             ${
@@ -172,7 +173,6 @@
                   : ""
               }
             </div>
-            ${cancelBtn}
             ${
               t.url
                 ? `<a href="${escapeHtml(t.url)}" class="activity-goto"
@@ -199,8 +199,6 @@
           else _expanded.delete(key);
         }
       });
-      const cancel = row.querySelector("[data-dl-cancel]");
-      if (cancel) cancel.addEventListener("click", (ev) => { ev.stopPropagation(); cancelDownload(cancel); });
       // The GO TO link itself — stop propagation so click doesn't toggle.
       const goto = row.querySelector(".activity-goto");
       if (goto) {
@@ -327,6 +325,25 @@
       close();
     }
   });
+
+  // Cancel download: a running download re-renders the drawer every second (its byte count changes), so a
+  // click whose press and release straddle a re-render lands on a removed button and is lost. Act on the
+  // press, delegated from the body that survives re-renders; keyboard activation (click with detail 0) too.
+  if (bodyEl) {
+    bodyEl.addEventListener("pointerdown", (ev) => {
+      const btn = ev.target.closest("[data-dl-cancel]");
+      if (!btn || ev.button !== 0 || btn.disabled) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      cancelDownload(btn);
+    });
+    bodyEl.addEventListener("click", (ev) => {
+      const btn = ev.target.closest("[data-dl-cancel]");
+      if (!btn) return;
+      ev.stopPropagation();
+      if (ev.detail === 0 && !btn.disabled) cancelDownload(btn);
+    });
+  }
 
   // SSE with silent /api/activity poll fallback (app.js always loads first).
   window.fts.subscribe("/api/activity/events", applySnapshot, {
