@@ -360,6 +360,9 @@
         + (d.skipped_grounded ? ', ' + d.skipped_grounded + ' grounded rows skipped' : '') + ' — selected above.';
     } catch (e) {
       msg.textContent = 'Could not build the reworded quiz: ' + ((e && e.message) || e);
+      if (((e && e.data) || {}).code === 'no_model' && window.fts && window.fts.offerAssistantLoad) {
+        window.fts.offerAssistantLoad(msg, 'quiz', buildRewordedQuiz);
+      }
     } finally {
       clearInterval(timer);
       btn.disabled = false;
