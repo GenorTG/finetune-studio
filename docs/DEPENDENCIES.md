@@ -42,13 +42,15 @@
 ## Optional extras
 
 ```bash
-pip install -e '.[bitsandbytes]'   # 4-bit QLoRA base loading
-pip install -e '.[dev]'            # pytest, pytest-asyncio, ruff
+# install.sh already adds bitsandbytes (4-bit QLoRA base loading) where the hardware supports it.
+# Dev tools (pytest, pytest-asyncio, ruff), resolved against the installed torch:
+uv pip install --python .venv/bin/python -c .venv/torch-constraints.txt -e '.[dev]'
 ```
 
 ## Python floor
 
-- Developed/tested on **Python 3.13**.
+- Developed and tested on **Python 3.12** (CI and the dev host); 3.13 is accepted by `requires-python`
+  but not tested.
 - `requires-python` per `pyproject.toml`; TRL 0.12+ and transformers 4.40+ pin the floor.
 
 ## Cleanup summary (when you touch pyproject)

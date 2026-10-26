@@ -55,14 +55,17 @@ Quick work when you just want the model.
 
 ### 2. Turn sources into training pairs (step **2 · pairs**)
 
-Three ways to get prompt/response training data out of your parsed sources:
+Ways to get prompt/response training data out of your parsed sources:
 
-- **Prep job (no LLM)** — extractive Q&A: questions built from real
-  sentences in the sources; zero hallucination risk, fastest start.
-- **Local Agent (Chat tab, Agent mode)** — the helper LLM reads chunks and
-  drafts high-quality pairs; you approve in bulk.
+- **Mine pairs** (the **pairs** page) — the AI assistant (the local model or an API connection you
+  added in *Settings → AI assistant*) works through each file: a checklist of its data points, pairs
+  written for them, checked against the text and fixed until every point is stated or excluded.
+- **Ask the Guide** (the panel in the corner) — it can start the same mining job for you and tell you
+  what is left; it asks before it runs anything unless you switch it to hands-free.
 - **Manual upload** — bring your own JSONL
   (`{"messages":[{role,content},…]}` per line).
+- **A use case** (Training page → *Start from a use case*) — extraction, classification, house style
+  or distillation examples, written by you or drafted by the assistant from raw texts for you to approve.
 
 Then **triage**: review pairs, ✅ approve / ✗ reject (bulk actions
 supported). Rejected identifiers (IDs, paths) stay out of training so the
@@ -94,7 +97,7 @@ handoff; it opens Training with the dataset preselected.
    logs every REST call. VRAM is profiled before the run and an actionable
    error tells you what's holding memory if it can't fit.
 5. Runs can be stopped; interrupted runs are reconciled at next startup.
-   Past-run rows carry ⭐ Set production / ▶ Inference / ⬇ Download.
+   Past-run rows carry Details / ⭐ Set production / ▶ Open in inference / ⬇ Export.
 
 ### 5. Test it (step **4 · test**)
 
@@ -102,17 +105,16 @@ The **Testing** page answers one question: *did it learn MY material?*
 Auto-generated project suites test **every row of the training dataset**
 (N rows → N questions, full coverage by default; sampling is an explicit,
 labeled opt-in). A test is two steps: **Run** saves the model's raw answers next
-to the correct answers; **Judge** lets an AI judge (any connected model, the
-helper by default) or you decide pass / partial / fail for each saved answer
+to the correct answers; **Judge** lets an AI judge (any connected model; by default the AI assistant's
+*Test judge* job) or you decide pass / partial / fail for each saved answer
 (*Settings → Test judge* can start judging automatically after every run; it is
 off by default). Rule of thumb: spot-check 10–20 answers with your own eyes — the
 judge is a model, not truth — and press 1/2/3 in the review pane to override a
 verdict case by case.
 
-**Benchmarks** (global page) is separate: public exams — offline smoke
-suites styled after MMLU/GSM8K/HellaSwag, real HF splits when you allow
-downloads, and a **Compare two runs** Δ table. Useful, optional, and not a
-substitute for the project test.
+**Benchmarks** (per project, optional) is separate: public exams — the official MMLU / GSM8K /
+HellaSwag test sets from Hugging Face, or offline synthetic look-alikes — and a **Compare two runs**
+Δ table with a per-question McNemar test. Useful, and not a substitute for the project test.
 
 ### 6. Use it (step **5 · use it**)
 
@@ -121,8 +123,9 @@ substitute for the project test.
   reproducible and branchable.
 - **Export** (project **export** page): **merged** (adapter onto a 16-bit
   base — auto-merged before GGUF; failures land on the run row, never
-  silent), **GGUF** (q4_K_M … q8_0, needs llama.cpp tools on the host),
-  **abliterated** (refusal-direction edit of a merged checkpoint).
+  silent), **GGUF** (q4_K_M … q8_0, needs llama.cpp tools on the host; tick **importance matrix**
+  for better low-bit quality, measured on the run's own training data), **abliterated**
+  (refusal-direction edit of a merged checkpoint; offered, not yet run end to end on a real model).
 - **Models** page: every export in one table — click a row to expand the
   parent run, settings, and directory contents; ▶ Open in inference.
 - **Chat**: load a safetensors **or GGUF** model, stream, image input for
@@ -150,8 +153,8 @@ keyword search, rank fusion, reranking — often called RAG) and the model quote
    model loaded — the top-bar pill says which).
 6. **Download / export** — the encrypted studio bundle (.ftsrag), or the **standalone
    Smart Brain**: one tarball with the index + a small Python server +
-   `setup.sh`. On any machine with Python 3.10+: `bash setup.sh` installs a
-   venv, picks a port, starts the server, can install it as a persistent
+   `setup.sh`. On a machine with Python 3 (`python3` with the `venv` module; the tests run its server on 3.12):
+   `bash setup.sh` installs a venv, picks a port, starts the server, can install it as a persistent
    service, and prints a copy-paste MCP entry. It speaks **MCP** (Claude
    Desktop / OpenClaw / Cursor) and plain **HTTP** (`GET /search?q=…`).
    Tick "Include models" (~2.3 GB) and the embedder + reranker ship inside
@@ -178,11 +181,12 @@ Both read the same parse.
 
 ```
 ~/.finetune-studio/
-├── projects/{pid}/          project data, suites, DB-backed metadata
+├── projects/{pid}/          project files, their parse, suites
 ├── brain/{pid}/             Smart Brain index: parquet + vectors + BM25 + per-source text
 ├── hf_models/               downloaded HF snapshots
 └── shared_models/           embedder/reranker weights shared across indexes
-output/projects/{pid}/runs/  checkpoints, merged/, gguf/, logs
+<checkout>/data/finetune_studio.db   the project database (projects, datasets, runs, tests)
+<checkout>/output/projects/{pid}/runs/  checkpoints, merged/, gguf/, logs
 ```
 
 Project content is stored in the configured local data roots. Optional

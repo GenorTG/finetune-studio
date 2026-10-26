@@ -11,7 +11,7 @@ This is a hobby project. I built it because I like tinkering with local models, 
 solid: it has a large test suite, CI, and every number below comes from a real measured run. It is still a
 beta from one person, so expect rough edges. Use it if it is useful to you.
 
-[![Python 3.12–3.13](https://img.shields.io/badge/python-3.12--3.13-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-ff8800.svg)](LICENSE)
 [![GPU: CUDA](https://img.shields.io/badge/GPU-CUDA-76b900.svg)](#installation)
 [![WebUI](https://img.shields.io/badge/WebUI-FastAPI%20%2B%20Jinja2-009688.svg)](#how-it-works)
@@ -39,7 +39,7 @@ fts webui
 
 Open http://localhost:7860. The first visit offers a short onboarding tour. By default only this computer can open it; to use it from other devices, set a password
 (the installer asks, or **Settings -> Access & network**, or `fts auth set-password`): see
-[docs/INSTALL.md](docs/INSTALL.md#5-access-who-can-open-the-web-ui). Prerequisites: [docs/INSTALL.md](docs/INSTALL.md). **Linux only** (NVIDIA GPU or CPU) until the stable 1.0.0; Windows and macOS are not supported.
+[docs/INSTALL.md](docs/INSTALL.md#4-access-who-can-open-the-web-ui). Prerequisites: [docs/INSTALL.md](docs/INSTALL.md). **Linux only** (NVIDIA GPU or CPU) until the stable 1.0.0; Windows and macOS are not supported.
 
 ---
 
@@ -103,7 +103,7 @@ You don't have to use every feature. Pick what you need.
 > English — without uploading anything to the cloud."*
 
 Every file goes one route first — **Files & Knowledge**: uploaded, parsed once
-(pictures and charts read by an optional Vision reader), checkable and editable.
+(pictures and charts can be read by the AI assistant's optional *Reading pictures* job), checkable and editable.
 The **Smart Brain** reads that same parse and answers questions with sources.
 Its search combines semantic search (multilingual embeddings) and keyword
 search (BM25) by rank fusion, then reranks with a cross-encoder; an answer gate
@@ -156,14 +156,13 @@ supervised fine-tune (SFT) with LoRA or QLoRA. The studio handles:
 
 > *"I trained two variants. Which one is actually better?"*
 
-The **Benchmarks** workflow runs offline evaluation suites (built-in
-MMLU-/GSM8K-/HellaSwag-style smoke fixtures, plus project-local suites) and
-gives you a **comparison table**. Two tabs: **Recent scores** (rolling
-history) and **Compare two runs** (pick any two trained exports, get the
-per-suite Δ table).
+The **Benchmarks** page scores a run, or the untrained base, on public exams: the official MMLU, GSM8K and
+HellaSwag test sets from Hugging Face (downloaded on first use, exact scoring, comparable with published
+numbers) or built-in synthetic look-alikes that run offline (same shape, not industry scores). Two tabs:
+**Recent scores** (rolling history) and **Compare two runs** (pick any two trained exports, get the
+per-suite Δ table plus a per-question exact McNemar test that says whether the difference could be chance).
 
-These are local smoke suites styled after well-known benchmarks — not the
-full HuggingFace dataset downloads — so they stay offline and fast.
+Whether a run learned *your* material is a different question: that is the project's **Testing** page.
 
 ### Use case 4 — Just chat with local models
 
@@ -245,10 +244,23 @@ The larger pieces, roughly in the order you meet them:
   for fully offline semantic search).
 - **Parsed-text editor** — fix a bad parse in-app; corrections feed
   mining and the next Smart Brain build while raw bytes stay immutable.
+- **AI assistant** — one main assistant (a local model or any OpenAI-compatible API) does every helper
+  job: mining pairs, study sets, reworded quizzes, preference pairs, the test judge, drafting use-case
+  examples, reading pictures and the Guide chat. Each job can use its own connection and extra
+  instructions; API keys are stored encrypted and sent only to their own URL; the jobs table says what
+  each job sends to an API.
+- **The Guide** — a chat panel in the corner of every page that answers questions about the app, checks
+  your project with its tools, and can start the work for you (mining, dataset, Smart Brain, training, a
+  reworded quiz, a test run, pinning a version): it asks before each action, or runs them hands-free
+  if you choose. It never approves pairs, exports a model or deletes anything.
+- **Use cases** — start training from extraction, classification, house style or distillation
+  examples; the assistant can draft the examples from raw texts for you to approve, and the run is
+  compared with its untrained base on a held-out test.
 - **Versioned releases + Linux in-app update** — tagged SemVer releases with a
   [changelog](CHANGELOG.md); the header shows `vX.Y.Z` on a release and
-  `vX.Y.Z+<branch>.<sha>` on any other commit. Settings → Apply update pulls,
-  repairs, migrates and restarts.
+  `vX.Y.Z+<branch>.<sha>` on any other commit. `./update.sh` pulls, repairs,
+  migrates and restarts; Settings → Apply update runs the same script from the
+  browser (that button has not been tested end to end yet).
 - **Dark and light themes** — switch themes in the UI; responsive layout
   and theme behavior have dedicated regression checks.
 
@@ -269,8 +281,10 @@ The larger pieces, roughly in the order you meet them:
 | Debug a model load failure from "ENOMEM" | Actionable error: how much VRAM is needed vs free, and which other GPU processes are holding it |
 
 You can do every one of these by hand, and for a one-off that is fine. The app
-is for when you repeat the loop: the steps share one project, and all your
-data stays in `~/.finetune-studio/` where you can find it.
+is for when you repeat the loop: the steps share one project, and your data
+stays on your machine: files, Smart Brain indexes and settings in
+`~/.finetune-studio/`, the project database and training runs in the
+checkout's `data/` and `output/` folders.
 
 ---
 
@@ -321,8 +335,8 @@ on arrival; training and the Smart Brain both read that parse.
 
 ### Pairs — Files & Knowledge, training side (`/projects/{pid}/data-prep`)
 
-Question-answer pairs, mined file by file by the helper model (a local GGUF or any
-OpenAI-compatible API): each file gets a checklist of its data points, pairs are written,
+Question-answer pairs, mined file by file by the AI assistant (the local model or any
+OpenAI-compatible API connection): each file gets a checklist of its data points, pairs are written,
 checked against the text and fixed until every point is stated or excluded. You review them
 with the keyboard (approve / reject with a reason / edit / add your own) beside the source
 passage. **Export approved → Training** writes the dataset, and is held back until every file's
@@ -391,9 +405,12 @@ directory listing. ▶ Open in inference jumps straight to chat.
 Pick a run, pick a format, hit RUN. Supported formats today:
 
 - **merged** — adapter merged onto a compatible base (safetensors)
-- **abliterated** — refusal-direction edit of a merged checkpoint
 - **GGUF** — when llama.cpp conversion tools are installed on the host;
-  otherwise the API fails with a clear install hint
+  otherwise the API fails with a clear install hint. Optional
+  **importance matrix** measured on the run's own training data (better
+  q4/q3/q2 quality at the same file size)
+- **abliterated** — refusal-direction edit of a merged checkpoint (offered,
+  but not yet run end to end on a real model)
 
 The trained-exports table uses the same expand-row pattern as Models —
 click a row to inspect its contents, then ▶ Open in inference.
@@ -405,8 +422,8 @@ click a row to inspect its contents, then ▶ Open in inference.
 Pick a safetensors or GGUF model, load (auto-unload on idle frees VRAM),
 and chat — streaming with sprite feedback, image input for multimodal
 models, per-session temperature / top-p / system prompt, persistent
-history, the Smart Brain for answers with sources, and Agent mode for tool-driven
-dataset curation.
+history, and the Smart Brain for answers with sources. Agent mode opens the
+Guide panel.
 
 ![Chat](docs/screenshots/13_chat.png)
 
@@ -421,9 +438,10 @@ fills in as scores arrive.
 ### Settings (`/settings`, per-project under `/projects/{pid}/settings`)
 
 App settings (shown below): who may open the web UI (password, LAN /
-Tailscale, API tokens), the default test judge, the helper model (local GGUF
-or an API), the Vision reader, the service supervisor, which GPU (or the CPU)
-to use, debug info and storage paths. On Linux it also has the in-app **Apply
+Tailscale, API tokens), the AI assistant (the main assistant, API
+connections and their keys, a connection and instructions per job, among
+them the test judge and reading pictures), the service supervisor, which GPU
+(or the CPU) to use, debug info and storage paths. On Linux it also has the in-app **Apply
 update** controls; **Replay tutorial** works everywhere. Each project has its
 own settings page too, with a **WebUI log tail** for debugging long jobs.
 
@@ -444,8 +462,8 @@ project.
 ## Installation
 
 See **[docs/INSTALL.md](docs/INSTALL.md)** for prerequisites and
-step-by-step installation instructions. The supported Python range is
-3.12–3.13; check the guide for current OS-specific paths and limitations.
+step-by-step installation instructions. CI and the author's machine run
+Python 3.12; the package also accepts 3.13, which is not tested.
 
 ---
 
@@ -488,8 +506,9 @@ step-by-step installation instructions. The supported Python range is
   for on-demand server logs.
 - **Inference:** HuggingFace Transformers for safetensors / LoRA merges;
   llama.cpp (via `llama-cpp-python`) for GGUF when available.
-- **Export:** merged and abliterated are first-class; GGUF needs llama.cpp
-  conversion tools on the host. Missing tools return clear errors instead
+- **Export:** merged safetensors, and GGUF (plain or with an importance
+  matrix) when the llama.cpp tools are on the host; abliterated is offered
+  but not yet verified end to end. Missing tools return clear errors instead
   of fake success.
 - **Testing:** the Playwright route suite `tests/e2e_ui_qa.py` is non-mutating;
   the Guide flow `tests/e2e_guide_sandbox.py` runs against its own fake helper
@@ -504,7 +523,7 @@ step-by-step installation instructions. The supported Python range is
 
 ## Tech stack
 
-Python 3.12–3.13 — `fastapi` `uvicorn` `jinja2` `sqlite3` (stdlib) `pydantic`
+Python 3.12 — `fastapi` `uvicorn` `jinja2` `sqlite3` (stdlib) `pydantic`
 ML — `torch` `transformers` `trl` `peft` `bitsandbytes`
 Smart Brain — `sentence-transformers` (embeddings + cross-encoder reranking), BM25, rank fusion · `llama-cpp-python`
 Web — vanilla HTML/CSS/JS, system UI typography, locally vendored font assets
@@ -546,7 +565,7 @@ changes should extend the Playwright smoke suite when practical.
 Every dependency used is open source — see
 **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTIONS.md)** for the full list,
 versions, and licenses. Thank you to the maintainers of PyTorch,
-Transformers, PEFT, llama.cpp, PortableRAG, SentenceTransformers,
+Transformers, PEFT, llama.cpp, SentenceTransformers,
 FastAPI, Jinja, and the rest of the open-source ecosystem this is built
 on.
 
