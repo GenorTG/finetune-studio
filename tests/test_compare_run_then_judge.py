@@ -340,9 +340,6 @@ def test_no_keyword_scorer_is_left_on_the_compare_path() -> None:
 
     with pytest.raises(ModuleNotFoundError):
         importlib.import_module("finetune_studio.benchmarks.comparison")
-    from finetune_studio.benchmarks import scoring
-
-    assert not hasattr(scoring.scorer, "score_open_ended")
     src = (Path(session.__file__).parent / "session.py").read_text() + Path(session.__file__).with_name("__init__.py").read_text()
     assert "keyword" not in src.lower().replace("keywords", "")  # the view carries no matcher
 

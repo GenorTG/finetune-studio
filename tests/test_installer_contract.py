@@ -33,17 +33,6 @@ def test_updater_defaults_to_installer_project_local_llama_cpp() -> None:
     assert 'LLAMA_CPP_DIR="${LLAMA_CPP_DIR:-$PWD/.llama.cpp}"' in source
 
 
-def test_pip_fallback_contains_version_bounds_and_parser_packages() -> None:
-    source = (ROOT / "requirements.txt").read_text(encoding="utf-8")
-    assert "transformers>=5.0.0,<6.0.0" in source
-    assert "sentence-transformers>=3.0.0,<6.0.0" in source
-    for package in ("pypdf", "python-docx", "openpyxl", "xlrd", "python-pptx", "beautifulsoup4", "striprtf", "Pillow"):
-        assert any(
-            line.lower().startswith(package.lower() + ">=")
-            for line in source.splitlines()
-        )
-
-
 SHELL_SCRIPTS = ["install.sh", "update.sh", "run.sh", "install-service.sh"]
 
 

@@ -249,65 +249,6 @@ class BrainIndex:
     #     Use case: ship the corpus to another machine. Unpack, load, query.
     # ──
 
-    def bundle_models(self, embedder_ref: str | None = None,
-                      reranker_ref: str | None = None) -> dict:
-        """Copy models from the SHARED store INTO the corpus dir for export.
-
-        After this call, the corpus is self-contained: a `tar.gz` of the dir
-        can be unpacked on a machine with the right Python packages and
-        queries work fully offline.
-
-        `embedder_ref` / `reranker_ref` use the magic prefix:
-            "shared:embedder:<short_id>"  -> resolved via the shared store
-        If omitted, the value currently in manifest.json is used.
-        """
-        out = {"embedder": None, "reranker": None, "size_bytes": 0}
-        if not self.manifest_path.exists():
-            raise FileNotFoundError("build the corpus first")
-        m = Manifest.from_json(read_json(self.manifest_path))
-
-        def _bundle_one(kind: str, current_ref: str, dest_name: str) -> str | None:
-            if not current_ref or not current_ref.startswith(f"shared:{kind}:"):
-                return None
-            short_id = current_ref[len(f"shared:{kind}:"):]
-            src = _sm.resolve(short_id, kind)
-            dest = self.dir / dest_name
-            if dest.exists():
-                shutil.rmtree(dest)
-            dest.mkdir(parents=True)
-            for f in src.rglob("*"):
-                if f.is_file():
-                    shutil.copy2(f, dest / f.relative_to(src))
-            abs_path = str(dest.resolve())
-            if kind == "embedder":
-                new_ref = f"{EMBEDDER_LOCAL_PREFIX}{abs_path}"
-            else:
-                new_ref = f"{RERANKER_LOCAL_PREFIX}{abs_path}"
-            return new_ref
-
-        new_emb = _bundle_one("embedder",
-                              embedder_ref or m.embedding_model.name,
-                              "embedder")
-        new_rr = _bundle_one("reranker",
-                             reranker_ref or m.rag_settings.reranker,
-                             "reranker")
-        if new_emb:
-            m.embedding_model.name = new_emb
-            m.rag_settings.embedder = new_emb
-            out["embedder"] = new_emb
-        if new_rr:
-            m.rag_settings.reranker = new_rr
-            out["reranker"] = new_rr
-        m.updated_at = time.time()
-        write_json(self.manifest_path, m.to_json())
-        total = 0
-        for p in self.dir.rglob("*"):
-            if p.is_file():
-                total += p.stat().st_size
-        out["size_bytes"] = total
-        return out
-
-
     def export_bundle(self, out_path: str | Path | None = None,
                      fmt: str = "tar",
                      name: str | None = None,

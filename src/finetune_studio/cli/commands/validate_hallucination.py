@@ -1,4 +1,4 @@
-"""`fts validate-hallucination` — flag risky training examples."""
+"""`fts validate-hallucination` — count training answers with claims to check by hand (a pattern scan)."""
 from __future__ import annotations
 
 import json as json_mod
@@ -9,21 +9,24 @@ def cmd_validate_hallucination(args) -> None:
 
     # Load data
     data = []
+    bad_lines: list[int] = []
     with open(args.data) as f:
-        for line in f:
+        for n, line in enumerate(f, 1):
             line = line.strip()
             if line:
                 try:
                     data.append(json_mod.loads(line))
                 except json_mod.JSONDecodeError:
-                    pass
+                    bad_lines.append(n)
 
-    print(f"Checking {len(data)} examples for hallucination risks...")
+    if bad_lines:
+        print(f"Skipped {len(bad_lines)} line(s) that are not JSON: {bad_lines[:20]}")
+    print(f"Scanning {len(data)} examples for dates, figures, citations, URLs and e-mails (not a fact check)...")
 
     validator = TrainingDataValidator()
     result = validator.validate_dataset(data)
 
-    print(f"\nTotal risks: {result['total_risks']}")
+    print(f"\nFlagged claims: {result['total_risks']}")
     print(f"Risk types: {result['risk_types']}")
     print(f"Recommendation: {result['recommendation']}")
 
