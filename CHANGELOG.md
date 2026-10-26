@@ -35,6 +35,12 @@ turns that section into the release's notes.
   approve or reject every draft, and only approved rows are built into the use case. Settings → AI assistant has a
   new job for it (*Drafting use-case examples*), with its own connection and instructions like every other job.
 
+- The **Guide** (corner panel on every page) can now do the work, not only explain it: start mining, build the
+  dataset, build the Smart Brain, start training, build a reworded quiz, run a test and pin a version. Choose in the
+  Guide's header: **Ask before each action** (default: an action card with Run / Skip) or **Hands-free** (it runs the
+  actions itself and carries on with the next step, up to 4 in a row per message). Actions go through the same
+  endpoints as the page buttons; the Guide still never approves pairs, exports a model or deletes anything.
+
 ### Changed
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 

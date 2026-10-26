@@ -32,7 +32,7 @@ def test_styleguide_is_reachable_and_renders_shared_components(client: TestClien
     assert 'href="/static/css/base.css?v=1"' in body
     assert 'href="/static/css/components.css?v=2"' in body
     assert 'href="/static/css/layout.css?v=1"' in body
-    assert 'href="/static/css/app.css?v=121"' in body
+    assert 'href="/static/css/app.css?v=122"' in body
     assert 'href="/static/css/typography.css?v=1"' in body
 
 

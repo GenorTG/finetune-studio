@@ -10,8 +10,11 @@ One place that defines every tool the guide may call and runs it:
   ``list_sources``, ``read_source``, ``list_qa_pairs``.
 * **UI guidance** (visible effect, validated against ``registry``): ``navigate``, ``highlight``,
   ``suggest_settings``. They return a ``ui_event`` that the SSE loop forwards to the browser.
-* **The only mutation**: ``create_qa_pairs`` (review-pending rows). Approve / export / train /
-  delete stay user-clicked.
+* **Mutation without confirmation**: ``create_qa_pairs`` (review-pending rows only).
+* **Actions** (``guide/actions.py``): ``start_mining``, ``build_dataset``, ``build_smart_brain``, ``start_training``,
+  ``build_reworded_quiz``, ``run_test``, ``pin_version``. Each returns an ``action`` ui_event the panel runs through the
+  page's own endpoint: after the user presses Run (``ask`` mode) or at once (``auto``, hands-free). Approve / reject /
+  export a model / delete stay user-clicked.
 """
 from __future__ import annotations
 
@@ -22,7 +25,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from finetune_studio.data.fs import qa as qa_fs
-from finetune_studio.guide import registry, settings_help, state
+from finetune_studio.guide import actions, registry, settings_help, state
 from finetune_studio.guide.kb import table_of_contents
 from finetune_studio.guide.search import search_kb
 
@@ -171,6 +174,7 @@ TOOLS_CATALOG: list[dict[str, Any]] = [
         }, ["source_id", "pairs"]),
     },
 ]
+TOOLS_CATALOG += [actions.LIST_SUITES_TOOL, *actions.CATALOG]
 TOOL_NAMES = frozenset(t["name"] for t in TOOLS_CATALOG)
 
 
@@ -202,7 +206,7 @@ def app_guide() -> dict[str, Any]:
             "For continued pretraining and reasoning distillation, hold out clean evaluation data and compare against the untuned base model.",
             "Use RAG instead of weight updates for frequently changing or citation-critical facts.",
         ],
-        "navigation_note": "The guide can open pages, highlight controls and pre-fill form fields with allow-listed tools; it never presses Start, Approve, Export or Delete for the user.",
+        "navigation_note": "The guide can open pages, highlight controls and pre-fill form fields with allow-listed tools, and prepare actions (mining, dataset, Smart Brain, training, quiz, test, version) that run after the user presses Run, or at once in hands-free mode. It never approves pairs, exports a model or deletes anything.",
         "kb": table_of_contents(),
     }
 
@@ -355,7 +359,8 @@ def _need_project(ctx: ToolContext) -> dict[str, Any] | None:
     return None
 
 
-_PROJECT_TOOLS = {"list_sources", "read_source", "list_qa_pairs", "create_qa_pairs", "inspect_project_readiness"}
+_PROJECT_TOOLS = {"list_sources", "read_source", "list_qa_pairs", "create_qa_pairs", "inspect_project_readiness",
+                  "list_suites", *actions.ACTION_TOOLS}
 
 
 def run_tool(ctx: ToolContext, name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -413,6 +418,10 @@ def run_tool(ctx: ToolContext, name: str, args: dict[str, Any]) -> dict[str, Any
             return _list_pairs(pid, args)
         if name == "create_qa_pairs":
             return _create_pairs(pid, args)
+        if name == "list_suites":
+            return actions.list_suites(pid)
+        if name in actions.ACTION_TOOLS:
+            return actions.prepare_action(pid, name, args)
         return {"error": f"unknown tool: {name}"}
     except Exception as e:
         log.exception("tool %s failed", name)

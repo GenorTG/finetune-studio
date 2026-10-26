@@ -137,6 +137,40 @@ async def put_testing_settings(request: Request):
     return await get_testing_settings()
 
 
+# How the Guide runs the actions it prepares (guide/actions.py): "ask" shows a Run / Skip card for each one (default),
+# "auto" runs them at once (hands-free) and lets the Guide continue with the next step.
+_GUIDE_ACTION_MODE = "guide_action_mode"
+GUIDE_ACTION_MODES = ("ask", "auto")
+
+
+def get_guide_action_mode() -> str:
+    mode = str(_load().get(_GUIDE_ACTION_MODE) or "ask")
+    return mode if mode in GUIDE_ACTION_MODES else "ask"
+
+
+@router.get("/api/settings/guide")
+async def get_guide_settings():
+    """The Guide's action mode: ``ask`` (confirm each action) or ``auto`` (hands-free)."""
+    return {"action_mode": get_guide_action_mode(), "modes": list(GUIDE_ACTION_MODES)}
+
+
+@router.put("/api/settings/guide")
+async def put_guide_settings(request: Request):
+    try:
+        body = await request.json()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="invalid JSON") from None
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="expected JSON object")
+    mode = body.get("action_mode")
+    if mode not in GUIDE_ACTION_MODES:
+        raise HTTPException(status_code=400, detail=f"action_mode must be one of {', '.join(GUIDE_ACTION_MODES)}")
+    current = _load()
+    current[_GUIDE_ACTION_MODE] = mode
+    _save(current)
+    return await get_guide_settings()
+
+
 @router.patch("/api/settings")
 async def update_settings(request: Request):
     """Partial update of settings."""

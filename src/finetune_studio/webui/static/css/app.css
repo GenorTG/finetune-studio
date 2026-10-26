@@ -4899,6 +4899,17 @@
 .guide-list { margin: 4px 0 6px 1.1em; padding: 0; }
 .guide-tool { min-width: 0; overflow-wrap: anywhere; border: 1px dashed var(--magenta); border-left-width: 3px; padding: 6px 8px; background: var(--bg-app); font-size: 12px; }
 .guide-tool-ok { border-left-color: var(--ok); }
+.guide-mode { width: auto; font-size: 11px; padding: 2px 4px; height: 26px; }
+/* Action cards: the guide prepared real work; Run / Skip (ask mode) or a running state (hands-free). */
+.guide-action { border: 1px solid var(--accent); border-left-width: 3px; padding: 8px 10px; background: var(--bg-panel); font-size: 12px; }
+.guide-action-title { font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+.guide-action-detail { color: var(--text-muted); margin-bottom: 6px; overflow-wrap: anywhere; }
+.guide-action-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
+.guide-action-status { margin-top: 6px; overflow-wrap: anywhere; }
+.guide-action-ok { border-left-color: var(--ok); }
+.guide-action-err { border-left-color: var(--err); }
+.guide-action-err .guide-action-status { color: var(--err-text, var(--err)); }
+.guide-action-skip { border-left-color: var(--border-strong); opacity: 0.8; }
 .guide-tool-err { border-left-color: var(--err); }
 .guide-tool-pending { border-left-color: var(--warn); }
 .guide-tool-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
