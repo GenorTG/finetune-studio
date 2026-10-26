@@ -9,8 +9,8 @@ Two modes. **Test** chats with a loaded model using the project's system prompt,
 
 ## Workflow
 1. **Test mode:** load a model (the red warning offers an inline loader), ask questions; with the Smart Brain ticked it answers from the passages it finds ("N source chunks used"). For pure recall untick the corpora.
-2. **Agent mode (guide):** uses the configured helper model only, never silently switching to another loaded model; if no helper is available it says so. Ask "how do I train?" or "what should I do next?" — tool calls render inline as they happen.
-3. The guide never presses mutating buttons for you: it may create review-pending Q&A pairs when you ask, but approve, export and train stay yours.
+2. **Agent mode (guide):** uses the AI assistant's Guide chat job only, never silently switching to another loaded model; if no helper is available it says so. Ask "how do I train?" or "what should I do next?" — tool calls render inline as they happen.
+3. The guide can prepare actions (mining, dataset, Smart Brain, training, quiz, test, version) that run after you press Run, or at once in Hands-free mode (see guide-actions); it may also create review-pending Q&A pairs when you ask. Approving pairs, exporting a model and deleting stay yours.
 
 ## Key controls
 - `[name="chat-mode"]` — Test / Agent radios.
