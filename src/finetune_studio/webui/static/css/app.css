@@ -2998,6 +2998,8 @@
 .status-ready   { color: var(--ok); border-color: var(--ok); }
 .status-loaded  { color: var(--accent); border-color: var(--accent); }
 .status-error   { color: var(--err); border-color: var(--err); }
+.status-cancelled { color: var(--text-muted); }
+.activity-cancel { margin: 6px 0; }
 
 .activity-time {
   margin-left: auto;

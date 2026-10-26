@@ -41,6 +41,9 @@ turns that section into the release's notes.
   actions itself and carries on with the next step, up to 4 in a row per message). Actions go through the same
   endpoints as the page buttons; the Guide still never approves pairs, exports a model or deletes anything.
 
+- Activity drawer: a running model download has a **Cancel download** button (the API to stop one existed with no
+  way to reach it from the page), and a cancelled job shows *cancelled* instead of *error*.
+
 ### Changed
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
