@@ -30,6 +30,11 @@ turns that section into the release's notes.
   and extra instructions; the jobs table says what each job sends to an API. API connections no longer take the
   one model slot, so asking the Guide something on an API assistant leaves the local model you loaded alone.
 
+- Training page, use cases: **draft examples with the AI assistant**. Upload raw texts (tickets, invoices, emails that
+  already sound right); the assistant drafts the label, the extracted JSON or the request each text answers; you fix,
+  approve or reject every draft, and only approved rows are built into the use case. Settings → AI assistant has a
+  new job for it (*Drafting use-case examples*), with its own connection and instructions like every other job.
+
 ### Changed
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
