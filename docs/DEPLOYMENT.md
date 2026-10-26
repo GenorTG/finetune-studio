@@ -49,7 +49,8 @@ with `bash install-service.sh`; that script writes the user unit and supports
 
 GPTQ export support was removed (`gptqmodel`'s wheel metadata declared zero of
 its real runtime deps, making it unreliable to install on fresh machines).
-Merged / GGUF / abliterated remain the supported export formats. Do not
+Merged and GGUF (plain or with an importance matrix) are the export formats in use; abliterated is
+offered but has not been run end to end on a real model yet. Do not
 commit secrets or HF tokens into this doc; use the host login /
 `huggingface-cli login` as usual.
 
@@ -60,8 +61,9 @@ commit secrets or HF tokens into this doc; use the host login /
 | Repo + venv | `~/finetune-studio/` (or wherever you clone) |
 | Linux service | `systemctl --user {status,restart} finetune-studio` |
 | Linux service logs | `journalctl --user -u finetune-studio -n 50` |
-| Project data | `$FTS_ROOT` = `~/.finetune-studio/projects/<pid>/` |
-| SQLite | `data/finetune_studio.db` (WAL) |
+| App state (`$FTS_ROOT`) | `~/.finetune-studio/` (projects' files under `projects/<pid>/`, Smart Brain under `brain/<pid>/`, settings) |
+| SQLite | `data/finetune_studio.db` in the checkout (WAL; `$FTS_DB` overrides) |
+| Training runs and exports | `output/projects/<pid>/runs/` in the checkout |
 | Models | `models/gguf/`, HF cache `~/.cache/huggingface` |
 | URL | `http://localhost:7860/` (or your host) |
 
@@ -71,7 +73,8 @@ commit secrets or HF tokens into this doc; use the host login /
 
 Six steps, each logged with `[HH:MM:SS]` prefixes (the API streams these lines):
 
-1. `git pull --ff-only origin main` (warns + continues on divergence)
+1. `git pull --ff-only` of the branch the checkout is on, `main` or `dev` (feature branches are left alone;
+   warns + continues on divergence)
 2. **venv health**: `scripts/install_diagnose.py` deep check → `--repair` autofix →
    last-resort venv recreate via `install.sh`
 3. `pip install -e .` (dep sync)
@@ -115,21 +118,18 @@ startup reconcile finalizes the row), shows the finished run's status + log
 even when it completes between polls, and lists the last 5 attempts.
 Code: `templates/settings.html` (card) + `static/js/settings.js` (logic).
 
-## 4. Dev → deploy workflow (generic)
+## 4. Dev → deploy workflow
 
-A common two-machine pattern:
+Changes reach `dev` only through pull requests and `main` only through releases
+([CONTRIBUTING.md](../CONTRIBUTING.md)); nobody pushes to either branch directly.
 
 ```
-edit + commit on the development machine
-  → syntax check (py_compile / node --check)
-  → git push origin main
-  → on the GPU host: git pull --ff-only
-  → systemctl --user restart finetune-studio   # if using the user unit
+work branch → PR into dev (CI green) → merge
+  → on the host running the service: ./update.sh   (or git pull --ff-only + fts restart web)
   → reload the model → verify live (API + browser)
 ```
 
-Prefer editing only on the development machine and deploying via git pull on
-the GPU host, so the running checkout stays a clean pull of `main`.
+A checkout on `main` only moves when a release is merged; one on `dev` follows development.
 
 ## 5. Health & troubleshooting
 
@@ -151,9 +151,13 @@ scripts/install_diagnose.py --venv .venv           # full health report
 
 ## 6. Rollback
 
+Database migrations only go forward: copy `data/finetune_studio.db` before an update you may want to undo,
+and restore that copy when you go back.
+
 ```bash
-git revert <sha> && git push          # then Settings → APPLY UPDATE
-# or on the host:  ./update.sh --no-llama   (fast path: pull+deps+migrate+restart)
+git fetch --tags && git checkout vX.Y.Z    # the release to go back to
+./update.sh --no-pull                       # repair deps, migrate, restart on that code
+# a bad change on dev is undone with a revert PR into dev, never a direct push
 ```
 
 Related: `DEPENDENCIES.md` (dep policy) · `INSTALL.md` (first-install detail).

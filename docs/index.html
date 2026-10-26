@@ -151,7 +151,7 @@
       <blockquote>"I have a pile of PDFs and want to ask questions about
       them in plain English — without uploading anything to the cloud."</blockquote>
       <p>Every file is parsed once in <b>Files &amp; Knowledge</b> (PDF, DOCX, TXT, MD, HTML, code, CSV, JSON,
-      images via OCR or a Vision reader). The <b>Smart Brain</b> answers from that parse with sources: semantic +
+      images via OCR or the AI assistant reading pictures). The <b>Smart Brain</b> answers from that parse with sources: semantic +
       keyword search, rank fusion, reranking, an answer gate — often called RAG. Live build progress via SSE,
       an index status that says when files changed, optional <b>fact cards</b> from reviewed pairs. One-click
       <b>⚡ Quick index</b>; export it as a standalone MCP + HTTP server.</p>
@@ -163,8 +163,8 @@
       <blockquote>"I want to teach a small open model how my company talks."</blockquote>
       <p>Point at a JSONL or your mined dataset, pick a base model, run
       LoRA / QLoRA. Live loss curves, VRAM profiles, adapter merge, then
-      export (merged / abliterated; GGUF when host tools are
-      installed). Per past-run Actions (⭐ Set production, ▶ Open in inference, ⬇
+      export (merged; GGUF, optionally with an importance matrix, when host tools are
+      installed; abliterated is offered but not yet verified end to end). Per past-run Actions (⭐ Set production, ▶ Open in inference, ⬇
       Export).</p>
       <div class="pillbox"><span class="pill">LoRA</span><span class="pill">QLoRA</span><span class="pill">MERGE</span><span class="pill">EXPORT</span></div>
     </div>
@@ -223,7 +223,7 @@
     <li>· <b style="color:var(--accent)">Project versions</b> — immutable manifests pinning datasets + sources + corpora + runs + base model, with lineage</li>
     <li>· <b style="color:var(--accent)">Standalone Smart Brain</b> — the index ships as a self-installing tarball (MCP + HTTP, <code style="color:var(--amber)">setup.sh</code>, optional bundled embedder + reranker for fully offline semantic search)</li>
     <li>· <b style="color:var(--accent)">Parsed-text editor</b> — fix a bad parse in-app; corrections feed mining + the next Smart Brain build while raw bytes stay immutable</li>
-    <li>· <b style="color:var(--accent)">Versioned releases + Linux in-app update</b> — tagged SemVer releases with a changelog; Settings → Apply update pulls, repairs, migrates, and restarts</li>
+    <li>· <b style="color:var(--accent)">Versioned releases + Linux in-app update</b> — tagged SemVer releases with a changelog; <code style="color:var(--amber)">./update.sh</code> pulls, repairs, migrates, and restarts, and Settings → Apply update runs it from the browser (that button is not yet tested end to end)</li>
     <li>· <b style="color:var(--accent)">Dark and light themes</b> — switch themes in the UI; regression checks cover theme and responsive behavior</li>
   </ul>
 </div></section>
@@ -254,11 +254,11 @@
     <figure><img src="screenshots/08_models.png" alt="Models with expand rows" loading="lazy">
       <figcaption><b>MODELS · STEP 5</b> — trained-exports table; expand any row for the parent run, settings, dir contents, ▶ Open in inference.</figcaption></figure>
     <figure><img src="screenshots/09_export.png" alt="Export page" loading="lazy">
-      <figcaption><b>EXPORT</b> — merged / abliterated first-class; GGUF when host tools are present; failures land in the run row, never silent.</figcaption></figure>
+      <figcaption><b>EXPORT</b> — merged and GGUF (plain or importance-matrix) when host tools are present; abliterated offered, not yet verified; failures land in the run row, never silent.</figcaption></figure>
     <figure><img src="screenshots/13_chat.png" alt="Chat" loading="lazy">
       <figcaption><b>CHAT</b> — safetensors or GGUF, streaming with sprite feedback, Smart Brain sources, Agent mode for tool-driven dataset curation.</figcaption></figure>
     <figure><img src="screenshots/12_settings.png" alt="Settings" loading="lazy">
-      <figcaption><b>SETTINGS</b> — per-project config + WebUI log tail + Linux Apply update + Replay Tutorial.</figcaption></figure>
+      <figcaption><b>SETTINGS</b> — AI assistant (connections, encrypted keys, one connection per job) + access + compute device + Linux Apply update + Replay Tutorial.</figcaption></figure>
   </div>
   <p class="lead"><b>BENCHMARKS</b> — optional public exams with offline smoke suites, real HF splits, recent scores, and two-run comparison.</p>
 </div></section>
@@ -268,7 +268,7 @@
   <p class="lead">From raw documents to a benchmarked, chat-ready model —
   one project, one flow — or let ⚡ Quick work chain it from one page:</p>
 <pre class="diagram"><span class="g">upload</span> ──► <span class="g">file library</span>      sha256 dedup · MIME auto-folders · versioning · 7-day trash · rename · per-file purge · parsed MD
-   └─► <span class="g">parse once</span>         text · code · data · office · email · images(OCR / Vision reader) ── passages
+   └─► <span class="g">parse once</span>         text · code · data · office · email · images(OCR / assistant)  ── passages
         └─► <span class="g">Smart Brain</span>       index: semantic + keyword search, rank fusion, reranking · live SSE
              └─► <span class="g">Q&amp;A mining</span>      batch prep job  OR  <span class="a">agentic tool-calling chat</span>
                   └─► <span class="g">review</span>           approve / reject / edit pairs ──► JSONL datasets

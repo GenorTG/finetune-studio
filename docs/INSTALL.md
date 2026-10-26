@@ -45,7 +45,7 @@ If something fails, read the relevant section below.
 - Install a current driver from https://www.nvidia.com/drivers.
 - Verify with `nvidia-smi` — it should print your GPU name, driver version, and supported CUDA runtime level.
 - The CUDA Toolkit is not needed for PyTorch's prebuilt wheels. Install it only if you need to compile a CUDA-enabled llama.cpp component from source.
-- If you have an AMD GPU, see the **AMD / CPU-only** section below.
+- If you have an AMD GPU or no GPU, see the **AMD GPUs** and **CPU-only** sections below.
 
 **Node.js** (only for running tests)
 - download LTS from https://nodejs.org/ — or `apt install nodejs npm`
@@ -90,36 +90,11 @@ The installer does not install Playwright or browser binaries. See
 [`../tests/README_E2E.md`](../tests/README_E2E.md) for the separate browser-test
 setup.
 
-If `./install.sh` doesn't exist or is broken, do it manually:
+If the install breaks, run `./install.sh --repair` rather than installing packages by hand: a plain
+`pip install` resolves a different torch than the one pinned in `.venv/torch-constraints.txt` and
+leaves a mixed CUDA/CPU environment. `./install.sh --plan` shows what it would install.
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip wheel
-# GPU install: do not hard-code a CUDA wheel index; it depends on the driver and GPU.
-# Run ./install.sh --plan and use its torch_index, or let the installer choose it.
-# Example shape only: python -m pip install torch --index-url <torch_index from the plan>
-# CPU-only:
-# python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-python -m pip install -e ".[parsers]"
-```
-
-### 3. Install llama-cpp-python (only if you want GGUF inference)
-
-The base install gives you `transformers`-based inference. To run GGUF
-quantized models (fast, low-VRAM), you need `llama-cpp-python`. GPU
-build requires CUDA:
-
-```bash
-# CPU-only GGUF:
-python -m pip install llama-cpp-python
-
-# NVIDIA GPU GGUF (requires the CUDA toolkit):
-CMAKE_ARGS="-DGGML_CUDA=on" python -m pip install llama-cpp-python --force-reinstall --no-cache-dir
-
-```
-
-### 4. Start the studio
+### 3. Start the studio
 
 ```bash
 ./run.sh                          # or: source .venv/bin/activate && fts webui
@@ -128,7 +103,7 @@ bash install-service.sh           # optional systemd user service
 
 Open http://localhost:7860 in a modern browser. The first visit offers the onboarding tutorial.
 
-### 5. Access: who can open the web UI
+### 4. Access: who can open the web UI
 
 By default Finetune Studio is reachable from **this computer only (127.0.0.1:7860), no password**. Who else can
 open it is a set of switches; anything beyond this computer needs a password:
@@ -209,34 +184,23 @@ sudo dnf install -y cuda-toolkit
 
 ```bash
 sudo pacman -S python python-pip git base-devel
-sudo pacman -S nvidia nvidia-utils cuda
+sudo pacman -S nvidia nvidia-utils        # add `cuda` only to build llama.cpp parts from source
 ```
 
 ---
 
 ## AMD GPUs (Linux)
 
-Finetune Studio's training path uses PyTorch ROCm. To install:
-
-```bash
-python -m pip install torch --index-url https://download.pytorch.org/whl/rocm6.0
-python -m pip install -e ".[parsers]"
-```
-
-Inference via GGUF (llama-cpp-python) requires a custom build with HIP
-support — see https://github.com/abetlen/llama-cpp-python#hipblas
+The installer detects ROCm (`rocm-smi`, `/opt/rocm`) and picks the matching PyTorch ROCm build and a HIP
+build of llama.cpp; force it with `./install.sh --gpu amd`. **This path is untested**: the project is
+developed and measured on one NVIDIA RTX 3090. Reports are welcome.
 
 ---
 
 ## CPU-only (no GPU)
 
-Works fine for small models and inference. Training is slow.
-
-```bash
-python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
-python -m pip install -e ".[parsers]"
-python -m pip install llama-cpp-python    # GGUF CPU inference
-```
+The installer falls back to the CPU when it finds no GPU; force it with `./install.sh --cpu`. The
+Smart Brain, chat with small models and GGUF inference work; training is very slow.
 
 ---
 
@@ -257,9 +221,9 @@ Then start the WebUI (`fts webui`) and open http://localhost:7860. The default l
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `ERROR: No matching distribution found for torch` | Wrong Python version | Use Python 3.12 or 3.13 |
+| `ERROR: No matching distribution found for torch` | Wrong Python version | Use Python 3.12 (`./install.sh --python python3.12`) |
 | `nvcc: command not found` when building llama-cpp | CUDA toolkit not installed | Install CUDA toolkit 12.x |
-| Training is invisible / no progress | GPU not detected by torch | Reinstall torch with correct CUDA index URL |
+| Training runs on the CPU on a GPU machine | A CPU build of torch got installed | `./install.sh --repair` (it reinstalls the build the plan picks) |
 | `libstdc++.so.6: version not found` | Old base image | `conda install -c conda-forge libstdcxx-ng` or use newer Ubuntu |
 | HF downloads fail | Firewall or proxy | Set `HF_HUB_OFFLINE=1` and pre-download, or configure proxy |
 | WebUI loads but the Smart Brain build OOMs | Not enough RAM/VRAM | Use a smaller embedder (e.g. `all-MiniLM-L6-v2`) |
@@ -270,11 +234,12 @@ Then start the WebUI (`fts webui`) and open http://localhost:7860. The default l
 
 ```bash
 cd finetune-studio
-bash update.sh          # pulls main (the latest release), repairs the venv, syncs deps, migrates, restarts
+bash update.sh          # pulls the branch you are on (main = releases), repairs the venv, syncs deps, migrates, restarts
 bash update.sh --check  # read-only: what would change
 ```
 
-Settings → **Apply update** runs the same script from the web UI. To pin one release instead:
+Settings → **Apply update** runs the same script from the web UI (that button has not been tested end to
+end yet; `bash update.sh` has). To pin one release instead:
 `git fetch --tags && git checkout vX.Y.Z && bash update.sh --no-pull`. What changed: [CHANGELOG](../CHANGELOG.md).
 
 Models and Smart Brain indexes live in `~/.finetune-studio/` — they persist across
@@ -285,7 +250,8 @@ updates.
 ## Uninstalling
 
 ```bash
-# Remove the app directory (your data lives in ~/.finetune-studio):
+# Remove the app directory. This also deletes the project database (data/finetune_studio.db) and
+# every training run and export (output/): copy them first if you want to keep them.
 rm -rf finetune-studio
 
 # Optionally remove all data:
