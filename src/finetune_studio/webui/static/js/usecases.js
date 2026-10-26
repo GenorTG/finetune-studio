@@ -14,6 +14,7 @@
   const num = (v, d) => (v == null ? '—' : Number(v).toFixed(d == null ? 2 : d));
   const pval = (p) => (p == null ? '—' : (p < 0.001 ? '< 0.001' : '= ' + Number(p).toFixed(3)));
   const notify = (msg, type) => (window.fts && window.fts.notify ? window.fts.notify(msg, type) : null);
+  const DRAFTABLE = ['classification', 'extraction', 'style'];
   const OPT_FIELDS = { extraction: ['instruction', 'schema'], classification: ['instruction', 'labels'],
     style: ['instruction', 'style_guide'], distillation: ['instruction', 'teacher_provider_id', 'teacher'] };
   // The plan's overrides map 1:1 onto the training form's field names.
@@ -50,7 +51,10 @@
       const wanted = OPT_FIELDS[id] || [];
       root.querySelectorAll('[data-uc-opt]').forEach((el) => { el.hidden = !wanted.includes(el.dataset.ucOpt); });
       $('uc-instruction').placeholder = (t && t.default_instruction) || '';
+      $('uc-draft').hidden = !DRAFTABLE.includes(id);
+      root.querySelectorAll('[data-uc-draft-opt]').forEach((el) => { el.hidden = !(id === 'extraction' && el.dataset.ucDraftOpt === 'fields'); });
       syncBuild();
+      syncDraft();
     }
 
     function syncBuild() {
@@ -171,6 +175,161 @@
         const d = (e && e.data) || {};
         out.innerHTML = `<span class="sev-error">✕ ${esc(e.message || e)}</span>${rowErrors(d.errors)}`;
         syncBuild();
+      }
+    }
+
+    // ── draft examples with the AI assistant (usecases/drafting.py) ──────
+    const drafts = { open: null, data: null, filter: 'all' };
+
+    function syncDraft() {
+      const ok = DRAFTABLE.includes($('uc-template').value) && !!($('uc-draft-file').files && $('uc-draft-file').files[0]);
+      $('uc-draft-btn').disabled = !ok;
+      $('uc-draft-btn').title = ok ? 'Ask the assistant for a draft per text; you review every draft before building'
+        : 'Pick a template above and a file first';
+    }
+
+    function draftOptions() {
+      const id = $('uc-template').value;
+      const o = { template: id, name: $('uc-name').value.trim(), hint: $('uc-draft-hint').value.trim() };
+      if (id === 'classification') o.labels = $('uc-labels').value.split(',').map((x) => x.trim()).filter(Boolean);
+      if (id === 'extraction') {
+        o.fields = $('uc-draft-fields').value.split(',').map((x) => x.trim()).filter(Boolean);
+        if ($('uc-schema').value.trim()) o.schema = JSON.parse($('uc-schema').value);
+      }
+      if (id === 'style' && $('uc-style-guide').value.trim()) o.style_guide = $('uc-style-guide').value.trim();
+      return o;
+    }
+
+    async function startDraft() {
+      const status = $('uc-draft-status');
+      let opts;
+      try { opts = draftOptions(); } catch (e) { status.innerHTML = `<span class="sev-error">✕ The JSON schema is not valid JSON: ${esc(e.message)}</span>`; return; }
+      if (opts.template === 'classification' && opts.labels.length < 2) {
+        status.innerHTML = '<span class="sev-error">✕ Write at least two labels in the Labels field above first.</span>';
+        return;
+      }
+      const fd = new FormData();
+      fd.append('file', $('uc-draft-file').files[0]);
+      fd.append('options', JSON.stringify(opts));
+      $('uc-draft-btn').disabled = true;
+      status.textContent = 'The assistant is drafting…';
+      const stop = { done: false };
+      (async () => {
+        while (!stop.done && stillHere()) {
+          await new Promise((r) => setTimeout(r, 1500));
+          const p = await api.get(`${base}/drafts/progress`).catch(() => null);
+          if (!stop.done && p && p.running && p.planned) status.textContent = `The assistant is drafting: ${p.done} of ${p.planned} (${p.drafted} usable)…`;
+        }
+      })();
+      try {
+        const d = await api.post(`${base}/drafts`, fd);
+        stop.done = true;
+        const c = d.rows.filter((r) => r.draft !== '' && r.draft != null && !r.note).length;
+        status.innerHTML = `<span class="sev-ok">✓ ${c} of ${d.rows.length} texts drafted by ${esc((d.assistant || {}).label || 'the assistant')}. Review them below.</span>`;
+        $('uc-draft-file').value = '';
+        await loadDraftSets();
+        await openDraft(d.id);
+      } catch (e) {
+        stop.done = true;
+        status.innerHTML = `<span class="sev-error">✕ ${esc(e.message || e)}</span>`;
+      } finally { syncDraft(); }
+    }
+
+    async function loadDraftSets() {
+      const el = $('uc-draft-sets');
+      const list = (await api.get(`${base}/drafts`)).drafts || [];
+      if (!list.length) { el.innerHTML = ''; return; }
+      el.innerHTML = `<div class="text-xs muted mb-1">Draft sets</div><table class="table compact" id="uc-draft-sets-table">
+        <thead><tr><th>Name</th><th>Template</th><th>Approved</th><th>Pending</th><th></th></tr></thead><tbody>${list.map((d) => `
+        <tr data-uc-draft="${esc(d.id)}"><td class="cell-wrap">${esc(d.name)}</td><td>${esc(d.template)}</td>
+          <td class="num">${d.counts.approved} / ${d.total}</td><td class="num">${d.counts.pending}</td>
+          <td class="cell-wrap"><button type="button" class="btn sm" data-uc-draft-act="open">Review</button>
+            <button type="button" class="btn sm danger" data-uc-draft-act="delete">Delete</button></td></tr>`).join('')}</tbody></table>`;
+    }
+
+    function draftText(v) { return v == null ? '' : (typeof v === 'string' ? v : JSON.stringify(v)); }
+
+    function draftControl(d, r) {
+      const id = esc(r.id);
+      if (d.template === 'classification') {
+        const labels = (d.options || {}).labels || [];
+        return `<select class="select" data-uc-draft-edit="${id}" aria-label="Label for ${id}">
+          <option value=""${r.draft ? '' : ' selected'}>— pick a label —</option>
+          ${labels.map((l) => `<option value="${esc(l)}"${l === r.draft ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+      }
+      const rowsN = d.template === 'extraction' ? 4 : 2;
+      return `<textarea class="textarea${d.template === 'extraction' ? ' mono' : ''}" rows="${rowsN}" data-uc-draft-edit="${id}" aria-label="Draft for ${id}">${esc(draftText(r.draft))}</textarea>`;
+    }
+
+    function renderDraft() {
+      const d = drafts.data;
+      const box = $('uc-draft-review');
+      if (!d) { box.hidden = true; return; }
+      box.hidden = false;
+      const c = d.counts || {};
+      const keep = (r) => drafts.filter === 'all' || (drafts.filter === 'empty' ? (r.draft === '' || r.draft == null || r.note) : r.status === drafts.filter);
+      const shown = d.rows.filter(keep);
+      const what = { classification: 'Label', extraction: 'Extracted JSON', style: 'Request it answers' }[d.template] || 'Draft';
+      box.innerHTML = `<div class="flex gap-2 items-center wrap mb-1">
+          <b class="text-sm">${esc(d.name)}</b>
+          <span class="text-xs muted">${c.approved || 0} approved · ${c.pending || 0} pending · ${c.rejected || 0} rejected · ${c.empty || 0} without a usable draft</span>
+          <select class="select max-w-420" id="uc-draft-filter" aria-label="Show drafts">
+            ${['all', 'pending', 'approved', 'rejected', 'empty'].map((f) => `<option value="${f}"${f === drafts.filter ? ' selected' : ''}>${f === 'empty' ? 'needs a draft' : f}</option>`).join('')}
+          </select>
+          <button type="button" class="btn sm" id="uc-draft-approve-all" title="Approve every pending row that has a usable draft">Approve all drafted</button>
+          <button type="button" class="btn sm primary" id="uc-draft-build" ${c.approved ? '' : 'disabled title="Approve some drafts first"'}>Build use case from ${c.approved || 0} approved</button>
+        </div>
+        <div class="table-scroll"><table class="table compact" id="uc-draft-table">
+          <thead><tr><th>#</th><th>Text</th><th>${esc(what)}</th><th>Status</th><th></th></tr></thead>
+          <tbody>${shown.slice(0, 300).map((r) => `<tr data-uc-row="${esc(r.id)}">
+            <td class="text-xs">${esc(r.id)}</td>
+            <td class="cell-wrap text-xs">${esc(r.input.length > 400 ? r.input.slice(0, 400) + '…' : r.input)}</td>
+            <td class="cell-wrap">${draftControl(d, r)}${r.note ? `<div class="text-xs sev-warning mt-1">${esc(r.note)}</div>` : ''}</td>
+            <td class="text-xs">${esc(r.status)}</td>
+            <td class="cell-wrap"><button type="button" class="btn sm" data-uc-row-act="approved">Approve</button>
+              <button type="button" class="btn sm ghost" data-uc-row-act="rejected">Reject</button></td></tr>`).join('')}</tbody>
+        </table></div>
+        ${shown.length > 300 ? `<div class="text-xs muted mt-1">Showing 300 of ${shown.length}; filter or approve to see the rest.</div>` : ''}
+        <div class="text-xs mt-1" id="uc-draft-msg" role="status"></div>`;
+    }
+
+    async function openDraft(did) {
+      drafts.open = did;
+      drafts.data = await api.get(`${base}/drafts/${encodeURIComponent(did)}`);
+      renderDraft();
+    }
+
+    async function patchRows(changes) {
+      try {
+        drafts.data = await api.patch(`${base}/drafts/${encodeURIComponent(drafts.open)}/rows`, { changes });
+        renderDraft();
+        loadDraftSets();
+      } catch (e) {
+        const msg = $('uc-draft-msg');
+        if (msg) msg.innerHTML = `<span class="sev-error">✕ ${esc(e.message || e)}</span>`;
+      }
+    }
+
+    function editedValue(rid) {
+      const el = root.querySelector(`[data-uc-draft-edit="${rid}"]`);
+      const row = drafts.data.rows.find((r) => r.id === rid);
+      if (!el || !row) return null;
+      return el.value.trim() === draftText(row.draft).trim() ? null : el.value;
+    }
+
+    async function buildFromDrafts() {
+      const msg = $('uc-draft-msg');
+      msg.textContent = 'Building the use case from the approved rows…';
+      try {
+        const m = await api.post(`${base}/drafts/${encodeURIComponent(drafts.open)}/build`,
+          { name: $('uc-name').value.trim(), instruction: $('uc-instruction').value.trim() });
+        msg.innerHTML = `<span class="sev-ok">✓ Built <b>${esc(m.name)}</b>: ${m.examples} examples → ${m.train_rows} training rows + ${m.heldout} held-out test questions. The form below now uses it.</span>`;
+        await refresh();
+        applyToForm(m);
+        notify(`Use case ${m.name} built from approved drafts`, 'success');
+      } catch (e) {
+        const d = (e && e.data) || {};
+        msg.innerHTML = `<span class="sev-error">✕ ${esc(e.message || e)}</span>${rowErrors(d.errors)}`;
       }
     }
 
@@ -418,6 +577,47 @@
     $('uc-template').addEventListener('change', syncTemplate);
     $('uc-file').addEventListener('change', syncBuild);
     $('uc-build-btn').addEventListener('click', build);
+    $('uc-draft-file').addEventListener('change', syncDraft);
+    $('uc-draft-btn').addEventListener('click', startDraft);
+    $('uc-draft').addEventListener('click', async (ev) => {
+      const setBtn = ev.target.closest('[data-uc-draft-act]');
+      if (setBtn) {
+        const did = setBtn.closest('[data-uc-draft]').dataset.ucDraft;
+        if (setBtn.dataset.ucDraftAct === 'open') { await openDraft(did); return; }
+        const ok = window.fts && window.fts.confirm ? await window.fts.confirm('Delete this draft set? Use cases built from it stay.', { danger: true, okText: 'Delete drafts' })
+          : window.confirm('Delete this draft set?');
+        if (!ok) return;
+        await api.del(`${base}/drafts/${encodeURIComponent(did)}`).catch((e) => notify(e.message || String(e), 'error'));
+        if (drafts.open === did) { drafts.open = null; drafts.data = null; renderDraft(); }
+        await loadDraftSets();
+        return;
+      }
+      const rowBtn = ev.target.closest('[data-uc-row-act]');
+      if (rowBtn) {
+        const rid = rowBtn.closest('[data-uc-row]').dataset.ucRow;
+        const change = { id: rid, status: rowBtn.dataset.ucRowAct };
+        const edited = editedValue(rid);
+        if (edited !== null) Object.assign(change, { draft: edited, set_draft: true });
+        await patchRows([change]);
+        return;
+      }
+      if (ev.target.closest('#uc-draft-approve-all')) {
+        const changes = drafts.data.rows.filter((r) => r.status === 'pending' && r.draft !== '' && r.draft != null && !r.note)
+          .map((r) => ({ id: r.id, status: 'approved' }));
+        if (changes.length) await patchRows(changes);
+        return;
+      }
+      if (ev.target.closest('#uc-draft-build')) buildFromDrafts();
+    });
+    $('uc-draft').addEventListener('change', (ev) => {
+      if (ev.target.id === 'uc-draft-filter') { drafts.filter = ev.target.value; renderDraft(); return; }
+      const ed = ev.target.closest('[data-uc-draft-edit]');
+      if (ed) {
+        const rid = ed.dataset.ucDraftEdit;
+        const edited = editedValue(rid);
+        if (edited !== null) patchRows([{ id: rid, draft: edited, set_draft: true }]);
+      }
+    });
     root.addEventListener('click', (ev) => {
       const btn = ev.target.closest('[data-uc-act]');
       if (btn) {
@@ -441,6 +641,7 @@
         await loadTemplates();
         await refresh();
         loadTeachers();
+        loadDraftSets().catch(() => {});
         // Deep link: /training?usecase=<id> fills the form from that use case (Guide, API flows).
         const want = new URLSearchParams(window.location.search).get('usecase');
         const m = want && state.usecases.find((x) => x.id === want);

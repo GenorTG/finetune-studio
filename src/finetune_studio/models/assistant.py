@@ -13,6 +13,7 @@ helper job runs on it unless the job names another connection:
 - ``quiz``       reworded held-out quizzes (Testing)
 - ``preference`` preference pairs (chosen / rejected answers)
 - ``judge``      judging saved test answers
+- ``drafting``   drafts of use-case examples (labels, extracted JSON, requests) for review
 - ``teacher``    answers for use-case rows that have none
 - ``vision``     reading pictures in documents (default **off**: pictures leave the machine only on purpose)
 
@@ -64,6 +65,9 @@ JOBS: tuple[Job, ...] = (
         "your approved pairs and their source passages"),
     Job("judge", "Test judge", "Decides whether each saved test answer is correct against the expected one.",
         "the test questions, expected answers and the model's answers"),
+    Job("drafting", "Drafting use-case examples", "Labels, extracts or writes the request for each raw text you "
+        "upload in a use case, as drafts you review before anything trains on them.",
+        "the texts you upload to draft from"),
     Job("teacher", "Use-case teacher", "Answers use-case rows that have no answer yet, so a small model can learn "
         "from a bigger one.", "the use-case rows you upload", api_only=True),
     Job("vision", "Reading pictures", "Transcribes pictures in documents (scans, charts, table screenshots) while "

@@ -471,6 +471,9 @@ app.include_router(mining.router, tags=["mining"])  # type: ignore[has-type]  # 
 app.include_router(data_prep_preference.router, prefix="/api", tags=["data-prep-preference"])  # type: ignore[has-type]  # /api/projects/{pid}/data-prep/preference*
 app.include_router(data_prep_study.router, prefix="/api", tags=["data-prep-study"])  # type: ignore[has-type]  # /api/projects/{pid}/data-prep/study*
 app.include_router(testing_reworded.router, prefix="/api", tags=["testing"])  # /api/projects/{pid}/testing/reworded-quiz*
+from finetune_studio.webui.routes import usecase_drafts as _usecase_drafts
+
+app.include_router(_usecase_drafts.router, prefix="/api", tags=["usecases"])  # /api/projects/{pid}/usecases/drafts* (before {uid})
 app.include_router(usecases.router, prefix="/api", tags=["usecases"])  # /api/usecases/templates + /api/projects/{pid}/usecases*
 app.include_router(guide_chat.router, prefix="/api", tags=["guide"])  # type: ignore[has-type]  # /api/guide/* (SSE chat + KB)
 app.include_router(data_prep._pages)  # type: ignore[has-type]  # HTML page /projects/{pid}/data-prep
