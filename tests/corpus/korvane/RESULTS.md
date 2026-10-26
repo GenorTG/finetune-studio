@@ -643,3 +643,20 @@ Same file size, clearly closer to the full model on both texts, the larger gain 
 model, one quant: q3/q2 (where imatrix matters most) were not measured. Browser check on a sandbox: the option sits under
 the quant list, is disabled with the reason when `llama-imatrix` is missing, and a run without its training file is refused
 with "this run's training data file is missing or empty…" shown on the page.
+
+## 26. Drafting use-case examples with the assistant, live: local Gemma 4 12B (2026-10-26, throwaway project, deleted after; results in `results/2026-10-26-drafting/`)
+
+Not Korvane: the first live run of **Training → Start from a use case → Draft them with the AI assistant** (`dev` 400d663),
+through its endpoint on the service, with the default main assistant (local Gemma 4 12B QAT on the RTX 3090). Hand-written
+inputs with a known intended answer for each (`*_gold.json`); the assistant never saw the answers.
+
+| Template | Inputs | Result | Time |
+|---|---|---|---|
+| Classification (billing / shipping / account) | 30 shop support tickets, mixed wording, no keywords given | **30 / 30** drafts equal the intended label | 3.6 s |
+| Extraction (`invoice_no, vendor, total, currency`) | 6 invoices / receipts in PL, DE, EN, one without a number | 5 / 6 exact, 23 / 24 fields; the miss is `currency: "zł"` copied as written for "15 000 zł" (intended PLN) | ~10 s |
+| Style (style guide "short, friendly, concrete next step") | 4 support replies | 4 plausible requests (e.g. "Where is my refund?" for the refund-timing reply) | ~4 s |
+
+Easy, clean inputs: this shows the drafts are worth reviewing rather than writing from scratch, not that they can skip review
+(the one extraction miss is exactly the kind a reviewer fixes). Found on the way: with a local assistant the drafting call
+answered "no helper model loaded" and the use-case card had no way to load it; fixed by the "Load the assistant and retry"
+button on every helper-job page (browser-checked: one click, model loaded, 30/30 drafted).
