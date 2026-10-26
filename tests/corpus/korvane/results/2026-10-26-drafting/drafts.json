@@ -1,0 +1,247 @@
+{
+ "classification": {
+  "assistant": "Helper · Gemma 4 12B QAT (Google)",
+  "rows": [
+   {
+    "input": "Hi, I see two payments of 49.90 for the same order #5521, please return one.",
+    "draft": "billing",
+    "note": ""
+   },
+   {
+    "input": "Your invoice says VAT 23% but I'm a registered EU business, can you reissue it?",
+    "draft": "billing",
+    "note": ""
+   },
+   {
+    "input": "My subscription renewed although I cancelled last week. I want my money back.",
+    "draft": "billing",
+    "note": ""
+   },
+   {
+    "input": "Where is my package? Tracking hasn't moved since Monday.",
+    "draft": "shipping",
+    "note": ""
+   },
+   {
+    "input": "The courier left the box at the wrong address, number 14 instead of 41.",
+    "draft": "shipping",
+    "note": ""
+   },
+   {
+    "input": "Can you ship to Norway? The checkout doesn't let me pick it.",
+    "draft": "shipping",
+    "note": ""
+   },
+   {
+    "input": "Order arrived but the bottle inside was broken.",
+    "draft": "shipping",
+    "note": ""
+   },
+   {
+    "input": "I can't log in, it says my email is unknown but I've been a customer for years.",
+    "draft": "account",
+    "note": ""
+   },
+   {
+    "input": "How do I turn on two-factor authentication?",
+    "draft": "account",
+    "note": ""
+   },
+   {
+    "input": "Please delete my account and all my data (GDPR).",
+    "draft": "account",
+    "note": ""
+   },
+   {
+    "input": "I want to change the email address on my profile.",
+    "draft": "account",
+    "note": ""
+   },
+   {
+    "input": "The discount code SPRING10 was not applied, I paid full price.",
+    "draft": "billing",
+    "note": ""
+   },
+   {
+    "input": "Package says delivered but nothing came. Neighbours have nothing either.",
+    "draft": "shipping",
+    "note": ""
+   },
+   {
+    "input": "I got locked out after too many password attempts.",
+    "draft": "account",
+    "note": ""
+   },
+   {
+    "input": "Can I pay by bank transfer instead of card?",
+    "draft": "billing",
+    "note": ""
+   },
+   {
+    "input": "Delivery was supposed to be today, still waiting, will it come tomorrow?",
+    "draft": "shipping",
+    "note": ""
+   },
+   {
+    "input": "Somebody changed my password, I didn't do it!",
+    "draft": "account",
+    "note": ""
+   },
+   {
+    "input": "Charged in USD instead of EUR, my bank added fees.",
+    "draft": "billing",
+    "note": ""
+   },
+   {
+    "input": "The parcel is stuck in customs, what documents do you need?",
+    "draft": "shipping",
+    "note": ""
+   },
+   {
+    "input": "Merge my two accounts please, I registered twice by mistake.",
+    "draft": "account",
+    "note": ""
+   },
+   {
+    "input": "Refund for the returned jacket hasn't arrived after 3 weeks.",
+    "draft": "billing",
+    "note": ""
+   },
+   {
+    "input": "Can I pick up the order myself from your warehouse in Gliwice?",
+    "draft": "shipping",
+    "note": ""
+   },
+   {
+    "input": "I don't receive the verification email when signing up.",
+    "draft": "account",
+    "note": ""
+   },
+   {
+    "input": "Need a corrected invoice with my company name.",
+    "draft": "billing",
+    "note": ""
+   },
+   {
+    "input": "Wrong item delivered, I ordered size M got XL.",
+    "draft": "shipping",
+    "note": ""
+   },
+   {
+    "input": "My account shows someone else's order history.",
+    "draft": "account",
+    "note": ""
+   },
+   {
+    "input": "Why was my card declined? It works everywhere else.",
+    "draft": "billing",
+    "note": ""
+   },
+   {
+    "input": "Express shipping paid but it came in 6 days.",
+    "draft": "shipping",
+    "note": ""
+   },
+   {
+    "input": "How do I unsubscribe from the newsletter?",
+    "draft": "account",
+    "note": ""
+   },
+   {
+    "input": "You charged me for shipping although the order was over 200 PLN.",
+    "draft": "billing",
+    "note": ""
+   }
+  ]
+ },
+ "extraction": {
+  "assistant": "Helper · Gemma 4 12B QAT (Google)",
+  "rows": [
+   {
+    "input": "Invoice FV/2026/0114 from Acme Sp. z o.o., issued 3 March 2026, total 1 240,00 PLN gross.",
+    "draft": {
+     "invoice_no": "FV/2026/0114",
+     "vendor": "Acme Sp. z o.o.",
+     "total": "1 240,00",
+     "currency": "PLN"
+    },
+    "note": ""
+   },
+   {
+    "input": "Rechnung Nr. 88-231 – Müller GmbH – Gesamtbetrag 412.50 EUR",
+    "draft": {
+     "invoice_no": "88-231",
+     "vendor": "Müller GmbH",
+     "total": "412.50",
+     "currency": "EUR"
+    },
+    "note": ""
+   },
+   {
+    "input": "Bill #A-7 from Northwind Traders. Amount due: $96.00 (USD).",
+    "draft": {
+     "invoice_no": "A-7",
+     "vendor": "Northwind Traders",
+     "total": "96.00",
+     "currency": "USD"
+    },
+    "note": ""
+   },
+   {
+    "input": "Faktura 2026/05/77, sprzedawca: Kowalski i Syn, do zapłaty 15 000 zł",
+    "draft": {
+     "invoice_no": "2026/05/77",
+     "vendor": "Kowalski i Syn",
+     "total": "15 000",
+     "currency": "zł"
+    },
+    "note": ""
+   },
+   {
+    "input": "Invoice INV-55, Contoso Ltd, GBP 1,999.99 total",
+    "draft": {
+     "invoice_no": "INV-55",
+     "vendor": "Contoso Ltd",
+     "total": "1,999.99",
+     "currency": "GBP"
+    },
+    "note": ""
+   },
+   {
+    "input": "Receipt without number from Café Lumi, 23.40 EUR",
+    "draft": {
+     "invoice_no": null,
+     "vendor": "Café Lumi",
+     "total": "23.40",
+     "currency": "EUR"
+    },
+    "note": ""
+   }
+  ]
+ },
+ "style": {
+  "assistant": "Helper · Gemma 4 12B QAT (Google)",
+  "rows": [
+   {
+    "input": "Yes. Open Orders, pick the order and choose Change address. It works until we hand it to the courier.",
+    "draft": "Can I change the shipping address for an order that has already been placed?",
+    "note": ""
+   },
+   {
+    "input": "Sorry about that. Send us a photo of the damage and we'll ship a replacement today, no need to return it.",
+    "draft": "I received my order today but it arrived damaged. What should I do?",
+    "note": ""
+   },
+   {
+    "input": "We ship to all EU countries and Norway; outside the EU customs fees are paid on delivery.",
+    "draft": "Do you ship to Norway and other countries outside of the EU?",
+    "note": ""
+   },
+   {
+    "input": "Your refund was sent on 12 May. Banks take 3 to 5 working days to show it.",
+    "draft": "Where is my refund?",
+    "note": ""
+   }
+  ]
+ }
+}
