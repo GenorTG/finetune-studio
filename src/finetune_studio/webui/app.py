@@ -21,6 +21,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from finetune_studio import (
+    __version__,
     db,
     logsetup,
 )
@@ -185,7 +186,7 @@ async def lifespan(app: FastAPI):
         reaper.cancel()
         watcher.cancel()
 
-app = FastAPI(title="Finetune Studio", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Finetune Studio", version=__version__, lifespan=lifespan)  # /openapi.json reports the build
 
 from finetune_studio.webui import errors as _errors
 

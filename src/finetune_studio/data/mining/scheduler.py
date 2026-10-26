@@ -228,9 +228,9 @@ class MiningScheduler:
         if seat.mode == "local" and helper.get("kind") == "local_gguf" and not paths_match(helper.get("model"),
                                                                                           seat.local_model):
             raise MiningError(
-                f"the Vision reader ({Path(seat.local_model).name}) and the local helper ({helper.get('model')}) would "
-                "share the one inference worker: pick the helper's own GGUF as the Vision reader, use an API vision "
-                "model, or turn the Vision reader off")
+                f"the Reading pictures job ({Path(seat.local_model).name}) and the local assistant ({helper.get('model')}) "
+                "would share the one inference worker: in Settings -> AI assistant give Reading pictures the same "
+                "local model, an API connection, or turn it off")
         try:
             return Reader(seat)
         except VisionError as e:

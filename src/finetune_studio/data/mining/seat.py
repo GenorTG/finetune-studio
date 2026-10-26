@@ -100,7 +100,7 @@ def _raw_chat_for(target: dict[str, Any]) -> ChatFn:
 
         want = str(target.get("model_path") or "")
         if not want:
-            raise RuntimeError("the job names no local helper model")
+            raise RuntimeError("the job names no local assistant model")
         engine = get_engine()
 
         def _local_chat(messages: list[dict[str, Any]], max_tokens: int = 1200, temperature: float = 0.7,
@@ -108,13 +108,13 @@ def _raw_chat_for(target: dict[str, Any]) -> ChatFn:
             loaded = str(getattr(engine, "model_path", "") or "") if engine.model is not None else ""
             if not paths_match(loaded, want):
                 now = f"now {Path(loaded).name}" if loaded else "nothing is loaded"
-                raise RuntimeError(f"the local helper {Path(want).name} is no longer loaded in the inference worker "
+                raise RuntimeError(f"the local assistant model {Path(want).name} is no longer loaded in the inference worker "
                                    f"({now}); load it again and run Fill gaps")
             return engine.generate(messages, max_tokens=max_tokens, temperature=temperature, top_p=top_p,
                                    top_k=40, repeat_penalty=1.1)
 
         return _local_chat
-    raise RuntimeError(f"unknown helper target {target!r}")
+    raise RuntimeError(f"unknown assistant target {target!r}")
 
 
 def forget_providers() -> None:

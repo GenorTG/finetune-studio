@@ -59,7 +59,7 @@
     <div class="card-head"><div>
       <div class="card-title">Step 2 · Make question-answer pairs</div>
       <div class="card-sub text-dim">
-        Each parsed document gets a checklist of its data points; the helper
+        Each parsed document gets a checklist of its data points; the assistant
         writes pairs until every point is stated, then quick mode approves them.
         Want to review them first? Open the pairs page.
       </div>
@@ -78,7 +78,7 @@
         Turns the approved pairs into one training-ready dataset file.
         Uncovered passages are filled with extractive pairs first, so the
         dataset covers every source. Extractive pairs are text fragments from
-        your files, not written Q&amp;A — generate pairs with a helper model
+        your files, not written Q&amp;A — generate pairs with the AI assistant
         (step 2) for a better dataset, and for a quiz that makes sense.
       </div>
     </div><span class="pill outline" id="wiz-dataset-pill">…</span></div>
@@ -566,7 +566,7 @@
         line("Loading helper (" + (prov.helper_label || helperId) + ")…");
         try { await post("/api/providers/" + helperId + "/load", {}); }
         catch (e) { throw new Error("helper load failed: " + e.message); }
-        line("Helper ready.");
+        line("Assistant ready.");
       }
       // Quick mode approves only what THIS run wrote: pairs that were pending before stay for the reviewer.
       var before = await api("/api/projects/" + PID + "/data-prep/qa");

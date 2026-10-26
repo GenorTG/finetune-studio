@@ -88,7 +88,7 @@
   <details class="mt-2" id="t-reworded-box">
     <summary class="text-xs muted">Build a reworded quiz · held-out facts, new wording</summary>
     <div class="text-xs dim mt-1">Takes the trainer's own held-out slice of a dataset (facts it never trained on; rows of one fact stay together)
-      and asks the helper <span class="mono">{{ helper_label }}</span> to reword each held-out question once. A rewording that drops a number, code
+      and asks the assistant <span class="mono">{{ helper_label }}</span> to reword each held-out question once. A rewording that drops a number, code
       or name, gives the answer away or repeats a dataset question is dropped. Study sets built later stay away from these questions.
       The auto-suite asks the training questions word for word: that one is a memorisation check.</div>
     <div class="flex gap-2 items-center mt-1">
@@ -153,7 +153,7 @@
     <label class="flex items-center gap-1">with
       <select id="t-judge-provider" class="select judge-select" aria-label="Judge model">
         {% for p in judge_providers %}
-        <option value="{{ p.id }}"{% if p.id == default_judge_provider_id and not p.file_missing %} selected{% endif %}{% if p.file_missing %} disabled{% endif %}>{{ p.label }}{% if p.is_helper_seat %} (helper seat){% endif %}{% if p.local %} · local GPU{% elif '· API' not in p.label %} · API{% endif %}{% if p.file_missing %} — file missing on disk{% endif %}</option>
+        <option value="{{ p.id }}"{% if p.id == default_judge_provider_id and not p.file_missing %} selected{% endif %}{% if p.file_missing %} disabled{% endif %}>{{ p.label }}{% if p.is_helper_seat %} (main assistant){% endif %}{% if p.local %} · local GPU{% elif '· API' not in p.label %} · API{% endif %}{% if p.file_missing %} — file missing on disk{% endif %}</option>
         {% endfor %}
       </select>
     </label>
@@ -205,7 +205,7 @@
     <b>Judge this run</b>
     <select id="rv-provider" class="select judge-select" aria-label="Judge model for this run">
       {% for p in judge_providers %}
-      <option value="{{ p.id }}" data-local="{{ '1' if p.local else '' }}"{% if p.id == default_judge_provider_id and not p.file_missing %} selected{% endif %}{% if p.file_missing %} disabled{% endif %}>{{ p.label }}{% if p.is_helper_seat %} (helper seat){% endif %}{% if p.local %} · local GPU{% elif '· API' not in p.label %} · API{% endif %}{% if p.file_missing %} — file missing on disk{% endif %}</option>
+      <option value="{{ p.id }}" data-local="{{ '1' if p.local else '' }}"{% if p.id == default_judge_provider_id and not p.file_missing %} selected{% endif %}{% if p.file_missing %} disabled{% endif %}>{{ p.label }}{% if p.is_helper_seat %} (main assistant){% endif %}{% if p.local %} · local GPU{% elif '· API' not in p.label %} · API{% endif %}{% if p.file_missing %} — file missing on disk{% endif %}</option>
       {% endfor %}
     </select>
     <button class="btn sm primary" id="rv-judge-new" type="button" title="Judge the answers that have no AI or human verdict yet (also replaces old scripted verdicts)">Judge unjudged</button>

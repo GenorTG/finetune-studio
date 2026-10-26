@@ -171,7 +171,7 @@ def build_reworded_cases(rows: list[dict[str, Any]], generate: GenerateFn, *,
                 report.calls_failed += 1
                 consecutive += 1
                 if consecutive >= _MAX_CONSECUTIVE_ERRORS and not cases:
-                    raise NoUsableQuestions(f"The helper failed {consecutive} calls in a row; no question was "
+                    raise NoUsableQuestions(f"The assistant failed {consecutive} calls in a row; no question was "
                                             "reworded.", report)
             else:
                 consecutive = 0

@@ -13,7 +13,7 @@
     <a href="/projects/{{ pid }}/training" data-link>training (step 2)</a> consumes.
     <br><span class="text-xs">Files come from the
     <a href="/projects/{{ pid }}/data" data-link>files</a>, parsed once for training and the Smart Brain. Writing the pairs
-    uses the helper model <span class="mono" id="dp-helper-label">{{ helper_label | replace("Helper · ", "", 1) }}</span>. Want to mine them conversationally instead?
+    uses the AI assistant <span class="mono" id="dp-helper-label">{{ helper_label | replace("Helper · ", "", 1) }}</span>. Want to mine them conversationally instead?
     <a href="/projects/{{ pid }}/chat?mode=agent" data-link>Agent chat</a>.</span>
   </div>
 </div>
@@ -117,7 +117,7 @@
     </div>
     <div class="flex gap-2 wrap">
       <button class="btn sm primary" type="button" id="dp-mine-selected" title="Build the checklist and mine the ticked files">Mine selected</button>
-      <button class="btn sm" type="button" id="dp-fill-selected" title="Ask the helper again for the data points no pair states yet">Fill gaps on selected</button>
+      <button class="btn sm" type="button" id="dp-fill-selected" title="Ask the assistant again for the data points no pair states yet">Fill gaps on selected</button>
       <button class="btn sm success" type="button" id="dp-build-selected" title="Build a dataset from the approved pairs of the ticked files">Build dataset from selected</button>
       <button class="btn sm" type="button" id="dp-files-refresh">Refresh</button>
     </div>
@@ -125,15 +125,15 @@
   <details class="page-more text-xs">
     <summary>More about mining</summary>
     <ol class="dp-mining-steps">
-      <li><b>Inventory</b> — every statement with a number, date, code or name, plus the facts the helper lists (also the ones that need several parts of the file, such as a later correction). A value that is not in the file is dropped.</li>
+      <li><b>Inventory</b> — every statement with a number, date, code or name, plus the facts the assistant lists (also the ones that need several parts of the file, such as a later correction). A value that is not in the file is dropped.</li>
       <li><b>Mine</b> — one call per chunk with that chunk's checklist; pairs arrive <i>pending</i>.</li>
-      <li><b>Check and fix</b> — data points no pair states go back to the helper, up to three rounds or until a round adds nothing.</li>
+      <li><b>Check and fix</b> — data points no pair states go back to the assistant, up to three rounds or until a round adds nothing.</li>
       <li><b>Review</b> — approve or reject below. A rejected pair can reopen a data point: <b>Fill gaps</b> asks again (with your reject reasons), or write the pair yourself, or exclude a point that is not a fact.</li>
     </ol>
     A file is <b>complete</b> when every data point is stated by an approved pair or excluded; export needs every file complete. Every helper call is kept: open a file's checklist and look under <b>Rounds</b>.
   </details>
   <div class="flex gap-2 wrap items-center text-xs dp-row">
-    <span>Helper: <b id="dp-helper-name">{{ helper_label | replace("Helper · API · ", "", 1) | replace("Helper · ", "", 1) }}</b> <span class="dim" id="dp-helper-par"></span></span>
+    <span>Assistant: <b id="dp-helper-name">{{ helper_label | replace("Helper · API · ", "", 1) | replace("Helper · ", "", 1) }}</b> <span class="dim" id="dp-helper-par"></span></span>
     <span class="spacer"></span>
     <span id="dp-promote-panel" class="prep-promote-panel" hidden>
       <button type="button" class="btn sm" id="dp-promote-library-btn" onclick="flPromoteEligibleFromLibrary()">Use text/markdown from file library</button>
@@ -209,14 +209,14 @@
   </summary>
   <div class="text-sm mb-2">
     A fine-tuned model answers a fact asked in new words only when it trained on the fact in several different forms;
-    more epochs over one wording mostly memorise that wording. The helper writes the extra forms; each one must keep every
+    more epochs over one wording mostly memorise that wording. The assistant writes the extra forms; each one must keep every
     number, date and code of your reviewed answer and add none, or it is dropped. Questions close to your quiz questions
     are dropped so the quiz stays a fair test.
   </div>
   <div class="text-xs dim mb-3">
     <b>When to use it:</b> before training an adapter on facts (measured on the Korvane test corpus: adding three
     re-worded questions per pair took recall of re-worded quiz questions from 15 to 48 of 102). It does not teach the model
-    to say “not in the documents”; the Smart Brain does that. Needs approved pairs and the helper model.
+    to say “not in the documents”; the Smart Brain does that. Needs approved pairs and the AI assistant.
   </div>
   <div class="flex gap-2 wrap items-center dp-pref-controls">
     <label class="text-sm" for="dp-study-reworded">Re-worded questions</label>
@@ -250,7 +250,7 @@
   </div>
   <div class="text-xs dim mb-3">
     <b>When to use it:</b> after the normal fine-tune (SFT) has taught the facts, to curb hallucination and teach the
-    model to say “that isn’t in the documents”. It needs approved pairs above and the helper model loaded
+    model to say “that isn’t in the documents”. It needs approved pairs above and the AI assistant loaded
     (it writes the rejected answers). Not a replacement for SFT.
   </div>
   <fieldset class="dp-pref-kinds" id="dp-pref-kinds">
@@ -2115,7 +2115,7 @@ function dpStudyRenderProgress(p) {
   document.getElementById('dp-study-bar').setAttribute('aria-valuenow', String(pct));
   document.getElementById('dp-study-progress-text').textContent = planned
     ? done + ' of ' + planned + ' pairs · kept ' + dpStudyKept(p.kept) + ' (one helper call per pair)'
-    : 'Starting — waiting for the helper…';
+    : 'Starting — waiting for the assistant…';
 }
 
 function dpStudyDrops(dropped) {
@@ -2284,7 +2284,7 @@ function dpPointsCell(m) {
     ' open · ' + c.excluded + ' excluded">' + seg('approved', 'ok') + seg('excluded', 'ex') + seg('pending', 'pe') + seg('open', 'op') + '</div>' +
     '<span class="text-xs">' + (c.approved + c.excluded) + '/' + n + '</span>' +
     (c.open ? ' <span class="text-xs dp-open">' + c.open + ' open</span>' : '') +
-    (c.proposed ? ' <span class="text-xs dim" title="The helper proposes to exclude these: confirm them on the checklist">(' + c.proposed + ' to confirm)</span>' : '');
+    (c.proposed ? ' <span class="text-xs dim" title="The assistant proposes to exclude these: confirm them on the checklist">(' + c.proposed + ' to confirm)</span>' : '');
 }
 
 function dpFileActions(s, job) {
@@ -2297,7 +2297,7 @@ function dpFileActions(s, job) {
   if (job) return btn('cancel', 'Cancel', 'danger');
   if (!m.counts || !m.counts.items) return btn('mine', 'Mine', 'primary');
   b.push(btn('items', 'Checklist'));
-  if (m.counts.open) b.push(btn('fill', 'Fill gaps', 'primary', 'Ask the helper again for the open data points'));
+  if (m.counts.open) b.push(btn('fill', 'Fill gaps', 'primary', 'Ask the assistant again for the open data points'));
   b.push(btn('reset', 'Reset', '', 'Forget the checklist, its rounds and the unreviewed pairs; reviewed pairs stay'));
   return b.join(' ');
 }
@@ -2356,7 +2356,7 @@ async function dpEnsureHelperLoaded() {
   var active = providers.active || null;
   if (active && active.loaded && active.id === helperId) return;
   if (job.kind === 'openai_compat') return;
-  dpMiningStatus('Loading the helper model…', 'info');
+  dpMiningStatus('Loading the assistant model…', 'info');
   try {
     await api.post('/api/providers/' + encodeURIComponent(helperId) + '/load', {});
   } catch (e) {
@@ -2371,7 +2371,7 @@ async function dpShowHelperPicker() {
   var st = await fetch('/api/providers/helper/status', { cache: 'no-store' }).then(function (r) { return r.json(); }).catch(function () { return null; });
   if (!st) return;
   var cands = st.candidates || [];
-  var html = '<div class="text-xs muted mb-1">Pick an installed GGUF as the helper' +
+  var html = '<div class="text-xs muted mb-1">Pick an installed GGUF as the local assistant model' +
     (cands.length ? ':' : ' — none installed yet. <a href="/models/explore">Download one in Model library</a>.') + '</div>';
   cands.forEach(function (c) {
     html += '<button type="button" class="btn mr-1 mb-1" data-path="' + escapeHtml(c.path) + '">' + escapeHtml(c.name) + ' (' + c.size_gb + ' GB)</button>';
@@ -2384,7 +2384,7 @@ async function dpShowHelperPicker() {
       try { d = await api.post('/api/providers/helper/use', { path: b.dataset.path }); }
       catch (e) { dpMiningStatus(e.message || 'Could not use that file.', 'error'); return; }
       box.hidden = true;
-      dpMiningStatus('Helper set to ' + d.path + '. Run again.', 'success');
+      dpMiningStatus('Assistant model set to ' + d.path + '. Run again.', 'success');
     });
   });
 }
@@ -2491,10 +2491,10 @@ function dpItemsHtml(d) {
   var f = _dpPanel.filter, c = d.coverage.counts;
   var chip = function (id, label, n) { return '<button type="button" class="btn sm' + (f === id ? ' primary' : '') + '" data-dp-filter-items="' + id + '">' + label + ' ' + n + '</button>'; };
   var bar = '<div class="flex gap-1 wrap dp-row">' + chip('open', 'Open', c.open) +
-    (c.proposed ? chip('proposed', 'Helper proposes to skip', c.proposed) : '') + chip('pending', 'Awaiting review', c.pending) +
+    (c.proposed ? chip('proposed', 'Assistant proposes to skip', c.proposed) : '') + chip('pending', 'Awaiting review', c.pending) +
     chip('approved', 'Approved', c.approved) + chip('excluded', 'Excluded', c.excluded) + chip('all', 'All', c.items) +
     (f === 'proposed' && c.proposed ? '<span class="spacer"></span><button type="button" class="btn sm primary" data-dp-item="confirm-all" data-item="" ' +
-      'title="Exclude every data point the helper proposed to skip, with its reason">Confirm all ' + c.proposed + ' skips</button>' : '') + '</div>';
+      'title="Exclude every data point the assistant proposed to skip, with its reason">Confirm all ' + c.proposed + ' skips</button>' : '') + '</div>';
   var items = d.items.filter(function (it) {
     return f === 'all' || (f === 'proposed' ? it.state === 'open' && it.proposed_reason : it.state === f);
   });
@@ -2551,7 +2551,7 @@ async function dpItemAction(act, itemId) {
       cd = await api.post(dpMiningBase() + '/files/' + encodeURIComponent(_dpPanel.sid) + '/proposals/confirm',
         act === 'confirm' ? { item_ids: [itemId] } : {});
     } catch (e) { dpMiningStatus(e.message, 'error'); return; }
-    dpMiningStatus('Excluded ' + cd.confirmed + ' data point(s) the helper proposed to skip.', 'success');
+    dpMiningStatus('Excluded ' + cd.confirmed + ' data point(s) the assistant proposed to skip.', 'success');
     await dpLoadFiles();
     return;
   }

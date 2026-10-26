@@ -96,7 +96,7 @@ TOOLS_CATALOG: list[dict[str, Any]] = [
     },
     {
         "name": "system_status",
-        "description": "GPU and VRAM, accelerator, RAM, loaded model and its placement, helper model state, training state, free disk.",
+        "description": "GPU and VRAM, accelerator, RAM, loaded model and its placement, assistant state, training state, free disk.",
         "parameters": _obj(),
     },
     {
