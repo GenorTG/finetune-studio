@@ -448,8 +448,10 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
 # ── Audit ───────────────────────────────────────────────────
 
 @router.get("/projects/{pid}/data-prep/audit")
-async def data_prep_audit(pid: str) -> dict:
-    """Return deterministic raw-file and curated-dataset fidelity evidence."""
+def data_prep_audit(pid: str) -> dict:
+    """Return deterministic raw-file and curated-dataset fidelity evidence (the Q&A page's Data audit card).
+
+    Plain ``def`` (threadpool): it re-reads and re-parses every uploaded file."""
     missing = _project_404(pid)
     if missing is not None:
         return missing

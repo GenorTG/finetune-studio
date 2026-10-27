@@ -9,11 +9,12 @@ A model learns from questions and answers, not raw documents. This page mines ea
 
 ## Workflow
 1. In **Mine pairs, file by file** tick the files and press **Mine selected** (a local assistant model loads first, about 50 s; an API connection needs nothing). Each file is one job: **inventory** (its data points: every statement with a number, date, code or name, plus the facts the helper lists, including corrections that span the file), **mining** (pairs written against that checklist), **checking**, **fixing** (open data points sent back, up to three rounds). The table updates live while jobs run.
-2. In **Training / Q&A output** review the **Pending** pairs: approve, edit, or reject with a reason. The line above each pair says which data points it states and warns when it is the only pair stating one.
+2. In **Training / Q&A output** review the **Pending** pairs: approve, edit, or reject with a reason. The line above each pair says which data points it states and warns when it is the only pair stating one. **Remove near-duplicates** first rejects pending pairs that ask a fact another pending pair already asks (it shows the count and asks before rejecting).
 3. Open a file's **Checklist** to see every data point: approved, awaiting review, open, or excluded. For an open point press **Fill gaps** (the assistant tries again and sees your reject reasons), **Write pair**, or **Exclude** it with a reason when it is not a fact worth training on. **Rounds** shows every helper call with its prompt and raw reply.
 4. A file is **complete** when every data point is stated by an approved pair or excluded. Export needs every file complete (or an explicit "export anyway").
 5. Optionally tick **Include retrieved context** (default 40% of rows) if the trained model will answer with the Smart Brain's sources; build the Smart Brain first.
 6. **Export approved → Training**, then **Start training with this dataset**.
+7. Optionally open **Data audit** and **Run the audit**: it re-reads every file from its stored bytes and checks the parse, the passages and that each approved pair points at a real passage (no model involved).
 
 ## Key controls
 - `#dp-mining` — the Mine pairs card.
@@ -22,6 +23,8 @@ A model learns from questions and answers, not raw documents. This page mines ea
 - `#dp-files` — the files table: status, data points (approved/excluded of total, open), pairs, actions.
 - `#dp-file-panel` — a file's checklist and rounds.
 - `#dp-filter-pending` — show only pairs awaiting review.
+- `#dp-dedupe` — reject pending near-duplicates (count first, then confirm).
+- `#dp-audit-run` — run the data audit (files, passages, approved pairs).
 - `#dp-grounded` — include retrieved context in the export.
 - `#dp-grounded-pct` — share of rows that carry retrieved context.
 - `#dp-export-approved` — export approved pairs as a registered dataset.

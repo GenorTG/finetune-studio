@@ -177,6 +177,7 @@
       <button class="btn sm success" type="button" id="dp-bulk-approve" title="Approve checked rows (or all visible pending if none checked)">Approve selected</button>
       <button class="btn sm danger" type="button" id="dp-bulk-reject" title="Reject checked rows">Reject selected</button>
       <button class="btn sm success" type="button" id="dp-approve-all-pending" title="Mark every pending pair approved">Approve all pending</button>
+      <button class="btn sm" type="button" id="dp-dedupe" title="Reject pending pairs that ask a fact another pending pair already asks (near-identical question, same answer). Shows how many first; the first pair of each group stays. With a file picked, only that file.">Remove near-duplicates</button>
       <button class="btn sm primary" type="button" id="dp-export-approved" title="Write approved pairs as ShareGPT JSONL and register it for Training">Export approved → Training</button>
       <a class="btn sm" href="/projects/{{ pid }}/training" data-link id="dp-open-training">Open Training</a>
     </div>
@@ -198,6 +199,20 @@
 
   <div id="dp-results" class="text-sm muted">Loading…</div>
 </div>
+
+<details class="card mb-6" id="dp-audit-card">
+  <summary class="card-head">
+    <div>
+      <div class="card-title">Data audit</div>
+      <div class="card-sub">Checks, without any model, that every file still parses to the stored text and passages, and that the approved pairs point at real passages and are covered by the export.</div>
+    </div>
+  </summary>
+  <div class="flex gap-2 wrap items-center mb-2">
+    <button class="btn sm" type="button" id="dp-audit-run" title="Re-read every uploaded file from its stored bytes and compare; reads every file, so it takes a moment on a big project.">Run the audit</button>
+    <span class="text-xs dim" id="dp-audit-status" role="status" aria-live="polite"></span>
+  </div>
+  <div id="dp-audit-out" class="text-sm" hidden></div>
+</details>
 
 <details class="card mb-6" id="dp-study-card">
   <summary class="card-head">
@@ -1867,6 +1882,83 @@ async function dpApproveAllPending() {
   await dpBulkAction(ids, 'approve');
 }
 
+// Near-duplicate pending pairs (same answer, near-identical question): count first, reject only after a yes.
+async function dpDedupePending() {
+  var url = rqBase() + '/dedupe', body = { source_id: _rq.source || null };
+  try {
+    await _rq.chain;
+    var probe = await api.post(url, Object.assign({ dry_run: true }, body));
+    if (!probe.rejected) { dpBridgeStatus('No near-duplicates among ' + probe.of_pending + ' pending pair(s).', 'info'); return; }
+    var where = _rq.source ? 'in this file' : 'in all files';
+    if (!await fts.confirm('Reject ' + probe.rejected + ' of ' + probe.of_pending + ' pending pair(s) ' + where +
+        ' that repeat a fact another pair already asks? The first pair of each group stays.',
+        { okText: 'Reject ' + probe.rejected })) return;
+    var done = await api.post(url, Object.assign({ dry_run: false }, body));
+    dpBridgeStatus('Rejected ' + done.rejected + ' near-duplicate pair(s); each one\'s reject note names the pair it repeats.', 'success');
+    await rqLoad({});
+    dpCoverageChanged();
+  } catch (e) {
+    dpBridgeStatus('Removing near-duplicates failed: ' + ((e && e.message) || e), 'error');
+  }
+}
+
+// The deterministic data audit: files (stored bytes → parse → passages) and the approved pairs' provenance.
+var DP_AUDIT_TEXT = {
+  raw_file_missing: 'the uploaded file is gone from disk',
+  raw_hash_mismatch: 'the stored file changed since upload',
+  parsed_text_missing: 'no parsed text is stored',
+  persisted_parse_differs_from_deterministic_reparse: 'parsing it again gives different text (re-parse it on Files)',
+  empty_parsed_text: 'the parsed text is empty',
+  persisted_chunks_differ_from_deterministic_chunking: 'its passages no longer match the parsed text (re-parse it on Files)',
+  no_chunks: 'it has no passages',
+  chunks_have_no_content_tokens: 'its passages hold no words',
+  unknown_source_id: 'points at a file that no longer exists',
+  chunk_index_out_of_range: 'points at a passage the file does not have',
+  answer_has_no_chunk_token_overlap: 'the answer shares no word with its passage',
+};
+
+async function dpRunAudit() {
+  var btn = document.getElementById('dp-audit-run');
+  var status = document.getElementById('dp-audit-status');
+  var out = document.getElementById('dp-audit-out');
+  if (!btn || !status || !out) return;
+  btn.disabled = true;
+  status.textContent = 'Reading every file again…';
+  try {
+    var d = await api.get(rqBase() + '/audit');
+    var src = d.sources || {}, ds = d.dataset || {};
+    var why = function (code) { return DP_AUDIT_TEXT[code] || code; };
+    var html = '<p><b>Files:</b> ' + (src.source_count ? src.passed + ' of ' + src.source_count + ' pass' : 'none uploaded') + '</p>';
+    var bad = (src.sources || []).filter(function (s) { return !s.ok; });
+    if (bad.length) html += '<ul class="health-list">' + bad.map(function (s) {
+      return '<li><span class="sev-error">✕ <b>' + escapeHtml(s.filename || s.source_id) + '</b></span> — ' + s.errors.map(why).map(escapeHtml).join('; ') + '</li>';
+    }).join('') + '</ul>';
+    html += '<p class="mt-2"><b>Approved pairs:</b> ' + (ds.approved_pair_count || 0) + ' (' + (ds.expected_export_count || 0) +
+      ' after merging repeats of the same question on the same passage)</p>';
+    var errs = ds.errors || [];
+    if (errs.length) {
+      var count = {};
+      errs.forEach(function (e) { count[e.error] = (count[e.error] || 0) + 1; });
+      html += '<ul class="health-list">' + Object.keys(count).map(function (k) {
+        return '<li><span class="sev-warning">⚠ ' + count[k] + ' pair(s)</span> — ' + escapeHtml(why(k)) + '</li>';
+      }).join('') + '</ul>';
+    } else if (ds.approved_pair_count) {
+      html += '<p class="sev-ok">✓ Every approved pair points at a real passage and shares words with it.</p>';
+    }
+    var cov = Object.values(ds.source_coverage || {}).filter(function (c) { return c.chunks_total; });
+    if (cov.length) html += '<p class="mt-2"><b>Passages with an approved pair:</b></p><ul class="health-list">' + cov.map(function (c) {
+      return '<li>' + escapeHtml(c.filename) + ': ' + c.chunks_covered + ' of ' + c.chunks_total + '</li>';
+    }).join('') + '</ul>';
+    out.innerHTML = html;
+    out.hidden = false;
+    status.textContent = (src.status === 'fail' || ds.status === 'fail') ? 'Problems found.' : 'Done.';
+  } catch (e) {
+    status.textContent = 'Audit failed: ' + ((e && e.message) || e);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // Share of rows that carry retrieved context: 0 when the box is off.
 function dpGroundedShare() {
   var on = document.getElementById('dp-grounded');
@@ -2200,6 +2292,8 @@ async function dpStudyBuild() {
     ['dp-bulk-approve', dpApproveSelected],
     ['dp-bulk-reject', dpRejectSelected],
     ['dp-approve-all-pending', dpApproveAllPending],
+    ['dp-dedupe', dpDedupePending],
+    ['dp-audit-run', dpRunAudit],
     ['dp-export-approved', dpExportApproved],
   ];
   map.forEach(function (pair) {

@@ -12,7 +12,7 @@ keywords: model library download hugging face safetensors gguf base model my mod
    The download runs in the background: the **Activity** drawer shows its progress, and **Cancel download** there stops it.
 2. Use **safetensors** models for training (LoRA/QLoRA); **GGUF** is inference-only (Chat, Inference, helper).
 3. The downloaded model appears in the Training base-model dropdown after the page is reloaded.
-4. A model stored outside `models/` and `output/` needs a `model_dirs_extra` entry plus `POST /api/models/refresh`.
+4. A model copied in by hand shows up after **Rescan folders** on My models (see the my-models entry).
 
 ## Key controls
 - `#hf-q` — search box.
