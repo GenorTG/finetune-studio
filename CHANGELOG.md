@@ -74,6 +74,10 @@ turns that section into the release's notes.
   `imatrix_calibration` training fields are gone too.
 - The unmaintained Windows installer and launcher scripts (`install.bat`, `install.ps1`, `run.bat`): Linux is the
   only supported platform. Windows support will come back as a cleanly tested installer after 1.0.
+- API routes nothing in the app called: `POST /api/testing/load` (use `/api/inference/load`),
+  `GET /api/benchmarks/suites`, `GET /api/benchmarks/projects/{pid}/runs/{rid}/history`,
+  `POST /api/projects/{pid}/data-prep/chat` and `.../data-prep/chat/tools` (the Guide replaced them),
+  `GET /api/guide/kb`, `/api/guide/kb/{id}` and `/api/guide/help` (the Guide reads its help in-process).
 
 ### Security
 - Saved API keys (helper, Vision reader) are now stored encrypted instead of as plain text: a copied database or
