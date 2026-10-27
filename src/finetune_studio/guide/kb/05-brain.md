@@ -18,7 +18,8 @@ Step 2 without training. The Smart Brain answers from the project's files: it fi
 ## Key controls
 - `#quick-index-btn` — one-click parse + build.
 - `#b-embedder` — embedding model (multilingual-e5-large default; bge-large-en for English-only; all-MiniLM-L6-v2 is small and weaker).
-- `#build-btn` — build; `#rebuild-btn` wipes and rebuilds (needed after changing the embedder).
+- `#build-btn` — build; `#rebuild-btn` wipes and rebuilds from scratch.
+- `#reembed-btn` — after changing the embedder: keep the passages, replace only their vectors (quicker than a rebuild; needs an index).
 - `#b-fact-cards` — also index approved Q&A pairs as fact cards (off by default).
 - `#s-rerank-enabled` — reranking on/off.
 - `#s-hybrid-enabled` — keyword search + rank fusion on/off (off = semantic search only).

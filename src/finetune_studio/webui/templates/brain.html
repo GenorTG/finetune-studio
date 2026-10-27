@@ -114,7 +114,9 @@
       <button onclick="buildIndex(false)" id="build-btn" class="btn flex-1"
               title="Build the Smart Brain index: chunk your sources, embed each chunk, index for fast retrieval. First build downloads the embedder (~2.2 GB) which takes a few minutes.">Build</button>
       <button onclick="buildIndex(true)" id="rebuild-btn" class="btn"
-              title="Wipe the existing index and rebuild from scratch. Use this when you change the embedder — the existing vectors are no longer valid.">⟲ Rebuild from scratch</button>
+              title="Wipe the existing index and rebuild from scratch: parse, chunk and embed every file again.">⟲ Rebuild from scratch</button>
+      <button onclick="reembedIndex()" id="reembed-btn" class="btn"
+              title="Keep the documents and passages, replace only their vectors with the embedder picked above. Use it after changing the embedder: quicker than rebuilding from scratch. Needs an existing index.">⇄ Re-embed only</button>
     </div>
   </div>
   <label class="text-xs flex items-center gap-2 mt-3 cursor-pointer"
@@ -908,7 +910,7 @@
 
   // Disable the build buttons while a build runs (this page's or one found running on load).
   function setBuildBusy(on) {
-    ['quick-index-btn', 'build-btn', 'rebuild-btn'].forEach(function (id) {
+    ['quick-index-btn', 'build-btn', 'rebuild-btn', 'reembed-btn'].forEach(function (id) {
       const b = document.getElementById(id);
       if (b) b.disabled = !!on;
     });
@@ -1045,6 +1047,31 @@
     } catch (e) {
       const msg = (e && e.message) || String(e);
       status.textContent = 'Build failed: ' + msg;
+      notify(msg, 'error');
+    } finally {
+      setBuildBusy(false);
+    }
+  };
+
+  // Same build job in re-embed mode: the documents and passages stay, the vectors are replaced with the picked
+  // embedder (404 when there is no index yet, 409 while a build runs or the GPU is busy).
+  window.reembedIndex = async function() {
+    const status = document.getElementById('build-status');
+    const embedderEl = document.getElementById('b-embedder');
+    const embedder = embedderEl ? embedderEl.value : '';
+    setBuildBusy(true);
+    status.textContent = 'Re-embedding the index with ' + (embedder || 'the saved embedder') + '…';
+    try {
+      const r = await api().post('/api/projects/' + PID + '/brain/rebuild-vectors', { embedder: embedder });
+      const note = gpuNote(r);
+      status.textContent = 'Re-embedding… (it runs on its own: you can leave this page)' + note;
+      notify('Re-embed started', 'info');
+      const b = await followBuild(r.build_id);
+      status.textContent = 'Done — ' + buildDone(b) + ' re-embedded' + (b && b.embedder ? ' with ' + b.embedder : '') + '.' + note;
+      notify('Index re-embedded', 'success');
+    } catch (e) {
+      const msg = (e && e.message) || String(e);
+      status.textContent = 'Re-embed failed: ' + msg;
       notify(msg, 'error');
     } finally {
       setBuildBusy(false);

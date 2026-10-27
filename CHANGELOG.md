@@ -10,6 +10,14 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Added
+- Buttons for four things that only worked through the API:
+  - **My models → Rescan folders** finds a model you copied into a model folder by hand, without restarting the app.
+  - **Smart Brain → Re-embed only** swaps the embedder of an existing index and keeps its passages. It is quicker
+    than rebuilding from scratch.
+  - **Q&A pairs → Remove near-duplicates** rejects pending pairs that repeat a fact another pair already asks. It
+    shows the count and asks before rejecting anything.
+  - **Q&A pairs → Data audit** re-reads every file from its stored bytes. It reports files whose parse or passages
+    changed, and approved pairs that point at a missing passage. No model is involved.
 - Training page: **Start from a use case**. Pick extraction, classification, house style or distillation, upload
   examples, and the app checks every row (unusable ones are listed by row number), keeps a held-out test, fills the
   training form with settings sized to the data, and after training compares the run with its untrained base on that
