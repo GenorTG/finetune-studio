@@ -329,7 +329,7 @@ def test_declared_tools_come_back_as_the_loops_text_protocol(gateway: _Gateway) 
 
 def test_guide_chat_declares_tools_only_for_api_connections(client: Any, gateway: _Gateway) -> None:
     from finetune_studio.data.prep.generator import resolve_helper_backend
-    from finetune_studio.webui.routes.data_prep_chat import _chat_local
+    from finetune_studio.webui.chat_backend import _chat_local
     gateway.mode = "dsml"
     _make_assistant(client, gateway)
     reply = _chat_local({"manager": resolve_helper_backend()["manager"]}, [{"role": "user", "content": "hi"}],

@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from finetune_studio.webui.routes.data_prep_chat import (
-    _TRUNCATION_MSG,
-    _extract_tool_calls,
-    _looks_truncated,
-    _strip_thinking_reply,
+from finetune_studio.guide.toolcalls import TRUNCATION_MSG as _TRUNCATION_MSG
+from finetune_studio.guide.toolcalls import extract_tool_calls as _extract_tool_calls
+from finetune_studio.guide.toolcalls import looks_truncated as _looks_truncated
+from finetune_studio.guide.toolcalls import (
+    strip_thinking_reply as _strip_thinking_reply,
 )
 
 

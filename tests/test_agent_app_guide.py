@@ -3,7 +3,7 @@ from __future__ import annotations
 
 
 def test_app_guide_explains_supported_routes_and_preference_format() -> None:
-    from finetune_studio.webui.routes.data_prep_chat import _run_tool
+    from tests._guide_tool import run_tool as _run_tool
 
     result = _run_tool("unused", "get_app_guide", {})
 
@@ -22,7 +22,7 @@ def test_app_guide_explains_supported_routes_and_preference_format() -> None:
 
 def test_readiness_tool_reports_project_specific_next_step(client) -> None:
     from finetune_studio import db
-    from finetune_studio.webui.routes.data_prep_chat import _run_tool
+    from tests._guide_tool import run_tool as _run_tool
 
     project = db.create_project(name="Readiness tool probe")
     pid = project["id"] if isinstance(project, dict) else project

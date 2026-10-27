@@ -25,7 +25,7 @@
 | `sentencepiece` | `webui/routes/exports.py` | tokenizer export for GGUF conversion |
 | `gguf` | `testing/inference.py`, `templates/*` | GGUF metadata parsing (arch/quant/template) |
 | `requests` | `compare/engine.py`, `models/providers.py` | external OpenAI-compat API calls (judge + provider) |
-| `httpx` | `webui/routes/data_prep_chat.py`, FastAPI `TestClient` | Guide / agent chat API-provider calls; was only transitive via chromadb until 2026-10-14 |
+| `httpx` | `webui/chat_backend.py`, FastAPI `TestClient` | Guide / agent chat API-provider calls; was only transitive via chromadb until 2026-10-14 |
 | `aiofiles` | `webui/routes/data.py` | async upload writes |
 | `rich` | **0 imports** | leftover — removal candidate |
 | `aiosqlite` | **0 imports** (`db/` uses stdlib `sqlite3`) | leftover — removal candidate |

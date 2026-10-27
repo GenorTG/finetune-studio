@@ -103,7 +103,7 @@ def test_promote_parses_markdown_and_read_source_returns_text(client_and_db):
     assert int(match.get("chunk_count") or 0) > 0
 
     from finetune_studio.data.fs.paths import file_dir
-    from finetune_studio.webui.routes.data_prep_chat import _run_tool
+    from tests._guide_tool import run_tool as _run_tool
 
     sha = source["sha256"]
     parsed = file_dir(pid, sha) / "parsed.txt"
