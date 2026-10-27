@@ -1,7 +1,6 @@
 """Accelerator detection + install plan for Finetune Studio.
 
-Single source of truth for every installer (`install.sh`, `update.sh`,
-`install.ps1`, `install.bat`) and for `install_diagnose.py --repair`:
+Single source of truth for every installer (`install.sh`, `update.sh`) and for `install_diagnose.py --repair`:
 
   detect()          -> GpuInfo      what hardware / driver stack is present
   build_plan(gpu)   -> Plan         which torch index, bitsandbytes, llama.cpp
@@ -77,8 +76,6 @@ DRIVER_CUDA: tuple[tuple[int, tuple[int, int]], ...] = (
     (535, (12, 2)), (530, (12, 1)), (525, (12, 0)), (520, (11, 8)), (470, (11, 4)),
 )
 
-AMD_WINDOWS_NOTE = ("AMD GPU on Windows: PyTorch ROCm wheels are Linux-only, so training falls back to CPU "
-                    "wheels here. For GPU training use WSL2 + ROCm, or Linux. llama.cpp can still use Vulkan.")
 # PyPI torch >= 2.12 (and bitsandbytes) ship macosx_14_0_arm64 wheels only; 2.11.0 is the last with macosx_11_0.
 MACOS_TORCH_MIN = (14, 0)
 MACOS_LEGACY_TORCH_PIN = "<2.12"
@@ -129,12 +126,8 @@ def _system() -> tuple[str, str]:
     return platform.system(), platform.machine()
 
 
-def _on_windows() -> bool:
-    return _system()[0] == "Windows"
-
-
 def _repair_cmd() -> str:
-    return "install.bat --repair" if _on_windows() else "bash install.sh --repair"
+    return "bash install.sh --repair"
 
 
 def _mac_version() -> tuple[int, int]:
@@ -382,23 +375,6 @@ def _scan_pci() -> list[Gpu]:
     return gpus
 
 
-def _scan_windows() -> list[Gpu]:
-    """Windows has no sysfs/lspci: ask WMI for the adapter names (finds driverless GPUs too)."""
-    rc, out = _run(["powershell", "-NoProfile", "-Command",
-                    "(Get-CimInstance Win32_VideoController).Name -join \"`n\""])
-    gpus: list[Gpu] = []
-    for line in out.splitlines() if rc == 0 else []:
-        low = line.lower()
-        if NOT_COMPUTE_GPU.search(line) or "microsoft basic" in low:
-            continue
-        vendor = ("nvidia" if "nvidia" in low else
-                  "amd" if re.search(r"\bamd\b|radeon|advanced micro", low) else
-                  "intel" if "intel" in low else "")
-        if vendor:
-            gpus.append(Gpu(vendor, line.strip(), compute_cap=_cc_from_name(line) if vendor == "nvidia" else ""))
-    return gpus
-
-
 def _scan_lspci_names() -> list[Gpu]:
     rc, out = _run(["lspci", "-nn"])
     res: list[Gpu] = []
@@ -489,7 +465,7 @@ def detect(force_cpu: bool = False, force_vendor: str = "") -> GpuInfo:
     nv_gpus = _visible_filter(nv_gpus)
     amd_gpus, rocm_ver, hipcc = _probe_amd()
     intel_all, icpx = _probe_intel()
-    pci = _scan_pci() if system == "Linux" else _scan_windows() if system == "Windows" else []
+    pci = _scan_pci() if system == "Linux" else []
 
     apple = system == "Darwin" and machine in ("arm64", "aarch64")
     # PCI-visible hardware whose userland tool is missing/broken (driverless GPUs).
@@ -525,12 +501,9 @@ def detect(force_cpu: bool = False, force_vendor: str = "") -> GpuInfo:
         if not ready:
             cuda_max = cuda_max if cuda_max != (0, 0) else (13, 0)
             hint = ("NVIDIA GPU found on the PCI bus but no working driver (nvidia-smi missing/failing). "
-                    + ("Install the NVIDIA driver (https://www.nvidia.com/Download/index.aspx), reboot, "
-                       "then re-run `install.bat --repair`. "
-                       if system == "Windows" else
-                       "Install the vendor driver, then re-run `bash install.sh --repair`: "
-                       "Debian/Ubuntu `sudo apt install nvidia-driver` (or `ubuntu-drivers install`), "
-                       "Fedora `sudo dnf install akmod-nvidia`, Arch `sudo pacman -S nvidia-open`. ")
+                    + "Install the vendor driver, then re-run `bash install.sh --repair`: "
+                    "Debian/Ubuntu `sudo apt install nvidia-driver` (or `ubuntu-drivers install`), "
+                    "Fedora `sudo dnf install akmod-nvidia`, Arch `sudo pacman -S nvidia-open`. "
                     + "CUDA wheels are installed anyway.")
         ccs = [float(g.compute_cap) for g in gpus if g.compute_cap]
         newest = max(ccs) if ccs else 0.0
@@ -550,7 +523,7 @@ def detect(force_cpu: bool = False, force_vendor: str = "") -> GpuInfo:
     if vendor == "amd":
         gpus = amd_hw or [Gpu("amd", "AMD GPU (ROCm)")]
         ready = bool(amd_gpus) and (_exists("/dev/kfd") or bool(_which("rocm-smi")))
-        hint = "" if ready else AMD_WINDOWS_NOTE if system == "Windows" else (
+        hint = "" if ready else (
             "AMD GPU found but the ROCm kernel/user stack is not usable (no /dev/kfd, rocm-smi, rocminfo). "
             "Install ROCm (https://rocm.docs.amd.com/projects/install-on-linux): "
             "`sudo apt install amdgpu-dkms rocm` then add your user to the render+video groups and reboot. "
@@ -564,12 +537,9 @@ def detect(force_cpu: bool = False, force_vendor: str = "") -> GpuInfo:
         ready = bool(intel_all)
         hint = "" if ready else (
             "Intel GPU found but the compute runtime is missing (no sycl-ls/xpu-smi/clinfo device). "
-            + ("Install the current Intel Graphics driver "
-               "(https://www.intel.com/content/www/us/en/download-center/home.html) and reboot. "
-               if system == "Windows" else
-               "Install intel-compute-runtime + level-zero: Debian/Ubuntu "
-               "`sudo apt install intel-opencl-icd libze-intel-gpu1 libze1` "
-               "(https://dgpu-docs.intel.com), add your user to the render group, reboot. ")
+            + "Install intel-compute-runtime + level-zero: Debian/Ubuntu "
+            "`sudo apt install intel-opencl-icd libze-intel-gpu1 libze1` "
+            "(https://dgpu-docs.intel.com), add your user to the render group, reboot. "
             + "XPU PyTorch wheels are installed anyway.")
         return GpuInfo("intel", gpus[0].name, "", "", "", cuda_path, tuple(gpus), "", "", "",
                        driver_ready=ready, hint=hint, notes=tuple(notes),
@@ -662,14 +632,13 @@ def nvcc_problem(gpu: GpuInfo) -> str:
         sm = "sm_" + str(int(max(ccs) * 10))
         return (f"nvcc {gpu.nvcc_version} cannot target Blackwell ({sm}): it needs CUDA 12.8 or newer. "
                 "Install a current toolkit (https://developer.nvidia.com/cuda-downloads"
-                + ("" if _on_windows() else "; Debian/Ubuntu apt toolkits are 11.8/12.0")
+                + "; Debian/Ubuntu apt toolkits are 11.8/12.0"
                 + f") and re-run `{_repair_cmd()}`.")
     if not cuda_archs(gpu):
         sm = "sm_" + str(int(min(ccs) * 10))
         return (f"nvcc {gpu.nvcc_version} cannot target {sm} (CUDA {ver[0]} dropped that architecture): install an "
                 "older CUDA 12.x toolkit next to it (e.g. "
-                + ("the CUDA 12.6 installer from https://developer.nvidia.com/cuda-toolkit-archive"
-                   if _on_windows() else "`cuda-toolkit-12-6`")
+                + "`cuda-toolkit-12-6`"
                 + f") and re-run `{_repair_cmd()}`.")
     return ""
 
@@ -685,13 +654,9 @@ class LlamaBackend:
 
 def llama_backends(gpu: GpuInfo) -> list[LlamaBackend]:
     """Backends in preference order for this hardware; unbuildable ones carry `missing`."""
-    win = _on_windows()
     vulkan = LlamaBackend("vulkan", ["-DGGML_VULKAN=ON"],
                           missing="" if gpu.vulkan_ready else
-                          ("Vulkan SDK missing (no glslc): `winget install KhronosGroup.VulkanSDK` or the installer from "
-                           "https://vulkan.lunarg.com/sdk/home#windows, then open a new terminal so glslc is on PATH"
-                           if win else
-                           "Vulkan toolchain missing: sudo apt install libvulkan-dev glslc (or vulkan-sdk)"))
+                          "Vulkan toolchain missing: sudo apt install libvulkan-dev glslc (or vulkan-sdk)")
     cpu = LlamaBackend("cpu")
     out: list[LlamaBackend] = []
     if gpu.vendor == "nvidia":
@@ -706,9 +671,7 @@ def llama_backends(gpu: GpuInfo) -> list[LlamaBackend]:
         else:
             miss = ("nvcc not found. Install the CUDA toolkit matching your driver "
                     f"(CUDA {gpu.cuda_max or '13.x'}): https://developer.nvidia.com/cuda-downloads "
-                    + ("(Windows: run the installer, or `winget install Nvidia.CUDA`; Visual Studio Build Tools "
-                       "with the C++ workload are required too)" if win else
-                       "(Debian/Ubuntu: `sudo apt install nvidia-cuda-toolkit` or NVIDIA's cuda-toolkit-13-x)"))
+                    "(Debian/Ubuntu: `sudo apt install nvidia-cuda-toolkit` or NVIDIA's cuda-toolkit-13-x)")
         out.append(LlamaBackend("cuda", args, env, missing=miss))
     elif gpu.vendor == "amd":
         env, miss = {}, ""
@@ -720,18 +683,12 @@ def llama_backends(gpu: GpuInfo) -> list[LlamaBackend]:
             root = str(Path(gpu.hipcc).resolve().parent.parent)
             env = {"HIPCXX": f"{root}/llvm/bin/clang", "HIP_PATH": root}
         else:
-            miss = ("hipcc not found. Install the AMD HIP SDK for Windows (installer from "
-                    "https://www.amd.com/en/developer/resources/rocm-hub/hip-sdk.html), then open a new terminal "
-                    "so hipcc is on PATH" if win else
-                    "hipcc not found. Install the ROCm HIP SDK: `sudo apt install rocm-hip-sdk` "
+            miss = ("hipcc not found. Install the ROCm HIP SDK: `sudo apt install rocm-hip-sdk` "
                     "(https://rocm.docs.amd.com/projects/install-on-linux)")
         out.append(LlamaBackend("hip", args, env, missing=miss))
     elif gpu.vendor == "intel":
         setvars = "/opt/intel/oneapi/setvars.sh"
         miss = "" if (gpu.icpx or _exists(setvars)) else (
-            "Intel oneAPI DPC++ (icpx) not found. Install the oneAPI Base Toolkit (DPC++/C++ compiler + oneMKL) "
-            "from the installer at https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit.html"
-            if win else
             "Intel oneAPI DPC++ (icpx) not found. Install intel-oneapi-compiler-dpcpp-cpp + intel-oneapi-mkl-devel "
             "(https://www.intel.com/content/www/us/en/developer/tools/oneapi/base-toolkit.html)")
         out.append(LlamaBackend(
@@ -784,11 +741,6 @@ def build_plan(gpu: GpuInfo, *, unsloth: str = "") -> Plan:
         # a tag abetlen publishes, and kernels for the GPU (sm_120 has none).
         if newest < 12:
             wheel = pick_abetlen_wheel(gpu)
-    elif gpu.vendor == "amd" and _system()[0] == "Windows":
-        # There are no ROCm PyTorch wheels for Windows: say so loudly instead of failing the install.
-        tag, idx, backend = "cpu", f"{PYTORCH_WHL}/cpu", "cpu"
-        if AMD_WINDOWS_NOTE not in warn:   # normally already carried by gpu.hint
-            warn.append(AMD_WINDOWS_NOTE)
     elif gpu.vendor == "amd":
         gfx = next((g.gfx for g in gpu.gpus if g.gfx), "")
         tag = pick_rocm_tag(gpu.rocm_version, gfx)
@@ -843,9 +795,6 @@ def linear_attn_plan(gpu: GpuInfo) -> tuple[bool, str]:
         return False, "Qwen3.5 linear-attention kernels: skipped (FTS_LINEAR_ATTN=0)."
     if gpu.vendor != "nvidia":
         return False, "Qwen3.5 linear-attention kernels: NVIDIA only; Qwen3.5 uses the slower PyTorch path here."
-    if _on_windows():
-        return False, ("Qwen3.5 linear-attention kernels: skipped on Windows (no official Triton build); "
-                       "Qwen3.5 uses the slower PyTorch path. Use Linux or WSL2 for the fast kernels.")
     newest = float(gpu.compute_cap) if gpu.compute_cap else 0.0
     if newest and newest < LINEAR_ATTN_MIN_CC:
         return False, (f"Qwen3.5 linear-attention kernels need sm_75 or newer (newest GPU here: sm_{int(newest * 10)}); "
@@ -922,7 +871,7 @@ def _has_cuda_runtime(gpu: GpuInfo, major: int) -> bool:
     if not major:
         return False
     if _system()[0] != "Linux":
-        return True   # Windows wheels are self-contained / resolve DLLs from the CUDA install
+        return True   # macOS: no CUDA runtime to look up
     rc, out = _run(["ldconfig", "-p"])
     if rc == 0 and f"libcudart.so.{major}" in out:
         return True
@@ -1040,8 +989,8 @@ def llama_py_attempts(plan: Plan, py: str, constraints: list[str]) -> list[tuple
         # CPU build would be reused and the GPU flags silently ignored (verified 2026-10-05).
         attempts.append((f"source build ({b.name})",
                          uv_pip(py, "--no-cache", *force, *constraints, "--no-binary", "llama-cpp-python", spec), env))
-    # Prebuilt CPU wheels (Windows, Linux, macOS arm64) before PyPI's sdist: a fresh Windows has no compiler, so
-    # the sdist build failed and GGUF was unavailable (VM 2026-10-22).
+    # Prebuilt CPU wheels before PyPI's sdist: a box without a compiler cannot build the sdist, and GGUF was
+    # unavailable (VM 2026-10-22).
     attempts.append(("CPU wheel", uv_pip(py, *force, *constraints, "--extra-index-url", f"{ABETLEN_WHL}/cpu",
                                          "--index-strategy", "first-index", spec), {}))
     attempts.append(("CPU build", uv_pip(py, *force, *constraints, spec), {}))
@@ -1109,61 +1058,11 @@ def _exec(cmd: list[str], env: dict[str, str] | None = None, timeout: int = 3600
 
 
 def venv_python(venv: Path) -> str:
-    win = venv / "Scripts" / "python.exe"
-    return str(win if win.exists() else venv / "bin" / "python")
-
-
-# Every Windows torch / llama.cpp wheel links the MSVC runtime. A fresh Windows 11 has none of it (python.org Python ships
-# only its own vcruntime140*.dll, not msvcp140.dll), so `import torch` died with WinError 126 on c10.dll (VM 2026-10-22).
-MSVC_RUNTIME_DLLS = ("vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll")
-VC_REDIST_URL = "https://aka.ms/vs/17/release/vc_redist.x64.exe"
-
-
-def missing_msvc_runtime() -> list[str]:
-    """MSVC runtime DLLs absent from System32 (always empty off Windows)."""
-    if not _on_windows():
-        return []
-    fx = _fixture()
-    if fx is not None and "msvc_missing" in fx:
-        return list(fx["msvc_missing"])
-    sysdir = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
-    return [d for d in MSVC_RUNTIME_DLLS if not (sysdir / d).exists()]
-
-
-def ensure_msvc_runtime(*, runner=_exec, download=None) -> bool:
-    """Install the Microsoft Visual C++ Redistributable when its DLLs are missing (Windows asks for admin approval)."""
-    missing = missing_msvc_runtime()
-    if not missing:
-        return True
-    _say(f"Microsoft Visual C++ Redistributable is missing ({', '.join(missing)}); PyTorch cannot load without it.")
-    _say(f"Installing it from {VC_REDIST_URL} (Windows may ask for administrator approval)...")
-    exe = Path(os.environ.get("TEMP") or os.environ.get("TMP") or ".") / "vc_redist.x64.exe"
-    try:
-        if download is None:
-            import urllib.request
-            with urllib.request.urlopen(VC_REDIST_URL, timeout=120) as r:
-                exe.write_bytes(r.read())
-        else:
-            download(VC_REDIST_URL, exe)
-    except OSError as exc:
-        _say(f"cannot download the redistributable: {exc}")
-    else:
-        # RunAs: the installer needs elevation, which a plain child process cannot request.
-        runner(["powershell", "-NoProfile", "-Command",
-                f"Start-Process -FilePath '{exe}' -ArgumentList '/install','/quiet','/norestart' -Verb RunAs -Wait"])
-    still = missing_msvc_runtime()
-    if still:
-        _say(f"ERROR: still missing {', '.join(still)}. Install the Visual C++ Redistributable (x64) by hand from "
-             f"{VC_REDIST_URL}, then run the installer again.")
-        return False
-    _say("Visual C++ Redistributable installed.")
-    return True
+    return str(venv / "bin" / "python")
 
 
 def install_torch(plan: Plan, venv: Path, *, unsloth_profile: bool = False, runner=_exec) -> bool:
     py = venv_python(venv)
-    if not ensure_msvc_runtime(runner=runner):
-        return False
     for tag, cmd in torch_commands(plan, py, unsloth_profile=unsloth_profile):
         _say(f"Installing PyTorch ({tag or 'default'}) for {plan.vendor}...")
         if runner(cmd) != 0:

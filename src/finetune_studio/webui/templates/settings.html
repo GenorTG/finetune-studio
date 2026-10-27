@@ -14,9 +14,8 @@
     <div class="card mb-4">
       <div class="card-head">
         <div class="card-title">Updates</div>
-        <div class="card-sub">{% if update_supported %}Self-healing pipeline: git pull → venv health → deps → migrations → restart.{% else %}Update this Windows checkout from PowerShell.{% endif %}</div>
+        <div class="card-sub">Self-healing pipeline: git pull → venv health → deps → migrations → restart.</div>
       </div>
-      {% if update_supported %}
       <div class="flex gap-2 wrap mb-3">
         <button class="btn sm" id="btn-update-check" title="Dry run: report drift + venv health, changes nothing">Check</button>
         <button class="btn sm primary" id="btn-update-apply" title="Pull main, sync deps, migrate DB, restart service (~10s downtime)">Apply update</button>
@@ -25,9 +24,6 @@
       <div id="update-status" class="text-xs dim mb-2">Idle.</div>
       <pre id="update-log" class="text-xs" hidden></pre>
       <div id="update-history" class="text-xs dim mt-2"></div>
-      {% else %}
-      <p class="text-sm">In-app updates and repair are not available on Windows. Close Finetune Studio, run <code>git pull</code> in the checkout, then run <code>install.ps1</code> and <code>run.bat</code>.</p>
-      {% endif %}
     </div>
 
     <div class="card mb-4">

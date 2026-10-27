@@ -72,6 +72,8 @@ turns that section into the release's notes.
   `POST /api/training/runs/{id}/set-output`: API-only, never used, and the quantize route needed an importance-matrix
   file nobody had. The Export page's importance-matrix option replaces it. The hidden `export_imatrix` /
   `imatrix_calibration` training fields are gone too.
+- The unmaintained Windows installer and launcher scripts (`install.bat`, `install.ps1`, `run.bat`): Linux is the
+  only supported platform. Windows support will come back as a cleanly tested installer after 1.0.
 
 ### Security
 - Saved API keys (helper, Vision reader) are now stored encrypted instead of as plain text: a copied database or

@@ -366,8 +366,8 @@ def test_llama_cpp_python_cpu_build_is_last_resort_and_flagged_on_gpu_hosts(back
 
 
 def test_cpu_host_tries_the_prebuilt_cpu_wheel_before_compiling(monkeypatch, tmp_path) -> None:
-    """A fresh Windows has no compiler: PyPI's sdist failed to build and GGUF was unavailable (VM 2026-10-22)."""
-    fake_hw(monkeypatch, tmp_path, system="Windows", machine="AMD64")
+    """A box without a compiler cannot build PyPI's sdist: GGUF was unavailable (VM 2026-10-22)."""
+    fake_hw(monkeypatch, tmp_path)
     plan = ap.build_plan(ap.detect())
     attempts = ap.llama_py_attempts(plan, "py", [])
     assert [a[0] for a in attempts] == ["CPU wheel", "CPU build"]
@@ -416,47 +416,6 @@ def test_torch_install_rejects_a_wheel_of_the_wrong_backend_and_tries_the_next(m
     assert ap.install_torch(plan, tmp_path, runner=runner) is True
     installs = [c for c in calls if "install" in c]
     assert len(installs) == 2 and installs[1][installs[1].index("--index-url") + 1].endswith("/cu130")
-
-
-def test_windows_without_the_msvc_runtime_installs_it_before_torch(monkeypatch, tmp_path, capsys) -> None:
-    """A fresh Windows lacks msvcp140.dll: `import torch` died with WinError 126 on c10.dll (VM 2026-10-22)."""
-    plan = _plan_for(monkeypatch, tmp_path, system="Windows", machine="AMD64", msvc_missing=["msvcp140.dll"])
-    calls: list[list[str]] = []
-
-    def runner(cmd, env=None, shell_prefix=""):
-        calls.append(cmd)
-        if cmd[0] == "powershell":
-            ap._FIXTURE["msvc_missing"] = []          # the redistributable installed its DLLs
-        return 0
-
-    monkeypatch.setenv("TEMP", str(tmp_path))
-    monkeypatch.setattr(ap, "ensure_msvc_runtime",           # no network: the download writes a stub installer
-                        lambda runner: _ENSURE(runner=runner, download=lambda u, p: p.write_bytes(b"x")))
-    assert ap.install_torch(plan, tmp_path, runner=runner) is True
-    assert calls[0][0] == "powershell" and "-Verb RunAs" in calls[0][-1] and "/quiet" in calls[0][-1]
-    assert any("install" in c for c in calls[1:])          # torch only after the runtime
-    assert "Visual C++ Redistributable installed" in capsys.readouterr().out
-
-
-def test_windows_runtime_install_that_fails_stops_with_the_manual_link(monkeypatch, tmp_path, capsys) -> None:
-    plan = _plan_for(monkeypatch, tmp_path, system="Windows", machine="AMD64", msvc_missing=["msvcp140.dll"])
-    calls: list[list[str]] = []
-    monkeypatch.setenv("TEMP", str(tmp_path))
-    monkeypatch.setattr(ap, "ensure_msvc_runtime",
-                        lambda runner: _ENSURE(runner=runner, download=lambda u, p: p.write_bytes(b"x")))
-    assert ap.install_torch(plan, tmp_path, runner=lambda cmd, env=None, shell_prefix="": calls.append(cmd) or 0) is False
-    assert [c[0] for c in calls] == ["powershell"]          # no torch install attempted
-    out = capsys.readouterr().out
-    assert "still missing msvcp140.dll" in out and ap.VC_REDIST_URL in out
-
-
-def test_linux_never_checks_the_msvc_runtime(monkeypatch, tmp_path) -> None:
-    _plan_for(monkeypatch, tmp_path, msvc_missing=["msvcp140.dll"])
-    assert ap.missing_msvc_runtime() == []
-    assert ap.ensure_msvc_runtime(runner=lambda *a, **k: pytest.fail("ran an installer on Linux")) is True
-
-
-_ENSURE = ap.ensure_msvc_runtime
 
 
 def test_torch_family_is_torch_and_torchvision_only_no_frozen_torchaudio() -> None:
@@ -721,19 +680,7 @@ def test_d10_macos_before_14_pins_the_last_torch_with_old_mac_wheels_and_explain
     assert any("no PyTorch wheel" in w for w in ap.build_plan(ap.detect()).warnings)
 
 
-def test_d11_windows_amd_gets_one_consistent_message_without_linux_rocm_advice(monkeypatch, tmp_path) -> None:
-    fake_hw(monkeypatch, tmp_path, system="Windows", machine="AMD64", which=["powershell"], commands={
-        'powershell -NoProfile -Command (Get-CimInstance Win32_VideoController).Name -join "`n"':
-        "AMD Radeon RX 7900 XTX\n"})
-    plan = ap.build_plan(ap.detect())
-    assert plan.torch_tag == "cpu"
-    text = "\n".join(plan.warnings)
-    assert "WSL2" in text and "Vulkan" in text
-    assert "wheels are installed anyway" not in text and "apt install" not in text
-    assert sum("Linux-only" in w for w in plan.warnings) == 1
-
-
-# ── OS-aware "missing toolchain" hints (Windows must never be told to apt install) ──
+# ── "missing toolchain" hints ──
 
 def _missing(gpu: ap.GpuInfo) -> dict[str, str]:
     return {b.name: b.missing for b in ap.llama_backends(gpu)}
@@ -741,22 +688,6 @@ def _missing(gpu: ap.GpuInfo) -> dict[str, str]:
 
 def _bare_gpu(vendor: str, **kw: object) -> ap.GpuInfo:
     return ap.GpuInfo(vendor, "x", "", "", "", "", gpus=(ap.Gpu(vendor, "x", index=0),), **kw)
-
-
-@pytest.mark.parametrize("vendor,backend,needle", [
-    ("amd", "hip", "HIP SDK for Windows"),
-    ("amd", "vulkan", "KhronosGroup.VulkanSDK"),
-    ("nvidia", "cuda", "Nvidia.CUDA"),
-    ("nvidia", "vulkan", "vulkan.lunarg.com"),
-    ("intel", "sycl", "oneAPI Base Toolkit"),
-    ("intel", "vulkan", "vulkan.lunarg.com"),
-])
-def test_windows_missing_backend_hints_use_installers_not_apt(monkeypatch, vendor, backend, needle) -> None:
-    monkeypatch.setattr(ap, "_system", lambda: ("Windows", "AMD64"))
-    monkeypatch.setattr(ap, "_exists", lambda path: False)
-    miss = _missing(_bare_gpu(vendor))[backend]
-    assert needle in miss
-    assert "apt" not in miss and "sudo" not in miss
 
 
 @pytest.mark.parametrize("vendor,backend,needle", [
@@ -769,30 +700,6 @@ def test_linux_missing_backend_hints_keep_the_apt_advice(monkeypatch, vendor, ba
     monkeypatch.setattr(ap, "_system", lambda: ("Linux", "x86_64"))
     monkeypatch.setattr(ap, "_exists", lambda path: False)
     assert needle in _missing(_bare_gpu(vendor))[backend]
-
-
-def test_windows_nvidia_without_driver_and_nvcc_problems_are_windows_worded(monkeypatch, tmp_path) -> None:
-    fake_hw(monkeypatch, tmp_path, system="Windows", machine="AMD64", which=["powershell"], commands={
-        'powershell -NoProfile -Command (Get-CimInstance Win32_VideoController).Name -join "`n"':
-        "NVIDIA GeForce RTX 3090\n"})
-    gpu = ap.detect()
-    assert gpu.vendor == "nvidia" and not gpu.driver_ready
-    assert "nvidia.com/Download" in gpu.hint and "install.bat --repair" in gpu.hint
-    assert "apt" not in gpu.hint and "dnf" not in gpu.hint
-    old = ap.GpuInfo("nvidia", "x", "", "", "", "", gpus=(ap.Gpu("nvidia", "x", "12.0", index=0),),
-                     nvcc="C:/cuda/bin/nvcc.exe", nvcc_version="12.4")
-    text = ap.nvcc_problem(old)
-    assert "Blackwell" in text and "install.bat --repair" in text
-    assert "Debian" not in text and "bash install.sh" not in text
-
-
-def test_windows_intel_without_runtime_points_at_the_graphics_driver(monkeypatch, tmp_path) -> None:
-    fake_hw(monkeypatch, tmp_path, system="Windows", machine="AMD64", which=["powershell"], commands={
-        'powershell -NoProfile -Command (Get-CimInstance Win32_VideoController).Name -join "`n"':
-        "Intel(R) Arc(TM) A770 Graphics\n"})
-    gpu = ap.detect()
-    assert gpu.vendor == "intel" and not gpu.driver_ready
-    assert "Graphics driver" in gpu.hint and "apt" not in gpu.hint
 
 
 # ── Qwen3.5 linear-attention kernels (optional) ──────────────────────────
