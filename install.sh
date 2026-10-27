@@ -41,8 +41,6 @@ set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
 
 PYTHON_VERSION="${PYTHON_VERSION:-}"
-USE_CONDA="${USE_CONDA:-0}"
-CONDA_ENV="${CONDA_ENV:-chris-ai}"
 VENV_DIR="${VENV_DIR:-.venv}"
 # llama.cpp lives inside the project, NOT in $HOME. Boxed-in so the install
 # is reproducible and self-contained — nothing references external paths.
@@ -280,31 +278,14 @@ fi
 log "uv: $(uv --version)"
 
 # ── Create venv ──
-if [ "$USE_CONDA" = "1" ]; then
-    CONDA_BASE=""
-    for cb in "$HOME/miniconda3" "$HOME/anaconda3" "/opt/conda" "/usr/local/miniconda3"; do
-        [ -x "$cb/bin/conda" ] && CONDA_BASE="$cb" && break
-    done
-    [ -n "$CONDA_BASE" ] || die "conda not found."
-    # shellcheck disable=SC1090
-    source "$CONDA_BASE/etc/profile.d/conda.sh"
-    if ! conda env list | awk '{print $1}' | grep -qx "$CONDA_ENV"; then
-        log "Creating conda env '$CONDA_ENV'..."
-        conda create -n "$CONDA_ENV" "python=${PYTHON_VER}" -y
-    fi
-    conda activate "$CONDA_ENV"
-    PYTHON_CMD="$(command -v python)"
-    ACTIVATE_HINT="conda activate $CONDA_ENV"
-else
-    if [ ! -d "$VENV_DIR" ]; then
-        log "Creating venv at $VENV_DIR..."
-        "$PYTHON_CMD" -m venv "$VENV_DIR" || uv venv "$VENV_DIR" --python "$PYTHON_CMD"
-    fi
-    PYTHON_CMD="$PWD/$VENV_DIR/bin/python"
-    [ -x "$PYTHON_CMD" ] || die "venv broken: $PYTHON_CMD not executable"
-    ACTIVATE_HINT="source $VENV_DIR/bin/activate"
-    if [ -n "$FORCED_VENDOR" ]; then echo "$FORCED_VENDOR" > "$VENDOR_FILE"; fi
+if [ ! -d "$VENV_DIR" ]; then
+    log "Creating venv at $VENV_DIR..."
+    "$PYTHON_CMD" -m venv "$VENV_DIR" || uv venv "$VENV_DIR" --python "$PYTHON_CMD"
 fi
+PYTHON_CMD="$PWD/$VENV_DIR/bin/python"
+[ -x "$PYTHON_CMD" ] || die "venv broken: $PYTHON_CMD not executable"
+ACTIVATE_HINT="source $VENV_DIR/bin/activate"
+if [ -n "$FORCED_VENDOR" ]; then echo "$FORCED_VENDOR" > "$VENDOR_FILE"; fi
 log "venv python: $PYTHON_CMD"
 
 # ── pip helper: uv-created venvs have NO pip module (2026-09-25: the dev box
@@ -483,10 +464,7 @@ log "✓ Install complete."
 echo ""
 echo "Activate:"
 echo "  bash/zsh:  $ACTIVATE_HINT"
-case "$ACTIVATE_HINT" in
-    *"conda activate"*) echo "  fish:      conda activate $CONDA_ENV" ;;
-    *"source "*)        echo "  fish:      source $VENV_DIR/bin/activate.fish" ;;
-esac
+echo "  fish:      source $VENV_DIR/bin/activate.fish"
 echo ""
 echo "Run:           $PYTHON_CMD -m finetune_studio --help"
 echo "WebUI:         bash run.sh            ($WEB_URL)"
