@@ -4,8 +4,8 @@
 # Default:
 #   1. Detects the accelerator (NVIDIA CUDA / AMD ROCm / Intel XPU / Apple Metal;
 #      CPU only when NO GPU of any vendor is found). Detection + every wheel/index/
-#      CMake choice lives in scripts/accel_plan.py (shared with update.sh and the
-#      Windows installers) -- never hard-code a CUDA/ROCm tag here.
+#      CMake choice lives in scripts/accel_plan.py (shared with update.sh)
+#      -- never hard-code a CUDA/ROCm tag here.
 #   2. Python 3.12+ required
 #   3. Creates .venv + installs the newest PyTorch the driver/GPU supports
 #   4. Installs llama-cpp-python with GPU offload (prebuilt wheel, else source
@@ -127,8 +127,7 @@ fi
 log "OS: $DISTRO_ID ($(uname -srm))"
 
 # ── GPU detection (delegated to scripts/accel_plan.py) ──
-# One implementation for install.sh / update.sh / install.ps1 / install.bat /
-# install_diagnose.py --repair: it probes nvidia-smi, rocm-smi/rocminfo//opt/rocm,
+# One implementation for install.sh / update.sh / install_diagnose.py --repair: it probes nvidia-smi, rocm-smi/rocminfo//opt/rocm,
 # xpu-smi/sycl-ls/clinfo, sysfs PCI and lspci, so a GPU with a missing driver
 # still gets GPU wheels plus an actionable hint instead of a silent CPU install.
 # A forced accelerator (--cpu / --gpu / FTS_FORCE_VENDOR) is this install's choice. It is kept in the venv so a
