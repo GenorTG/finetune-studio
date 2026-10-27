@@ -14,7 +14,7 @@ class TestChatTools:
     def test_readiness_includes_verbatim_count_summary(self, monkeypatch):
         from finetune_studio import db
         from finetune_studio.data.fs import qa as qa_fs
-        from finetune_studio.webui.routes.data_prep_chat import _run_tool
+        from tests._guide_tool import run_tool as _run_tool
 
         monkeypatch.setattr(db, "get_project", lambda _pid: {"name": "Example"})
         from types import SimpleNamespace
@@ -49,7 +49,7 @@ class TestChatTools:
         from finetune_studio.data.fs import paths as paths_mod
         monkeypatch.setattr(paths_mod, "project_dir", lambda pid: tmp_path / pid)
 
-        from finetune_studio.webui.routes.data_prep_chat import _run_tool
+        from tests._guide_tool import run_tool as _run_tool
         result = _run_tool("test-project", "list_sources", {})
         assert "sources" in result
         assert result["sources"] == []
@@ -59,14 +59,14 @@ class TestChatTools:
         from finetune_studio.data.fs import paths as paths_mod
         monkeypatch.setattr(paths_mod, "project_dir", lambda pid: tmp_path / pid)
 
-        from finetune_studio.webui.routes.data_prep_chat import _run_tool
+        from tests._guide_tool import run_tool as _run_tool
         result = _run_tool("test-project", "read_source", {"source_id": "missing"})
         assert "error" in result
 
     def test_read_source_returns_the_parsed_text(self):
         """Regression (2026-09-10 E2E: every upload returned text=''): read_source reads the source's parse."""
         from finetune_studio import db
-        from finetune_studio.webui.routes.data_prep_chat import _run_tool
+        from tests._guide_tool import run_tool as _run_tool
         from tests.knowledge_helpers import add_source
 
         pid = db.create_project(name="chat-read", description="")["id"]
@@ -83,7 +83,7 @@ class TestChatTools:
 
         pid = db.create_project(name="chat-write", description="")["id"]
         sid = add_source(pid, "code.md", "The project code is OCTOPUS-7741, dated 2026-09-10.").id
-        from finetune_studio.webui.routes.data_prep_chat import _run_tool
+        from tests._guide_tool import run_tool as _run_tool
         result = _run_tool(
             pid,
             "create_qa_pairs",
@@ -116,7 +116,7 @@ class TestChatTools:
         from finetune_studio.data.fs import paths as paths_mod
         monkeypatch.setattr(paths_mod, "project_dir", lambda pid: tmp_path / pid)
 
-        from finetune_studio.webui.routes.data_prep_chat import _run_tool
+        from tests._guide_tool import run_tool as _run_tool
         result = _run_tool("test-project", "create_qa_pairs",
                            {"source_id": "src-1", "pairs": []})
         assert "error" in result
@@ -126,7 +126,7 @@ class TestChatTools:
         from finetune_studio.data.fs import paths as paths_mod
         monkeypatch.setattr(paths_mod, "project_dir", lambda pid: tmp_path / pid)
 
-        from finetune_studio.webui.routes.data_prep_chat import _run_tool
+        from tests._guide_tool import run_tool as _run_tool
         result = _run_tool("test-project", "no_such_tool", {})
         assert "unknown tool" in result["error"]
 
@@ -138,8 +138,8 @@ class TestToolCallParser:
     """The regex that extracts <tool_call>{...}</tool_call> blocks."""
 
     def test_readiness_reply_uses_server_summary_not_model_paraphrase(self):
-        from finetune_studio.webui.routes.data_prep_chat import (
-            _authoritative_readiness_reply,
+        from finetune_studio.guide.loop import (
+            authoritative_readiness_reply as _authoritative_readiness_reply,
         )
 
         summary = "2 source(s), 2 parsed; 3 approved, 3 pending. Next: Review pending Q&A pairs."
@@ -153,7 +153,9 @@ class TestToolCallParser:
         ) == "A combined answer."
 
     def test_extracts_single_call(self):
-        from finetune_studio.webui.routes.data_prep_chat import _extract_tool_calls
+        from finetune_studio.guide.toolcalls import (
+            extract_tool_calls as _extract_tool_calls,
+        )
         text = 'I will check.\n<tool_call>{"name":"list_sources","arguments":{}}</tool_call>\nDone.'
         calls = _extract_tool_calls(text)
         assert len(calls) == 1
@@ -161,7 +163,9 @@ class TestToolCallParser:
         assert calls[0]["arguments"] == {}
 
     def test_extracts_multiple_calls(self):
-        from finetune_studio.webui.routes.data_prep_chat import _extract_tool_calls
+        from finetune_studio.guide.toolcalls import (
+            extract_tool_calls as _extract_tool_calls,
+        )
         text = (
             '<tool_call>{"name":"list_sources","arguments":{}}</tool_call>\n'
             '<tool_call>{"name":"read_source","arguments":{"source_id":"src-1"}}</tool_call>'
@@ -173,12 +177,16 @@ class TestToolCallParser:
         assert calls[1]["arguments"]["source_id"] == "src-1"
 
     def test_no_calls_returns_empty(self):
-        from finetune_studio.webui.routes.data_prep_chat import _extract_tool_calls
+        from finetune_studio.guide.toolcalls import (
+            extract_tool_calls as _extract_tool_calls,
+        )
         text = "Just a normal response with no tool calls."
         assert _extract_tool_calls(text) == []
 
     def test_malformed_json_skipped(self):
-        from finetune_studio.webui.routes.data_prep_chat import _extract_tool_calls
+        from finetune_studio.guide.toolcalls import (
+            extract_tool_calls as _extract_tool_calls,
+        )
         text = '<tool_call>{not valid json}</tool_call>\n<tool_call>{"name":"list_sources","arguments":{}}</tool_call>'
         calls = _extract_tool_calls(text)
         assert len(calls) == 1
@@ -190,7 +198,7 @@ class TestToolCallParser:
 
 class TestMessagesToPrompt:
     def test_splits_system_from_rest(self):
-        from finetune_studio.webui.routes.data_prep_chat import _messages_to_prompt
+        from finetune_studio.webui.chat_backend import _messages_to_prompt
         msgs = [
             {"role": "system", "content": "You are helpful."},
             {"role": "user", "content": "hi"},
@@ -206,95 +214,34 @@ class TestMessagesToPrompt:
         ]
 
     def test_no_system(self):
-        from finetune_studio.webui.routes.data_prep_chat import _messages_to_prompt
+        from finetune_studio.webui.chat_backend import _messages_to_prompt
         msgs = [{"role": "user", "content": "hi"}]
         sys, rendered = _messages_to_prompt(msgs)
         assert sys == ""
         assert rendered == msgs
 
 
-# ── Route-level smoke (via FastAPI TestClient) ──────────────────────────
+# ── Backend resolution ──────────────────────────────────────────────
 
 
-class TestChatRouteSmoke:
-    """FTS_SKIP_CHAT=1 short-circuits the actual model call with a canned
-    response so we can exercise the full HTTP flow without GPU/keys."""
+def test_missing_backend_is_a_409_with_the_helper_message(monkeypatch):
+    """No provider_id / external_api and nothing loaded → 409, never another model."""
+    import asyncio
+    import json
+    from unittest.mock import MagicMock
 
-    def test_missing_messages_returns_error(self, client, monkeypatch):
-        monkeypatch.setenv("FTS_SKIP_CHAT", "1")
-        r = client.post("/api/projects/test/data-prep/chat", json={})
-        assert r.status_code == 400
-        assert r.json()["detail"] == "messages required"
+    from finetune_studio.data.prep.generator import HELPER_NO_MODEL_MSG
+    from finetune_studio.webui.chat_backend import resolve_chat_backend
 
-    def test_missing_backend_returns_409(self, client, monkeypatch):
-        """No provider_id / external_api and nothing loaded → 409."""
-        from unittest.mock import MagicMock
-
-        from finetune_studio.data.prep.generator import HELPER_NO_MODEL_MSG
-
-        mgr = MagicMock()
-        mgr.active.return_value = None
-        eng = MagicMock()
-        eng.model = None
-        monkeypatch.setattr(
-            "finetune_studio.models.manager.get_manager",
-            lambda: mgr,
-        )
-        monkeypatch.setattr(
-            "finetune_studio.webui.app.inference_engine",
-            eng,
-        )
-        r = client.post(
-            "/api/projects/test/data-prep/chat",
-            json={"messages": [{"role": "user", "content": "hi"}]},
-        )
-        assert r.status_code == 409
-        body = r.json()
-        assert body.get("detail") == HELPER_NO_MODEL_MSG
-
-    def test_external_api_skips_to_canned_reply(self, client, monkeypatch):
-        """With FTS_SKIP_CHAT=1, external_api still goes through the loop
-        but the canned reply has no tool calls, so we get a single round."""
-        monkeypatch.setenv("FTS_SKIP_CHAT", "1")
-        r = client.post(
-            "/api/projects/test/data-prep/chat",
-            json={
-                "messages": [{"role": "user", "content": "hi"}],
-                "external_api": {
-                    "base_url": "http://stub",
-                    "api_key": "test",
-                    "model_id": "stub-model",
-                },
-            },
-        )
-        assert r.status_code in (200, 502)  # 502 = upstream chat call failed (honest error)
-        body = r.json()
-        assert "ok" in body or "detail" in body  # may fail because project doesn't exist
-
-    def test_tools_catalog_endpoint(self, client):
-        """The catalog is a static listing, but the route is still scoped to a
-        project, so it needs one that exists (it used to probe the literal pid
-        'test' and only answered 200 because nothing validated the project).
-        """
-        from finetune_studio import db
-
-        project = db.create_project(name="chat-tools-catalog-probe")
-        try:
-            pid = project["id"] if isinstance(project, dict) else project
-            r = client.get(f"/api/projects/{pid}/data-prep/chat/tools")
-            assert r.status_code == 200
-            body = r.json()
-            tool_names = {t["name"] for t in body["tools"]}
-            assert {"list_sources", "read_source", "list_qa_pairs", "create_qa_pairs"} <= tool_names
-        finally:
-            db.delete_project(pid)
-
-    def test_tools_catalog_endpoint_404s_for_a_missing_project(self, client):
-        """Regression: a bad pid must be a 404, not a 200 with a catalog."""
-        r = client.get("/api/projects/test/data-prep/chat/tools")
-        assert r.status_code == 404, (
-            f"missing project answered {r.status_code}; body={r.text[:200]}"
-        )
+    mgr = MagicMock()
+    mgr.active.return_value = None
+    eng = MagicMock()
+    eng.model = None
+    monkeypatch.setattr("finetune_studio.models.manager.get_manager", lambda: mgr)
+    monkeypatch.setattr("finetune_studio.webui.app.inference_engine", eng)
+    backend, error = asyncio.run(resolve_chat_backend(None, None))
+    assert backend is None and error is not None and error.status_code == 409
+    assert json.loads(error.body)["detail"] == HELPER_NO_MODEL_MSG
 
 
 # ── InferenceEngine.unload cleanup ──────────────────────────────────────

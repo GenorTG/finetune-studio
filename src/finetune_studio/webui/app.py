@@ -305,8 +305,6 @@ def _activity_summary(path: str, method: str, http_status: int = 200, error_deta
             return "Exclude a data point"
         if "/mining/" in path and path.endswith("/reset"):
             return "Reset a mined file"
-        if "/data-prep/chat" in path:
-            return "Agent mining question"
         if "/data-prep/qa/bulk" in path:
             return "Bulk-approve/reject Q&A"
         if "/data-prep/export" in path:
@@ -438,7 +436,6 @@ from finetune_studio.webui.routes import (
     comparison,
     data_editor,
     data_prep,
-    data_prep_chat,
     data_prep_preference,
     data_prep_study,
     guide_chat,
@@ -467,7 +464,6 @@ app.include_router(benchmarks.router, prefix="/api/benchmarks", tags=["benchmark
 app.include_router(data_editor.router, prefix="/api/data-editor", tags=["data-editor"])  # type: ignore[has-type]
 app.include_router(chat_v2.router, prefix="/api/chat-v2", tags=["chat-v2"])  # type: ignore[has-type]
 app.include_router(data_prep.router, prefix="/api", tags=["data-prep"])  # type: ignore[has-type]  # /api/projects/{pid}/data-prep/*
-app.include_router(data_prep_chat.router, prefix="/api", tags=["data-prep-chat"])  # type: ignore[has-type]  # /api/projects/{pid}/data-prep/chat*
 app.include_router(mining.router, tags=["mining"])  # type: ignore[has-type]  # /api/projects/{pid}/mining/*
 app.include_router(data_prep_preference.router, prefix="/api", tags=["data-prep-preference"])  # type: ignore[has-type]  # /api/projects/{pid}/data-prep/preference*
 app.include_router(data_prep_study.router, prefix="/api", tags=["data-prep-study"])  # type: ignore[has-type]  # /api/projects/{pid}/data-prep/study*

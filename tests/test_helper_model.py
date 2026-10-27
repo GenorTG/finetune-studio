@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
+import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -20,6 +23,19 @@ from finetune_studio.models.helper import (
     no_helper_message,
     wrong_model_message,
 )
+
+
+def _chat_once() -> SimpleNamespace:
+    """What the Guide's backend resolution answers for one turn with no explicit provider (status, reply/detail)."""
+    from finetune_studio.webui.chat_backend import make_chat_fn, resolve_chat_backend
+
+    backend, error = asyncio.run(resolve_chat_backend(None, None))
+    if error is not None:
+        body = json.loads(error.body)
+        return SimpleNamespace(status_code=error.status_code, text=str(body), json=lambda: body)
+    reply = make_chat_fn(backend, {})([{"role": "user", "content": "hi"}])
+    return SimpleNamespace(status_code=200, text=reply, json=lambda: {"reply": reply})
+
 
 
 def test_helper_constants_and_label() -> None:
@@ -184,7 +200,7 @@ def test_omitted_provider_id_409_when_non_helper_loaded(
     monkeypatch.setattr("finetune_studio.data.fs.paths._ROOT", root)
     monkeypatch.setattr("finetune_studio.data.fs.paths._PROJECTS", projects)
 
-    pid = client.post("/api/projects", json={"name": "No Silent Fallback"}).json()["id"]
+    client.post("/api/projects", json={"name": "No Silent Fallback"})
     mgr = MagicMock()
     mgr.active.return_value = {
         "id": "other",
@@ -205,10 +221,7 @@ def test_omitted_provider_id_409_when_non_helper_loaded(
         eng,
     )
 
-    r = client.post(
-        f"/api/projects/{pid}/data-prep/chat",
-        json={"messages": [{"role": "user", "content": "hi"}]},
-    )
+    r = _chat_once()
     assert r.status_code == 409, r.text
     err = r.json().get("detail") or ""
     assert "helper" in err.lower()

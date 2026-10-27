@@ -23,7 +23,6 @@ CASES = [
     # Existing kinds.
     ("/api/projects/fbcf7083/files/upload", "upload"),
     ("/api/projects/fbcf7083/data-prep/sources", "upload"),
-    ("/api/projects/fbcf7083/data-prep/chat", "data_prep"),
     ("/api/testing/run-suite", "testing"),
     ("/api/testing/run-brain-suite", "testing"),
     ("/api/benchmarks/projects/fbcf7083/runs/abc/run", "benchmark"),

@@ -156,7 +156,7 @@ def sse_events(response: Any) -> list[dict]:
 def scripted(monkeypatch: pytest.MonkeyPatch) -> Callable[..., Script]:
     def install(*replies: str | Callable[[list[dict]], str]) -> Script:
         script = Script(*replies)
-        monkeypatch.setattr("finetune_studio.webui.routes.data_prep_chat._chat_external", lambda backend, msgs, gen=None: script(msgs))
+        monkeypatch.setattr("finetune_studio.webui.chat_backend._chat_external", lambda backend, msgs, gen=None: script(msgs))
         return script
 
     return install
@@ -217,42 +217,22 @@ def test_sse_route_without_a_usable_assistant_is_a_clear_error_never_a_silent_sw
     assert not any(e["type"] == "final" for e in events)
 
 
-def test_kb_endpoints(client) -> None:
-    toc = client.get("/api/guide/kb").json()["entries"]
-    assert any(e["id"] == "training" for e in toc)
-    entry = client.get("/api/guide/kb/training").json()
-    assert entry["page"].endswith("/training") and "Workflow" in entry["sections"]
-    assert client.get("/api/guide/kb/nope").status_code == 404
-    hits = client.get("/api/guide/help", params={"q": "which gguf quant"}).json()["results"]
-    assert hits[0]["entry"] == "export"
-    assert client.get("/api/guide/help", params={"q": " "}).status_code == 400
+def test_kb_lookup_and_search() -> None:
+    from finetune_studio.guide.kb import load_kb, table_of_contents
+    from finetune_studio.guide.search import search_kb
 
-
-def test_legacy_json_route_also_ends_with_a_message_at_the_round_limit(client, scripted) -> None:
-    """The route the old UI used: 6 tool rounds used to end with an empty reply."""
-    from finetune_studio import db
-
-    project = db.create_project(name="Legacy JSON")
-    pid = project["id"] if isinstance(project, dict) else project
-    n = {"i": 0}
-
-    def tool(_m: list[dict]) -> str:
-        n["i"] += 1
-        return call("list_sources") if n["i"] % 2 else call("app_help", query=f"q{n['i']}")
-
-    scripted(*([tool] * 6), "Wrapped up.")
-    body = client.post(f"/api/projects/{pid}/data-prep/chat", json={
-        "messages": [{"role": "user", "content": "go"}], "external_api": EXTERNAL, "max_rounds": 6,
-    }).json()
-    assert body["ok"] and body["reply"] == "Wrapped up." and body["forced_final"] is True
-    assert len(body["tool_calls"]) == 6
+    assert any(e["id"] == "training" for e in table_of_contents())
+    entry = load_kb()["training"]
+    assert entry.route.endswith("/training") and "Workflow" in entry.sections
+    assert "nope" not in load_kb()
+    assert search_kb("which gguf quant")[0]["entry"] == "export"
 
 
 def test_local_helper_failure_surfaces_as_an_error_not_an_empty_reply() -> None:
     """A dead helper used to be swallowed into '' (then 'no answer'); the guide must say why."""
     from unittest.mock import MagicMock
 
-    from finetune_studio.webui.routes.data_prep_chat import make_chat_fn
+    from finetune_studio.webui.chat_backend import make_chat_fn
 
     mgr = MagicMock()
     mgr.chat.side_effect = RuntimeError("500 Server Error: helper down")

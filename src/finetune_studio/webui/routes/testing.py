@@ -29,7 +29,6 @@ from finetune_studio.testing.scoring import rescore_benchmark
 from finetune_studio.testing.suite import load_test_suite
 from finetune_studio.webui import testing_jobs
 from finetune_studio.webui.app import inference_engine
-from finetune_studio.webui.engine_guard import ENGINE_LOCK
 from finetune_studio.webui.live_sse import sse_comment, sse_data, sse_response
 from finetune_studio.webui.testing_models import (
     resolve_latest_merged_model,
@@ -56,36 +55,6 @@ def _resolve_merged_model(pid: str) -> str | None:
 
 
 # ── Engine load / status (unchanged) ─────────────────────────────────────────
-
-
-@router.post("/load")
-async def load_model(request: Request):
-    """Load a model into the global inference engine.
-
-    Accepts ``{"model_path": "..."}`` or ``{"path": "..."}`` (same keys as
-    ``/api/models/load`` / chat-v2) so UI callers don't get ``No model_path``.
-    """
-    body = await _json_object(request)
-    model_path = body.get("model_path") or body.get("path") or ""
-    if not model_path:
-        return JSONResponse({"detail": "No model_path"}, status_code=400)
-    try:
-        from finetune_studio.models.llama_loader import resolve_loader_overrides
-        kwargs = resolve_loader_overrides(body, caller="testing/load", model_path=model_path)
-        if "max_seq_length" in body:
-            kwargs["max_seq_length"] = int(body["max_seq_length"])
-        if "load_in_4bit" in body:
-            kwargs["load_in_4bit"] = bool(body["load_in_4bit"])
-        # Free whatever ModelManager (data-prep's helper, /api/providers/*)
-        # has resident before loading into inference_engine — otherwise both
-        # sit in VRAM simultaneously until someone happens to click Unload.
-        from finetune_studio.models.manager import get_manager
-        await asyncio.to_thread(get_manager().unload)
-        async with ENGINE_LOCK:
-            await asyncio.to_thread(inference_engine.load, model_path, **kwargs)
-        return {"status": "loaded", "model": model_path}
-    except Exception as e:  # noqa: BLE001
-        return JSONResponse({"detail": str(e)}, status_code=500)
 
 
 def _job_progress() -> list[dict[str, Any]]:

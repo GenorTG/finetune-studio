@@ -1,23 +1,9 @@
-"""Data Prep Chat — server-side tool-calling chat inside the Data Prep page.
+"""Chat backends for the Guide: pick the model a chat turn runs on and make one blocking call to it.
 
-Lets the user drive training-data preparation through natural language. The
-chat can use tools to inspect parsed sources, read their content, list
-existing Q&A pairs, and create new ones. Works with both local models
-(via the ModelManager provider system) and external OpenAI-compatible
-APIs (base_url + api_key passed per request).
-
-Tool calling strategy:
-- External API (OpenAI-compatible): native `tools` parameter, the API
-  returns structured `tool_calls`. Standard, works everywhere.
-- Local model (ModelManager): the system prompt instructs the model to
-  emit `<tool_call>{"name":"...","arguments":{...}}</tool_call>` blocks.
-  We parse that text out of the completion. Works with any chat model
-  regardless of native tool-call support.
-
-The endpoint runs a server-side tool-calling loop (max 6 rounds) so the
-model can chain: list_sources -> read_source -> create_qa_pairs.
-
-CORS: not needed, same-origin.
+``resolve_chat_backend`` chooses an explicit ModelManager provider, an OpenAI-compatible API, or the job's
+configured assistant connection (never a silent switch to another loaded model); ``make_chat_fn`` turns that
+choice into a ``messages -> reply`` function the Guide loop (``finetune_studio.guide.loop``) calls each round.
+External APIs get the native ``tools`` parameter; local models are prompted to emit ``<tool_call>`` blocks.
 """
 from __future__ import annotations
 
@@ -27,38 +13,12 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from finetune_studio.data.fs.paths import project_dir
-from finetune_studio.guide import toolcalls
-from finetune_studio.guide import tools as guide_tools
-from finetune_studio.guide.loop import authoritative_readiness_reply, run_guide_loop
-from finetune_studio.guide.prompt import build_system_prompt
-from finetune_studio.guide.tools import ToolContext
+from finetune_studio.guide.tools import TOOLS_CATALOG
 
 log = logging.getLogger(__name__)
-router = APIRouter()
-
-# Tool catalog, system prompt, tool dispatch and the loop live in ``finetune_studio.guide``
-# (one definition for this route, the SSE route and the Guide panel). The names below stay
-# importable for existing callers and tests.
-TOOLS_CATALOG = guide_tools.TOOLS_CATALOG
-SYSTEM_PROMPT = build_system_prompt(ToolContext())
 MAX_TOOL_ROUNDS = 8
-_strip_thinking = toolcalls.strip_thinking
-_extract_tool_calls = toolcalls.extract_tool_calls
-_strip_thinking_reply = toolcalls.strip_thinking_reply
-_looks_truncated = toolcalls.looks_truncated
-_TRUNCATION_MSG = toolcalls.TRUNCATION_MSG
-_authoritative_readiness_reply = authoritative_readiness_reply
-
-
-def _run_tool(pid: str, name: str, args: dict) -> dict:
-    """Run one guide tool for project ``pid`` (kept for existing callers; UI events are dropped)."""
-    result = guide_tools.run_tool(ToolContext(pid=pid), name, args)
-    result.pop("ui_event", None)
-    return result
 
 
 def _messages_to_prompt(messages: list[dict]) -> tuple[str, list[dict]]:
@@ -140,10 +100,8 @@ async def resolve_chat_backend(
             return None, JSONResponse({"detail": "external_api.base_url and model_id required"}, status_code=400)
     elif provider_id:
         # Explicit provider_id — only path that may call manager.load().
-        # Lazy imports: data_prep_chat.py is imported by app.py during
-        # router registration, so importing `inference_engine` (which is
-        # created at app.py module import time) at the top of this file
-        # would create a partial-module cycle. Import inside the handler.
+        # Lazy import: `inference_engine` is created when app.py is imported, and app.py imports the
+        # routes that import this module; a top-level import would hit a partial module.
         from finetune_studio.models.manager import get_manager
         from finetune_studio.webui.app import inference_engine
 
@@ -243,75 +201,6 @@ def make_chat_fn(backend: dict, gen: dict) -> Callable[[list[dict]], str]:
         return lambda msgs: _chat_global_engine(backend, msgs, gen)
     # raise_errors: a dead helper must surface as an error, not as an empty reply
     return lambda msgs: _chat_local(backend, msgs, gen, raise_errors=True)
-
-
-@router.post("/projects/{pid}/data-prep/chat")
-async def data_prep_chat(pid: str, request: Request):
-    """Server-side chat with tool calling (JSON response; the Guide panel uses ``/api/guide/chat`` SSE).
-
-    Body:
-      messages: list[dict]  — OpenAI-style [{role, content}, ...]
-      provider_id: str      — optional; when set, load/use that ModelManager provider
-                              (mutually exclusive with external_api). When omitted the
-                              configured helper must be loaded; never auto-switches models.
-      external_api: dict    — {base_url, api_key, model_id, name?} for OpenAI-compatible endpoints
-      max_rounds: int       — cap tool-call loop iterations (default 8, max 12)
-      gen: dict / top-level — temperature, max_tokens, top_p, top_k, repeat_penalty
-
-    Returns:
-      {ok, reply, tool_calls, rounds, backend[, ui_events, forced_final]}
-    """
-    body = await request.json()
-    if not isinstance(body, dict):
-        return JSONResponse({"detail": "JSON object body required"}, status_code=400)
-    messages: list[dict] = body.get("messages") or []
-    if not messages or not isinstance(messages, list):
-        return JSONResponse({"detail": "messages required"}, status_code=400)
-    provider_id: str | None = body.get("provider_id")
-    external: dict | None = body.get("external_api")
-    if external is not None and not isinstance(external, dict):
-        return JSONResponse({"detail": "external_api must be an object"}, status_code=400)
-    try:
-        max_rounds = max(1, min(int(body.get("max_rounds") or MAX_TOOL_ROUNDS), 12))
-    except (TypeError, ValueError):
-        return JSONResponse({"detail": "max_rounds must be an integer"}, status_code=400)
-    gen = parse_gen(body)
-
-    # Validate the backend before touching the filesystem so a missing project doesn't mask a
-    # backend-config error (and vice versa).
-    backend, error = await resolve_chat_backend(provider_id, external)
-    if error is not None or backend is None:
-        return error
-    if not project_dir(pid).exists():
-        return JSONResponse({"detail": f"project {pid} not found"}, status_code=404)
-
-    from finetune_studio import db
-    project = db.get_project(pid) or {}
-    ctx = ToolContext(pid=pid, page="chat")
-    chat_fn = make_chat_fn(backend, gen)
-    events = await asyncio.to_thread(lambda: list(run_guide_loop(
-        ctx, messages, chat_fn, max_rounds=max_rounds, project_name=project.get("name"),
-        max_tokens=gen.get("max_tokens", 4096),
-    )))
-    tool_calls = [{k: ev[k] for k in ("name", "arguments", "result")} for ev in events if ev["type"] == "tool_result"]
-    backend_name = "external" if backend["kind"] == "external" else "provider"
-    last = events[-1]
-    if last["type"] == "error":
-        if last.get("truncated"):
-            # A partial answer, not a failure: the agent used every round; the user sees what it did so far.
-            return {"ok": True, "complete": False, "reply": last["error"], "tool_calls": tool_calls,
-                    "rounds": last["rounds"], "backend": backend_name}
-        return JSONResponse({"detail": last["error"]}, status_code=last.get("status", 502))
-    return {
-        "ok": True,
-        "complete": True,
-        "reply": last["reply"],
-        "tool_calls": tool_calls,
-        "rounds": last["rounds"],
-        "backend": backend_name,
-        "forced_final": last["forced_final"],
-        "ui_events": [ev["event"] for ev in events if ev["type"] == "ui"],
-    }
 
 
 def _chat_external(backend: dict, messages: list[dict], gen: dict | None = None) -> str:
@@ -499,13 +388,3 @@ def _chat_local(backend: dict, messages: list[dict], gen: dict | None = None, *,
                 raise chat_error from None   # the first failure is the real cause
             text = ""
     return text or ""
-
-
-@router.get("/projects/{pid}/data-prep/chat/tools")
-async def list_tools(pid: str):
-    """Catalog of tools the chat exposes to the model (useful for debugging
-    + for UI to show a help panel)."""
-    from finetune_studio import db
-    if not db.get_project(pid):
-        return JSONResponse({"detail": "project not found"}, status_code=404)
-    return {"tools": TOOLS_CATALOG}

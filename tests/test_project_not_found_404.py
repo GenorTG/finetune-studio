@@ -113,11 +113,9 @@ LEAKING_ROUTES = [
     # benchmarks.py
     "/api/benchmarks/projects/{pid}/benchmarks/{bid}/cases",
     "/api/benchmarks/projects/{pid}/runs",
-    "/api/benchmarks/projects/{pid}/runs/{rid}/history",
     # projects.py
     "/api/projects/{pid}",
     "/api/projects/{pid}/data-prep/audit",
-    "/api/projects/{pid}/data-prep/chat/tools",
     "/api/projects/{pid}/data-prep/export",
     "/api/projects/{pid}/data-prep/qa",
     "/api/projects/{pid}/data-prep/sources",

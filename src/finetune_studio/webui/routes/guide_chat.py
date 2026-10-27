@@ -18,18 +18,16 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from finetune_studio import db
-from finetune_studio.guide.kb import load_kb, table_of_contents
 from finetune_studio.guide.loop import run_guide_loop
 from finetune_studio.guide.prompt import build_system_prompt
-from finetune_studio.guide.search import search_kb
 from finetune_studio.guide.tools import ToolContext
-from finetune_studio.webui.live_sse import sse_data, sse_response
-from finetune_studio.webui.routes.data_prep_chat import (
+from finetune_studio.webui.chat_backend import (
     MAX_TOOL_ROUNDS,
     make_chat_fn,
     parse_gen,
     resolve_chat_backend,
 )
+from finetune_studio.webui.live_sse import sse_data, sse_response
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -123,25 +121,3 @@ def _guide_system_prompt(ctx: ToolContext, project_name: str | None) -> str:
     from finetune_studio.models.assistant import instruct
 
     return instruct("guide", [{"role": "system", "content": build_system_prompt(ctx, project_name)}])[0]["content"]
-
-
-@router.get("/guide/kb")
-async def guide_kb():
-    """Table of contents of the app knowledge base."""
-    return {"entries": table_of_contents()}
-
-
-@router.get("/guide/kb/{entry_id}")
-async def guide_kb_entry(entry_id: str):
-    entry = load_kb().get(entry_id)
-    if entry is None:
-        return JSONResponse({"detail": f"unknown KB entry {entry_id!r}"}, status_code=404)
-    return {"id": entry.id, "title": entry.title, "page": entry.route, "sections": entry.sections}
-
-
-@router.get("/guide/help")
-async def guide_help(q: str, limit: int = 3):
-    """Same retrieval as the ``app_help`` tool (debugging / docs links)."""
-    if not q.strip():
-        return JSONResponse({"detail": "q required"}, status_code=400)
-    return {"query": q, "results": await asyncio.to_thread(search_kb, q, limit)}

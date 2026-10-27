@@ -157,18 +157,13 @@ def test_selection_validation_accepts_synthetic_rejects_unknown(
     assert "not selectable" in json.loads(err2.body.decode())["detail"]
 
 
-def test_api_suites_lists_synthetic_labels(
+def test_suite_list_shows_synthetic_labels(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_db: Path
 ) -> None:
-    from fastapi.testclient import TestClient
-
-    from finetune_studio.webui.app import app
+    from finetune_studio.webui.routes.benchmarks import _discover_suites
 
     monkeypatch.chdir(tmp_path)
-    client = TestClient(app)
-    r = client.get("/api/benchmarks/suites")
-    assert r.status_code == 200
-    suites = r.json()
+    suites = _discover_suites()
     labels = [s["label"] for s in suites]
     assert any("MMLU-shaped" in lb for lb in labels)
     assert any("GSM8K-shaped" in lb for lb in labels)

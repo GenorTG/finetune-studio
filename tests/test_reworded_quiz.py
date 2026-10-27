@@ -131,7 +131,9 @@ def test_route_saves_a_labelled_suite_that_study_sets_avoid(client, monkeypatch)
     cases = load_test_suite(body["path"])
     assert len(cases) == n and all(c.question.startswith("According to the records") for c in cases)
     assert set(heldout_questions(pid)) == {c.question for c in cases}      # future study sets stay away from it
-    listed = client.get("/api/benchmarks/suites", params={"project_id": pid}).json()
+    from finetune_studio.webui.routes.benchmarks import _discover_suites
+
+    listed = _discover_suites(pid)
     mine = [s for s in listed if s.get("path") == body["path"]]
     assert len(mine) == 1 and mine[0]["source"] == "project_heldout_reworded" and mine[0]["label"] == body["label"]
     assert mine[0]["scoring"] == "judge"

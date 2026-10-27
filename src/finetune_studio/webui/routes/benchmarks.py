@@ -353,12 +353,6 @@ async def _execute_benchmark(
 
 # ── Endpoints ─────────────────────────────────────────────────────────────
 
-@router.get("/suites")
-async def list_suites(project_id: str | None = None) -> list[dict[str, Any]]:
-    """List available benchmark suites (files that exist + optional auto-suites)."""
-    return _discover_suites(project_id)
-
-
 @router.post("/projects/{pid}/suites/import", response_model=None)
 async def import_suite_route(pid: str, file: UploadFile = File(...)) -> dict[str, Any] | JSONResponse:  # noqa: B008
     """Upload a quiz (JSON / JSONL) as a project test suite for the Testing page."""
@@ -535,18 +529,6 @@ async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSO
         )
     except Exception as exc:  # noqa: BLE001
         return JSONResponse({"detail": str(exc)}, status_code=500)
-
-@router.get("/projects/{pid}/runs/{rid}/history", response_model=None)
-async def run_history(pid: str, rid: str) -> list[dict[str, Any]] | dict[str, str] | JSONResponse:
-    """List all benchmarks for a specific run."""
-    missing = _project_404(pid)
-    if missing is not None:
-        return missing
-    run = db.get_run(rid)
-    if not run or run["project_id"] != pid:
-        return JSONResponse({"detail": "not found"}, status_code=404)
-    return db.list_benchmarks(rid)
-
 
 @router.delete("/projects/{pid}/runs/{rid}", response_model=None)
 async def delete_run(pid: str, rid: str) -> dict[str, Any] | JSONResponse:
