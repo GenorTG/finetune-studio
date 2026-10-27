@@ -82,6 +82,8 @@ turns that section into the release's notes.
   `imatrix_calibration` training fields are gone too.
 - The unmaintained Windows installer and launcher scripts (`install.bat`, `install.ps1`, `run.bat`): Linux is the
   only supported platform. Windows support will come back as a cleanly tested installer after 1.0.
+- The conda install mode (`USE_CONDA=1`, `make install-conda`): it installed torch and llama.cpp into `.venv`,
+  which conda mode never created, so it could not produce a working install. Use `bash install.sh` (`.venv`).
 - API routes nothing in the app called: `POST /api/testing/load` (use `/api/inference/load`),
   `GET /api/benchmarks/suites`, `GET /api/benchmarks/projects/{pid}/runs/{rid}/history`,
   `POST /api/projects/{pid}/data-prep/chat` and `.../data-prep/chat/tools` (the Guide replaced them),
