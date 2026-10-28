@@ -2,10 +2,10 @@
 id: export
 title: Export page (step 5)
 page: export
-keywords: export gguf quant q4_k_m q6_k q8_0 f16 merged abliterated llama.cpp ollama lm studio quantization overwrite adapter imatrix importance matrix calibration
+keywords: export gguf quant q4_k_m q6_k q8_0 f16 merged abliterated herectic heretic uncensored decensor refusal llama.cpp ollama lm studio quantization overwrite adapter imatrix importance matrix calibration
 ---
 ## Purpose
-Take a finished run out of the studio: GGUF for llama.cpp, Ollama and LM Studio; Merged (full safetensors); or Abliterated. Adapter-only runs are merged onto their base automatically at export time.
+Take a finished run out of the studio: GGUF for llama.cpp, Ollama and LM Studio; Merged (full safetensors); Abliterated; or Heretic (the optional tool that removes refusals properly). Adapter-only runs are merged onto their base automatically at export time.
 
 ## Workflow
 1. Select a finished run in **Training runs**.
@@ -27,3 +27,4 @@ Two GGUF files for two quants under the run's `gguf/` folder. Prefer q6_k or q4_
 
 ## Common mistakes
 Exporting GGUF when it is marked unavailable (the page shows why); ticking the importance matrix for a run whose training file was deleted (refused with the reason); ticking Abliterated without understanding it removes refusal behaviour.
+Ticking Heretic when it is greyed out (Settings → Heretic installs it; the page says why it cannot run). Heretic also needs more GPU time than Abliterated: it searches parameters across many trials instead of applying one fixed strength.

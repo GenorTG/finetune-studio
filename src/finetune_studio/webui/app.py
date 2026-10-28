@@ -520,6 +520,10 @@ from finetune_studio.webui.routes import compute_device as _compute_device
 
 app.include_router(_compute_device.router)  # /api/system/compute-device
 
+from finetune_studio.webui.routes import heretic as _heretic
+
+app.include_router(_heretic.router)  # /api/system/heretic*: the optional Heretic (abliteration) tool
+
 from finetune_studio.webui.routes import service as _service
 
 app.include_router(_service.router)  # /api/service/*: supervisor status, events, logs, restart

@@ -90,9 +90,15 @@
   </div>
   <div id="export-caps" class="p-2 pt-0 text-xs"
        data-gguf="{{ '1' if caps.gguf else '0' }}"
+       data-heretic="{{ '1' if caps.heretic else '0' }}"
        {% if not caps.gguf %}role="status"{% endif %}>
     {% if not caps.gguf %}
     <div class="err mb-1" id="export-gguf-unavailable">GGUF unavailable — {{ caps.gguf_hint }}</div>
+    {% endif %}
+    {% if caps.heretic %}
+    <div class="dim mb-1" id="export-heretic-ready">Heretic {{ caps.heretic_version }} is installed — it searches the abliteration parameters itself instead of using one fixed strength.</div>
+    {% else %}
+    <div class="dim mb-1" id="export-heretic-hint">Heretic (optional tool) — {{ caps.heretic_hint }}</div>
     {% endif %}
   </div>
   <div class="grid grid-2 gap-3 p-2">
@@ -117,6 +123,14 @@
       <div>
         <div class="text-sm font-bold">Merged</div>
         <div class="text-xs dim">Full safetensors merge (no quantization).</div>
+      </div>
+    </label>
+    <label class="flex items-start gap-2 p-2 export-opt{% if not caps.heretic %} is-unavailable{% endif %}">
+      <input type="checkbox" name="export-format" value="heretic" class="mt-1" id="export-format-heretic"
+             {% if not caps.heretic %}disabled title="{{ caps.heretic_hint }}"{% endif %}>
+      <div>
+        <div class="text-sm font-bold">Heretic{% if not caps.heretic %} <span class="pill outline">optional tool</span>{% endif %}</div>
+        <div class="text-xs dim">Removes the model&rsquo;s refusals with Heretic, which searches the abliteration parameters and keeps the model&rsquo;s own behaviour as close to the original as it can (full model, safetensors). Needs more GPU time than Abliterated. Warning: the result will comply with requests the original model refused.</div>
       </div>
     </label>
   </div>
@@ -599,6 +613,11 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
     const ggufOk = !capsEl || capsEl.getAttribute('data-gguf') === '1';
     if (formats.includes('gguf') && !ggufOk) {
       notify((($('export-gguf-unavailable') || {}).textContent) || 'GGUF converter unavailable', 'error');
+      return;
+    }
+    const hereticOk = !capsEl || capsEl.getAttribute('data-heretic') === '1';
+    if (formats.includes('heretic') && !hereticOk) {
+      notify((($('export-heretic-hint') || {}).textContent) || 'Heretic is not installed', 'error');
       return;
     }
     const quants = Array.from(document.querySelectorAll('input[name="gguf-quant"]:checked')).map((cb) => cb.value);

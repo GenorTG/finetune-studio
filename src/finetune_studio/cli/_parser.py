@@ -150,6 +150,10 @@ def build_parser() -> argparse.ArgumentParser:
     from finetune_studio.cli.commands.brain import add_parser as add_brain_parser
     add_brain_parser(sub)
 
+    # ── heretic (optional external tool: removes a model's refusals) ──
+    from finetune_studio.cli.commands.heretic import add_parser as add_heretic_parser
+    add_heretic_parser(sub)
+
     # ── compare ──
     p_cmp = sub.add_parser("compare", help="Ask several models the same questions and show the answers side by side (judging is a separate step)")
     p_cmp.add_argument("--models", nargs="+", required=True, help="Model paths (name=path format)")

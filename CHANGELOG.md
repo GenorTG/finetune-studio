@@ -10,6 +10,12 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Added
+- **Heretic** (optional tool): remove a model's refusals properly. Heretic searches the abliteration parameters
+  (Optuna) instead of applying one fixed strength, so the result stays closer to the original model's behaviour. It
+  is a separate program with its own license (AGPL-3.0), installed on demand from Settings → **Heretic** (or
+  `fts heretic install`): it reuses this app's PyTorch, so it costs a few hundred MB rather than another copy of
+  CUDA. **Check upstream** compares it with Heretic's GitHub releases, and the Export page gains a **Heretic** format
+  beside the existing Abliterated/Merged/GGUF ones. Until it is installed the option is greyed out and says why.
 - CLI: `fts brain bundle` (encrypted `.ftsrag` copy of an index) and `fts brain import` (load one into a project).
 - Smart Brain standalone export: **each search layer is its own switch**. You can turn off **Meaning search**
   (vectors), **Word search** (BM25), the **Reranker** and **Answer generation** separately. **Rank fusion** runs

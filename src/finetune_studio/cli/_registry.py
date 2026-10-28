@@ -22,6 +22,7 @@ from finetune_studio.cli.commands.compare import cmd_compare
 from finetune_studio.cli.commands.convert import cmd_convert
 from finetune_studio.cli.commands.dataset import cmd_dataset
 from finetune_studio.cli.commands.files import cmd_files
+from finetune_studio.cli.commands.heretic import cmd_heretic
 from finetune_studio.cli.commands.jobs import cmd_jobs
 from finetune_studio.cli.commands.models import cmd_models
 from finetune_studio.cli.commands.service import cmd_down, cmd_service, cmd_up
@@ -61,6 +62,7 @@ COMMANDS = {
     "validate-hallucination": cmd_validate_hallucination,
     "vram": cmd_vram,
     "accel": cmd_accel,
+    "heretic": cmd_heretic,
     "files": cmd_files,
     "dataset": cmd_dataset,
     "supervisor": cmd_supervisor,

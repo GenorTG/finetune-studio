@@ -32,7 +32,7 @@ from finetune_studio.training.gguf_convert import (  # noqa: F401 — re-export
 )
 
 SUPPORTED_EXPORT_FORMATS: frozenset[str] = frozenset(
-    {"gguf", "abliterated", "merged"}
+    {"gguf", "abliterated", "merged", "heretic"}
 )
 
 DEFAULT_GGUF_QUANTS: list[str] = ["f16", "q8_0", "q4_k_m", "q5_k_m"]
@@ -338,6 +338,89 @@ def _export_gguf(
     }
 
 
+def _export_heretic(
+    *,
+    merged_path: str,
+    output_path: str,
+    force: bool,
+    n_trials: int | None = None,
+) -> dict[str, Any]:
+    """Remove refusals with the optional Heretic tool, into ``<output>/heretic/``.
+
+    Heretic is a separate program (AGPL-3.0) that searches abliteration
+    parameters with Optuna; this only drives it and verifies what it wrote.
+    A run that writes weights without ``config.json``/a tokenizer is a failure
+    here, not an export: such a directory cannot be loaded by Chat, Testing or
+    any other app.
+    """
+    from finetune_studio.training import heretic_tool
+    from finetune_studio.training.proc_runner import (
+        SubprocessCancelled,
+        SubprocessFailed,
+        SubprocessTimeout,
+    )
+
+    out_dir = os.path.join(output_path, "heretic")
+    if os.path.isdir(out_dir) and os.listdir(out_dir) and not force:
+        return {
+            "ok": True,
+            "status": "skipped",
+            "format": "heretic",
+            "output_path": out_dir,
+            "message": "A Heretic model already exists here. Use force=true to overwrite.",
+        }
+    if not merged_path or not os.path.isdir(merged_path):
+        # Heretic ablates a full model; a bare adapter is not one. Merging happens
+        # before this call, so an absent merged/ is a real failure, not a skip.
+        return _export_failure(
+            "no merged model to abliterate; export Merged (or retrain with merge on save) first",
+            format="heretic",
+        )
+
+    status = heretic_tool.probe()
+    if not status.usable:
+        return _export_failure(
+            status.hint or "Heretic is not available",
+            format="heretic",
+            install_command="fts heretic install",
+        )
+
+    export_job.report(export_job.PHASE_ABLITERATING, "Heretic: searching abliteration parameters")
+    ctx = export_job.current()
+    run = heretic_tool.AbliterationRun(
+        model_path=merged_path,
+        output_dir=out_dir,
+        n_trials=int(n_trials or 40),
+        checkpoint_dir=os.path.join(out_dir, ".study"),
+    )
+    try:
+        written = heretic_tool.run_abliteration(
+            run,
+            cancelled=ctx.cancelled if ctx else None,
+            on_tick=ctx.tick if ctx else None,
+            on_start=ctx.register_proc if ctx else None,
+        )
+    except SubprocessCancelled as e:
+        raise export_job.ExportCancelled(str(e)) from e
+    except SubprocessTimeout as e:
+        return _export_failure(f"Heretic did not finish in time: {e}", format="heretic")
+    except SubprocessFailed as e:
+        return _export_failure(f"Heretic failed: {e.tail or e}", format="heretic")
+    except heretic_tool.HereticError as e:
+        return _export_failure(str(e), format="heretic")
+
+    return {
+        "ok": True,
+        "status": "exported",
+        "format": "heretic",
+        "output_path": written["output_path"],
+        "size_bytes": written["size_bytes"],
+        "version": status.version,
+        "ref": status.ref,
+        "files": written["files"],
+    }
+
+
 def validate_export_request(
     run: dict[str, Any],
     *,
@@ -374,6 +457,17 @@ def validate_export_request(
         )
     if not (run.get("output_path") or "").strip():
         return _export_failure("run has no output_path", format=fmt_norm)
+    if fmt_norm == "heretic":
+        # Heretic is an optional external tool: refuse here, with the reason and the
+        # fix, instead of queueing a job that dies after a multi-GB merge.
+        from finetune_studio.training import heretic_tool
+
+        status = heretic_tool.probe()
+        if not status.usable:
+            return _export_failure(
+                status.hint or "Heretic is not available", format="heretic",
+                install_command="fts heretic install",
+            )
     if imatrix:
         refused = _imatrix_refusal(run, fmt_norm, list(quants or DEFAULT_GGUF_QUANTS))
         if refused is not None:
@@ -449,6 +543,13 @@ def export_trained_run(
             "size_bytes": merge_info.get("size_bytes", 0),
             "size_human": merge_info.get("size_human", "0 B"),
         }
+
+    if fmt_norm == "heretic":
+        return _export_heretic(
+            merged_path=str(merge_info.get("merged_path") or ""),
+            output_path=output_path,
+            force=force,
+        )
 
     from finetune_studio.training.engine import TrainingConfig, TrainingEngine
 
