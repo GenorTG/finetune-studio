@@ -68,6 +68,13 @@ turns that section into the release's notes.
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
 ### Fixed
+- Smart Brain builds can be stopped: a **Stop build** button on the page, and `fts jobs stop` now works too. Before,
+  the whole index was embedded in one step that ignored stop requests. A stopped or failed build, including a
+  rebuild from scratch, now leaves the previous index untouched; a rebuild used to delete it first.
+- The Smart Brain build bar shows the passages embedded, the real time taken and the time left. Before, it showed
+  "0 files, 0 s" until a whole file was done.
+- A build that runs out of GPU memory now says so in plain words: how much memory was free, which programs hold the
+  card, and the choices (a smaller embedder, the CPU, or waiting). Before, it showed the raw CUDA error.
 - The standalone Smart Brain server ignored the index's "hybrid off" setting and always ran keyword search; it
   now runs exactly the layers that are on. Its "Reranker on" option did nothing without bundled models; the export
   page now says so and only offers it with *Include models*.

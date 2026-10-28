@@ -15,6 +15,7 @@ import tarfile
 import tempfile
 import time
 import zipfile
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -53,6 +54,30 @@ _MODEL_DIR_NAMES = frozenset({"embedder", "reranker"})
 
 log = logging.getLogger(__name__)
 
+
+
+EMBED_SLICE = 32   # texts per encode call: small enough that a stop or a progress update comes every few seconds
+
+
+def encode_batched(encode: Callable, texts: list[str], on_batch: Callable[[int, int], None] | None = None,
+                   *, slice_size: int | None = None) -> np.ndarray:
+    """Embed ``texts`` slice by slice; ``on_batch(done, total)`` after each (it may raise to stop the build).
+
+    One ``encode`` call over the whole corpus could not be stopped or followed: a large embedder on the CPU ran
+    for many minutes with the page at "0 files" and a stop request unanswered (2026-10-28)."""
+    total = len(texts)
+    slice_size = slice_size or EMBED_SLICE
+    if on_batch is None or total <= slice_size:
+        out = encode(texts)
+        if on_batch is not None:
+            on_batch(total, total)
+        return out
+    parts = []
+    on_batch(0, total)
+    for start in range(0, total, slice_size):
+        parts.append(encode(texts[start:start + slice_size]))
+        on_batch(min(start + slice_size, total), total)
+    return np.concatenate(parts, axis=0)
 
 class BrainIndex:
     """File-based RAG corpus. One dir per corpus. All standard tools."""
@@ -141,7 +166,8 @@ class BrainIndex:
                              device: str = "auto",
                              splitter: str | None = None,
                              extra: dict | None = None,
-                             rag_settings: RetrievalSettings | None = None) -> dict:
+                             rag_settings: RetrievalSettings | None = None,
+                             on_batch: Callable[[int, int], None] | None = None) -> dict:
         """Chunk, embed and BM25-index already parsed documents; write every corpus artifact.
 
         Always **replaces** the corpus content. No documents = nothing written (an existing corpus is kept), so a
@@ -152,6 +178,9 @@ class BrainIndex:
         The retrieval settings carry over: ``rag_settings`` (a caller that removed the corpus first), else this
         corpus' own. No ``embedder`` = the one those settings chose, else ``DEFAULT_EMBEDDER`` (a rebuild used to
         reset every index to the default embedder and rerank/hybrid defaults).
+
+        ``on_batch(done, total)`` runs after each embedded batch (progress; raising there stops the build). Nothing
+        on disk changes until every vector is computed, so a stopped or failed build leaves the old index whole.
         """
         from finetune_studio.smart_brain.chunking import chunk_documents
 
@@ -191,6 +220,9 @@ class BrainIndex:
                 log.warning("%d chunk(s) exceed the embedder's %d-token window: their tails are not embedded",
                             too_long, max_seq)
 
+        texts = [c["text"] for c in all_chunks]
+        vectors = encode_batched(encode, texts, on_batch)
+
         # Replace source artifacts to match the new corpus (no stale orphans).
         self._clear_source_artifacts()
         sources_dir = self.dir / "sources"
@@ -201,8 +233,6 @@ class BrainIndex:
             all_documents.append({"document_id": d.document_id, "source": d.source,
                                   "content_text_path": f"sources/{d.document_id}.txt", "filename": d.filename})
 
-        texts = [c["text"] for c in all_chunks]
-        vectors = encode(texts)
         pd = try_import_pandas()
         chunks_df = pd.DataFrame(all_chunks)
         chunks_df.to_parquet(self.chunks_path, index=False)
@@ -780,7 +810,8 @@ fts brain rebuild-vectors --corpus /path/to/corpus [--embedder NEW_MODEL]
             sources.append({"id": did, "filename": fname, "size": size})
         return sources
 
-    def rebuild_vectors(self, embedder: str | None = None, device: str = "auto") -> dict:
+    def rebuild_vectors(self, embedder: str | None = None, device: str = "auto",
+                        on_batch: Callable[[int, int], None] | None = None) -> dict:
         """Re-embed every chunk (and rebuild BM25); the documents and chunks stay.
 
         No ``embedder`` = the one the settings ask for (``rag_settings.embedder``: a settings change writes it there
@@ -793,7 +824,7 @@ fts brain rebuild-vectors --corpus /path/to/corpus [--embedder NEW_MODEL]
         new_name = resolve_model_ref(new_name, "embedder")
         encode, new_info = get_embedder(name=new_name, device=device)
         chunks_df = pd.read_parquet(self.chunks_path)
-        vectors = encode(chunks_df["text"].tolist())
+        vectors = encode_batched(encode, chunks_df["text"].tolist(), on_batch)
         np.save(self.vectors_path, vectors)
         # Rebuild BM25 too (cheap, keeps state consistent)
         bm25 = BM25Index.build(chunks_df["text"].tolist())

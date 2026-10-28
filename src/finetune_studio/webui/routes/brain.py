@@ -279,6 +279,14 @@ async def brain_quick(pid: str, req: QuickRequest):
         "ok": True, "pending_parses": body["pending_parses"], "build": body, "build_id": body["build_id"]})
 
 
+def _epoch(value: object) -> float:
+    """A build row timestamp (epoch seconds; ``brain_builds``) as a float, now when unreadable."""
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return time.time()
+
+
 def _build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
     """One progress snapshot for SSE frames and the /build/status poll, from the project's latest build row.
 
@@ -303,12 +311,18 @@ def _build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
     active = brain_build_jobs.active_build(pid)
     latest = active or db.brain_builds.latest_for_project(pid)
     message = ""
+    passages_done = passages_total = 0
     if active is not None:
         phase = "queued" if active.get("status") == "queued" else "embedding"
         files_done = chunks_count = 0
-        parsing = (brain_build_jobs.status(pid, active["id"]) or {}).get("parsing")
-        if parsing:
-            phase, files_done, total_files = "parsing", int(parsing["done"]), int(parsing["total"])
+        st = brain_build_jobs.status(pid, active["id"]) or {}
+        if st.get("parsing"):
+            phase, files_done, total_files = "parsing", int(st["parsing"]["done"]), int(st["parsing"]["total"])
+        elif st.get("embedding"):
+            passages_done, passages_total = int(st["embedding"]["done"]), int(st["embedding"]["total"])
+        started = active.get("started_at") or active.get("created_at")
+        if started:
+            elapsed_s = max(0, int(time.time() - _epoch(started)))
     elif latest is not None and latest.get("status") in ("error", "failed"):
         phase, message = "error", str(latest.get("error") or "the index build failed")
     elif manifest.exists():
@@ -320,6 +334,8 @@ def _build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
         "files_done": files_done,
         "files_total": total_files,
         "chunks": chunks_count,
+        "passages_done": passages_done,
+        "passages_total": passages_total,
         "elapsed_s": elapsed_s,
         "build_id": (latest or {}).get("id"),
     }
@@ -357,8 +373,7 @@ async def brain_build_progress(pid: str):
         deadline = start + 600  # 10 min
         try:
             while asyncio.get_event_loop().time() < deadline:
-                elapsed = int(asyncio.get_event_loop().time() - start)
-                payload = await asyncio.to_thread(_build_snapshot, pid, elapsed_s=elapsed)
+                payload = await asyncio.to_thread(_build_snapshot, pid)
                 yield sse_data(payload)
                 if payload["phase"] in ("done", "error", "idle"):
                     return
@@ -374,6 +389,21 @@ async def brain_build_progress(pid: str):
             return
 
     return sse_response(gen())
+
+
+@router.post("/{pid}/brain/build/stop")
+async def brain_build_stop(pid: str):
+    """Stop the project's running build (the page's Stop button). It ends at the next embedded batch, a few seconds,
+    and the index stays as it was before the build. 404 unknown project, 409 no build is running."""
+    from finetune_studio.webui import brain_build_jobs
+
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    out = await asyncio.to_thread(brain_build_jobs.stop, pid)
+    if out is None:
+        raise ApiError(409, "no index build is running", code="no_build_running")
+    return out
 
 
 @router.post("/{pid}/brain/rebuild-vectors")
