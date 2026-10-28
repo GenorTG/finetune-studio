@@ -43,7 +43,7 @@ import shutil
 import subprocess
 import sys
 from collections.abc import Callable, Iterable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -58,6 +58,7 @@ log = logging.getLogger(__name__)
 # timeout, unreadable/odd output). Anything else is a bug and should surface.
 _STEP_ERRORS = (subprocess.SubprocessError, OSError)
 _PROBE_ERRORS = (*_STEP_ERRORS, ValueError, KeyError, IndexError)
+HEAVY_IMPORT_TIMEOUT_S = 90   # import peft / trl loads torch + transformers: ~10 s idle, far more under load
 
 # ── Issue taxonomy ──────────────────────────────────────────────────────
 
@@ -117,6 +118,7 @@ class VenvInfo:
     torch_xpu: bool | None = None
     torch_mps: bool | None = None
     missing_parsers: tuple[str, ...] = ()   # modules of the [parsers] extra that do not import
+    unchecked: list[str] = field(default_factory=list)   # imports that ran out of time: not checked, not "missing"
 
     @property
     def exists(self) -> bool:
@@ -261,9 +263,12 @@ def inspect_venv(venv_dir: Path) -> VenvInfo:
     # prints {"missing": [...]} so one absent package cannot mark the other
     # five as missing too.
     try:
-        r = _run([str(info.python), "-c", _DEPS_PROBE], timeout=30)
+        r = _run([str(info.python), "-c", _DEPS_PROBE], timeout=HEAVY_IMPORT_TIMEOUT_S)
         missing = _parse_missing_deps(r)
         info.missing_parsers = _parse_missing_parsers(r)
+    except subprocess.TimeoutExpired:
+        info.unchecked.append("the core packages")
+        missing = set()
     except _PROBE_ERRORS as exc:
         log.debug("dependency probe failed: %s", exc)
         missing = set(_DEP_MODULES)
@@ -276,7 +281,7 @@ def inspect_venv(venv_dir: Path) -> VenvInfo:
 
     # torch (may fail on mixed installs — capture separately)
     try:
-        r = _run([str(info.python), "-c", _TORCH_PROBE], timeout=45)
+        r = _run([str(info.python), "-c", _TORCH_PROBE], timeout=HEAVY_IMPORT_TIMEOUT_S)
         if r.returncode == 0 and r.stdout.strip():
             j = json.loads(r.stdout.strip().splitlines()[-1])
             info.torch_version = j["v"]
@@ -284,6 +289,8 @@ def inspect_venv(venv_dir: Path) -> VenvInfo:
             info.torch_kind = _torch_kind(j)
             info.torch_xpu = bool(j.get("xpu"))
             info.torch_mps = bool(j.get("mps"))
+    except subprocess.TimeoutExpired:
+        info.unchecked.append("torch")
     except _PROBE_ERRORS as exc:
         log.debug("torch probe failed: %s", exc)
 
@@ -304,7 +311,9 @@ def inspect_venv(venv_dir: Path) -> VenvInfo:
         log.debug("torchaudio probe failed: %s", exc)
         info.torchaudio_importable = False
 
-    # transformers / llama-cpp / peft / trl — optional but expected
+    # transformers / llama-cpp / peft / trl — optional but expected. Importing peft or trl loads torch and
+    # transformers (~10 s here, more while the app is busy): a 15 s limit reported a working peft as "missing"
+    # from Settings → Check (2026-10-28). A probe that runs out of time is "not checked", never "missing".
     for pkg, attr in (
         ("transformers", "transformers_version"),
         ("llama_cpp", "llama_cpp_version"),
@@ -313,9 +322,11 @@ def inspect_venv(venv_dir: Path) -> VenvInfo:
     ):
         try:
             r = _run([str(info.python), "-c",
-                      f"import {pkg}; print({pkg}.__version__)"], timeout=15)
+                      f"import {pkg}; print({pkg}.__version__)"], timeout=HEAVY_IMPORT_TIMEOUT_S)
             if r.returncode == 0:
                 setattr(info, attr, r.stdout.strip().splitlines()[-1])
+        except subprocess.TimeoutExpired:
+            info.unchecked.append(pkg)
         except _PROBE_ERRORS as exc:
             log.debug("%s probe failed: %s", pkg, exc)
 
@@ -580,6 +591,15 @@ def diagnose(
         ))
         return issues
 
+    if venv.unchecked:
+        issues.append(Issue(
+            "slow-import",
+            f"could not check {', '.join(venv.unchecked)}: importing took over {HEAVY_IMPORT_TIMEOUT_S} s "
+            "(a busy machine); run the check again when it is idle",
+            "nothing to fix if the app trains and tests normally",
+            severity=1,
+        ))
+
     # ── Key deps ──
     key_deps = (
         ("fastapi", venv.has_fastapi), ("jinja2", venv.has_jinja2),
@@ -590,6 +610,7 @@ def diagnose(
         ("transformers", venv.transformers_version is not None),
         ("peft", venv.peft_version is not None), ("trl", venv.trl_version is not None),
     )
+    key_deps = tuple((n, has) for n, has in key_deps if n not in venv.unchecked)
     if not all(has for _, has in key_deps):
         missing = [n for n, has in key_deps if not has]
         issues.append(Issue(
@@ -609,7 +630,8 @@ def diagnose(
         ))
 
     plan = ap.build_plan(gpu)
-    issues += _check_torch(venv, gpu, plan, force_cpu)
+    if "torch" not in venv.unchecked:     # a torch import that ran out of time is not a broken torch
+        issues += _check_torch(venv, gpu, plan, force_cpu)
     issues += _check_llama_cpp_python(venv, gpu, plan)
     issues += _check_llama_cpp_cli(llcpp, gpu, plan)
     issues += _check_gpu_prereqs(venv, gpu, plan)

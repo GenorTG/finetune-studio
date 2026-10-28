@@ -73,6 +73,13 @@ turns that section into the release's notes.
   inside the export panel, which only appears once the project has an index, so a new project could not import a
   bundle. An imported index now says where it came from instead of "rebuild needed: N file(s) removed", and it is
   registered like a build, so the Guide and the Testing page see it.
+- Settings → Updates: **Check** now asks GitHub whether a newer version exists and lists what changed. Before, it
+  never looked, although the button promised to. **Apply update** reports which version it moved from and to.
+- The install health check (Check, `update.sh`, `install.sh --check`) no longer gives two false alarms:
+  - "no working NVIDIA driver: install it and reboot" when the driver was loaded and only `nvidia-smi` was
+    missing from the app's PATH. It now reads the loaded driver.
+  - "missing or broken: peft" (or torch, or the core packages) when an import just took longer than the time
+    limit on a busy machine. That is now "could not check", never "missing".
 - Smart Brain builds can be stopped: a **Stop build** button on the page, and `fts jobs stop` now works too. Before,
   the whole index was embedded in one step that ignored stop requests. A stopped or failed build, including a
   rebuild from scratch, now leaves the previous index untouched; a rebuild used to delete it first.

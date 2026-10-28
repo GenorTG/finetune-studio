@@ -8,7 +8,7 @@ keywords: settings update access password sign in login token api token network 
 Global settings: updates, tutorial replay, access (password, API tokens, network address), the AI assistant, the test judge, the compute device, debug info and storage paths.
 
 ## Workflow
-1. **Updates:** Check for updates; apply or repair from there.
+1. **Updates:** **Check** asks GitHub whether this install's branch has a newer version (and lists what changed), then checks the Python environment, GPU driver and llama.cpp tools; it changes nothing. **Apply update** downloads it, updates the packages, migrates the database and restarts (under a minute; with a job running the restart is skipped until later). **Repair** rebuilds the Python environment from scratch (10–20 minutes): only when Check reports a broken environment.
 2. **Compute device:** choose which device the app uses at the **next start** (Auto = best detected GPU, CPU only if none). The choice is saved to a file and applied only at process start; explicit `FTS_GPU_*`, `FTS_DEVICE` or `*_VISIBLE_DEVICES` environment settings override it and show as "overridden". CPU-only masks every card.
 3. **AI assistant:** one assistant does all the model work. *Connections* lists the local model on this machine plus any API connections you add (**Add API connection**: name, provider preset, URL, key, model, reasoning effort, parallel calls; **Test connection** makes one real call). Keys are stored encrypted on this computer, sent only to their own URL and never shown again. **Main assistant** picks the connection every job uses. In **Jobs**, each job (Guide chat, mining, study sets, reworded quizzes, preference pairs, test judge, use-case teacher, reading pictures) can run on another connection and can get **extra instructions** that are added in front of its own prompt. *Reading pictures* is off until you pick a connection that accepts images; **Test reading pictures** checks it. The *Sends* column says what leaves the machine when a job runs on an API.
 4. **Test judge:** whether a finished test run starts judging by itself (off by default). The judge model is the *Test judge* job above (the Testing page can override it per run).
@@ -18,7 +18,8 @@ Global settings: updates, tutorial replay, access (password, API tokens, network
    Forgot the password: on the machine itself run `fts auth set-password`.
 
 ## Key controls
-- `#btn-update-check` — check for updates.
+- `#btn-update-check` — look for a newer version and check the install (changes nothing).
+- `#btn-update-apply` — install the newer version and restart.
 - `#compute-select` — compute device for the next start.
 - `#btn-compute-save` — save the compute device (restart required).
 - `#assistant-card` — the AI assistant card.

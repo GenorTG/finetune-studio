@@ -89,7 +89,30 @@ torch_constraint_args() {
 }
 
 # ── Step 1: git pull ────────────────────────────────────────────────────
+# Deterministic env for git/ssh (see the pull below): shared by the check's fetch and the pull.
+_real_home="$(getent passwd "$(id -u)" | cut -d: -f6)"
+_git_ssh="ssh"
+[ -f "$_real_home/.ssh/config" ] && _git_ssh="ssh -F $_real_home/.ssh/config"
+_branch="$(git symbolic-ref --short -q HEAD || true)"
+git_env() { env -i HOME="$_real_home" PATH="/usr/local/bin:/usr/bin:/bin" GIT_SSH_COMMAND="$_git_ssh" "$@"; }
+_before="$(git rev-parse --short HEAD 2>/dev/null || true)"
 if [ "$CHECK_MODE" = "1" ]; then
+    # A check answers "is there anything to update?": fetch (changes no file) and list what a pull would bring.
+    case "$_branch" in
+        main|dev)
+            if git_env git fetch --quiet origin "$_branch" 2>&1; then
+                _new="$(git rev-list --count "HEAD..origin/$_branch" 2>/dev/null || echo 0)"
+                if [ "$_new" = "0" ]; then
+                    log "Up to date: $_branch is at $_before, the same as GitHub."
+                else
+                    log "Update available: $_new new change(s) on $_branch ($_before -> $(git rev-parse --short "origin/$_branch")):"
+                    git log --format='    - %s' "HEAD..origin/$_branch" | head -15
+                fi
+            else
+                warn "could not reach GitHub to look for updates (offline?)."
+            fi ;;
+        *) log "on '${_branch:-a detached HEAD}', not main or dev: updates come from your own git commands." ;;
+    esac
     log "--check: skipping git pull (dry-run, no changes)."
 elif [ "$NO_PULL" = "0" ]; then
     log "git pull (ff-only)..."
@@ -100,19 +123,18 @@ elif [ "$NO_PULL" = "0" ]; then
     # the service. GIT_SSH_COMMAND with -F skips the system config and
     # reads just the user's, which authenticates fine (verified via
     # systemd-run repro, 2026-09-11).
-    _real_home="$(getent passwd "$(id -u)" | cut -d: -f6)"
-    _git_ssh="ssh"
-    if [ -f "$_real_home/.ssh/config" ]; then
-        _git_ssh="ssh -F $_real_home/.ssh/config"
-    fi
     # Pull the branch this checkout is on: `main` = releases (users), `dev` = development (the dev box).
     # Any other branch (a feature branch) is work in progress and is left alone (CONTRIBUTING.md).
-    _branch="$(git symbolic-ref --short -q HEAD || true)"
     case "$_branch" in
         main|dev)
-            if ! env -i HOME="$_real_home" PATH="/usr/local/bin:/usr/bin:/bin" \
-                    GIT_SSH_COMMAND="$_git_ssh" git pull --ff-only origin "$_branch" 2>&1; then
+            if ! git_env git pull --ff-only origin "$_branch" 2>&1; then
                 warn "git pull failed (local may be ahead or divergent). Using local code."
+            fi
+            _after="$(git rev-parse --short HEAD 2>/dev/null || true)"
+            if [ "$_before" = "$_after" ]; then
+                log "Code: already up to date at $_after."
+            else
+                log "Code: updated $_before -> $_after ($(git rev-list --count "$_before..$_after") change(s))."
             fi ;;
         *)
             warn "on '${_branch:-a detached HEAD}', not main or dev: skipping git pull (update a feature branch yourself)." ;;
