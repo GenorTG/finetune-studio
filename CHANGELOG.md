@@ -75,6 +75,10 @@ turns that section into the release's notes.
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
 ### Fixed
+- Heretic export can pin the batch size (`--batch-size`). Heretic's auto probe picked 128 sequences per pass for a
+  1.5B model, and the run died mid-search with `CUDA error: an illegal memory access` inside the L-BFGS step. It is
+  reported as a failed export rather than a fake success, but an export that cannot finish is still a gap; with
+  `batch_size=8` the same 24-trial run completed in 48 min at a steady ~8 GB.
 - Heretic export picks the trial to keep by a KL-divergence budget instead of trial index 0. Index 0 of Heretic's
   Pareto front is the fewest-refusals trial **at any cost**: on a real run it had KL 10.0 and the exported model
   answered in token soup, so the refusals were gone because the model was. The export now searches, reads the front,
