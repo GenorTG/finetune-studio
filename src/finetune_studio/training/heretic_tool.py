@@ -482,6 +482,13 @@ class AbliterationRun:
     #: divergence scorer). Applies when choosing which trial to keep: see
     #: :func:`choose_trial` for why the choice cannot be left to trial index 0.
     kl_budget: float = 0.5
+    #: Sequences per forward pass (0 = let Heretic measure the best size).
+    #: Heretic's auto probe picked 128 for a 1.5B model, which is a large peak
+    #: allocation next to the other GPU services on this host and is the likeliest
+    #: trigger of the CUDA illegal-memory-access seen there; a modest fixed value
+    #: is slower but predictable.
+    batch_size: int = 0
+    max_batch_size: int = 128
 
 
 def build_command(
@@ -518,6 +525,8 @@ def build_command(
         "--seed", str(run.seed),
         "--quantization", run.quantization,
         "--system-prompt", run.system_prompt,
+        "--batch-size", str(run.batch_size),
+        "--max-batch-size", str(run.max_batch_size),
     ]
     if run.checkpoint_dir:
         cmd += ["--study-checkpoint-dir", run.checkpoint_dir]
