@@ -10,6 +10,7 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Added
+- CLI: `fts brain bundle` (encrypted `.ftsrag` copy of an index) and `fts brain import` (load one into a project).
 - Smart Brain standalone export: **each search layer is its own switch**. You can turn off **Meaning search**
   (vectors), **Word search** (BM25), the **Reranker** and **Answer generation** separately. **Rank fusion** runs
   automatically when both searches are on.
@@ -68,6 +69,10 @@ turns that section into the release's notes.
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
 ### Fixed
+- Smart Brain **Import an index from another studio** is its own card, open in every project. Before, it was
+  inside the export panel, which only appears once the project has an index, so a new project could not import a
+  bundle. An imported index now says where it came from instead of "rebuild needed: N file(s) removed", and it is
+  registered like a build, so the Guide and the Testing page see it.
 - Smart Brain builds can be stopped: a **Stop build** button on the page, and `fts jobs stop` now works too. Before,
   the whole index was embedded in one step that ignored stop requests. A stopped or failed build, including a
   rebuild from scratch, now leaves the previous index untouched; a rebuild used to delete it first.

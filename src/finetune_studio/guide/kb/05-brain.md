@@ -15,7 +15,8 @@ While it builds, the bar shows the passages embedded, the time taken and the tim
 4. **Search test**: ask a fact question per document type; the top hit must be the right passage and show its source filename and score.
 5. **Ask the model (grounded)** to chat with sources.
 6. Build it before exporting a dataset if you want retrieved-context rows in the training data.
-7. **Standalone server export**: pick the search layers it ships, each a separate switch. **Meaning search** (vectors: finds passages that say the same in other words; needs the embedder inside via *Include models*, or an embeddings API where it runs), **Word search** (BM25 keyword index: exact names, codes, numbers; no model), **Rank fusion** (RRF; automatic when both searches are on), **Reranker** (a cross-encoder rescoring pass; needs *Include models*) and **Answer generation**, the "G" in RAG (the server also writes the answer with any OpenAI-compatible chat model: endpoint and model name here, the API key only where it runs). The **Pipeline** line shows how a question travels through the package; the package ships only the files its layers use. The same switches exist as `fts brain export --no-semantic/--no-keyword/--no-reranker/--answer`.
+7. **Studio to studio**: *Download / export the index* writes an encrypted `.ftsrag` bundle (passphrase shown once); the other studio opens **Import an index from another studio**, picks the file and types the passphrase. The imported index says where it came from; a rebuild there indexes that project's own files instead. CLI: `fts brain bundle` / `fts brain import`.
+8. **Standalone server export**: pick the search layers it ships, each a separate switch. **Meaning search** (vectors: finds passages that say the same in other words; needs the embedder inside via *Include models*, or an embeddings API where it runs), **Word search** (BM25 keyword index: exact names, codes, numbers; no model), **Rank fusion** (RRF; automatic when both searches are on), **Reranker** (a cross-encoder rescoring pass; needs *Include models*) and **Answer generation**, the "G" in RAG (the server also writes the answer with any OpenAI-compatible chat model: endpoint and model name here, the API key only where it runs). The **Pipeline** line shows how a question travels through the package; the package ships only the files its layers use. The same switches exist as `fts brain export --no-semantic/--no-keyword/--no-reranker/--answer`.
 
 ## Key controls
 - `#quick-index-btn` — one-click parse + build.
@@ -29,6 +30,7 @@ While it builds, the bar shows the passages embedded, the time taken and the tim
 - `#s-rerank-top-n` — how many candidates to rerank (default 50).
 - `#q-text` — search test box.
 - `#brain-chat` — grounded chat section.
+- `#brain-import-panel` — import an encrypted `.ftsrag` bundle from another studio (works in a new project with no index).
 - `#mcp-layers` — standalone export: the search layers, one switch each.
 - `#mcp-sem` — export meaning search (vectors).
 - `#mcp-kw` — export word search (BM25).

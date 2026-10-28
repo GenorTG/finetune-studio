@@ -167,10 +167,11 @@ async def brain_import(pid: str, file: UploadFile, overwrite: bool = False,
                     f"Corpus already exists at {index.dir}; pass overwrite=True to replace.")
             await asyncio.to_thread(sb.import_secure_bundle, tmp_path, passphrase,
                                     index.dir, overwrite=True)
-            stats = index.read_manifest().to_json()   # counts only: no embedder load
-            stats = {"documents": stats.get("documents", 0), "chunks": stats.get("chunks", 0)}
         else:
-            stats = index.import_bundle(tmp_path, overwrite=overwrite)
+            await asyncio.to_thread(index.import_bundle, tmp_path, overwrite=overwrite)
+        from finetune_studio.knowledge import index as knowledge_index
+
+        stats = await asyncio.to_thread(knowledge_index.register_import, pid, bundle=filename)
     except FileNotFoundError as e:
         return JSONResponse({"detail": str(e)}, status_code=400)
     except FileExistsError as e:

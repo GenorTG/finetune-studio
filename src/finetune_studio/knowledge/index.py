@@ -37,6 +37,8 @@ class IndexState:
     stale: list[str] = field(default_factory=list)       # in the index, but their text changed since (edit, Vision, reparse)
     missing: list[str] = field(default_factory=list)     # ready sources the index has never seen
     removed: list[str] = field(default_factory=list)     # in the index, but the file is gone
+    imported: list[str] = field(default_factory=list)    # came with an imported bundle; not files of this project
+    imported_from: str = ""                              # the bundle's index name ("" = built here)
     fact_cards: bool = False                             # the last build indexed the approved pairs as fact cards
     facts_changed: bool = False                          # ... and pairs were approved, edited or un-approved since
 
@@ -46,7 +48,8 @@ class IndexState:
 
     def as_dict(self) -> dict[str, Any]:
         return {"built": self.built, "fresh": self.fresh, "indexed": self.indexed, "stale": self.stale,
-                "missing": self.missing, "removed": self.removed, "fact_cards": self.fact_cards,
+                "missing": self.missing, "removed": self.removed, "imported": self.imported,
+                "imported_from": self.imported_from, "fact_cards": self.fact_cards,
                 "facts_changed": self.facts_changed}
 
 
@@ -127,7 +130,14 @@ def state(pid: str) -> IndexState:
             st.stale.append(sid)
         else:
             st.indexed.append(sid)
-    st.removed = [sid for sid in built if sid not in ready]
+    gone = [sid for sid in built if sid not in ready]
+    imported = extra.get("imported_from") or {}
+    if imported:
+        # An imported index was built from the exporting project's files: absent here by design, not removed.
+        st.imported_from = str(imported.get("name") or "a bundle")
+        st.imported = gone
+    else:
+        st.removed = gone
     if st.fact_cards:
         st.facts_changed = str(extra.get("facts_sha") or "") != facts_sha(pid)
     return st
@@ -166,6 +176,31 @@ def parse_pending(pid: str, file_ids: list[str] | None = None, *,
         if progress is not None:
             progress(i, len(pending))
     return {"promoted": promoted, "failed": failed}
+
+
+def register_import(pid: str, *, bundle: str = "") -> dict[str, Any]:
+    """After a bundle import into ``pid``'s index dir: mark where it came from and register it like a build.
+
+    The manifest's ``extra.imported_from`` keeps ``state`` from reporting the exporting project's files as removed
+    here; the ``brain_indexes`` row is what the Guide and the Testing page read to know an index exists.
+    Returns ``{documents, chunks, imported_from}``."""
+    import time
+
+    from finetune_studio.smart_brain import read_json, write_json
+
+    project = db.get_project(pid)
+    if not project:
+        raise IndexBuildError(f"project {pid} not found", 404)
+    corpus = brain_index_dir(pid)
+    raw = read_json(corpus / "manifest.json")
+    extra = raw.setdefault("extra", {})
+    name = str(raw.get("name") or bundle or "a bundle")
+    extra["imported_from"] = {"name": name, "bundle": bundle, "at": time.time()}
+    write_json(corpus / "manifest.json", raw)
+    n_docs, n_chunks = int(raw.get("documents") or 0), int(raw.get("chunks") or 0)
+    _index_row_id(pid, project["name"])
+    db.ensure_brain_index(pid, str(corpus), name=project["name"], doc_count=n_docs, chunk_count=n_chunks)
+    return {"documents": n_docs, "chunks": n_chunks, "imported_from": name}
 
 
 def _index_row_id(pid: str, project_name: str) -> str:
