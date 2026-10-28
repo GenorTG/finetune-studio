@@ -478,10 +478,27 @@ class AbliterationRun:
     checkpoint_dir: str = ""
     quantization: str = "none"
     system_prompt: str = "You are a helpful assistant."
+    #: How far the model may drift from the original, in nats (Heretic's KL
+    #: divergence scorer). Applies when choosing which trial to keep: see
+    #: :func:`choose_trial` for why the choice cannot be left to trial index 0.
+    kl_budget: float = 0.5
 
 
-def build_command(run: AbliterationRun) -> list[str]:
-    """The exact argv for one unattended run (every prompt closed by a flag)."""
+def build_command(
+    run: AbliterationRun,
+    *,
+    save_dir: str | None = None,
+    export_strategy: str = "merge",
+    checkpoint_action: str = "restart",
+    trial_index: int = 0,
+) -> list[str]:
+    """The exact argv for one unattended Heretic pass (every prompt closed by a flag).
+
+    Heretic runs in two passes here (see :func:`run_abliteration`): the first only
+    searches and saves an adapter nobody keeps, the second merges the trial that
+    was chosen. ``export_strategy``/``checkpoint_action``/``trial_index`` exist for
+    that split; the defaults describe the single-pass shape.
+    """
     entry = entry_point()
     # The console script when it exists (the module has no __main__ guard, so
     # ``-m heretic.main`` is a silent no-op); ``-c`` is the equivalent fallback.
@@ -489,13 +506,13 @@ def build_command(run: AbliterationRun) -> list[str]:
     cmd = [
         *launcher,
         "--model", run.model_path,
-        # Save the merged full model, then leave: no menu, no path prompt.
+        # Save, then leave: no menu, no path prompt.
         "--model-action", "save",
-        "--save-directory", run.output_dir,
-        "--export-strategy", "merge",
+        "--save-directory", save_dir or run.output_dir,
+        "--export-strategy", export_strategy,
         # A leftover Optuna study must not stop a batch job with a question.
-        "--checkpoint-action", "restart",
-        "--trial-index", "0",
+        "--checkpoint-action", checkpoint_action,
+        "--trial-index", str(trial_index),
         "--n-trials", str(run.n_trials),
         "--n-startup-trials", str(run.n_startup_trials),
         "--seed", str(run.seed),
@@ -505,6 +522,120 @@ def build_command(run: AbliterationRun) -> list[str]:
     if run.checkpoint_dir:
         cmd += ["--study-checkpoint-dir", run.checkpoint_dir]
     return cmd
+
+
+#: Reads / patches the finished Optuna study.
+#:
+#: Runs under the OVERLAY interpreter (only it has optuna) and talks JSON on
+#: stdout. Patching is not optional: on ``--checkpoint-action continue`` Heretic
+#: restores its settings from the study, and the stored ``trial_index`` wins over
+#: the command-line flag (measured: passing ``--trial-index 2`` still saved
+#: trial 0 until the study itself was patched).
+_STUDY_SCRIPT = r'''
+import glob, json, sys
+
+study_dir, action, pos = sys.argv[1], sys.argv[2], sys.argv[3]
+
+from optuna import load_study
+from optuna.storages import JournalStorage
+from optuna.storages.journal import JournalFileBackend
+
+paths = sorted(glob.glob(study_dir.rstrip("/") + "/*.jsonl"))
+if not paths:
+    print(json.dumps({"error": "no study file in " + study_dir}))
+    raise SystemExit(0)
+
+study = load_study(study_name="heretic",
+                   storage=JournalStorage(JournalFileBackend(paths[0])))
+if not [t for t in study.trials if t.state.name == "COMPLETE"]:
+    print(json.dumps({"error": "the study has no completed trials"}))
+    raise SystemExit(0)
+
+stored = json.loads(study.user_attrs["settings"])
+
+if action == "patch":
+    stored["trial_index"] = int(pos)
+    # ``export_strategy`` IS stored (``save_directory`` is not), so a resumed run
+    # restores whatever pass 1 used. Leaving it at "adapter" made pass 2 save an
+    # adapter into the model directory instead of the merged model.
+    stored["export_strategy"] = "merge"
+    study.set_user_attr("settings", json.dumps(stored))
+    print(json.dumps({"patched": int(pos), "export_strategy": "merge"}))
+    raise SystemExit(0)
+
+plugins = [str(s.get("plugin", "")) for s in stored.get("scorers", [])]
+
+def index_of(needle, fallback):
+    for i, plugin in enumerate(plugins):
+        if needle in plugin:
+            return i
+    return fallback
+
+ki = index_of("keyword_rate", 0)
+li = index_of("kl_divergence", 1)
+
+# Heretic sorts the front ascending by (refusals, KL), so position 0 is the
+# fewest-refusal extreme at ANY cost; its KL is frequently ~10 (a wrecked model).
+front = sorted(study.best_trials, key=lambda t: tuple(t.values))
+print(json.dumps({"front": [{"pos": i, "trial": t.number,
+                            "refusals": t.values[ki], "kl": t.values[li]}
+                           for i, t in enumerate(front)]}))
+'''
+
+
+def _study(study_dir: str, action: str = "read", pos: int = 0) -> dict[str, Any]:
+    """Run the study helper under the overlay interpreter and return its JSON."""
+    import tempfile
+
+    with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding="utf-8") as f:
+        f.write(_STUDY_SCRIPT)
+        script = f.name
+    try:
+        proc = _run([str(python_path()), script, study_dir, action, str(pos)], timeout=300)
+    finally:
+        try:
+            os.unlink(script)
+        except OSError:
+            pass
+    lines = (proc.stdout or "").strip().splitlines()
+    if proc.returncode != 0 or not lines:
+        raise HereticError(
+            "could not read Heretic's study: "
+            + ((proc.stderr or proc.stdout or "").strip()[-400:] or f"exit {proc.returncode}")
+        )
+    try:
+        data = json.loads(lines[-1])
+    except ValueError as e:
+        raise HereticError(f"could not read Heretic's study: {lines[-1][:300]}") from e
+    if data.get("error"):
+        raise HereticError(str(data["error"]))
+    return data
+
+
+def pick_trial(front: list[dict[str, Any]], kl_budget: float) -> dict[str, Any]:
+    """The trial to keep: fewest refusals among trials within the KL budget.
+
+    Deliberately never "position 0 of the front". Position 0 is the fewest-refusal
+    extreme whatever it costs, and measured on Qwen3-0.6B that extreme had KL 10.0
+    with the model answering in token soup: the refusals vanished because the model
+    did. The budget keeps it recognisably the same model; when nothing meets it, the
+    least-damaged trial wins and ``budget_met`` is False so the caller can say so.
+    """
+    if not front:
+        raise HereticError("Heretic's study produced no trial to choose from")
+    under = [r for r in front if float(r["kl"]) <= kl_budget]
+    pool = under or [min(front, key=lambda r: (float(r["kl"]), float(r["refusals"])))]
+    chosen = min(pool, key=lambda r: (float(r["refusals"]), float(r["kl"])))
+    return {"chosen": chosen, "budget_met": bool(under), "kl_budget": kl_budget}
+
+
+def choose_trial(study_dir: str, kl_budget: float) -> dict[str, Any]:
+    """Pick the trial worth keeping and make Heretic use it (patches the study)."""
+    front = _study(study_dir)["front"]
+    picked = pick_trial(front, kl_budget)
+    _study(study_dir, "patch", int(picked["chosen"]["pos"]))
+    picked["front"] = front
+    return picked
 
 
 def run_env() -> dict[str, str]:
@@ -563,17 +694,54 @@ def run_abliteration(
     out = Path(run.output_dir)
     out.parent.mkdir(parents=True, exist_ok=True)
 
-    cmd = build_command(run)
-    log.info("heretic run: %s", " ".join(cmd))
-    run_group_subprocess(
-        cmd,
-        timeout=timeout,
-        cancelled=cancelled,
-        on_tick=on_tick,
-        on_start=on_start,
-        env=run_env(),
-    )
-    return inspect_output(str(out))
+    # Pass 1 — search only. Heretic always saves *some* trial at the end of an
+    # unattended run, and its save step is also where the study is written; so the
+    # search pass saves an adapter nobody keeps into a scratch directory. The real
+    # model is merged in pass 2, once the trial is chosen.
+    scratch = out.parent / (out.name + ".search")
+    shutil.rmtree(scratch, ignore_errors=True)
+    cmd = build_command(run, save_dir=str(scratch), export_strategy="adapter",
+                        checkpoint_action="restart", trial_index=0)
+    log.info("heretic search: %s", " ".join(cmd))
+    try:
+        run_group_subprocess(
+            cmd,
+            timeout=timeout,
+            cancelled=cancelled,
+            on_tick=on_tick,
+            on_start=on_start,
+            env=run_env(),
+        )
+
+        # Choose the trial here, not with a fixed index: see choose_trial.
+        study_dir = run.checkpoint_dir or str(out)
+        picked = choose_trial(study_dir, run.kl_budget)
+        log.info("heretic chose trial %s of the front (refusals=%s, kl=%s, budget_met=%s)",
+                 picked["chosen"]["trial"], picked["chosen"]["refusals"],
+                 picked["chosen"]["kl"], picked["budget_met"])
+
+        # Pass 2 — merge the chosen trial. ``continue`` restores the study (with the
+        # trial index choose_trial just wrote) and runs no new trials.
+        cmd = build_command(run, save_dir=str(out), export_strategy="merge",
+                            checkpoint_action="continue", trial_index=picked["chosen"]["pos"])
+        log.info("heretic save: %s", " ".join(cmd))
+        run_group_subprocess(
+            cmd,
+            timeout=timeout,
+            cancelled=cancelled,
+            on_tick=on_tick,
+            on_start=on_start,
+            env=run_env(),
+        )
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+    result = inspect_output(str(out))
+    result["trials"] = picked["front"]
+    result["chosen"] = picked["chosen"]
+    result["kl_budget"] = run.kl_budget
+    result["budget_met"] = picked["budget_met"]
+    return result
 
 
 def inspect_output(output_dir: str) -> dict[str, Any]:

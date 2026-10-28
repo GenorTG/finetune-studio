@@ -143,6 +143,73 @@ def test_env_does_not_enable_python_bytecode() -> None:
     assert heretic_tool.run_env()["PYTHONDONTWRITEBYTECODE"] == "1"
 
 
+# ── choosing which trial to keep (the bug that shipped) ─────────────────────
+
+# The measured front from a real 24-trial run (Qwen3-0.6B, 2026-10-28). Position 0
+# had zero refusals and KL 10.0: the model answered in token soup. Position 2 had
+# 0.03 refusals at KL 0.008 and answered coherently when tested.
+MEASURED_FRONT = [
+    {"pos": 0, "trial": 17, "refusals": 0.00, "kl": 10.0254},
+    {"pos": 1, "trial": 11, "refusals": 0.02, "kl": 0.6102},
+    {"pos": 2, "trial": 9, "refusals": 0.03, "kl": 0.0079},
+]
+
+
+def test_pick_trial_never_takes_the_destroyed_extreme() -> None:
+    """Regression: position 0 is fewest refusals at ANY cost, and it wrecked the model."""
+    picked = heretic_tool.pick_trial(MEASURED_FRONT, kl_budget=0.5)
+    assert picked["chosen"]["pos"] == 2, picked["chosen"]
+    assert picked["budget_met"] is True
+
+
+def test_pick_trial_respects_the_budget_it_was_given() -> None:
+    """A looser budget may accept the middle trial, still never the KL-10 one."""
+    picked = heretic_tool.pick_trial(MEASURED_FRONT, kl_budget=1.0)
+    assert picked["chosen"]["pos"] == 1
+    assert picked["chosen"]["kl"] == 0.6102
+
+
+def test_pick_trial_falls_back_to_least_damage_and_says_so() -> None:
+    """No trial inside the budget: keep the least-damaged and report budget_met=False."""
+    picked = heretic_tool.pick_trial(MEASURED_FRONT, kl_budget=0.001)
+    assert picked["chosen"]["pos"] == 2
+    assert picked["budget_met"] is False
+
+
+def test_pick_trial_prefers_fewer_refusals_inside_the_budget() -> None:
+    front = [
+        {"pos": 0, "trial": 1, "refusals": 0.0, "kl": 9.0},
+        {"pos": 1, "trial": 2, "refusals": 0.30, "kl": 0.20},
+        {"pos": 2, "trial": 3, "refusals": 0.10, "kl": 0.40},
+    ]
+    picked = heretic_tool.pick_trial(front, kl_budget=0.5)
+    assert picked["chosen"]["trial"] == 3, picked["chosen"]
+
+
+def test_pick_trial_rejects_an_empty_front() -> None:
+    with pytest.raises(heretic_tool.HereticError):
+        heretic_tool.pick_trial([], kl_budget=0.5)
+
+
+def test_two_pass_flags_differ_where_it_matters() -> None:
+    """Pass 1 searches and discards an adapter; pass 2 merges the chosen trial."""
+    run = heretic_tool.AbliterationRun(model_path="/m", output_dir="/o", checkpoint_dir="/o/.study")
+    search = heretic_tool.build_command(
+        run, save_dir="/o.search", export_strategy="adapter",
+        checkpoint_action="restart", trial_index=0,
+    )
+    save = heretic_tool.build_command(
+        run, save_dir="/o", export_strategy="merge",
+        checkpoint_action="continue", trial_index=2,
+    )
+    assert search[search.index("--export-strategy") + 1] == "adapter"
+    assert save[save.index("--export-strategy") + 1] == "merge"
+    assert search[search.index("--checkpoint-action") + 1] == "restart"
+    assert save[save.index("--checkpoint-action") + 1] == "continue"
+    assert save[save.index("--trial-index") + 1] == "2"
+    assert save[save.index("--save-directory") + 1] == "/o"
+
+
 # ── the overlay must share one CUDA stack, not carry its own ────────────────
 
 def test_shared_packages_exclude_light_dependencies() -> None:

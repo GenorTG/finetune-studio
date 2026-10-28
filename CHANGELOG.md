@@ -75,6 +75,10 @@ turns that section into the release's notes.
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
 ### Fixed
+- Heretic export picks the trial to keep by a KL-divergence budget instead of trial index 0. Index 0 of Heretic's
+  Pareto front is the fewest-refusals trial **at any cost**: on a real run it had KL 10.0 and the exported model
+  answered in token soup, so the refusals were gone because the model was. The export now searches, reads the front,
+  keeps the trial with the fewest refusals inside the budget (default 0.5), and says so when no trial meets it.
 - Smart Brain **Import an index from another studio** is its own card, open in every project. Before, it was
   inside the export panel, which only appears once the project has an index, so a new project could not import a
   bundle. An imported index now says where it came from instead of "rebuild needed: N file(s) removed", and it is
