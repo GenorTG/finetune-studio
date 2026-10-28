@@ -10,6 +10,18 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Added
+- Smart Brain standalone export: **each search layer is its own switch**. You can turn off **Meaning search**
+  (vectors), **Word search** (BM25), the **Reranker** and **Answer generation** separately. **Rank fusion** runs
+  automatically when both searches are on.
+  - The package only ships the files the layers you keep need: no vectors without meaning search, no keyword
+    index without word search.
+  - A **Pipeline** line shows how a question travels through the package.
+  - The server reports in `/health` which layers really run. It can switch a shipped layer off at run time
+    (`--no-semantic`, `--no-keyword`), but never on one the package does not contain.
+  - **Answer generation** (the "G" in RAG) adds `/ask` and the MCP tool `rag_answer`. They send the passages to any
+    OpenAI-compatible chat model with the same grounded prompt as the Smart Brain chat. The API key is never put
+    in the package.
+  - New CLI: `fts brain export` with the same switches.
 - Buttons for four things that only worked through the API:
   - **My models → Rescan folders** finds a model you copied into a model folder by hand, without restarting the app.
   - **Smart Brain → Re-embed only** swaps the embedder of an existing index and keeps its passages. It is quicker
@@ -56,6 +68,9 @@ turns that section into the release's notes.
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
 ### Fixed
+- The standalone Smart Brain server ignored the index's "hybrid off" setting and always ran keyword search; it
+  now runs exactly the layers that are on. Its "Reranker on" option did nothing without bundled models; the export
+  page now says so and only offers it with *Include models*.
 - Cancelling a whole-model download stopped the progress bar but not the download: the job process stayed alive and
   fetched the rest of the repository (measured: 22 GB cancelled, still writing ~70 MB/s). The job now exits when it
   is stopped, and the Activity drawer's **Cancel download** button sits on the row itself and still works while the

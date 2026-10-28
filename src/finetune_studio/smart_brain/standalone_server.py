@@ -71,6 +71,9 @@ DEFAULT_CONFIG: dict = {
     "host": "127.0.0.1", "port": 8899, "top_k": 10, "device": "auto",
     "reranker": True, "auth_token": "", "embed_model": "",
     "embed_base_url": "", "embed_api_key": "", "query_prefix": "", "dense_extra": 0,
+    "semantic": True, "keyword": True, "answer": False,
+    "llm_base_url": "", "llm_model": "", "llm_api_key": "", "answer_max_tokens": 512,
+    "llm_headers": {}, "llm_body": {},
 }
 ENV_KEYS = {
     "host": "RAG_HOST", "port": "RAG_PORT", "top_k": "RAG_TOP_K",
@@ -78,8 +81,28 @@ ENV_KEYS = {
     "auth_token": "RAG_AUTH_TOKEN", "embed_model": "RAG_EMBED_MODEL",
     "embed_base_url": "RAG_EMBED_BASE_URL", "embed_api_key": "RAG_EMBED_API_KEY",
     "query_prefix": "RAG_QUERY_PREFIX", "dense_extra": "RAG_DENSE_EXTRA",
+    "semantic": "RAG_SEMANTIC", "keyword": "RAG_KEYWORD", "answer": "RAG_ANSWER",
+    "llm_base_url": "RAG_LLM_BASE_URL", "llm_model": "RAG_LLM_MODEL", "llm_api_key": "RAG_LLM_API_KEY",
+    "answer_max_tokens": "RAG_ANSWER_MAX_TOKENS",
+    "llm_headers": "RAG_LLM_HEADERS", "llm_body": "RAG_LLM_BODY",
 }
-SECRET_KEYS = frozenset({"auth_token", "embed_api_key"})
+SECRET_KEYS = frozenset({"auth_token", "embed_api_key", "llm_api_key"})
+BOOL_KEYS = frozenset({"reranker", "semantic", "keyword", "answer"})
+JSON_KEYS = frozenset({"llm_headers", "llm_body"})
+USER_AGENT = "fts-brain-server/2.0"   # some API gateways (Cloudflare) refuse Python's default urllib agent
+SESSION_ID = os.urandom(16).hex()     # "{session}" in an llm header (the OpenCode Go gateway wants one per client)
+
+# The grounded prompt of the studio's Smart Brain chat (smart_brain/prompt.py; this file ships on its own, so the
+# text is copied here and tests/test_brain_export_layers.py pins the two together).
+DEFAULT_SYSTEM_PROMPT = (
+    "You are a knowledgeable assistant. Answer using ONLY the context below. "
+    "If the answer isn't in the context, say so. Quote the source filename in [brackets] when relevant."
+)
+CONTEXT_MARKER = "CONTEXT:\n"
+_BLOCK_SEP = "\n\n---\n\n"
+ANSWER_CONTEXT_CHARS = 24000
+_STOP = frozenset(["what", "which", "when", "where", "whom", "whose", "does", "that", "this", "with", "from", "have",
+                   "about", "tell", "there", "their", "into"])
 
 
 def _resolve_device(requested: str) -> str:
@@ -124,11 +147,16 @@ class ConfigError(Exception):
 
 def _coerce(key: str, value: object) -> object:
     try:
-        if key in ("port", "top_k", "dense_extra"):
+        if key in ("port", "top_k", "dense_extra", "answer_max_tokens"):
             return int(value)  # type: ignore[call-overload]
         if key == "query_prefix":   # "\n" in an env value / unit file = a newline (Qwen3: "Instruct: …\nQuery:")
             return str(value).replace("\\n", "\n")
-        if key == "reranker":
+        if key in JSON_KEYS:   # a JSON object: from rag.config.json as-is, from the env as a JSON string
+            obj = json.loads(value) if isinstance(value, str) else value
+            if not isinstance(obj, dict):
+                raise ValueError(value)
+            return obj
+        if key in BOOL_KEYS:
             if isinstance(value, str):
                 low = value.strip().lower()
                 if low in ("1", "true", "yes", "on"):
@@ -169,6 +197,14 @@ def resolve_config(flags: Mapping[str, object], env: Mapping[str, str],
         raise ConfigError(f"top_k must be 1..{MAX_TOP_K}")
     if not 0 <= cfg["dense_extra"] <= MAX_TOP_K:
         raise ConfigError(f"dense_extra must be 0..{MAX_TOP_K}")
+    if not 16 <= cfg["answer_max_tokens"] <= 32768:
+        raise ConfigError("answer_max_tokens must be 16..32768")
+    if not (cfg["semantic"] or cfg["keyword"]):
+        raise ConfigError("meaning search and word search are both off: turn on at least one")
+    cfg["llm_base_url"] = str(cfg["llm_base_url"]).rstrip("/")
+    if cfg["answer"] and not (cfg["llm_base_url"] and cfg["llm_model"]):
+        raise ConfigError("answer generation needs an LLM endpoint: set llm_base_url and llm_model "
+                          "(--llm-base-url / --llm-model or RAG_LLM_BASE_URL / RAG_LLM_MODEL)")
     return cfg, origin
 
 
@@ -278,22 +314,39 @@ class Corpus:
                 raise ConfigError("encrypted package: a passphrase is required")
             self._container = _load_container_module().ContainerReader(enc, passphrase)
             read = self._container.read
+            has = self._container.__contains__
         else:
             def read(name: str) -> bytes:
                 return (self.dir / name).read_bytes()
+
+            def has(name: str) -> bool:
+                return (self.dir / name).is_file()
         self.manifest = json.loads(read("manifest.json").decode("utf-8"))
         self.chunks = [
             json.loads(line)
             for line in read("chunks.jsonl").decode("utf-8").splitlines()
             if line.strip()
         ]
-        self.bm25 = json.loads(read("bm25.json").decode("utf-8"))
-        self.vectors = np.load(io.BytesIO(read("vectors.npy")),
-                               allow_pickle=False).astype(np.float32)
-        self.idx_map = json.loads(read("vectors.idx.json").decode("utf-8"))
         self.chunk_ids = [c["id"] for c in self.chunks]
+        self.idx_map = {cid: i for i, cid in enumerate(self.chunk_ids)}
+        # Search layers: a layer runs when the package ships its files AND the config leaves it on. A flag can turn
+        # a shipped layer off, never on one that is not in the package.
+        self.shipped = {"semantic": has("vectors.npy") and has("vectors.idx.json"), "keyword": has("bm25.json")}
+        self.semantic = bool(self.cfg["semantic"]) and self.shipped["semantic"]
+        self.keyword = bool(self.cfg["keyword"]) and self.shipped["keyword"]
+        for layer, label in (("semantic", "meaning search (no vectors)"), ("keyword", "word search (no BM25 index)")):
+            if self.cfg[layer] and not self.shipped[layer]:
+                print(f"[warn] {label} is not in this package; it stays off", file=sys.stderr)
+        if not (self.semantic or self.keyword):
+            raise ConfigError("no search layer can run: this package ships "
+                              + (", ".join(k for k, v in self.shipped.items() if v) or "none")
+                              + " and the config turns the rest off")
+        self.bm25 = json.loads(read("bm25.json").decode("utf-8")) if self.keyword else {}
+        self.vectors = np.zeros((0, 0), dtype=np.float32)
+        if self.semantic:
+            self.vectors = np.load(io.BytesIO(read("vectors.npy")), allow_pickle=False).astype(np.float32)
+            self.idx_map = json.loads(read("vectors.idx.json").decode("utf-8"))
         rs = self.manifest.get("rag_settings") or {}
-        self.hybrid = bool(rs.get("hybrid_enabled", True))
         self.rrf_k = int(rs.get("rrf_k", 60))
         emb = (self.manifest.get("embedding_model") or {}).get("name") or ""
         self.embed_model = self.cfg["embed_model"] or emb.split(":")[-1] or emb
@@ -308,6 +361,11 @@ class Corpus:
         self._reranker_failed = False
         self.rerank_enabled = bool(self.cfg["reranker"]) and bool(rs.get("rerank_enabled", False))
         self.rerank_top_n = int(rs.get("rerank_top_n", 50))
+        if self.semantic and not self.keyword and not self.embed_base \
+                and not self._looks_like_model(self.dir / "embedder"):
+            # Meaning search alone with nothing to embed the question: every search would come back empty.
+            raise ConfigError("meaning search is the only layer on, but there is no bundled embedder and no "
+                              "RAG_EMBED_BASE_URL to embed questions with")
 
     def read_source(self, name: str) -> str:
         """Lazily decrypt one original document (``sources/<name>``)."""
@@ -395,7 +453,7 @@ class Corpus:
         req = urllib.request.Request(
             f"{self.embed_base}/embeddings",
             data=body,
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "User-Agent": USER_AGENT},
             method="POST",
         )
         key = self.cfg["embed_api_key"]
@@ -431,7 +489,7 @@ class Corpus:
                 return []
         rankings: list[list[str]] = []
         dense_scores = None
-        q = self.embed_query(query)
+        q = self.embed_query(query) if self.semantic else None
         if q is not None and self.vectors.ndim == 2 and self.vectors.shape[0] == len(self.chunks):
             if q.shape[0] == self.vectors.shape[1]:
                 dense_scores = self.vectors @ q
@@ -439,11 +497,12 @@ class Corpus:
             else:
                 print(f"[warn] query dim {q.shape[0]} != corpus dim {self.vectors.shape[1]}; "
                       "skipping semantic search", file=sys.stderr)
-        bm25 = self.bm25_scores(query)
-        # Only passages sharing a term get a keyword rank: ranking the zero-score rest (arbitrary order) pushed
-        # a passage found by meaning alone below ones that matched just "you" / "are" / "w".
-        hit = allowed[bm25[allowed] > 0]
-        rankings.append([self.chunk_ids[i] for i in hit[np.argsort(-bm25[hit])]])
+        bm25 = self.bm25_scores(query) if self.keyword else None
+        if bm25 is not None:
+            # Only passages sharing a term get a keyword rank: ranking the zero-score rest (arbitrary order) pushed
+            # a passage found by meaning alone below ones that matched just "you" / "are" / "w".
+            hit = allowed[bm25[allowed] > 0]
+            rankings.append([self.chunk_ids[i] for i in hit[np.argsort(-bm25[hit])]])
 
         rrf: dict[str, float] = {}
         for ranking in rankings:
@@ -471,7 +530,8 @@ class Corpus:
             }
             if dense_scores is not None:
                 hit["dense_score"] = round(float(dense_scores[i]), 6)
-            hit["bm25_score"] = round(float(bm25[i]), 6)
+            if bm25 is not None:
+                hit["bm25_score"] = round(float(bm25[i]), 6)
             hits.append(hit)
 
         if reranker is not None and len(hits) > 1:
@@ -494,24 +554,45 @@ class Corpus:
                 c = self.chunks[i]
                 if c["id"] in have:
                     continue
-                hits.append({"chunk_id": c["id"], "score": 0.0, "rrf_score": 0.0, "via": "dense",
+                extra_hit = {"chunk_id": c["id"], "score": 0.0, "rrf_score": 0.0, "via": "dense",
                              "text": c.get("text", ""), "filename": c.get("filename") or c.get("source") or "",
                              "document_id": c.get("document_id", ""), "chunk_index": c.get("chunk_index", 0),
-                             "dense_score": round(float(dense_scores[i]), 6), "bm25_score": round(float(bm25[i]), 6)})
+                             "dense_score": round(float(dense_scores[i]), 6)}
+                if bm25 is not None:
+                    extra_hit["bm25_score"] = round(float(bm25[i]), 6)
+                hits.append(extra_hit)
                 extra -= 1
         for rank, h in enumerate(hits, start=1):
             h["rank"] = rank
         return hits
 
-    def info(self) -> dict:
-        if self.local_embedder() is not None:
-            mode = "offline-semantic (bundled embedder)"
+    def layers(self) -> dict:
+        """What actually runs (``shipped`` = in the package; a shipped layer can still be off or unusable)."""
+        if not self.semantic:
+            sem = "off" if self.shipped["semantic"] else "not in this package"
+        elif self.local_embedder() is not None:
+            sem = "on (bundled embedder)"
         elif self.embed_base:
-            mode = "hybrid (embeddings API)" if self.hybrid else "semantic (embeddings API)"
+            sem = "on (embeddings API)"
         else:
-            mode = "keyword-only"
-        if self.local_reranker() is not None:
+            sem = "unavailable: no bundled embedder and no RAG_EMBED_BASE_URL"
+        kw = "on" if self.keyword else ("off" if self.shipped["keyword"] else "not in this package")
+        sem_on = sem.startswith("on")
+        rerank = ("on (bundled cross-encoder)" if self.local_reranker() is not None else
+                  "off" if not self.rerank_enabled else "unavailable: no reranker model in this package")
+        return {"semantic": sem, "keyword": kw, "fusion": "on (RRF)" if sem_on and self.keyword else "off",
+                "reranker": rerank,
+                "answer": f"on ({self.cfg['llm_model']})" if self.cfg["answer"] else "off"}
+
+    def info(self) -> dict:
+        lay = self.layers()
+        parts = [n for n, on in (("semantic", lay["semantic"].startswith("on")),
+                                 ("keyword", lay["keyword"] == "on")) if on] or ["none"]
+        mode = " + ".join(parts) + (" (RRF)" if len(parts) == 2 else "")
+        if lay["reranker"].startswith("on"):
             mode += " + rerank"
+        if self.cfg["answer"]:
+            mode += " + answer"
         return {
             "corpus": self.manifest.get("name", ""),
             "chunks": len(self.chunks),
@@ -519,8 +600,77 @@ class Corpus:
             "encrypted": self.encrypted,
             "embed_model": self.embed_model or "(none)",
             "mode": mode,
+            "layers": lay,
             "embed_endpoint": self.embed_base or "(not set)",
         }
+
+    def answer(self, question: str, top_k: int | None = None) -> dict:
+        """The generation half of RAG: retrieve, then ask the configured chat model to answer from the passages."""
+        if not self.cfg["answer"]:
+            raise ValueError("answer generation is off in this server (start it with --answer)")
+        question = (question or "").strip()
+        if not question:
+            raise ValueError("question required")
+        hits = self.search(question, top_k)
+        sources = [{"rank": h["rank"], "filename": h["filename"], "chunk_id": h["chunk_id"]} for h in hits]
+        weak = weak_match(question, hits)
+        if not hits:
+            return {"question": question, "answer": "Nothing in this corpus matches the question.",
+                    "sources": [], "weak": True, "model": None}
+        messages = [{"role": "system", "content": build_system_prompt(format_context_blocks(hits))},
+                    {"role": "user", "content": question}]
+        body = json.dumps({"model": self.cfg["llm_model"], "messages": messages,
+                           "max_tokens": int(self.cfg["answer_max_tokens"]), "temperature": 0.2,
+                           **self.cfg["llm_body"]}).encode()
+        headers = {"Content-Type": "application/json", "User-Agent": USER_AGENT,
+                   **{str(k): str(v).replace("{session}", SESSION_ID) for k, v in self.cfg["llm_headers"].items()}}
+        req = urllib.request.Request(f"{self.cfg['llm_base_url']}/chat/completions", data=body,
+                                     headers=headers, method="POST")
+        if self.cfg["llm_api_key"]:
+            req.add_header("Authorization", f"Bearer {self.cfg['llm_api_key']}")
+        try:
+            with urllib.request.urlopen(req, timeout=300) as resp:
+                data = json.loads(resp.read().decode())
+            text = data["choices"][0]["message"]["content"] or ""
+        except urllib.error.HTTPError as e:
+            detail = e.read()[:300].decode("utf-8", "replace")
+            raise RuntimeError(f"answer model at {self.cfg['llm_base_url']} said {e.code}: {detail}") from e
+        except (urllib.error.URLError, KeyError, IndexError, ValueError, TimeoutError) as e:
+            raise RuntimeError(f"answer model unavailable at {self.cfg['llm_base_url']}: {e}") from e
+        return {"question": question, "answer": strip_thinking(text), "sources": sources, "weak": weak,
+                "model": self.cfg["llm_model"]}
+
+
+def format_context_blocks(results: list[dict], max_chars: int = ANSWER_CONTEXT_CHARS) -> str:
+    """Numbered, source-cited passage blocks (same layout as the studio's ``prompt.format_context_blocks``)."""
+    blocks: list[str] = []
+    total = 0
+    for r in results:
+        score = r.get("ce_score") if "ce_score" in r else r.get("rrf_score", 0)
+        block = f"[{r['rank']}] (source: {r.get('filename') or r.get('source') or 'source'}, score {score:.3f})\n{r['text']}"
+        if total + len(block) > max_chars:
+            break
+        blocks.append(block)
+        total += len(block)
+    return _BLOCK_SEP.join(blocks)
+
+
+def build_system_prompt(context: str) -> str:
+    return f"{DEFAULT_SYSTEM_PROMPT}\n\n{CONTEXT_MARKER}{context}"
+
+
+def weak_match(query: str, hits: list[dict]) -> bool:
+    """True when the passages cover too few of the question's content words (the studio's answer-gate check)."""
+    terms = {w for w in re.findall(r"[a-z0-9]{4,}", query.lower()) if w not in _STOP}
+    if not terms or not hits:
+        return False
+    blob = " ".join(str(h.get("text", "")) for h in hits).lower()
+    return sum(1 for t in terms if t in blob) / len(terms) < 0.6
+
+
+def strip_thinking(text: str) -> str:
+    """Drop a reasoning model's <think>…</think> block from the answer."""
+    return re.sub(r"(?s)^.*?</think>\s*", "", text).strip() if "</think>" in text else text.strip()
 
 
 # ── HTTP mode ─────────────────────────────────────────────────────────
@@ -565,6 +715,9 @@ def make_handler(corpus: Corpus, token: str = ""):
             u = urlparse(self.path)
             if u.path == "/health":
                 self._json({"ok": True, **corpus.info()})
+            elif u.path == "/ask":
+                q = (parse_qs(u.query).get("q") or [""])[0]
+                self._answer(q, None)
             elif u.path == "/search":
                 qs = parse_qs(u.query)
                 q = (qs.get("q") or [""])[0]
@@ -576,7 +729,18 @@ def make_handler(corpus: Corpus, token: str = ""):
                 except ValueError as e:
                     self._json({"error": str(e)}, 400)
             else:
-                self._json({"error": "not found — try /health or /search?q=..."}, 404)
+                self._json({"error": "not found — try /health, /search?q=... or /ask?q=..."}, 404)
+
+        def _answer(self, question, top_k):
+            if not corpus.cfg["answer"]:
+                self._json({"error": "answer generation is off in this server (start it with --answer)"}, 404)
+                return
+            try:
+                self._json(corpus.answer(question, top_k))
+            except ValueError as e:
+                self._json({"error": str(e)}, 400)
+            except RuntimeError as e:
+                self._json({"error": str(e)}, 502)
 
         def do_POST(self):
             if not self._authorized():
@@ -588,6 +752,10 @@ def make_handler(corpus: Corpus, token: str = ""):
                     return
                 body = json.loads(self.rfile.read(length) or b"{}")
                 top_k = body.get("top_k")
+                if urlparse(self.path).path == "/ask":
+                    self._answer(str(body.get("question") or body.get("query") or ""),
+                                 int(top_k) if top_k is not None else None)
+                    return
                 hits = corpus.search(str(body.get("query", "")),
                                      int(top_k) if top_k is not None else None,
                                      str(body.get("source_prefix") or ""),
@@ -646,9 +814,20 @@ _TOOLS = [{
     },
 }, {
     "name": "rag_info",
-    "description": "Corpus stats: name, chunk/document counts, search mode.",
+    "description": "Corpus stats: name, chunk/document counts, which search layers run.",
     "inputSchema": {"type": "object", "properties": {}},
 }]
+_ANSWER_TOOL = {
+    "name": "rag_answer",
+    "description": ("Answer a question from this corpus: searches it, then a language model writes the answer "
+                    "from the passages found, citing their source files."),
+    "inputSchema": {
+        "type": "object",
+        "properties": {"question": {"type": "string", "description": "The question."},
+                       "top_k": {"type": "integer", "description": "How many passages to give the model (optional)."}},
+        "required": ["question"],
+    },
+}
 
 
 def mcp_responder(corpus: Corpus):
@@ -664,7 +843,8 @@ def mcp_responder(corpus: Corpus):
         if method and method.startswith("notifications/"):
             return None
         if method == "tools/list":
-            return {"jsonrpc": "2.0", "id": mid, "result": {"tools": _TOOLS}}
+            tools = _TOOLS + ([_ANSWER_TOOL] if corpus.cfg["answer"] else [])
+            return {"jsonrpc": "2.0", "id": mid, "result": {"tools": tools}}
         if method == "tools/call":
             params = msg.get("params") or {}
             name = params.get("name")
@@ -677,6 +857,9 @@ def mcp_responder(corpus: Corpus):
                                         int(args["dense_extra"]) if args.get("dense_extra") is not None else None)
                 elif name == "rag_info":
                     out = corpus.info()
+                elif name == "rag_answer" and corpus.cfg["answer"]:
+                    out = corpus.answer(str(args.get("question", "")),
+                                        int(args["top_k"]) if args.get("top_k") is not None else None)
                 else:
                     return {"jsonrpc": "2.0", "id": mid,
                             "error": {"code": -32602, "message": f"unknown tool {name!r}"}}
@@ -734,6 +917,19 @@ def build_parser() -> argparse.ArgumentParser:
                     help="enable the bundled reranker")
     ap.add_argument("--no-reranker", dest="reranker", action="store_false",
                     help="disable the reranker")
+    ap.add_argument("--semantic", dest="semantic", action="store_true", default=None,
+                    help="meaning search over the vectors (default on when the package ships them)")
+    ap.add_argument("--no-semantic", dest="semantic", action="store_false", help="turn meaning search off")
+    ap.add_argument("--keyword", dest="keyword", action="store_true", default=None,
+                    help="word search over the BM25 index (default on when the package ships it)")
+    ap.add_argument("--no-keyword", dest="keyword", action="store_false", help="turn word search off")
+    ap.add_argument("--answer", dest="answer", action="store_true", default=None,
+                    help="answer generation: /ask and the rag_answer tool (needs --llm-base-url and --llm-model)")
+    ap.add_argument("--no-answer", dest="answer", action="store_false", help="turn answer generation off")
+    ap.add_argument("--llm-base-url", dest="llm_base_url",
+                    help="OpenAI-compatible chat endpoint for answers, e.g. http://127.0.0.1:11434/v1")
+    ap.add_argument("--llm-model", dest="llm_model", help="model name the answer endpoint expects")
+    ap.add_argument("--ask", help="answer one question (answer generation must be on), print JSON, then exit")
     ap.add_argument("--auth-token", dest="auth_token",
                     help="bearer token for HTTP (prefer RAG_AUTH_TOKEN: argv is visible)")
     ap.add_argument("--embed-model", dest="embed_model")
@@ -747,7 +943,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 _FLAG_KEYS = ("host", "port", "top_k", "device", "reranker", "auth_token",
-              "embed_model", "embed_base_url")
+              "embed_model", "embed_base_url", "semantic", "keyword", "answer", "llm_base_url", "llm_model")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -796,6 +992,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.query:
         print(json.dumps(corpus.search(args.query, None, args.source_prefix), ensure_ascii=False, indent=2))
+        return 0
+    if args.ask:
+        try:
+            print(json.dumps(corpus.answer(args.ask), ensure_ascii=False, indent=2))
+        except (ValueError, RuntimeError) as e:
+            print(f"cannot answer: {e}", file=sys.stderr)
+            return 2
         return 0
     if args.http is not None:
         serve_http(corpus, cfg)

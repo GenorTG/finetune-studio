@@ -2,7 +2,7 @@
 id: brain
 title: Smart Brain page
 page: brain
-keywords: smart brain rag retrieval index search embedder passages chunk rerank hybrid keyword semantic bm25 fusion build quick index citation ground chat stale rebuild export bundle standalone server answer from files no training
+keywords: smart brain rag retrieval generation answer llm vectors vector embeddings layers pipeline index search embedder passages chunk rerank hybrid keyword semantic bm25 fusion build quick index citation ground chat stale rebuild export bundle standalone server answer from files no training
 ---
 ## Purpose
 Step 2 without training. The Smart Brain answers from the project's files: it finds the passages that answer a question and the model quotes them, so answers cite their source and new or edited files only need a rebuild. Minutes, not hours; model weights never change. It reads the same parse training uses (Files & Knowledge), including Vision-reader readings and hand edits. Methods: semantic search (embeddings) + keyword search (BM25), combined by rank fusion, then reranking (cross-encoder); an answer gate declines when nothing found covers the question. Often called RAG.
@@ -14,6 +14,7 @@ Step 2 without training. The Smart Brain answers from the project's files: it fi
 4. **Search test**: ask a fact question per document type; the top hit must be the right passage and show its source filename and score.
 5. **Ask the model (grounded)** to chat with sources.
 6. Build it before exporting a dataset if you want retrieved-context rows in the training data.
+7. **Standalone server export**: pick the search layers it ships, each a separate switch. **Meaning search** (vectors: finds passages that say the same in other words; needs the embedder inside via *Include models*, or an embeddings API where it runs), **Word search** (BM25 keyword index: exact names, codes, numbers; no model), **Rank fusion** (RRF; automatic when both searches are on), **Reranker** (a cross-encoder rescoring pass; needs *Include models*) and **Answer generation**, the "G" in RAG (the server also writes the answer with any OpenAI-compatible chat model: endpoint and model name here, the API key only where it runs). The **Pipeline** line shows how a question travels through the package; the package ships only the files its layers use. The same switches exist as `fts brain export --no-semantic/--no-keyword/--no-reranker/--answer`.
 
 ## Key controls
 - `#quick-index-btn` — one-click parse + build.
@@ -26,6 +27,12 @@ Step 2 without training. The Smart Brain answers from the project's files: it fi
 - `#s-rerank-top-n` — how many candidates to rerank (default 50).
 - `#q-text` — search test box.
 - `#brain-chat` — grounded chat section.
+- `#mcp-layers` — standalone export: the search layers, one switch each.
+- `#mcp-sem` — export meaning search (vectors).
+- `#mcp-kw` — export word search (BM25).
+- `#mcp-rerank` — export the reranker (needs Include models).
+- `#mcp-answer` — answer generation (the "G" in RAG) with an LLM endpoint.
+- `#mcp-pipeline` — how a question travels through the package.
 
 ## What to check
 Index status *up to date*; documents/chunks counters after build; the search test returns the correct passage with a source filename. The exported bundle (.ftsrag) and the standalone server package are AES-256-GCM encrypted by default.
