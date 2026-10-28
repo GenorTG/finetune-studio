@@ -1,4 +1,4 @@
-"""`fts brain {build,search,ask,eval,rebuild-vectors,info,export}` — the Smart Brain from the command line.
+"""`fts brain {build,search,ask,eval,rebuild-vectors,info,export,bundle,import}` — the Smart Brain from the command line.
 
 Every subcommand takes either ``--project <id|name>`` (the project's index, built from its parsed files exactly like
 the WebUI: ``knowledge.index``) or ``--corpus <dir>`` (a standalone index; ``build`` then reads a plain directory with
@@ -216,14 +216,67 @@ def _export(args: argparse.Namespace) -> None:
                          if result.passphrase else {})}, indent=2))
 
 
+def _read_pass(path: str | None) -> str | None:
+    return Path(path).read_text(encoding="utf-8").strip() if path else None
+
+
+def _bundle(args: argparse.Namespace) -> None:
+    """Encrypted ``.ftsrag`` studio-to-studio copy of an index (the Smart Brain page's "Download / export")."""
+    from finetune_studio.smart_brain import secure_bundle as sb
+
+    corpus = _corpus(args)
+    if not (corpus / "manifest.json").is_file():
+        _die(f"no index at {corpus}: build it first (fts brain build)")
+    out = Path(args.out or ".") / f"{args.name or corpus.name}{sb.BUNDLE_EXT}"
+    try:
+        path, generated = sb.export_secure_bundle(corpus, out, _read_pass(args.passphrase_file))
+    except ValueError as e:
+        _die(str(e))
+    print(json.dumps({"path": str(path), "size": path.stat().st_size,
+                      **({"passphrase": generated, "note": "shown once: store it now, it is not saved"}
+                         if generated else {})}, indent=2))
+
+
+def _import(args: argparse.Namespace) -> None:
+    """Load a ``.ftsrag`` (or legacy .tar/.zip) bundle as a project's index (the page's "Import an index")."""
+    from finetune_studio.smart_brain import BrainIndex
+    from finetune_studio.smart_brain import secure_bundle as sb
+    from finetune_studio.smart_brain.brain_container import ContainerError
+
+    if not args.project:
+        _die("--project is required: the bundle becomes that project's index")
+    from finetune_studio.cli.commands.dataset import resolve_project
+    from finetune_studio.knowledge import index
+
+    pid = resolve_project(args.project)["id"]
+    src = Path(args.bundle)
+    if not src.is_file():
+        _die(f"no such file: {src}")
+    target = BrainIndex(_corpus(args))
+    if target.exists() and not args.replace:
+        _die("this project already has an index: add --replace to replace it with the bundle's")
+    try:
+        if src.name.lower().endswith(sb.BUNDLE_EXT):
+            passphrase = _read_pass(args.passphrase_file)
+            if not passphrase:
+                _die("this bundle is encrypted: give --passphrase-file")
+            sb.import_secure_bundle(src, passphrase, target.dir, overwrite=True)
+        else:
+            target.import_bundle(src, overwrite=True)
+    except (ContainerError, ValueError, FileNotFoundError) as e:
+        _die(str(e))
+    print(json.dumps(index.register_import(pid, bundle=src.name), indent=2))
+
+
 _HANDLERS = {"build": _build, "search": _search, "ask": _ask, "eval": _eval, "rebuild-vectors": _rebuild_vectors,
-             "info": _info, "export": _export}
+             "info": _info, "export": _export, "bundle": _bundle, "import": _import}
 
 
 def cmd_brain(args: argparse.Namespace) -> None:
     handler = _HANDLERS.get(args.brain_command or "")
     if handler is None:
-        print("Usage: fts brain {build,search,ask,eval,rebuild-vectors,info,export} (--project P | --corpus DIR) ...",
+        print("Usage: fts brain {build,search,ask,eval,rebuild-vectors,info,export,bundle,import} "
+              "(--project P | --corpus DIR) ...",
               file=sys.stderr)
         sys.exit(1)
     handler(args)
@@ -302,3 +355,13 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     sp.add_argument("--device")
     sp.add_argument("--name", help="package title (default: the project name)")
     sp.add_argument("--out", help="output directory (default: output/projects/<id>/brain-packages)")
+
+    sp = target(brain.add_parser("bundle", help="Encrypted .ftsrag copy of the index for another studio"))
+    sp.add_argument("--passphrase-file", help="file holding the passphrase (default: generate one, printed once)")
+    sp.add_argument("--name", help="file name without extension (default: the index directory name)")
+    sp.add_argument("--out", help="output directory (default: the current one)")
+
+    sp = target(brain.add_parser("import", help="Load a .ftsrag (or legacy .tar/.zip) bundle as a project's index"))
+    sp.add_argument("bundle", help="the bundle file")
+    sp.add_argument("--passphrase-file", help="file holding the passphrase (encrypted .ftsrag bundles)")
+    sp.add_argument("--replace", action="store_true", help="replace the project's existing index")

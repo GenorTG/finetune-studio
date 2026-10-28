@@ -306,6 +306,33 @@
   </div>
 </div>
 
+{# Import: reachable before any index exists (a new project is where a received bundle goes) #}
+<details class="card mb-4" id="brain-import-panel">
+  <summary class="card-head">
+    <div>
+      <div class="card-title">Import an index from another studio</div>
+      <div class="card-sub">Load an encrypted <code>.ftsrag</code> bundle someone exported from their Smart Brain
+        (or a legacy .tar/.zip). It brings the passages, vectors and keyword index; the original files stay with the
+        exporting project, so a later rebuild here indexes this project's own files instead.</div>
+    </div>
+  </summary>
+  <div class="grid grid-12 gap-3 items-end mb-2">
+    <div class="col-span-5">
+      <label class="block text-xs muted mb-1" for="bundle-import-file">Bundle file (.ftsrag, or legacy .tar/.zip)</label>
+      <input id="bundle-import-file" type="file" accept=".ftsrag,.tar,.tar.gz,.tgz,.zip" class="input">
+    </div>
+    <div class="col-span-5">
+      <label class="block text-xs muted mb-1" for="bundle-import-pass">Passphrase (from whoever exported it)</label>
+      <input id="bundle-import-pass" type="password" autocomplete="off" class="input">
+    </div>
+    <div class="col-span-2">
+      <button id="bundle-import-btn" onclick="startBundleImport()" class="btn primary w-full"
+              title="Decrypt and load the bundle as this project's index (an existing index is replaced, after a confirmation).">Import</button>
+    </div>
+  </div>
+  <div id="bundle-import-status" class="text-xs dim" role="status" aria-live="polite"></div>
+</details>
+
 {# Bundle #}
 <details class="card mb-4" id="brain-export-panel" data-needs-index>
   <summary class="card-head">
@@ -313,8 +340,9 @@
       <div class="card-title">7. Download / export the index</div>
       <div class="card-sub">
         Studio-to-studio copy of this index (documents, chunks, vectors, keyword index, settings) as one
-        <b>encrypted</b> <code>.ftsrag</code> file saved inside the project. The passphrase is never stored.
-        Search-model files are not included &mdash; use the standalone package below for an offline pack.
+        <b>encrypted</b> <code>.ftsrag</code> file saved inside the project; the other studio loads it with
+        <b>Import an index</b>. The passphrase is never stored. Search-model files are not included &mdash; use the
+        standalone package below for an offline pack.
       </div>
     </div>
   </summary>
@@ -330,19 +358,6 @@
     </div>
     <div class="col-span-2">
       <button id="bundle-btn" onclick="startBundleDownload()" class="btn primary w-full" title="Encrypt the index into a single .ftsrag file you can move to another studio.">Export</button>
-    </div>
-  </div>
-  <div class="grid grid-12 gap-3 items-end mb-3">
-    <div class="col-span-5">
-      <label class="block text-xs muted mb-1">Import a bundle (.ftsrag, or legacy .tar/.zip)</label>
-      <input id="bundle-import-file" aria-label=".ftsrag bundle file" type="file" accept=".ftsrag,.tar,.tar.gz,.tgz,.zip" class="input">
-    </div>
-    <div class="col-span-5">
-      <label class="block text-xs muted mb-1">Passphrase</label>
-      <input id="bundle-import-pass" aria-label="Bundle passphrase" type="password" autocomplete="off" class="input">
-    </div>
-    <div class="col-span-2">
-      <button id="bundle-import-btn" onclick="startBundleImport()" class="btn w-full" title="Replaces this project's index.">Import</button>
     </div>
   </div>
   <div class="mt-3" id="mcp-pkg-panel">
@@ -614,6 +629,7 @@
       document.querySelectorAll('[data-needs-index]').forEach((c) => { c.hidden = !d.exists; });
       const note = document.getElementById('brain-needs-index-note');
       if (note) note.hidden = !!d.exists;
+      window.BRAIN_HAS_INDEX = !!d.exists;
       if (!d.exists) {
         el.innerHTML = '<p class="text-sm muted">No index yet. Use Quick index above, or choose an embedder below and click Build.</p>'
           + '<div class="text-xs dim mono mt-1">' + esc(d.corpus_dir || '') + '</div>';
@@ -627,6 +643,10 @@
       // What changed since the build (knowledge.index.state): edited, new and removed files need a rebuild.
       const st = d.state || {};
       const changed = (st.stale || []).length, added = (st.missing || []).length, gone = (st.removed || []).length;
+      const imported = st.imported_from
+        ? '<div class="text-xs muted mb-2">Imported from “' + esc(st.imported_from) + '”: '
+          + (st.imported || []).length + ' file(s) came with the bundle. A rebuild here indexes this project\u2019s own files instead.</div>'
+        : '';
       const fc = document.getElementById('b-fact-cards');
       if (fc) fc.checked = !!st.fact_cards;
       const fresh = st.fresh
@@ -635,7 +655,7 @@
           + [changed ? changed + ' file(s) changed since the build' : '', added ? added + ' new file(s)' : '',
              gone ? gone + ' file(s) removed' : '', st.facts_changed ? 'reviewed facts changed' : '']
             .filter(Boolean).join(' · ') + '</span>';
-      el.innerHTML = '<div class="mb-2">' + fresh + '</div><table class="table text-xs run-kv-table"><tbody>'
+      el.innerHTML = '<div class="mb-2">' + fresh + '</div>' + imported + '<table class="table text-xs run-kv-table"><tbody>'
         + '<tr><td class="meta muted">Name</td><td class="mono" title="' + esc(d.name || '—') + '">' + esc(d.name || '—') + '</td></tr>'
         + '<tr><td class="meta muted">Documents</td><td class="mono">' + esc(d.documents) + '</td></tr>'
         + '<tr><td class="meta muted">Chunks</td><td class="mono">' + esc(d.chunks) + '</td></tr>'
@@ -774,22 +794,32 @@
   };
 
   window.startBundleImport = async function() {
-    const status = document.getElementById('bundle-status');
+    const status = document.getElementById('bundle-import-status');
     const f = document.getElementById('bundle-import-file').files[0];
     if (!f) { notify('Choose a bundle file first', 'error'); return; }
-    if (!await fts.confirm('Importing replaces this project\u2019s current index. Continue?', {danger: true, okText: 'Import'})) return;
+    const isEnc = /\.ftsrag$/i.test(f.name);
+    const pass = document.getElementById('bundle-import-pass').value;
+    if (isEnc && !pass) { status.textContent = 'This bundle is encrypted: enter the passphrase it was exported with.'; return; }
+    if (window.BRAIN_HAS_INDEX && !await fts.confirm('This project already has an index. Importing replaces it with the bundle\u2019s. Continue?',
+        {danger: true, okText: 'Replace with the bundle'})) return;
     const fd = new FormData();
     fd.append('file', f);
-    fd.append('passphrase', document.getElementById('bundle-import-pass').value);
-    if (status) status.textContent = 'Importing…';
+    fd.append('passphrase', pass);
+    status.textContent = 'Decrypting and importing ' + f.name + '…';
+    const btn = document.getElementById('bundle-import-btn');
+    btn.disabled = true;
     try {
       const d = await api().post('/api/projects/' + PID + '/brain/import?overwrite=true', fd);
       document.getElementById('bundle-import-pass').value = '';
-      if (status) status.textContent = 'Imported ' + (d.documents || 0) + ' documents, ' + (d.chunks || 0) + ' chunks.';
-      setTimeout(() => window.location.reload(), 800);
+      status.textContent = 'Imported “' + (d.imported_from || f.name) + '”: ' + (d.documents || 0) + ' documents, '
+        + (d.chunks || 0) + ' passages. Reloading…';
+      notify('Index imported', 'success');
+      setTimeout(() => window.location.reload(), 900);
     } catch (e) {
-      if (status) status.textContent = 'Import failed: ' + (e.message || e);
+      status.textContent = 'Import failed: ' + (e.message || e);
       notify(String(e.message || e), 'error');
+    } finally {
+      btn.disabled = false;
     }
   };
 

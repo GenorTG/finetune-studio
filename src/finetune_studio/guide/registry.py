@@ -109,6 +109,8 @@ def _controls() -> dict[str, Control]:
         ("brain.embedder", "brain", "#b-embedder", "Embedder"),
         ("brain.build", "brain", "#build-btn", "Build"),
         ("brain.build_stop", "brain", "#build-stop-btn", "Stop build"),
+        ("brain.import_panel", "brain", "#brain-import-panel", "Import an index from another studio"),
+        ("brain.import_file", "brain", "#bundle-import-file", "Bundle file to import"),
         ("brain.reembed", "brain", "#reembed-btn", "Re-embed only"),
         ("brain.search_box", "brain", "#q-text", "Search test box"),
         ("brain.rerank_toggle", "brain", "#s-rerank-enabled", "Rerank toggle"),
