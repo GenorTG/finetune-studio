@@ -168,8 +168,8 @@ def status(pid: str, build_id: str) -> dict[str, Any] | None:
     except (FileNotFoundError, ValueError):
         out["mode"] = MODE_BUILD
     state = (job or {}).get("state") or {}
-    if running and state.get("phase") == "parsing":
-        out["parsing"] = {"done": int(state.get("done") or 0), "total": int(state.get("total") or 0)}
+    if running and state.get("phase") in ("parsing", "embedding"):
+        out[str(state["phase"])] = {"done": int(state.get("done") or 0), "total": int(state.get("total") or 0)}
     return out
 
 
@@ -180,6 +180,16 @@ def active_build(pid: str) -> dict[str, Any] | None:
         return None
     row = _settle(row, _job(row["id"]))
     return None if row.get("status") in TERMINAL_STATUSES else row
+
+
+def stop(pid: str) -> dict[str, Any] | None:
+    """Ask the project's running build to stop (it ends at the next embedded batch, the old index intact).
+    None = no build is running."""
+    row = active_build(pid)
+    if row is None:
+        return None
+    launch.stop(job_id(row["id"]))
+    return {"build_id": row["id"], "stopping": True}
 
 
 def on_finished(job: dict[str, Any]) -> None:
@@ -194,21 +204,23 @@ def on_finished(job: dict[str, Any]) -> None:
 
 
 def run_in_job(params: dict[str, Any], release_gpu: Any = lambda: None,
-               progress: Any = None) -> dict[str, Any]:
+               progress: Any = None, on_batch: Any = None) -> dict[str, Any]:
     """The job process side: run the build in its ``mode``; the row records the outcome (``knowledge.index``).
 
-    ``progress(phase, done, total)`` publishes the quick index's parse step for the pages."""
+    ``progress(phase, done, total)`` publishes the quick index's parse step for the pages; ``on_batch(done, total)``
+    the embedding (it raises to stop the build)."""
     from finetune_studio.knowledge import index
 
     pid, bid = str(params["project_id"]), str(params["build_id"])
     mode = str(params.get("mode") or MODE_BUILD)
     try:
         if mode == MODE_REEMBED:
-            result = index.run_rebuild_vectors(pid, bid, embedder=params.get("embedder") or None)
+            result = index.run_rebuild_vectors(pid, bid, embedder=params.get("embedder") or None, on_batch=on_batch)
         else:
             result = index.run(pid, bid, embedder=params.get("embedder") or None, reset=bool(params.get("reset")),
                                fact_cards=bool(params.get("fact_cards")), parse_first=mode == MODE_QUICK,
-                               file_ids=list(params.get("file_ids") or []) or None, progress=progress)
+                               file_ids=list(params.get("file_ids") or []) or None, progress=progress,
+                               on_batch=on_batch)
     finally:
         release_gpu()
     return {k: result[k] for k in RESULT_KEYS if k in result}

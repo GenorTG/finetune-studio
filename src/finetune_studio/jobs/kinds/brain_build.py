@@ -5,13 +5,14 @@ Params: ``build_id`` (a ``brain_builds`` row from ``knowledge.index.prepare`` / 
 parse the pending library files first | ``re-embed`` = replace the vectors only), ``file_ids`` (the quick
 index's parse step, [] = every pending file). The row records the outcome (``knowledge.index``); the lease
 choice is ``webui.brain_build_jobs``. The quick index's parse step is published as the job state
-(``{"phase": "parsing", "done", "total"}``) for the pages.
+(``{"phase": "parsing", "done", "total"}``) for the pages, then the embedding (``{"phase": "embedding", ...}``,
+passages). A stop request ends it at the next embedded batch; nothing on disk changed by then.
 """
 from __future__ import annotations
 
 from typing import Any
 
-from finetune_studio.jobs.runner import JobContext
+from finetune_studio.jobs.runner import JobContext, Stopped
 
 
 def run(ctx: JobContext) -> dict[str, Any]:
@@ -21,6 +22,11 @@ def run(ctx: JobContext) -> dict[str, Any]:
     def _progress(phase: str, done: int, total: int) -> None:
         ctx.publish({"phase": phase, "done": done, "total": total}, force=done == total)
 
+    def _on_batch(done: int, total: int) -> None:
+        if ctx.stop.is_set():
+            raise Stopped("stopped on request")
+        ctx.publish({"phase": "embedding", "done": done, "total": total}, force=True)   # a slice takes seconds
+
     result = brain_build_jobs.run_in_job(ctx.params, release_gpu=lambda: store.release_gpu(ctx.id),
-                                         progress=_progress)
+                                         progress=_progress, on_batch=_on_batch)
     return {"status": "done", "build_id": ctx.params["build_id"], **result}

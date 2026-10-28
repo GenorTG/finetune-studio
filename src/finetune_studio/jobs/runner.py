@@ -149,4 +149,10 @@ def _leave(code: int) -> None:
 
 
 if __name__ == "__main__":
-    _leave(main())
+    # Run the package module, not this ``__main__`` copy: a kind imports ``finetune_studio.jobs.runner`` and raises
+    # its ``Stopped``, which ``execute`` here would not catch (two classes of one name), so a stop ended 'failed'.
+    from finetune_studio.jobs import (
+        runner as _runner,  # noqa: PLW0406 - the package copy, on purpose (above)
+    )
+
+    _runner._leave(_runner.main())

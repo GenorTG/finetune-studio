@@ -10,6 +10,7 @@ Step 2 without training. The Smart Brain answers from the project's files: it fi
 ## Workflow
 1. Upload in Files & Knowledge first; each readable file is parsed on arrival.
 2. Click **⚡ Quick index**: it parses any file that is not parsed yet and builds the index from the files' passages, the same ones mining reads (first run downloads the embedder, ~2.2 GB).
+While it builds, the bar shows the passages embedded, the time taken and the time left; **Stop build** ends it and keeps the old index. A large embedder (e5-large, bge-large, Qwen3-Embedding) on the CPU can take many minutes.
 3. **Index status** says *up to date* or *rebuild needed* (files changed since the build, new files, removed files).
 4. **Search test**: ask a fact question per document type; the top hit must be the right passage and show its source filename and score.
 5. **Ask the model (grounded)** to chat with sources.
@@ -20,6 +21,7 @@ Step 2 without training. The Smart Brain answers from the project's files: it fi
 - `#quick-index-btn` — one-click parse + build.
 - `#b-embedder` — embedding model (multilingual-e5-large default; bge-large-en for English-only; all-MiniLM-L6-v2 is small and weaker).
 - `#build-btn` — build; `#rebuild-btn` wipes and rebuilds from scratch.
+- `#build-stop-btn` — stop a running build; it ends after the current batch and the old index stays as it was.
 - `#reembed-btn` — after changing the embedder: keep the passages, replace only their vectors (quicker than a rebuild; needs an index).
 - `#b-fact-cards` — also index approved Q&A pairs as fact cards (off by default).
 - `#s-rerank-enabled` — reranking on/off.

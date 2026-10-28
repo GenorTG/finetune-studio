@@ -126,7 +126,11 @@
   <div id="build-status" class="mt-3 text-xs dim"></div>
   <div id="build-progress-wrap" class="mt-2" hidden>
     <div class="hpbar"><div id="build-progress-fill" class="hpbar-fill"></div></div>
-    <div id="build-progress-text" class="text-xs mono mt-1"></div>
+    <div class="flex gap-2 items-center mt-1">
+      <div id="build-progress-text" class="text-xs mono"></div>
+      <button type="button" class="btn sm" id="build-stop-btn" hidden onclick="stopBuild()"
+              title="Stop this build. It ends after the batch it is embedding (a few seconds); the index stays as it was before the build.">■ Stop build</button>
+    </div>
   </div>
 </div>
 
@@ -1051,9 +1055,11 @@
     const sseUrl = '/api/projects/' + PID + '/brain/build/progress';
     const pollUrl = '/api/projects/' + PID + '/brain/build/status';
     const rowUrl = '/api/projects/' + PID + '/brain/builds/' + encodeURIComponent(buildId);
+    const stopBtn = document.getElementById('build-stop-btn');
+    buildRate = {};
     wrap.hidden = false;
-    fill.style.width = '5%';
-    progText.textContent = 'QUEUED…';
+    fill.style.width = '2%';
+    progText.textContent = 'Queued…';
     return new Promise(function (resolve, reject) {
       let stopLive = null;
       let ended = false;
@@ -1066,21 +1072,22 @@
           const b = await api().get(rowUrl);
           if (!b.finished) { ended = false; setTimeout(listen, 1000); return; }   // the job is still exiting
           wrap.hidden = true;
+          stopBtn.hidden = true;
           if (b.ok) resolve(b);
           else reject(new Error(b.error || 'the index build failed'));
         } catch (e) {
           if (!e.status || e.status >= 500) { ended = false; setTimeout(listen, 5000); return; }   // restarting
           wrap.hidden = true;
+          stopBtn.hidden = true;
           reject(e);
         }
       };
       const applyProgress = function (p) {
         if (!p || typeof p !== 'object' || ended) return;
         if (p.phase === 'queued' || p.phase === 'parsing' || p.phase === 'embedding') {
-          fill.style.width = p.phase === 'embedding' ? '50%' : (p.phase === 'parsing' ? '25%' : '5%');
-          const files = p.phase === 'parsing' ? (p.files_done || 0) + '/' + (p.files_total || 0) : (p.files_total || 0);
-          progText.textContent = p.phase.toUpperCase() + ' ' + files + ' files  ' +
-            (p.elapsed_s != null ? p.elapsed_s + 's' : '');
+          stopBtn.hidden = false;
+          progText.textContent = buildProgressText(p);
+          fill.style.width = buildProgressPct(p) + '%';
           return;
         }
         if (p.phase === 'timeout') { stop(); listen(); return; }   // a long build: keep following it
@@ -1105,10 +1112,65 @@
     });
   }
 
+  // "Embedding 48 of 101 passages · 1 min 12 s · about 1 min left": the time left comes from the measured rate.
+  function fmtSecs(s) {
+    s = Math.max(0, Math.round(s));
+    return s < 60 ? s + ' s' : Math.floor(s / 60) + ' min ' + (s % 60) + ' s';
+  }
+  let buildRate = {};
+  function buildProgressText(p) {
+    const took = p.elapsed_s ? ' · ' + fmtSecs(p.elapsed_s) : '';
+    if (p.phase === 'queued') return 'Queued…' + took;
+    if (p.phase === 'parsing') return 'Reading files ' + (p.files_done || 0) + ' of ' + (p.files_total || 0) + took;
+    const done = p.passages_done || 0, total = p.passages_total || 0;
+    if (!total) return 'Loading the embedder…' + took;
+    // Rate from the first embedded batch on: loading the model (seconds to a minute) is not embedding time.
+    if (!buildRate.at && done > 0) buildRate = { at: p.elapsed_s, done: done };
+    let left = '';
+    if (buildRate.at != null && done > buildRate.done && done < total && p.elapsed_s > buildRate.at) {
+      const perSec = (done - buildRate.done) / (p.elapsed_s - buildRate.at);
+      left = ' · about ' + fmtSecs((total - done) / perSec) + ' left';
+    }
+    return 'Embedding ' + done + ' of ' + total + ' passages' + took + left;
+  }
+  function buildProgressPct(p) {
+    if (p.phase === 'queued') return 2;
+    if (p.phase === 'parsing') return 2 + 18 * ((p.files_done || 0) / Math.max(1, p.files_total || 0));
+    if (!p.passages_total) return 20;
+    return 20 + 80 * (p.passages_done || 0) / p.passages_total;
+  }
+
+  // A build that ended without an index: stopped on request (not an error) or failed with the reason in words.
+  function buildEnded(status, failedLabel, e, quiet) {
+    const msg = (e && e.message) || String(e);
+    if (msg.indexOf('stopped on request') === 0) {
+      status.textContent = 'Stopped: the index was left as it was before this build.';
+      if (!quiet) notify('Build stopped', 'info');
+      return;
+    }
+    status.textContent = failedLabel + ': ' + msg;
+    if (!quiet) notify(msg, 'error');
+  }
+
+  window.stopBuild = async function () {
+    const btn = document.getElementById('build-stop-btn');
+    btn.disabled = true;
+    try {
+      await api().post('/api/projects/' + PID + '/brain/build/stop', {});
+      document.getElementById('build-progress-text').textContent = 'Stopping after the current batch…';
+    } catch (e) {
+      notify('Could not stop the build: ' + ((e && e.message) || e), 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
   // A build whose embedder runs on the GPU takes the GPU: the supervisor unloads the chat model first, and grounded
   // chat then has no model. Say it where the build was started.
   function gpuNote(r) {
-    return r && r.gpu ? ' The embedder runs on the GPU, so the chat model was unloaded: load it again for grounded chat.' : '';
+    if (!r) return '';
+    return r.gpu ? ' The embedder runs on the GPU, so the chat model was unloaded: load it again for grounded chat.'
+      : ' The embedder runs on the CPU: a large one (e5-large, bge-large, Qwen3-Embedding) can take many minutes; the progress shows the time left, and Stop build keeps the old index.';
   }
 
   function buildDone(b) {
@@ -1139,8 +1201,7 @@
       status.textContent = converted + ' · index: ' + buildDone(b) + '.' + note;
       notify('Quick index done: ' + (b.promoted || 0) + ' converted · ' + b.chunks + ' chunks', 'success');
     } catch (e) {
-      status.textContent = 'Failed: ' + e.message;
-      notify('Quick index failed: ' + e.message, 'error');
+      buildEnded(status, 'Quick index failed', e);
     } finally {
       setBuildBusy(false);
     }
@@ -1169,9 +1230,7 @@
       status.textContent = 'Done — ' + done + ' indexed.' + note;
       notify('Index built: ' + done, 'success');
     } catch (e) {
-      const msg = (e && e.message) || String(e);
-      status.textContent = 'Build failed: ' + msg;
-      notify(msg, 'error');
+      buildEnded(status, 'Build failed', e);
     } finally {
       setBuildBusy(false);
     }
@@ -1194,9 +1253,7 @@
       status.textContent = 'Done — ' + buildDone(b) + ' re-embedded' + (b && b.embedder ? ' with ' + b.embedder : '') + '.' + note;
       notify('Index re-embedded', 'success');
     } catch (e) {
-      const msg = (e && e.message) || String(e);
-      status.textContent = 'Re-embed failed: ' + msg;
-      notify(msg, 'error');
+      buildEnded(status, 'Re-embed failed', e);
     } finally {
       setBuildBusy(false);
     }
@@ -1214,7 +1271,7 @@
       const b = await followBuild(p.build_id);
       status.textContent = 'Done — ' + buildDone(b) + ' indexed.';
     } catch (e) {
-      status.textContent = 'Build failed: ' + ((e && e.message) || String(e));
+      buildEnded(status, 'Build failed', e, true);
     } finally {
       setBuildBusy(false);
     }

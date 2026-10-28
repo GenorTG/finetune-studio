@@ -200,14 +200,30 @@ def prepare(pid: str, *, fact_cards: bool | None = None, parse_first: bool = Fal
             "fact_cards": fact_cards}
 
 
+def explain_build_error(e: BaseException) -> str:
+    """The build error in words a user can act on (the row's ``error``, shown on the page)."""
+    text = str(e) or type(e).__name__
+    if type(e).__name__ == "Stopped":
+        return "stopped on request: the index was left as it was before this build"
+    if type(e).__name__ == "OutOfMemoryError" or "out of memory" in text.lower():
+        from finetune_studio.smart_brain.devices import gpu_memory_report
+
+        return ("the GPU ran out of memory while embedding" + gpu_memory_report() + ". The index was left as it "
+                "was. Choose a smaller embedder (all-MiniLM-L6-v2 needs little memory), free the GPU and build "
+                "again, or pick CPU in Settings → Compute device (slower). Details: " + text.splitlines()[0][:200])
+    return text
+
+
 def run(pid: str, build_id: str, *, embedder: str | None = None, reset: bool = False,
         fact_cards: bool = False, parse_first: bool = False, file_ids: list[str] | None = None,
-        progress: Callable[[str, int, int], None] | None = None) -> dict[str, Any]:
+        progress: Callable[[str, int, int], None] | None = None,
+        on_batch: Callable[[int, int], None] | None = None) -> dict[str, Any]:
     """Embed every ready source into the project index for a ``prepare``d build row; the row ends done or error
     (with the real error, then re-raised).
 
     ``parse_first`` (the Quick index) parses the pending library files before embedding: the result then carries
-    ``promoted`` / ``failed`` (``parse_pending``). ``progress(phase, done, total)`` reports the parse step.
+    ``promoted`` / ``failed`` (``parse_pending``). ``progress(phase, done, total)`` reports the parse step;
+    ``on_batch(done, total)`` the embedding (raising there stops the build; the old index stays whole).
     """
     from finetune_studio.smart_brain import BrainIndex, Manifest, read_json
 
@@ -229,18 +245,31 @@ def run(pid: str, build_id: str, *, embedder: str | None = None, reset: bool = F
         manifest = corpus / "manifest.json"
         settings = Manifest.from_json(read_json(manifest)).rag_settings \
             if manifest.is_file() else None   # the embedder/rerank choice outlives a reset
-        if reset and corpus.exists():
-            shutil.rmtree(corpus)
         hashes = {s.id: s.text_sha for s in sources.list_sources(pid) if s.ready}
         extra = {"built_from": {d.document_id: hashes.get(d.document_id, "") for d in docs
                                 if not d.document_id.endswith(FACTS_SUFFIX)},
                  "fact_cards": fact_cards, "facts_sha": facts_sha(pid) if fact_cards else ""}
-        result = BrainIndex(corpus).build_from_documents(
+        # Rebuild from scratch: embed into a fresh directory and swap it in only when the build finished, so a
+        # stopped or failed rebuild keeps the working index (it used to delete it first).
+        fresh = corpus.with_name(corpus.name + ".rebuild")
+        swap = reset and corpus.exists()
+        if swap:
+            shutil.rmtree(fresh, ignore_errors=True)
+        result = BrainIndex(fresh if swap else corpus).build_from_documents(
             docs, name=project["name"], embedder=embedder, chunk_size=0, overlap=0,
-            splitter="passages", extra=extra, rag_settings=settings)
+            splitter="passages", extra=extra, rag_settings=settings, on_batch=on_batch)
+        if swap:
+            old = corpus.with_name(corpus.name + ".old")
+            shutil.rmtree(old, ignore_errors=True)
+            if corpus.exists():
+                corpus.rename(old)
+            fresh.rename(corpus)
+            shutil.rmtree(old, ignore_errors=True)
     except Exception as e:
+        if reset:
+            shutil.rmtree(corpus.with_name(corpus.name + ".rebuild"), ignore_errors=True)
         log.exception("index build failed for %s", pid)
-        db.mark_brain_build_failed(build_id, error=str(e) or type(e).__name__)
+        db.mark_brain_build_failed(build_id, error=explain_build_error(e))
         raise
     n_docs, n_chunks = int(result.get("documents") or 0), int(result.get("chunks") or 0)
     db.mark_brain_build_done(build_id, doc_count=n_docs, chunk_count=n_chunks)
@@ -272,7 +301,8 @@ def prepare_rebuild_vectors(pid: str) -> dict[str, Any]:
             "fact_cards": bool((manifest.extra or {}).get("fact_cards"))}
 
 
-def run_rebuild_vectors(pid: str, build_id: str, *, embedder: str | None = None) -> dict[str, Any]:
+def run_rebuild_vectors(pid: str, build_id: str, *, embedder: str | None = None,
+                        on_batch: Callable[[int, int], None] | None = None) -> dict[str, Any]:
     """Re-embed the project index for a ``prepare_rebuild_vectors``'d build row; the row ends done or error."""
     from finetune_studio.smart_brain import BrainIndex, Manifest, read_json
 
@@ -285,11 +315,11 @@ def run_rebuild_vectors(pid: str, build_id: str, *, embedder: str | None = None)
         store = BrainIndex(corpus)
         if not store.exists():
             raise IndexBuildError("no index to re-embed yet: build it first", 404)
-        result = store.rebuild_vectors(embedder=embedder)
+        result = store.rebuild_vectors(embedder=embedder, on_batch=on_batch)
         n_docs = int(Manifest.from_json(read_json(store.manifest_path)).documents or 0)
     except Exception as e:
         log.exception("re-embed failed for %s", pid)
-        db.mark_brain_build_failed(build_id, error=str(e) or type(e).__name__)
+        db.mark_brain_build_failed(build_id, error=explain_build_error(e))
         raise
     n_chunks = int(result.get("chunks") or 0)
     db.mark_brain_build_done(build_id, doc_count=n_docs, chunk_count=n_chunks)

@@ -149,7 +149,7 @@ def test_rebuild_vectors_is_a_build_job_that_keeps_the_documents(client, monkeyp
                                                       "extra": {"fact_cards": False}}))
             return {"documents": len(docs), "chunks": 3, "vector_dim": 8, "skipped": 0}
 
-        def rebuild_vectors(self, embedder: str | None = None, device: str = "auto") -> dict:
+        def rebuild_vectors(self, embedder: str | None = None, device: str = "auto", **_kw: object) -> dict:
             calls.append(embedder)
             return {"chunks": 3, "vector_dim": 16, "embedder": embedder or "settings-embedder"}
 

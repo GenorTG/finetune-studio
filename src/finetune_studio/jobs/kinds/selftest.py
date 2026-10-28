@@ -1,5 +1,5 @@
 """A job that needs nothing: counts to ``params.steps`` publishing progress, honours stop, can fail or crash on
-request, and can leave a thread running when stopped (``leave_thread_s``). Used by the tests (crash injection without a GPU) and by ``fts doctor --jobs``."""
+request, and can leave a thread running when stopped (``leave_thread_s``) or raise ``Stopped`` (``raise_stopped``). Used by the tests (crash injection without a GPU) and by ``fts doctor --jobs``."""
 from __future__ import annotations
 
 import os
@@ -8,7 +8,7 @@ import threading
 import time
 from typing import Any
 
-from finetune_studio.jobs.runner import JobContext
+from finetune_studio.jobs.runner import JobContext, Stopped
 
 
 def run(ctx: JobContext) -> dict[str, Any]:
@@ -17,6 +17,8 @@ def run(ctx: JobContext) -> dict[str, Any]:
     for i in range(1, steps + 1):
         if ctx.stop.is_set():
             ctx.publish({"status": "stopped", "step": i - 1, "total": steps}, force=True)
+            if ctx.params.get("raise_stopped"):       # the other way a kind ends on a stop (the Smart Brain build)
+                raise Stopped("stopped on request")
             if ctx.params.get("leave_thread_s"):      # like a stopped hub download: work left on a non-daemon thread
                 threading.Thread(target=time.sleep, args=(float(ctx.params["leave_thread_s"]),), daemon=False).start()
             return {"status": "stopped", "step": i - 1}

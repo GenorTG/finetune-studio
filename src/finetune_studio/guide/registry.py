@@ -108,6 +108,7 @@ def _controls() -> dict[str, Control]:
         ("brain.quick_index", "brain", "#quick-index-btn", "⚡ Quick index"),
         ("brain.embedder", "brain", "#b-embedder", "Embedder"),
         ("brain.build", "brain", "#build-btn", "Build"),
+        ("brain.build_stop", "brain", "#build-stop-btn", "Stop build"),
         ("brain.reembed", "brain", "#reembed-btn", "Re-embed only"),
         ("brain.search_box", "brain", "#q-text", "Search test box"),
         ("brain.rerank_toggle", "brain", "#s-rerank-enabled", "Rerank toggle"),
