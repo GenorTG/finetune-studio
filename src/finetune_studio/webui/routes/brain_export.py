@@ -220,6 +220,14 @@ class ExportConfigPatch(BaseModel):
     top_k: int | None = None
     encrypt: bool | None = None
     kdf_log_n: int | None = None
+    semantic_search: bool | None = None
+    keyword_search: bool | None = None
+    answer_enabled: bool | None = None
+    llm_base_url: str | None = None
+    llm_model: str | None = None
+    llm_headers: dict[str, str] | None = None
+    llm_body: dict[str, Any] | None = None
+    llm_connection: str | None = None   # copy endpoint, model, headers and body from a Settings connection (no key)
 
 
 class ExportConfigSave(BaseModel):
@@ -236,7 +244,26 @@ class StandaloneRequest(ExportConfigPatch):
 
 
 def _patch_values(p: ExportConfigPatch) -> dict[str, Any]:
-    return {k: v for k, v in p.model_dump().items() if v is not None}
+    values = {k: v for k, v in p.model_dump().items() if v is not None}
+    conn = values.pop("llm_connection", None)
+    if conn:
+        values = {**connection_llm_settings(conn), **values}   # a typed endpoint or model wins
+    return values
+
+
+def connection_llm_settings(connection_id: str) -> dict[str, Any]:
+    """Answer-model settings of a Settings → AI assistant API connection: endpoint, model, headers, body.
+
+    The API key is never copied (a package is handed to other people): it is ``RAG_LLM_API_KEY`` where it runs.
+    """
+    from finetune_studio.models.manager import get_manager
+
+    row = get_manager().get_provider(connection_id)
+    if row is None or row.get("kind") != "openai_compat":
+        raise HTTPException(status_code=422, detail=f"{connection_id!r} is not an API connection (Settings → AI assistant)")
+    extra = row.get("extra") or {}
+    return {"llm_base_url": (row.get("base_url") or "").rstrip("/"), "llm_model": row.get("model_id") or "",
+            "llm_headers": dict(extra.get("headers") or {}), "llm_body": dict(extra.get("body") or {})}
 
 
 def _require_project(pid: str) -> dict:
@@ -342,6 +369,7 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
             # Shown once; only set when generated here.
             "passphrase": result.passphrase,
             "config": cfg.model_dump(),
+            "layers": result.layers,
         },
         headers={"Cache-Control": "no-store"},
     )

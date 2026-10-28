@@ -373,9 +373,54 @@
         <input id="mcp-topk" type="number" min="1" max="100" class="input" value="10">
       </div>
     </div>
+    <fieldset class="brain-layers mb-2" id="mcp-layers">
+      <legend class="text-xs font-semibold">Search layers in the package</legend>
+      <p class="text-xs dim mb-2">Each layer is separate. The package ships only the files the layers you keep need, and
+        its server can switch a shipped layer off at run time (<code>--no-semantic</code>, <code>--no-keyword</code>, <code>--no-reranker</code>).</p>
+      <label class="brain-layer" title="Each passage is stored as a vector (a list of numbers from the embedding model). A question is turned into a vector too, and passages whose vectors point the same way are found even when they use other words. Ships vectors.npy; needs the embedder (bundled with Include models) or an embeddings API at run time.">
+        <input id="mcp-sem" type="checkbox" checked>
+        <span><b>Meaning search</b> (vectors / embeddings) <span class="dim">finds passages that say the same thing in other words</span></span>
+      </label>
+      <label class="brain-layer" title="BM25: the classic search-engine score over the exact words of each passage (rare words count more, long passages are evened out). Best for names, codes, numbers and exact terms. Ships bm25.json; needs no model.">
+        <input id="mcp-kw" type="checkbox" checked>
+        <span><b>Word search</b> (BM25 keyword index) <span class="dim">exact names, codes, numbers; no model needed</span></span>
+      </label>
+      <div class="brain-layer brain-layer-auto" id="mcp-fusion" title="With both searches on, Reciprocal Rank Fusion merges their two rankings: a passage ranked high by either one, or by both, rises to the top. It is not a separate switch: it runs exactly when both searches do.">
+        <span class="brain-layer-mark" aria-hidden="true">⇄</span>
+        <span><b>Rank fusion</b> (RRF) <span class="dim" id="mcp-fusion-state">on: merges the two rankings</span></span>
+      </div>
+      <label class="brain-layer" title="A cross-encoder reads the question and each of the best candidates together and scores them again: slower, more precise ordering. Its model must be inside the package, so it needs Include models.">
+        <input id="mcp-rerank" type="checkbox" checked>
+        <span><b>Reranker</b> (cross-encoder) <span class="dim" id="mcp-rerank-note">needs Include models</span></span>
+      </label>
+      <label class="brain-layer" title="The G in RAG (retrieval-augmented generation). Off: the server returns passages and your own model or agent writes the answer (the usual MCP setup). On: the server also answers, at /ask and the MCP tool rag_answer, by sending the passages to an OpenAI-compatible chat model with the same grounded prompt as this page's chat.">
+        <input id="mcp-answer" type="checkbox">
+        <span><b>Answer generation</b> (the “G” in RAG) <span class="dim">the server also writes the answer with a language model</span></span>
+      </label>
+      <div class="grid grid-12 gap-3 items-end mt-2" id="mcp-llm" hidden>
+        <div class="col-span-12">
+          <label class="block text-xs muted mb-1" for="mcp-llm-conn">Copy from an AI assistant connection</label>
+          <select id="mcp-llm-conn" class="select"
+                  title="Fills the endpoint and model from one of your API connections in Settings → AI assistant, with the extra headers and request settings it needs (e.g. OpenCode Go's session header). Its API key is never copied.">
+            <option value="">— type the endpoint and model below —</option>
+          </select>
+        </div>
+        <div class="col-span-6">
+          <label class="block text-xs muted mb-1" for="mcp-llm-url">Answer model endpoint (OpenAI-compatible)</label>
+          <input id="mcp-llm-url" type="text" class="input" placeholder="http://127.0.0.1:11434/v1"
+                 title="Base URL of any OpenAI-compatible chat API: Ollama, LM Studio, llama.cpp server, vLLM, OpenAI. The server calls {url}/chat/completions.">
+        </div>
+        <div class="col-span-6">
+          <label class="block text-xs muted mb-1" for="mcp-llm-model">Answer model name</label>
+          <input id="mcp-llm-model" type="text" class="input" placeholder="qwen3:8b"
+                 title="The model name that endpoint expects. An API key is never put in the package: set RAG_LLM_API_KEY where the server runs.">
+        </div>
+        <p class="col-span-12 text-xs dim">No API key is stored in the package: where the server runs, set <code>RAG_LLM_API_KEY</code> if the endpoint needs one.</p>
+      </div>
+      <div class="text-xs mt-2" id="mcp-pipeline" role="status" aria-live="polite"></div>
+    </fieldset>
     <div class="flex gap-4 items-center mb-2 text-xs">
-      <label class="flex items-center gap-2" title="Ship the embedding model (+ reranker) inside for offline meaning-search (~2 GB). Model weights are public and are NOT encrypted."><input id="mcp-models" type="checkbox"> Include models (not encrypted)</label>
-      <label class="flex items-center gap-2"><input id="mcp-rerank" type="checkbox" checked> Reranker on by default</label>
+      <label class="flex items-center gap-2" title="Ship the embedding model (for meaning search) and the reranker inside, for fully offline use (~2 GB). Model weights are public and are NOT encrypted."><input id="mcp-models" type="checkbox"> Include models (not encrypted)</label>
       <label class="flex items-center gap-2 brain-plaintext-opt" title="Off the default path. Documents and index become plain files in the archive."><input id="mcp-noenc" type="checkbox"> Export WITHOUT encryption (plaintext)</label>
     </div>
     <div class="flex gap-2 items-center">
@@ -755,8 +800,81 @@
       include_models: g('mcp-models').checked,
       reranker_enabled: g('mcp-rerank').checked,
       encrypt: !g('mcp-noenc').checked,
+      semantic_search: g('mcp-sem').checked,
+      keyword_search: g('mcp-kw').checked,
+      answer_enabled: g('mcp-answer').checked,
+      llm_base_url: g('mcp-llm-url').value.trim(),
+      llm_model: g('mcp-llm-model').value.trim(),
+      llm_connection: g('mcp-llm-conn').value || null,
     };
   }
+
+  // API connections from Settings → AI assistant: picking one fills endpoint + model; the server side copies its
+  // headers and request settings (never the key) into the package.
+  async function loadLlmConnections() {
+    var sel = document.getElementById('mcp-llm-conn');
+    if (!sel) return;
+    try {
+      var d = await api().get('/api/settings/assistant');
+      (d.connections || []).filter(function (c) { return c.kind === 'openai_compat'; }).forEach(function (c) {
+        var o = document.createElement('option');
+        o.value = c.id; o.textContent = c.label || c.id;
+        o.dataset.url = c.base_url || ''; o.dataset.model = c.model || '';
+        sel.appendChild(o);
+      });
+    } catch (e) { /* no connections: type the endpoint by hand */ }
+    // A different endpoint typed by hand is not that connection any more: its headers must not follow.
+    document.getElementById('mcp-llm-url').addEventListener('input', function () {
+      var o = sel.selectedOptions[0];
+      if (o && o.value && this.value.trim() !== o.dataset.url) sel.value = '';
+    });
+    sel.addEventListener('change', function () {
+      var o = sel.selectedOptions[0];
+      if (o && o.value) {
+        document.getElementById('mcp-llm-url').value = o.dataset.url;
+        document.getElementById('mcp-llm-model').value = o.dataset.model;
+      }
+      syncLayers();
+    });
+  }
+
+  // The layer panel explains itself: fusion follows the two searches, the reranker needs its bundled model, and the
+  // pipeline line says how a question travels through the package that would be built.
+  function syncLayers() {
+    var g = function (id) { return document.getElementById(id); };
+    var sem = g('mcp-sem').checked, kw = g('mcp-kw').checked, models = g('mcp-models').checked;
+    var rr = g('mcp-rerank'), ans = g('mcp-answer').checked;
+    g('mcp-fusion').classList.toggle('is-off', !(sem && kw));
+    g('mcp-fusion-state').textContent = sem && kw ? 'on: merges the two rankings'
+      : 'off: runs only when both searches are on';
+    rr.disabled = !models;
+    g('mcp-rerank-note').textContent = models ? 'rescores the best candidates (slower, more precise)'
+      : 'needs Include models (its model must be inside the package)';
+    g('mcp-llm').hidden = !ans;
+    var steps = ['question'];
+    var found = [];
+    if (sem) found.push('meaning search');
+    if (kw) found.push('word search (BM25)');
+    var warn = '';
+    if (!found.length) warn = 'Turn on meaning search, word search or both: the package needs one way to find passages.';
+    else steps.push(found.join(' + '));
+    if (sem && kw) steps.push('rank fusion (RRF)');
+    if (rr.checked && models) steps.push('reranker');
+    steps.push(ans ? 'LLM answer with sources' : 'passages with sources');
+    if (!warn && sem && !models && !kw) warn = 'Meaning search alone needs the embedder inside (Include models) or an embeddings API where it runs.';
+    if (!warn && ans && !(g('mcp-llm-url').value.trim() && g('mcp-llm-model').value.trim()))
+      warn = 'Answer generation needs the endpoint and model name (they can also be set where the server runs).';
+    g('mcp-pipeline').innerHTML = '<b>Pipeline:</b> ' + steps.map(escHtmlLayer).join(' → ')
+      + (warn ? '<div class="sev-warning mt-1">⚠ ' + escHtmlLayer(warn) + '</div>' : '');
+    g('mcp-pkg-btn').disabled = !found.length;
+  }
+  function escHtmlLayer(t) {
+    return String(t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+  }
+  ['mcp-sem', 'mcp-kw', 'mcp-rerank', 'mcp-models', 'mcp-answer', 'mcp-llm-url', 'mcp-llm-model'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener(el.type === 'text' ? 'input' : 'change', syncLayers);
+  });
 
   function applyMcpVals(c) {
     var g = function (id) { return document.getElementById(id); };
@@ -765,6 +883,10 @@
     g('mcp-host').value = c.host; g('mcp-port').value = c.port;
     g('mcp-topk').value = c.top_k; g('mcp-models').checked = !!c.include_models;
     g('mcp-rerank').checked = !!c.reranker_enabled; g('mcp-noenc').checked = !c.encrypt;
+    g('mcp-sem').checked = c.semantic_search !== false; g('mcp-kw').checked = c.keyword_search !== false;
+    g('mcp-answer').checked = !!c.answer_enabled;
+    g('mcp-llm-url').value = c.llm_base_url || ''; g('mcp-llm-model').value = c.llm_model || '';
+    syncLayers();
   }
 
   window.loadMcpDefaults = async function () {
@@ -772,6 +894,8 @@
       var r = await fetch('/api/projects/' + PID + '/brain/export-config');
       if (r.ok) applyMcpVals((await r.json()).effective);
     } catch (e) { /* defaults stay as rendered */ }
+    syncLayers();
+    loadLlmConnections();
   };
 
   window.saveMcpDefaults = async function (scope) {
@@ -802,7 +926,7 @@
     var body = mcpVals();
     if (passEl.value && body.encrypt) body.passphrase = passEl.value;
     if (note) note.textContent = body.include_models
-      ? 'Building the package with the embedding model inside (~2 GB) \u2014 this takes a minute, then the download starts.'
+      ? 'Building the package with the models inside (from ~170 MB for MiniLM to ~2 GB for e5-large) \u2014 this can take a minute, then the download starts.'
       : 'Building the package \u2014 the download starts when it is ready.';
     if (btn) btn.disabled = true;
     try {

@@ -1,4 +1,4 @@
-"""`fts brain {build,search,ask,eval,rebuild-vectors,info}` — the Smart Brain from the command line.
+"""`fts brain {build,search,ask,eval,rebuild-vectors,info,export}` — the Smart Brain from the command line.
 
 Every subcommand takes either ``--project <id|name>`` (the project's index, built from its parsed files exactly like
 the WebUI: ``knowledge.index``) or ``--corpus <dir>`` (a standalone index; ``build`` then reads a plain directory with
@@ -156,14 +156,74 @@ def _info(args: argparse.Namespace) -> None:
     print(json.dumps(info, indent=2, ensure_ascii=False))
 
 
+def _export(args: argparse.Namespace) -> None:
+    """Standalone server package (the Smart Brain page's "Build & download standalone server")."""
+    from pydantic import ValidationError
+
+    from finetune_studio.smart_brain import export_config as ec
+    from finetune_studio.smart_brain.server_package import (
+        build_package,
+        pipeline_text,
+    )
+
+    corpus = _corpus(args)
+    if not (corpus / "manifest.json").is_file():
+        _die(f"no index at {corpus}: build it first (fts brain build)")
+    patch = {k: v for k, v in {
+        "archive_format": args.format, "include_models": args.models, "encrypt": args.encrypt,
+        "semantic_search": args.semantic, "keyword_search": args.keyword, "reranker_enabled": args.reranker,
+        "answer_enabled": args.answer, "llm_base_url": args.llm_base_url, "llm_model": args.llm_model,
+        "llm_connection": args.llm_connection,
+        "top_k": args.top_k, "port": args.port, "host": args.host, "device": args.device,
+    }.items() if v is not None}
+    conn = patch.pop("llm_connection", None)
+    if conn:
+        from finetune_studio.webui.routes.brain_export import connection_llm_settings
+
+        try:
+            patch = {**connection_llm_settings(conn), **patch}
+        except Exception as e:  # noqa: BLE001 - HTTPException from the shared helper: report its reason
+            _die(getattr(e, "detail", str(e)))
+    passphrase = None
+    if args.passphrase_file:
+        passphrase = Path(args.passphrase_file).read_text(encoding="utf-8").strip()
+    try:
+        if args.project:
+            from finetune_studio.cli.commands.dataset import resolve_project
+
+            project = resolve_project(args.project)
+            cfg = ec.effective_config(project["id"], patch)
+            title = args.name or project["name"] or project["id"]
+            out_dir = Path(args.out) if args.out else Path("output") / "projects" / project["id"] / "brain-packages"
+        else:
+            cfg = ec.BrainExportConfig(**patch)
+            title = args.name or corpus.name
+            out_dir = Path(args.out or ".")
+    except (ValidationError, ValueError) as e:
+        _die(str(e))
+    safe = "".join(c if c.isalnum() or c in "._-" else "-" for c in title).strip(".-")[:48] or "brain"
+    ext = "zip" if cfg.archive_format == "zip" else cfg.archive_format
+    out = out_dir / (f"{safe}-smart-brain{'-with-models' if cfg.include_models else ''}"
+                     f"{'' if cfg.encrypt else '-PLAINTEXT'}.{ext}")
+    try:
+        result = build_package(corpus, out, name=title, config=cfg, passphrase=passphrase)
+    except (FileNotFoundError, ValueError) as e:
+        _die(str(e))
+    print(json.dumps({"path": str(result.path), "size": result.size, "encrypted": result.encrypted,
+                      "layers": result.layers,
+                      "pipeline": pipeline_text(cfg, bundled_reranker=result.layers.get("reranker", False)),
+                      **({"passphrase": result.passphrase, "note": "shown once: store it now, it is not saved"}
+                         if result.passphrase else {})}, indent=2))
+
+
 _HANDLERS = {"build": _build, "search": _search, "ask": _ask, "eval": _eval, "rebuild-vectors": _rebuild_vectors,
-             "info": _info}
+             "info": _info, "export": _export}
 
 
 def cmd_brain(args: argparse.Namespace) -> None:
     handler = _HANDLERS.get(args.brain_command or "")
     if handler is None:
-        print("Usage: fts brain {build,search,ask,eval,rebuild-vectors,info} (--project P | --corpus DIR) ...",
+        print("Usage: fts brain {build,search,ask,eval,rebuild-vectors,info,export} (--project P | --corpus DIR) ...",
               file=sys.stderr)
         sys.exit(1)
     handler(args)
@@ -214,3 +274,31 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     sp.add_argument("--embedder")
 
     target(brain.add_parser("info", help="Show the index manifest (and, for a project, what is stale)"))
+
+    sp = target(brain.add_parser(
+        "export", help="Build the standalone server package (HTTP + MCP), choosing its search layers",
+        description="Each search layer is separate: meaning search (vectors), word search (BM25; both = rank "
+                    "fusion), the reranker and answer generation (an LLM writes the answer). Unset flags take the "
+                    "project's saved export settings, then the studio defaults."))
+    bo = argparse.BooleanOptionalAction
+    sp.add_argument("--semantic", action=bo, default=None, help="meaning search over the vectors (default on)")
+    sp.add_argument("--keyword", action=bo, default=None, help="word search over the BM25 index (default on)")
+    sp.add_argument("--reranker", action=bo, default=None, help="cross-encoder rescoring (needs --models)")
+    sp.add_argument("--answer", action=bo, default=None,
+                    help="answer generation: the server's /ask and rag_answer call an LLM (default off)")
+    sp.add_argument("--llm-base-url", help="OpenAI-compatible endpoint for answers, e.g. http://127.0.0.1:11434/v1")
+    sp.add_argument("--llm-model", help="model name for answers")
+    sp.add_argument("--llm-connection",
+                    help="copy the answer endpoint, model and headers from a Settings → AI assistant connection id "
+                         "(never its key: set RAG_LLM_API_KEY where the server runs)")
+    sp.add_argument("--models", action=bo, default=None,
+                    help="bundle the embedder (+ reranker) for offline use (~2 GB, not encrypted)")
+    sp.add_argument("--encrypt", action=bo, default=None, help="encrypt the corpus (default on)")
+    sp.add_argument("--passphrase-file", help="file holding the passphrase (default: generate one, printed once)")
+    sp.add_argument("--format", choices=["tar.gz", "tar", "zip"])
+    sp.add_argument("--top-k", type=int)
+    sp.add_argument("--host")
+    sp.add_argument("--port", type=int)
+    sp.add_argument("--device")
+    sp.add_argument("--name", help="package title (default: the project name)")
+    sp.add_argument("--out", help="output directory (default: output/projects/<id>/brain-packages)")

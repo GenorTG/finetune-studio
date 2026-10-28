@@ -71,6 +71,7 @@ class PackageResult:
     root: str
     size: int
     passphrase: str | None = field(default=None, repr=False)
+    layers: dict[str, bool] = field(default_factory=dict)   # what the package can run (manifest "search_layers")
 
 
 _README_TMPL = """# {title} — searchable knowledge pack
@@ -93,8 +94,7 @@ Desktop, OpenClaw, Cursor and friends speak).
 | `mcp-config.example.json` | config snippet for agent apps |
 | `setup.sh` | guided setup: install, port, start, optional service, MCP entry |
 
-{security_section}
-## Quickstart
+{security_section}{layers_section}## Quickstart
 
 ```bash
 bash setup.sh            # guided: installs, picks a port, starts the server,
@@ -129,6 +129,12 @@ Precedence (highest first): **command-line flags > environment (`RAG_*`) >
 | results per search | `--top-k` | `RAG_TOP_K` | `{top_k}` |
 | device for bundled models | `--device` | `RAG_DEVICE` | `{device}` |
 | reranker | `--reranker` / `--no-reranker` | `RAG_RERANKER` | `{reranker}` |
+| meaning search | `--semantic` / `--no-semantic` | `RAG_SEMANTIC` | `{semantic}` |
+| word search | `--keyword` / `--no-keyword` | `RAG_KEYWORD` | `{keyword}` |
+| answer generation | `--answer` / `--no-answer` | `RAG_ANSWER` | `{answer}` |
+| answer model endpoint | `--llm-base-url` | `RAG_LLM_BASE_URL` | `{llm_base_url}` |
+| answer model | `--llm-model` | `RAG_LLM_MODEL` | `{llm_model}` |
+| answer model API key | — | `RAG_LLM_API_KEY` | none |
 | HTTP bearer token | `--auth-token` | `RAG_AUTH_TOKEN` | none |
 | embedding endpoint | `--embed-base-url` | `RAG_EMBED_BASE_URL` | none |
 | embedding model | `--embed-model` | `RAG_EMBED_MODEL` | from the index |
@@ -137,7 +143,7 @@ Precedence (highest first): **command-line flags > environment (`RAG_*`) >
 
 `install.sh`, `run-http.sh`, `run-mcp.sh` and `setup.sh` all accept these
 flags (`--config`, `--device`, `--host`, `--port`, `--top-k`, `--no-reranker`,
-`--keyfile`); `install.sh` saves the ones you give it into `rag.config.json`.
+`--no-semantic`, `--no-keyword`, `--answer`, `--no-answer`, `--keyfile`); `install.sh` saves the ones you give it into `rag.config.json`.
 Inspect the merged result any time (secrets are redacted):
 
 ```bash
@@ -162,7 +168,7 @@ send `Authorization: Bearer <token>`.
 - **OpenClaw** — `mcp.servers` in `openclaw.json`, same command/args shape.
 - **Cursor / other MCP clients** — stdio command: `bash run-mcp.sh`.
 {mcp_enc_note}
-Tools exposed: `rag_search(query, top_k)` and `rag_info()`.
+Tools exposed: {tools}.
 
 ## HTTP API
 
@@ -171,11 +177,12 @@ Tools exposed: `rag_search(query, top_k)` and `rag_info()`.
 | `GET /health` | corpus name, chunk count, search mode |
 | `GET /search?q=...&top_k=5` | ranked passages with source file names |
 | `POST /search` (JSON `{{"query": "...", "top_k": 5}}`) | same |
+| `GET /ask?q=...` / `POST /ask` (JSON `{{"question": "..."}}`) | the LLM's answer + sources (answer generation on) |
 
 ## Notes
 
 - Everything is local; the server makes no calls except to the embedding
-  endpoint you configure (and none at all when the model is bundled).
+  and answer endpoints you configure (none at all with the embedder bundled and answers off).
 - {sources_note}
 - Re-export from Finetune Studio any time the documents change.
 """
@@ -214,8 +221,9 @@ archive can read everything. Re-export with encryption on for sensitive data.
 
 _README_SECTION_API = """## Better results: point it at an embedding model
 
-The index was built with **{embed_model}**. Without that model the server
-still searches by keywords (BM25) — good, but meaning-search is better.
+The index was built with **{embed_model}**. Meaning search needs that model to
+turn each question into a vector: without it (or an endpoint that serves it) only
+word search (BM25) runs, when this package has it.
 Any app that serves OpenAI-compatible `/v1/embeddings` works — LM Studio,
 Ollama, OpenAI, vLLM:
 
@@ -342,7 +350,9 @@ while [ $# -gt 0 ]; do
     --port=*)      PORT="${1#--port=}" ;;
     --config|--device|--host|--top-k)
                    EXTRA+=("$1" "${2:?$1 needs a value}"); shift ;;
-    --config=*|--device=*|--host=*|--top-k=*|--no-reranker) EXTRA+=("$1") ;;
+    --llm-base-url|--llm-model)
+                   EXTRA+=("$1" "${2:?$1 needs a value}"); shift ;;
+    --config=*|--device=*|--host=*|--top-k=*|--no-reranker|--no-semantic|--no-keyword|--answer|--no-answer|--llm-base-url=*|--llm-model=*) EXTRA+=("$1") ;;
     --keyfile)     shift; KEYFILE="$(cd "$(dirname "${1:?--keyfile needs a path}")" && pwd)/$(basename "$1")" ;;
     --start)       DO_START=1 ;;
     --service)     DO_SERVICE=1 ;;
@@ -439,7 +449,7 @@ if [ "$DO_SERVICE" = 1 ] || { [ "$CAN_UNATTEND" = 1 ] && ask_yn "Install as a se
     echo "Encrypted pack: a service needs --keyfile PATH (a passphrase file) — skipping service."
   else
     ENV_LINES=""
-    for v in RAG_EMBED_BASE_URL RAG_EMBED_API_KEY RAG_AUTH_TOKEN; do
+    for v in RAG_EMBED_BASE_URL RAG_EMBED_API_KEY RAG_AUTH_TOKEN RAG_LLM_BASE_URL RAG_LLM_MODEL RAG_LLM_API_KEY; do
       [ -n "${!v:-}" ] && ENV_LINES="$ENV_LINES
 Environment=$v=${!v}"
     done
@@ -573,15 +583,70 @@ def _add_model_dir(sink: _Sink, src: Path, arc_dir: str) -> None:
         sink.add_file(f"{arc_dir}/{rel.as_posix()}", f)
 
 
+def _layers_section(cfg: BrainExportConfig, *, bundled_embedder: bool, bundled_reranker: bool) -> str:
+    def state(on: bool, note: str = "") -> str:
+        return ("**on**" + (f" ({note})" if note else "")) if on else "off"
+    sem_note = ("embedder bundled" if bundled_embedder else
+                "needs `RAG_EMBED_BASE_URL`; without it the server uses word search only")
+    rows = [
+        ("Meaning search", "vectors: finds passages that mean the same in other words", "--no-semantic", "RAG_SEMANTIC",
+         state(cfg.semantic_search, sem_note if cfg.semantic_search else "")),
+        ("Word search", "BM25 keyword index: exact names, codes, numbers", "--no-keyword", "RAG_KEYWORD",
+         state(cfg.keyword_search)),
+        ("Rank fusion", "Reciprocal Rank Fusion merges the two rankings", "—", "—",
+         state(cfg.semantic_search and cfg.keyword_search, "automatic when both searches are on")),
+        ("Reranker", "a cross-encoder rescores the best candidates", "--reranker / --no-reranker", "RAG_RERANKER",
+         state(cfg.reranker_enabled and bundled_reranker,
+               "reranker bundled") if bundled_reranker or not cfg.reranker_enabled
+         else "off (no reranker model in this package)"),
+        ("Answer generation", "the G in RAG: an LLM writes the answer from the passages", "--answer / --no-answer",
+         "RAG_ANSWER", state(cfg.answer_enabled, f"model `{cfg.llm_model or 'set RAG_LLM_MODEL'}`")),
+    ]
+    table = "\n".join(f"| {a} | {b} | `{c}` | `{d}` | {e} |" if c != "—" else f"| {a} | {b} | — | — | {e} |"
+                      for a, b, c, d, e in rows)
+    return f"""## Search layers
+
+Every layer of this search pipeline is separate and can be switched off. The package only contains the files the
+layers it was exported with need (no vectors without meaning search, no BM25 index without word search); a flag
+can switch a shipped layer off, never on one that is not in the package.
+
+**Pipeline:** {pipeline_text(cfg, bundled_reranker=bundled_reranker)}
+
+| Layer | What it does | Flag | Env | In this package |
+|---|---|---|---|---|
+{table}
+
+`GET /health` (and the MCP tool `rag_info`) reports which layers are actually running.
+
+### Answer generation
+
+Without it the server returns passages and your own model or agent writes the answer (the usual MCP setup). With it
+on, `GET /ask?q=...` / `POST /ask` (and the MCP tool `rag_answer`) send the passages to an OpenAI-compatible chat
+endpoint (Ollama, LM Studio, llama.cpp server, vLLM, OpenAI…) with the same grounded prompt as the studio's Smart
+Brain chat, and return the answer with its sources:
+
+```bash
+export RAG_LLM_BASE_URL="{cfg.llm_base_url or 'http://127.0.0.1:11434/v1'}"   # set at export: {cfg.llm_base_url or 'not set'}
+export RAG_LLM_MODEL="{cfg.llm_model or 'your-model'}"
+# export RAG_LLM_API_KEY="***"   # only for endpoints that need one; never stored in the package
+bash run-http.sh --answer
+curl "http://127.0.0.1:8899/ask?q=your+question"
+```
+
+"""
+
+
 def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool,
-            models: bool, cfg: BrainExportConfig) -> str:
+            models: bool, cfg: BrainExportConfig, bundled_embedder: bool = False,
+            bundled_reranker: bool = False) -> str:
     mcp_snippet = _mcp_config_example(slug if encrypted else f"{slug}-brain",
                                       NEUTRAL_ROOT if encrypted else f"{slug}-brain",
                                       encrypted).rstrip("\n")
     mcp_enc_note = ("\nThis pack is encrypted: the MCP client cannot type a "
                     "passphrase, so pass `--keyfile` (as above) or set "
                     "`RAG_PASSPHRASE` in the client's `env`.\n") if encrypted else ""
-    embed_section = (_README_SECTION_OFFLINE if models else _README_SECTION_API)
+    embed_section = (_README_SECTION_OFFLINE if bundled_embedder else
+                     _README_SECTION_API if cfg.semantic_search else "")
     return _README_TMPL.format(
         title=title, date=time.strftime("%Y-%m-%d"),
         enc_note=" (**encrypted** in `corpus/corpus.enc`)" if encrypted else "",
@@ -591,9 +656,15 @@ def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool,
         curl_hint='curl "http://127.0.0.1:8899/search?q=your+question&top_k=5"'
                   + ('   # add -H "Authorization: Bearer $TOKEN" if a token is set'),
         host=cfg.host, port=cfg.port, top_k=cfg.top_k, device=cfg.device,
-        reranker="on" if cfg.reranker_enabled else "off",
+        reranker="on" if cfg.reranker_enabled and bundled_reranker else "off",
+        semantic="on" if cfg.semantic_search else "off", keyword="on" if cfg.keyword_search else "off",
+        answer="on" if cfg.answer_enabled else "off", llm_base_url=cfg.llm_base_url or "none",
+        llm_model=cfg.llm_model or "none",
         embed_section=embed_section.format(embed_model=embed_model),
         mcp_snippet=mcp_snippet, mcp_enc_note=mcp_enc_note,
+        layers_section=_layers_section(cfg, bundled_embedder=bundled_embedder, bundled_reranker=bundled_reranker),
+        tools=("`rag_search(query, top_k)`, `rag_info()` and `rag_answer(question)`" if cfg.answer_enabled
+               else "`rag_search(query, top_k)` and `rag_info()`"),
         sources_note=("the original documents are inside `corpus.enc` "
                       "(read lazily, in memory)." if encrypted else
                       "`corpus/sources/` keeps the parsed text of every document."),
@@ -606,6 +677,33 @@ def _mcp_config_example(slug: str, root: str, encrypted: bool) -> str:
         args += ["--keyfile", "/ABSOLUTE/PATH/TO/passphrase.txt"]
     return json.dumps({"mcpServers": {slug: {"command": "bash", "args": args}}},
                       indent=2) + "\n"
+
+
+def layer_corpus_files(cfg: BrainExportConfig) -> tuple[str, ...]:
+    """Index files the turned-on search layers need (meaning search: vectors; word search: the BM25 index)."""
+    return ((("vectors.npy", "vectors.idx.json") if cfg.semantic_search else ())
+            + (("bm25.json",) if cfg.keyword_search else ()))
+
+
+def search_layers(cfg: BrainExportConfig) -> dict[str, bool]:
+    """The layers chosen at export (``build_package`` records them in the manifest with ``reranker`` true only
+    when a reranker model was bundled; the server decides from the files it finds)."""
+    return {"semantic": cfg.semantic_search, "keyword": cfg.keyword_search,
+            "fusion": cfg.semantic_search and cfg.keyword_search,
+            "reranker": cfg.reranker_enabled, "answer": cfg.answer_enabled}
+
+
+def pipeline_text(cfg: BrainExportConfig, *, bundled_reranker: bool) -> str:
+    """One line: how a question travels through this package."""
+    found = [n for n, on in (("meaning search (vectors)", cfg.semantic_search),
+                             ("word search (BM25)", cfg.keyword_search)) if on]
+    steps = ["question", " + ".join(found)]
+    if len(found) == 2:
+        steps.append("rank fusion (RRF)")
+    if cfg.reranker_enabled and bundled_reranker:
+        steps.append("reranker (cross-encoder)")
+    steps.append("LLM answer with sources" if cfg.answer_enabled else "passages with sources")
+    return " → ".join(steps)
 
 
 def _generate_passphrase() -> str:
@@ -648,11 +746,14 @@ def build_package(
         raise ValueError("a passphrase was given but encryption is disabled")
 
     corpus = Path(corpus_dir)
-    for req in ("manifest.json", "chunks.parquet", "vectors.npy",
-                "vectors.idx.json", "bm25.json"):
+    # Each search layer ships only its own files: no vectors without meaning search, no BM25 index without word
+    # search (the package is smaller and holds nothing it will not use).
+    layer_files = layer_corpus_files(cfg)
+    for req in ("manifest.json", "chunks.parquet", *layer_files):
         if not (corpus / req).is_file():
             raise FileNotFoundError(f"corpus missing {req}: {corpus}")
     manifest = json.loads((corpus / "manifest.json").read_text(encoding="utf-8"))
+    manifest["search_layers"] = search_layers(cfg)
     title = name or manifest.get("name") or corpus.name
     if encrypted:  # nothing derived from the project/document names in paths/README
         title, slug, root = "Portable RAG pack", NEUTRAL_ROOT, NEUTRAL_ROOT
@@ -664,8 +765,8 @@ def build_package(
     embed_model = str((manifest.get("embedding_model") or {}).get("name")
                       or "the embedding model named in corpus/manifest.json")
     emb_src = rr_src = None
-    if models:
-        rs = manifest.setdefault("rag_settings", {})
+    rs = manifest.setdefault("rag_settings", {})
+    if models and cfg.semantic_search:
         emb = _resolve_shared((manifest.get("embedding_model") or {}).get("name", ""),
                               "embedder")
         if not emb:
@@ -674,18 +775,21 @@ def build_package(
                 "reference a shared embedder — rebuild it once from the "
                 "RAG page, then export with models")
         emb_id, emb_src = emb
-        rr = _resolve_shared(rs.get("reranker", ""), "reranker") \
-            if cfg.include_reranker else None
         # Rewrite refs for display only — server.py loads bundled models by
         # directory, never by these paths.
         manifest["embedding_model"]["name"] = emb_id
         rs["embedder"] = emb_id
-        if rr:
-            rr_id, rr_src = rr
-            rs["reranker"] = rr_id
-        else:
-            rs["rerank_enabled"] = False
         embed_model = emb_id
+    rr = _resolve_shared(rs.get("reranker", ""), "reranker") \
+        if models and cfg.include_reranker and cfg.reranker_enabled else None
+    if rr:
+        rr_id, rr_src = rr
+        rs["reranker"] = rr_id
+        rs["rerank_enabled"] = True
+    else:
+        rs["rerank_enabled"] = False
+    models = bool(emb_src or rr_src)
+    manifest["search_layers"]["reranker"] = rr_src is not None   # only a bundled reranker can run
 
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -712,7 +816,7 @@ def build_package(
             cw = ContainerWriter(spool, passphrase, log_n=cfg.kdf_log_n)
             cw.add("manifest.json", manifest_json.encode("utf-8"))
             cw.add("chunks.jsonl", chunks_jsonl.encode("utf-8"))
-            for fname in ("vectors.npy", "vectors.idx.json", "bm25.json"):
+            for fname in layer_files:
                 with open(corpus / fname, "rb") as fp:
                     cw.add(fname, fp)
             for f in source_files:
@@ -725,7 +829,7 @@ def build_package(
         else:
             sink.add_bytes(f"{root}/corpus/manifest.json", manifest_json)
             sink.add_bytes(f"{root}/corpus/chunks.jsonl", chunks_jsonl)
-            for fname in ("vectors.npy", "vectors.idx.json", "bm25.json"):
+            for fname in layer_files:
                 sink.add_file(f"{root}/corpus/{fname}", corpus / fname)
             for f in source_files:
                 sink.add_file(
@@ -757,7 +861,8 @@ def build_package(
             sink.add_bytes(f"{root}/{sh}", body, 0o755)
         sink.add_bytes(f"{root}/README.md", _readme(
             title=title, slug=slug, embed_model=embed_model,
-            encrypted=encrypted, models=models, cfg=cfg))
+            encrypted=encrypted, models=models, cfg=cfg,
+            bundled_embedder=emb_src is not None, bundled_reranker=rr_src is not None))
         sink.close()
         part.replace(out)
         ok = True
@@ -771,4 +876,4 @@ def build_package(
 
     log.info("rag package built: %s (%d bytes, encrypted=%s)", out, out.stat().st_size, encrypted)
     return PackageResult(path=out, encrypted=encrypted, root=root,
-                         size=out.stat().st_size, passphrase=generated)
+                         size=out.stat().st_size, passphrase=generated, layers=dict(manifest["search_layers"]))

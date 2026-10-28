@@ -112,6 +112,12 @@ def _controls() -> dict[str, Control]:
         ("brain.search_box", "brain", "#q-text", "Search test box"),
         ("brain.rerank_toggle", "brain", "#s-rerank-enabled", "Rerank toggle"),
         ("brain.hybrid_toggle", "brain", "#s-hybrid-enabled", "Hybrid toggle"),
+        ("brain.export_layers", "brain", "#mcp-layers", "Standalone export: search layers"),
+        ("brain.export_semantic", "brain", "#mcp-sem", "Export: meaning search (vectors)"),
+        ("brain.export_keyword", "brain", "#mcp-kw", "Export: word search (BM25)"),
+        ("brain.export_reranker", "brain", "#mcp-rerank", "Export: reranker"),
+        ("brain.export_answer", "brain", "#mcp-answer", "Export: answer generation (LLM)"),
+        ("brain.export_pipeline", "brain", "#mcp-pipeline", "Export: pipeline summary"),
         # training
         ("training.usecases", "training", "#uc-card", "Start from a use case"),
         ("training.usecase_new", "training", "#uc-new", "New use case form"),

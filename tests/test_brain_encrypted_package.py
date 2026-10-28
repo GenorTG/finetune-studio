@@ -294,7 +294,8 @@ def test_print_config_merges_and_redacts(corpus_dir: Path, tmp_path: Path) -> No
                            passphrase=PASS).path, tmp_path / "x")
     shipped = json.loads((root / "rag.config.json").read_text())
     assert shipped == {"device": "cuda:1", "host": "127.0.0.1", "port": 9001,
-                       "top_k": 9, "reranker": False}
+                       "top_k": 9, "reranker": False, "semantic": True, "keyword": True,
+                       "answer": False, "llm_base_url": "", "llm_model": "", "llm_headers": {}, "llm_body": {}}
     assert "passphrase" not in json.dumps(shipped).lower()
     r = _run(root, "--print-config", "--top-k", "4",
              env={"RAG_PORT": "9100", "RAG_AUTH_TOKEN": "tok-SECRET-123",
@@ -414,7 +415,8 @@ def test_export_config_layers_and_no_secret_persisted(tmp_path: Path,
     assert ec.effective_config("p1").port == 9000
     data = json.loads(sp.read_text())
     assert data["theme"] == "keep-me"
-    assert "pass" not in json.dumps(data).lower() and "key" not in json.dumps(data["brain_export"]).lower()
+    stored = json.dumps(data["brain_export"]).lower()
+    assert "pass" not in json.dumps(data).lower() and "api_key" not in stored and "token" not in stored
     sp.write_text(json.dumps({"brain_export": {"port": "garbage", "top_k": 3, "bogus": 1}}))
     assert ec.load_defaults().top_k == 3 and ec.load_defaults().port == 8899  # stale keys ignored
 

@@ -5176,3 +5176,21 @@ kbd { border: 1px solid var(--border-strong); padding: 0 4px; font-size: 11px; }
 /* Project home: the button cells need their room; equal shares cut them off at 1440. */
 #ov-runs-table th:last-child { width: 32%; }
 #ov-models-table th:last-child { width: 30%; }
+
+/* ── Smart Brain export: search layers (each one a separate, explained switch) ── */
+.brain-layers {
+  border: 1px solid var(--border);
+  padding: 0.6rem 0.8rem;
+}
+.brain-layers legend { padding: 0 0.3rem; }
+.brain-layer {
+  display: flex;
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.25rem 0;
+  font-size: 0.8rem;
+}
+.brain-layer input:disabled + span { opacity: 0.55; }
+.brain-layer-auto { padding-left: 1.4rem; }
+.brain-layer-mark { color: var(--text-muted); }
+.brain-layer-auto.is-off { opacity: 0.55; }
