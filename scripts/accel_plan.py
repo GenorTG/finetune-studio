@@ -301,6 +301,12 @@ def _probe_nvidia() -> tuple[list[Gpu], str, tuple[int, int]]:
     return gpus, driver, cuda_max
 
 
+def _nvidia_kernel_driver() -> str:
+    """Version of the loaded NVIDIA kernel module (``/proc/driver/nvidia/version``), "" when none is loaded."""
+    m = re.search(r"Kernel Module(?: for \S+)?\s+(\d+\.\d+(?:\.\d+)?)", _read("/proc/driver/nvidia/version"))
+    return m.group(1) if m else ""
+
+
 def _cc_from_name(name: str) -> str:
     for pat, cc in NVIDIA_CODENAMES:
         if re.search(pat, name):
@@ -498,6 +504,16 @@ def detect(force_cpu: bool = False, force_vendor: str = "") -> GpuInfo:
         gpus = nv_hw or [Gpu("nvidia", "NVIDIA GPU")]
         ready = bool(nv_gpus)
         hint = ""
+        kmod = _nvidia_kernel_driver()
+        if not ready and kmod:
+            # The kernel driver is loaded, only nvidia-smi is missing from PATH or broken (a dangling alternatives
+            # link on the dev box, 2026-10-28): the GPU works. Telling the user to reinstall the driver was wrong.
+            ready, driver = True, kmod
+            cuda_max = cuda_max if cuda_max != (0, 0) else _cuda_for_driver(kmod)
+            gpus = [g if g.compute_cap else Gpu(g.vendor, g.name, _cc_from_name(g.name), index=g.index) for g in gpus]
+            notes.append(f"nvidia-smi is missing or not working on this PATH, but the NVIDIA driver {kmod} is loaded: "
+                         "the GPU works. GPU details come from the PCI bus; put a working nvidia-smi on PATH for "
+                         "exact compute capability and the per-GPU list.")
         if not ready:
             cuda_max = cuda_max if cuda_max != (0, 0) else (13, 0)
             hint = ("NVIDIA GPU found on the PCI bus but no working driver (nvidia-smi missing/failing). "

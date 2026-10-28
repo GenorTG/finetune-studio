@@ -137,6 +137,25 @@ function keyStateText(a) {
     } catch (e) { /* history is decorative — never block the page */ }
   }
 
+  // One line a person can act on, read from the run's own log (update.sh prints these lines).
+  function updSummary(u) {
+    const log = String(u.log_text || u.log_tail || '');
+    const avail = log.match(/Update available: (\d+) new change/);
+    const moved = log.match(/Code: updated (\S+) -> (\S+) \((\d+) change/);
+    const issues = log.match(/issues:\s+(\d+)/);
+    if (u.status === 'queued' || u.status === 'running') return null;
+    if (u.mode === 'check') {
+      const head = avail ? avail[1] + ' update(s) available: Apply update installs them.'
+        : /Up to date:/.test(log) ? 'Up to date with GitHub.'
+        : /could not reach GitHub/.test(log) ? 'Could not reach GitHub to look for updates.' : 'Check finished.';
+      return head + (issues ? ' The health check found ' + issues[1] + ' problem(s): see the log.' : '');
+    }
+    if (u.status !== 'done') return u.mode + ' failed: ' + (u.error || 'see the log') + '.';
+    if (u.mode === 'repair') return 'Repair finished: the environment was rebuilt.';
+    const skipped = /not restarting: job\(s\) running/.test(log) ? ' Not restarted: a job is running; the new version starts at the next restart.' : '';
+    return (moved ? 'Updated ' + moved[1] + ' → ' + moved[2] + ' (' + moved[3] + ' change(s)).' : 'Already up to date; dependencies checked.') + skipped;
+  }
+
   function updStopLive() {
     if (stopLive) { try { stopLive(); } catch (_e) { /* ignore */ } stopLive = null; }
   }
@@ -148,7 +167,7 @@ function keyStateText(a) {
       const rows = await (await fetch('/api/system/updates?limit=1')).json();
       const u = Array.isArray(rows) && rows[0];
       if (u) {
-        updStatus().textContent = `${u.mode} · ${u.status}${u.status === 'done' ? ' ✓' : ' — see log above'}`;
+        updStatus().textContent = updSummary(u) || `${u.mode} · ${u.status}`;
         if (u.log_text) updRenderLog(String(u.log_text).slice(-4000));
       } else {
         updStatus().textContent = 'Finished ✓';
@@ -170,7 +189,7 @@ function keyStateText(a) {
     }
     updStopLive();
     updEnable();
-    updStatus().textContent = `${d.mode} · ${d.status}${d.status === 'done' ? ' ✓' : ' — see log above'}`;
+    updStatus().textContent = updSummary(d) || `${d.mode} · ${d.status}`;
     updHistory();
   }
 
@@ -213,7 +232,9 @@ function keyStateText(a) {
   const bRepair = document.getElementById(UPD_BTN.repair);
   if (bCheck) bCheck.addEventListener('click', () => updTrigger('check'));
   if (bApply) bApply.addEventListener('click', async () => {
-    if (await window.fts.confirm('Apply update? Pulls main, syncs deps, runs migrations and restarts the service (about 10s).', {danger: true, okText: 'Apply update'})) updTrigger('update');
+    if (await window.fts.confirm('Apply update? Downloads the newest code of this install\u2019s branch, updates the Python packages, '
+        + 'migrates the database and restarts the app (under a minute). A running job is never interrupted: the restart is then '
+        + 'skipped and the new version starts at the next restart.', {danger: true, okText: 'Apply update'})) updTrigger('update');
   });
   if (bRepair) bRepair.addEventListener('click', async () => {
     if (await window.fts.confirm('Repair recreates the Python venv from scratch — several minutes, then restarts the service. Continue?', {danger: true, okText: 'Repair'})) updTrigger('repair');

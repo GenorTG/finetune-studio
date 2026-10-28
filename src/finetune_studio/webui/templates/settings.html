@@ -14,12 +14,12 @@
     <div class="card mb-4">
       <div class="card-head">
         <div class="card-title">Updates</div>
-        <div class="card-sub">Self-healing pipeline: git pull → venv health → deps → migrations → restart.</div>
+        <div class="card-sub">Check looks for a newer version on GitHub and tests the install; Apply update installs it.</div>
       </div>
       <div class="flex gap-2 wrap mb-3">
-        <button class="btn sm" id="btn-update-check" title="Dry run: report drift + venv health, changes nothing">Check</button>
-        <button class="btn sm primary" id="btn-update-apply" title="Pull main, sync deps, migrate DB, restart service (~10s downtime)">Apply update</button>
-        <button class="btn sm" id="btn-update-repair" title="Recreate the venv from scratch (slow, thorough)">Repair</button>
+        <button class="btn sm" id="btn-update-check" title="Asks GitHub whether a newer version of this install's branch exists (and lists what changed), then checks the Python environment, GPU driver and llama.cpp tools. Changes nothing.">Check</button>
+        <button class="btn sm primary" id="btn-update-apply" title="Downloads the newest code of this install's branch, updates the Python packages, migrates the database and restarts the app (under a minute). A running training or export is never cut off: the restart is skipped then, and the new version starts at the next restart.">Apply update</button>
+        <button class="btn sm" id="btn-update-repair" title="Rebuilds the Python environment from scratch (deletes .venv and reinstalls PyTorch and every package: 10–20 minutes and a few GB of downloads), then restarts. Only when Check reports a broken environment.">Repair</button>
       </div>
       <div id="update-status" class="text-xs dim mb-2">Idle.</div>
       <pre id="update-log" class="text-xs" hidden></pre>
