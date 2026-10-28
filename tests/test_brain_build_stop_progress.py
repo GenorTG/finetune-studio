@@ -163,6 +163,8 @@ def test_the_page_has_a_stop_button_and_real_progress() -> None:
     assert "function buildProgressText(p)" in html and "passages_done" in html and " left'" in html
     assert "'Stopped: the index was left as it was before this build.'" in html
     assert "elapsed_s: elapsed" not in html
+    assert "The embedder runs on the CPU: a large one" in html          # warned before a slow CPU build
+    assert "buildRate" in html                                          # time left from the embedding rate only
 
 
 def test_elapsed_comes_from_the_build_row_not_the_stream(client, gate: _Gate) -> None:

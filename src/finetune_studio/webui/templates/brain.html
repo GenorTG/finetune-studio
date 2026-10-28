@@ -1056,6 +1056,7 @@
     const pollUrl = '/api/projects/' + PID + '/brain/build/status';
     const rowUrl = '/api/projects/' + PID + '/brain/builds/' + encodeURIComponent(buildId);
     const stopBtn = document.getElementById('build-stop-btn');
+    buildRate = {};
     wrap.hidden = false;
     fill.style.width = '2%';
     progText.textContent = 'Queued…';
@@ -1116,14 +1117,20 @@
     s = Math.max(0, Math.round(s));
     return s < 60 ? s + ' s' : Math.floor(s / 60) + ' min ' + (s % 60) + ' s';
   }
+  let buildRate = {};
   function buildProgressText(p) {
     const took = p.elapsed_s ? ' · ' + fmtSecs(p.elapsed_s) : '';
     if (p.phase === 'queued') return 'Queued…' + took;
     if (p.phase === 'parsing') return 'Reading files ' + (p.files_done || 0) + ' of ' + (p.files_total || 0) + took;
     const done = p.passages_done || 0, total = p.passages_total || 0;
     if (!total) return 'Loading the embedder…' + took;
+    // Rate from the first embedded batch on: loading the model (seconds to a minute) is not embedding time.
+    if (!buildRate.at && done > 0) buildRate = { at: p.elapsed_s, done: done };
     let left = '';
-    if (done > 0 && done < total && p.elapsed_s) left = ' · about ' + fmtSecs(p.elapsed_s / done * (total - done)) + ' left';
+    if (buildRate.at != null && done > buildRate.done && done < total && p.elapsed_s > buildRate.at) {
+      const perSec = (done - buildRate.done) / (p.elapsed_s - buildRate.at);
+      left = ' · about ' + fmtSecs((total - done) / perSec) + ' left';
+    }
     return 'Embedding ' + done + ' of ' + total + ' passages' + took + left;
   }
   function buildProgressPct(p) {
