@@ -75,14 +75,19 @@ turns that section into the release's notes.
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
 ### Fixed
+- Heretic export keeps a trial that actually works: the KL budget default drops from 0.5 to 0.1. With 0.5 the
+  end-to-end run kept a trial at KL 0.287 and the exported model repeated "(Please, choose a few questions…" forever,
+  while another trial of the same study at KL 0.0028 answered normally. KL is not comparable across models, so the
+  budget has to suit the worst case; 0.1 still admits trials around KL 0.07 at 7% refusals on a 1.5B model.
 - Heretic export can pin the batch size (`--batch-size`). Heretic's auto probe picked 128 sequences per pass for a
   1.5B model, and the run died mid-search with `CUDA error: an illegal memory access` inside the L-BFGS step. It is
   reported as a failed export rather than a fake success, but an export that cannot finish is still a gap; with
   `batch_size=8` the same 24-trial run completed in 48 min at a steady ~8 GB.
+
 - Heretic export picks the trial to keep by a KL-divergence budget instead of trial index 0. Index 0 of Heretic's
   Pareto front is the fewest-refusals trial **at any cost**: on a real run it had KL 10.0 and the exported model
   answered in token soup, so the refusals were gone because the model was. The export now searches, reads the front,
-  keeps the trial with the fewest refusals inside the budget (default 0.5), and says so when no trial meets it.
+  keeps the trial with the fewest refusals inside a KL budget (now 0.1), and says so when no trial meets it.
 - Smart Brain **Import an index from another studio** is its own card, open in every project. Before, it was
   inside the export panel, which only appears once the project has an index, so a new project could not import a
   bundle. An imported index now says where it came from instead of "rebuild needed: N file(s) removed", and it is

@@ -191,6 +191,33 @@ def test_pick_trial_rejects_an_empty_front() -> None:
         heretic_tool.pick_trial([], kl_budget=0.5)
 
 
+# The measured front from the HTTP end-to-end run (Qwen3-0.6B, 2026-10-28, 40
+# trials). Position 0 (trial 38) was kept by the old 0.5 budget and generated
+# "... (Please, choose a few questions..." forever; position 1 (trial 32) of the
+# SAME study answered "Paris. The capital of Italy is Rome." normally.
+LOOPING_FRONT = [
+    {"pos": 0, "trial": 38, "refusals": 0.000, "kl": 0.2867},
+    {"pos": 1, "trial": 32, "refusals": 0.030, "kl": 0.0028},
+]
+
+
+def test_default_budget_rejects_the_trial_that_looped() -> None:
+    """Regression: KL 0.287 was accepted by the old 0.5 default and the model looped."""
+    picked = heretic_tool.pick_trial(LOOPING_FRONT, heretic_tool.AbliterationRun(
+        model_path="/m", output_dir="/o").kl_budget)
+    assert picked["chosen"]["trial"] == 32, picked["chosen"]
+    assert picked["budget_met"] is True
+    # And the looser budget really would have taken the looping one: the test is
+    # about the default, not about the front being degenerate.
+    loose = heretic_tool.pick_trial(LOOPING_FRONT, 0.5)
+    assert loose["chosen"]["trial"] == 38
+
+
+def test_default_budget_is_tight_enough_for_the_measured_failures() -> None:
+    budget = heretic_tool.AbliterationRun(model_path="/m", output_dir="/o").kl_budget
+    assert budget <= 0.1, budget
+
+
 def test_two_pass_flags_differ_where_it_matters() -> None:
     """Pass 1 searches and discards an adapter; pass 2 merges the chosen trial."""
     run = heretic_tool.AbliterationRun(model_path="/m", output_dir="/o", checkpoint_dir="/o/.study")

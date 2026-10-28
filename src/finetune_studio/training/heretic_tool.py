@@ -480,8 +480,15 @@ class AbliterationRun:
     system_prompt: str = "You are a helpful assistant."
     #: How far the model may drift from the original, in nats (Heretic's KL
     #: divergence scorer). Applies when choosing which trial to keep: see
-    #: :func:`choose_trial` for why the choice cannot be left to trial index 0.
-    kl_budget: float = 0.5
+    #: :func:`pick_trial` for why the choice cannot be left to trial index 0.
+    #:
+    #: 0.1, measured. KL is not comparable across models, so the budget has to
+    #: be tight enough for the worst case seen: on Qwen3-0.6B a trial at KL 0.287
+    #: generated "... (Please, choose a few questions..." forever, while another
+    #: trial of the SAME study at KL 0.0028 answered normally. At 0.5 that run
+    #: kept the looping one. On Qwen2.5-1.5B the budget still admits trials around
+    #: KL 0.07 at 7% refusals.
+    kl_budget: float = 0.1
     #: Sequences per forward pass (0 = let Heretic measure the best size).
     #: Heretic's auto probe picked 128 for a 1.5B model, which is a large peak
     #: allocation next to the other GPU services on this host and is the likeliest
@@ -629,6 +636,10 @@ def pick_trial(front: list[dict[str, Any]], kl_budget: float) -> dict[str, Any]:
     with the model answering in token soup: the refusals vanished because the model
     did. The budget keeps it recognisably the same model; when nothing meets it, the
     least-damaged trial wins and ``budget_met`` is False so the caller can say so.
+
+    Measured failures behind the default budget: KL 10.0 (token soup) and KL 0.287
+    (endless "choose a few questions") both came from front positions a looser
+    budget accepted, while the same studies' lowest-KL trials answered normally.
     """
     if not front:
         raise HereticError("Heretic's study produced no trial to choose from")
