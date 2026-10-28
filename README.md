@@ -409,8 +409,8 @@ Pick a run, pick a format, hit RUN. Supported formats today:
   otherwise the API fails with a clear install hint. Optional
   **importance matrix** measured on the run's own training data (better
   q4/q3/q2 quality at the same file size)
-- **abliterated** — refusal-direction edit of a merged checkpoint (offered,
-  but not yet run end to end on a real model)
+- **abliterated** — optional refusal-direction edit of a merged checkpoint. Heretic integration is planned and owned by
+  a separate implementation agent; the current implementation has not yet been verified end to end on a real model.
 
 The trained-exports table uses the same expand-row pattern as Models —
 click a row to inspect its contents, then ▶ Open in inference.
@@ -507,8 +507,8 @@ Python 3.12; the package also accepts 3.13, which is not tested.
 - **Inference:** HuggingFace Transformers for safetensors / LoRA merges;
   llama.cpp (via `llama-cpp-python`) for GGUF when available.
 - **Export:** merged safetensors, and GGUF (plain or with an importance
-  matrix) when the llama.cpp tools are on the host; abliterated is offered
-  but not yet verified end to end. Missing tools return clear errors instead
+  matrix) when the llama.cpp tools are on the host; the optional Abliterated export is being rebuilt around Heretic
+  and is not yet verified end to end. Missing tools return clear errors instead
   of fake success.
 - **Testing:** the Playwright route suite `tests/e2e_ui_qa.py` is non-mutating;
   the Guide flow `tests/e2e_guide_sandbox.py` runs against its own fake helper
