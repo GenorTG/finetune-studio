@@ -295,7 +295,7 @@ def test_print_config_merges_and_redacts(corpus_dir: Path, tmp_path: Path) -> No
     shipped = json.loads((root / "rag.config.json").read_text())
     assert shipped == {"device": "cuda:1", "host": "127.0.0.1", "port": 9001,
                        "top_k": 9, "reranker": False, "semantic": True, "keyword": True,
-                       "answer": False, "llm_base_url": "", "llm_model": ""}
+                       "answer": False, "llm_base_url": "", "llm_model": "", "llm_headers": {}, "llm_body": {}}
     assert "passphrase" not in json.dumps(shipped).lower()
     r = _run(root, "--print-config", "--top-k", "4",
              env={"RAG_PORT": "9100", "RAG_AUTH_TOKEN": "tok-SECRET-123",

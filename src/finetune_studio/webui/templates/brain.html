@@ -926,7 +926,7 @@
     var body = mcpVals();
     if (passEl.value && body.encrypt) body.passphrase = passEl.value;
     if (note) note.textContent = body.include_models
-      ? 'Building the package with the embedding model inside (~2 GB) \u2014 this takes a minute, then the download starts.'
+      ? 'Building the package with the models inside (from ~170 MB for MiniLM to ~2 GB for e5-large) \u2014 this can take a minute, then the download starts.'
       : 'Building the package \u2014 the download starts when it is ready.';
     if (btn) btn.disabled = true;
     try {

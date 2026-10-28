@@ -151,7 +151,9 @@ class _FakeChat(BaseHTTPRequestHandler):
 
     def do_POST(self):
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        _FakeChat.seen.append({"path": self.path, "auth": self.headers.get("Authorization"), "body": body})
+        _FakeChat.seen.append({"path": self.path, "auth": self.headers.get("Authorization"), "body": body,
+                               "ua": self.headers.get("User-Agent"),
+                               "session": self.headers.get("x-opencode-session")})
         reply = json.dumps({"choices": [{"message": {"content": "<think>x</think>Nine crowns [highmere.txt]."}}]})
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -272,3 +274,52 @@ def test_export_settings_route_saves_the_layers(tmp_path: Path, monkeypatch: pyt
     bad = client.put(f"/api/projects/{pid}/brain/export-config",
                      json={"scope": "project", "values": {"semantic_search": False, "keyword_search": False}})
     assert bad.status_code == 422
+
+
+# ── answer model settings copied from a Settings connection ──────────────
+
+
+def test_a_package_never_carries_a_credential_header() -> None:
+    for name in ("Authorization", "x-api-key", "Cookie"):
+        with pytest.raises(ValidationError, match="credential"):
+            BrainExportConfig(llm_headers={name: "secret"})
+    assert BrainExportConfig(llm_headers={"x-opencode-session": "{session}"}).runtime_config()["llm_headers"] == {
+        "x-opencode-session": "{session}"}
+
+
+def test_connection_settings_copy_endpoint_model_headers_and_body_but_not_the_key(monkeypatch) -> None:
+    from finetune_studio.webui.routes import brain_export
+
+    row = {"id": "api-x", "kind": "openai_compat", "base_url": "https://gw.example/v1/", "model_id": "m-1",
+           "api_key": "sk-NEVER", "extra": {"headers": {"x-opencode-session": "{session}"},
+                                            "body": {"reasoning_effort": "none"}}}
+
+    class _Mgr:
+        def get_provider(self, pid):
+            return row if pid == "api-x" else None
+
+    monkeypatch.setattr("finetune_studio.models.manager.get_manager", lambda: _Mgr())
+    got = brain_export.connection_llm_settings("api-x")
+    assert got == {"llm_base_url": "https://gw.example/v1", "llm_model": "m-1",
+                   "llm_headers": {"x-opencode-session": "{session}"}, "llm_body": {"reasoning_effort": "none"}}
+    assert "sk-NEVER" not in json.dumps(got)
+    patch = brain_export._patch_values(brain_export.ExportConfigPatch(llm_connection="api-x", llm_model="typed"))
+    assert patch["llm_model"] == "typed" and patch["llm_base_url"] == "https://gw.example/v1"   # typed wins
+    with pytest.raises(Exception, match="not an API connection"):
+        brain_export.connection_llm_settings("local-default")
+
+
+def test_answer_request_carries_agent_session_header_and_body(corpus_dir: Path, tmp_path: Path,  # noqa: F811
+                                                              fake_chat: str) -> None:
+    root = _plain(corpus_dir, tmp_path, semantic_search=False)
+    corpus = srv.Corpus(root / "corpus", _cfg(answer=True, llm_base_url=fake_chat, llm_model="m1",
+                                              llm_headers={"x-opencode-session": "{session}"},
+                                              llm_body={"reasoning_effort": "none"}))
+    corpus.answer("oath of salt ledger")
+    (call,) = _FakeChat.seen
+    assert call["ua"] == srv.USER_AGENT                     # Cloudflare-fronted gateways refuse urllib's default
+    assert call["session"] == srv.SESSION_ID and call["body"]["reasoning_effort"] == "none"
+    env_cfg = srv.resolve_config({}, {"RAG_LLM_HEADERS": '{"x-a": "1"}', "RAG_ANSWER": "0"}, {})[0]
+    assert env_cfg["llm_headers"] == {"x-a": "1"}
+    with pytest.raises(srv.ConfigError):
+        srv.resolve_config({}, {"RAG_LLM_HEADERS": "[1, 2]"}, {})
