@@ -27,10 +27,12 @@ def _merged_run(tmp_path: Path) -> dict:
 
 
 def test_supported_formats_exclude_gptq() -> None:
+    # Intent: GPTQ is never offered again. An exact-set equality would also fail
+    # whenever a *new* format is added (e.g. ``heretic``), which is not what this
+    # regression is about.
     assert "gptq" not in SUPPORTED_EXPORT_FORMATS
-    assert SUPPORTED_EXPORT_FORMATS == frozenset(
-        {"gguf", "abliterated", "merged"}
-    )
+    assert {"gguf", "abliterated", "merged"} <= SUPPORTED_EXPORT_FORMATS
+    assert not ({"awq", "gptq"} & SUPPORTED_EXPORT_FORMATS)
 
 
 def test_export_trained_run_rejects_gptq_with_clear_message(tmp_path: Path) -> None:

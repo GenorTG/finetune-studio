@@ -195,7 +195,7 @@ async def export_run(pid: str, rid: str, request: Request):
     use_multi = (
         "quants" in body
         or imatrix
-        or fmt in ("abliterated", "merged", "awq", "gptq")
+        or fmt in ("abliterated", "merged", "awq", "gptq", "heretic")
         or bool(body.get("force")) and "quant" not in body
     )
     if use_multi:

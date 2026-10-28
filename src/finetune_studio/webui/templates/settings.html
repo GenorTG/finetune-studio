@@ -26,6 +26,21 @@
       <div id="update-history" class="text-xs dim mt-2"></div>
     </div>
 
+    <div class="card mb-4" id="heretic-card">
+      <div class="card-head">
+        <div class="card-title">Heretic (optional tool)</div>
+        <div class="card-sub">Removes a model&rsquo;s refusals properly. Heretic searches the abliteration parameters and keeps the model as close to its original behaviour as it can, instead of applying one fixed strength. It is a separate program with its own license (AGPL-3.0), installed here on demand; it reuses this app&rsquo;s PyTorch, so it costs a few hundred MB, not another copy of CUDA.</div>
+      </div>
+      <div id="heretic-status" class="text-xs dim mb-2" role="status">Loading…</div>
+      <div class="flex gap-2 wrap mb-3">
+        <button class="btn sm primary" id="btn-heretic-install" title="Downloads Heretic and builds its environment in ~/.finetune-studio/heretic, reusing this app's PyTorch (about a minute, a few hundred MB). Re-running it repairs or updates the install.">Install / update</button>
+        <button class="btn sm" id="btn-heretic-check" title="Asks GitHub for Heretic's newest release and newest commit, and says whether this install is behind.">Check upstream</button>
+        <button class="btn sm" id="btn-heretic-remove" title="Deletes Heretic's checkout and its environment. This app's own Python environment is never touched; the Heretic export option simply becomes unavailable.">Remove</button>
+      </div>
+      <pre id="heretic-log" class="text-xs" hidden></pre>
+      <div id="heretic-upstream" class="text-xs dim mt-2"></div>
+    </div>
+
     <div class="card mb-4">
       <div class="card-head">
         <div class="card-title">Tutorial</div>
@@ -366,6 +381,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/settings.js?v=21"></script>
+<script src="/static/js/settings.js?v=22"></script>
 <script src="/static/js/security.js?v=3"></script>
 {% endblock %}

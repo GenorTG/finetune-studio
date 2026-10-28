@@ -647,3 +647,118 @@ function wireCompute() {
   load();
 }
 wireCompute();
+
+/* ============================================================
+   Heretic — the optional external tool that removes a model's refusals
+   ============================================================ */
+function wireHeretic() {
+  const $h = (id) => document.getElementById(id);
+  if (!$h('heretic-card')) return;
+  const statusEl = $h('heretic-status');
+  const logEl = $h('heretic-log');
+  const upEl = $h('heretic-upstream');
+  const btnInstall = $h('btn-heretic-install');
+  const btnCheck = $h('btn-heretic-check');
+  const btnRemove = $h('btn-heretic-remove');
+
+  const setStatus = (t) => { if (statusEl) statusEl.textContent = t; };
+  const showLog = (t) => {
+    if (!logEl) return;
+    if (!t) { logEl.hidden = true; return; }
+    logEl.hidden = false;
+    logEl.textContent = t;
+    logEl.scrollTop = logEl.scrollHeight;
+  };
+  const lock = (off) => {
+    [btnInstall, btnCheck, btnRemove].forEach((b) => { if (b) b.disabled = off; });
+  };
+
+  // One sentence a person can act on, from the probe's own fields.
+  function describe(d) {
+    if (!d.installed) return 'Not installed. ' + (d.hint || '');
+    const where = d.ref ? ' (' + d.ref.slice(0, 7) + ')' : '';
+    if (d.missing_flags && d.missing_flags.length) return 'Installed ' + d.version + where + ', but it cannot run unattended. ' + (d.hint || '');
+    return 'Installed ' + d.version + where + ' — usable from the Export page.';
+  }
+
+  function render(d) {
+    setStatus(describe(d));
+    if (btnInstall) btnInstall.textContent = d.installed ? 'Re-install / update' : 'Install';
+  }
+
+  async function load() {
+    try {
+      render(await api.get('/api/system/heretic'));
+    } catch (e) {
+      setStatus('Could not read the Heretic status: ' + e.message);
+    }
+  }
+
+  async function install() {
+    const ok = await window.fts.confirm(
+      'Install Heretic now? It downloads Heretic and its own packages into ~/.finetune-studio/heretic and reuses this app\u2019s PyTorch: about a minute and a few hundred MB. This page stays busy until it finishes.',
+      { okText: 'Install Heretic' });
+    if (!ok) return;
+    lock(true);
+    setStatus('Installing — downloading Heretic and its packages…');
+    showLog('');
+    try {
+      const d = await api.post('/api/system/heretic/install', {});
+      render(d);
+      showLog('Done: Heretic ' + (d.version || '') + (d.ref ? ' @ ' + d.ref.slice(0, 7) : ''));
+      if (window.fts && window.fts.notify) window.fts.notify('Heretic is installed: the Export page now offers it', 'success');
+    } catch (e) {
+      setStatus('Install failed: ' + e.message);
+      showLog(String(e.message || e));
+      if (window.fts && window.fts.notify) window.fts.notify('Heretic install failed: ' + e.message, 'error');
+    } finally {
+      lock(false);
+    }
+  }
+
+  async function check() {
+    lock(true);
+    setStatus('Asking GitHub…');
+    try {
+      const d = await api.get('/api/system/heretic/upstream');
+      if (d.error) {
+        setStatus('Could not check: ' + d.error);
+      } else {
+        const tag = d.latest_release ? 'Newest release ' + d.latest_release + ' (' + String(d.latest_release_at).slice(0, 10) + ')' : 'No releases yet';
+        const code = d.head_commit ? 'newest code ' + d.head_commit.slice(0, 7) + ' (' + String(d.head_at).slice(0, 10) + ')' : '';
+        const tail = d.update_available
+          ? 'A newer commit exists upstream. Install picks the pinned build this app is tested against, not any commit.'
+          : 'This install is current.';
+        if (upEl) upEl.textContent = tag + (code ? ' · ' + code : '') + ' — ' + tail;
+      }
+      render(await api.get('/api/system/heretic'));
+    } catch (e) {
+      setStatus('Could not check: ' + e.message);
+    } finally {
+      lock(false);
+    }
+  }
+
+  async function remove() {
+    const ok = await window.fts.confirm(
+      'Remove Heretic? It deletes its checkout and environment. This app\u2019s own Python environment is untouched; the Heretic export option becomes unavailable until you install it again.',
+      { danger: true, okText: 'Remove Heretic' });
+    if (!ok) return;
+    lock(true);
+    try {
+      render(await api.del('/api/system/heretic'));
+      showLog('');
+      if (upEl) upEl.textContent = '';
+    } catch (e) {
+      setStatus('Remove failed: ' + e.message);
+    } finally {
+      lock(false);
+    }
+  }
+
+  if (btnInstall) btnInstall.addEventListener('click', install);
+  if (btnCheck) btnCheck.addEventListener('click', check);
+  if (btnRemove) btnRemove.addEventListener('click', remove);
+  load();
+}
+wireHeretic();

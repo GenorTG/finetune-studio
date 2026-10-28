@@ -205,6 +205,7 @@ def _controls() -> dict[str, Control]:
         ("settings.connection_add", "settings", "#btn-conn-add", "Add API connection"),
         ("settings.assistant_jobs", "settings", "#assistant-jobs", "Assistant jobs and their instructions"),
         ("settings.access", "settings", "#access-card", "Access & network: password, address, API tokens"),
+        ("settings.heretic", "settings", "#heretic-card", "Heretic (optional tool): install, check upstream, remove"),
     ]
     return {r[0]: Control(*r) for r in rows}
 
