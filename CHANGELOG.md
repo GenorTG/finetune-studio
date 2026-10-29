@@ -122,6 +122,7 @@ turns that section into the release's notes.
 - The standalone Smart Brain server ignored the index's "hybrid off" setting and always ran keyword search; it
   now runs exactly the layers that are on. Its "Reranker on" option did nothing without bundled models; the export
   page now says so and only offers it with *Include models*.
+- Returning to the Projects page from another page after a full page load no longer stops its script with a duplicate-declaration error.
 - Cancelling a whole-model download stopped the progress bar but not the download: the job process stayed alive and
   fetched the rest of the repository (measured: 22 GB cancelled, still writing ~70 MB/s). The job now exits when it
   is stopped, and the Activity drawer's **Cancel download** button sits on the row itself and still works while the
