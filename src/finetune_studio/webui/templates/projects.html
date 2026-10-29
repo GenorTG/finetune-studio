@@ -233,7 +233,7 @@ fts.api.get('/api/models/list').then(models => {
   });
 });
 
-const _projSelected = new Set();
+var _projSelected = new Set();
 
 function toggleSelect(pid, checked) {
   if (checked) _projSelected.add(pid); else _projSelected.delete(pid);
@@ -321,7 +321,7 @@ async function doDelete(ids) {
 }
 
 // Project templates
-const _TEMPLATES = {
+var _TEMPLATES = {
   blank:      { tags: '',    system_prompt: 'You are a helpful assistant.' },
   chat:       { tags: 'chat', system_prompt: 'You are a friendly and knowledgeable assistant. Be concise and helpful.' },
   // Baked into every training row: it must match short, exact, source-bound answers (a tutor persona did not).
