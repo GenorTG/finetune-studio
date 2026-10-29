@@ -79,6 +79,36 @@ def encode_batched(encode: Callable, texts: list[str], on_batch: Callable[[int, 
         on_batch(min(start + slice_size, total), total)
     return np.concatenate(parts, axis=0)
 
+
+def register_shared_models(m: Manifest, *, embedder: str | None = None, reranker: str | None = None) -> None:
+    """Point ``m`` at shared-store copies of its embedder / reranker (``shared:<kind>:<id>``, what an export with
+    models bundles), registering a model named by its Hugging Face id on first use.
+
+    A shared ref is kept, a local path (a bundled package) is left alone. A failure is logged and leaves the name as
+    it was: the index still works, only an export with models then says it cannot bundle that model."""
+    paths = dict((m.extra or {}).get("shared_model_paths") or {})
+    for kind, name in (("embedder", embedder), ("reranker", reranker)):
+        if not name or name.startswith(EMBEDDER_LOCAL_PREFIX if kind == "embedder" else RERANKER_LOCAL_PREFIX):
+            continue
+        prefix = f"shared:{kind}:"
+        try:
+            if name.startswith(prefix):
+                ref, path = name, str(_sm.resolve(name[len(prefix):], kind))
+            else:
+                r = _sm.register(name, kind=kind, prefer_cached=True)
+                ref, path = r.to_compact(), r.path
+        except Exception as e:  # noqa: BLE001 - download / copy errors vary; the index itself is fine
+            log.warning("shared %s registration failed for %s: %s", kind, name, e)
+            continue
+        if kind == "embedder":
+            m.embedding_model.name = ref
+            m.rag_settings.embedder = ref
+        else:
+            m.rag_settings.reranker = ref
+        paths[kind] = path
+    m.extra = {**(m.extra or {}), "shared_model_paths": paths}
+
+
 class BrainIndex:
     """File-based RAG corpus. One dir per corpus. All standard tools."""
 
@@ -250,20 +280,12 @@ class BrainIndex:
         write_json(self.manifest_path, manifest.to_json())
 
         # Register embedder + reranker in the SHARED model store, store refs
-        # in manifest (NOT a local copy — share the model across corpora).
-        try:
-            emb_ref = _sm.register(embedder, kind="embedder", prefer_cached=True)
-            rr_ref = _sm.register(DEFAULT_RERANKER, kind="reranker", prefer_cached=True)
-            m = Manifest.from_json(read_json(self.manifest_path))
-            m.embedding_model.name = emb_ref.to_compact()
-            m.rag_settings.embedder = emb_ref.to_compact()
-            m.rag_settings.reranker = rr_ref.to_compact()
-            m.extra["shared_model_paths"] = {
-                "embedder": emb_ref.path, "reranker": rr_ref.path,
-            }
-            write_json(self.manifest_path, m.to_json())
-        except Exception as e:  # noqa: BLE001
-            log.warning("shared model registration failed: %s", e)
+        # in manifest (NOT a local copy — share the model across corpora). The reranker is the one the search
+        # settings chose (the default only when none was chosen): a rebuild used to reset it to the default.
+        m = Manifest.from_json(read_json(self.manifest_path))
+        register_shared_models(m, embedder=embedder,
+                               reranker=(rag_settings.reranker if rag_settings else "") or DEFAULT_RERANKER)
+        write_json(self.manifest_path, m.to_json())
 
         self._write_readme(manifest)
 
@@ -820,8 +842,8 @@ fts brain rebuild-vectors --corpus /path/to/corpus [--embedder NEW_MODEL]
             raise FileNotFoundError(self.dir)
         pd = try_import_pandas()
         manifest = Manifest.from_json(read_json(self.manifest_path))
-        new_name = embedder or manifest.rag_settings.embedder or manifest.embedding_model.name
-        new_name = resolve_model_ref(new_name, "embedder")
+        requested = embedder or manifest.rag_settings.embedder or manifest.embedding_model.name
+        new_name = resolve_model_ref(requested, "embedder")
         encode, new_info = get_embedder(name=new_name, device=device)
         chunks_df = pd.read_parquet(self.chunks_path)
         vectors = encode_batched(encode, chunks_df["text"].tolist(), on_batch)
@@ -831,7 +853,10 @@ fts brain rebuild-vectors --corpus /path/to/corpus [--embedder NEW_MODEL]
         write_json(self.bm25_path, bm25.to_dict())
         manifest.embedding_model = new_info
         manifest.rag_settings.embedder = new_name
+        # Same shared-store ref a full build writes: without it an index re-embedded with a new model could not be
+        # exported with its models ("does not reference a shared embedder").
+        register_shared_models(manifest, embedder=requested)
         manifest.updated_at = time.time()
         write_json(self.manifest_path, manifest.to_json())
         return {"chunks": len(chunks_df), "vector_dim": vectors.shape[1],
-                "embedder": new_name}
+                "embedder": manifest.embedding_model.name}

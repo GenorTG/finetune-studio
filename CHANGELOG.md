@@ -75,6 +75,10 @@ turns that section into the release's notes.
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
 ### Fixed
+- Smart Brain: after **Re-embed only** with another embedder, exporting the index **with models** works again (it
+  refused: "does not reference a shared embedder"). A reranker chosen in **Search settings** is now bundled into an
+  exported package (it was left out without a word, so the package ran without reranking), and rebuilding the
+  index keeps the chosen reranker instead of resetting it to the default one.
 - Uploading many pictures or scanned PDFs at once no longer grinds the machine: every OCR run now uses one CPU
   thread. With a dozen files parsing in parallel, one small photo took 137 s to read and could hit the 180 s
   limit; it now takes about 2 s.

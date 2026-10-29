@@ -573,6 +573,21 @@ def _resolve_shared(ref: str, kind: str) -> tuple[str, Path] | None:
     return short_id, sm.resolve(short_id, kind)
 
 
+def _resolve_or_register(ref: str, kind: str) -> tuple[str, Path] | None:
+    """Like ``_resolve_shared``, but a model named by its Hugging Face id (the reranker the Smart Brain page's
+    search settings save) is put in the shared store first. It used to be skipped: the package shipped with the
+    reranker off and said nothing. A model that cannot be fetched is an error, not a silently smaller package."""
+    found = _resolve_shared(ref, kind)
+    if found or not ref or ref.startswith(("shared:", "embedder_local:", "reranker_local:")):
+        return found
+    from finetune_studio.data import shared_models as sm
+    try:
+        r = sm.register(ref, kind=kind, prefer_cached=True)
+    except Exception as e:  # download / copy errors vary; the message is what the user needs
+        raise FileNotFoundError(f"the {kind} {ref!r} could not be bundled: {e}") from e
+    return r.short_id, Path(r.path)
+
+
 def _add_model_dir(sink: _Sink, src: Path, arc_dir: str) -> None:
     for f in sorted(src.rglob("*")):
         if not f.is_file() or f.is_symlink():
@@ -780,7 +795,7 @@ def build_package(
         manifest["embedding_model"]["name"] = emb_id
         rs["embedder"] = emb_id
         embed_model = emb_id
-    rr = _resolve_shared(rs.get("reranker", ""), "reranker") \
+    rr = _resolve_or_register(rs.get("reranker", ""), "reranker") \
         if models and cfg.include_reranker and cfg.reranker_enabled else None
     if rr:
         rr_id, rr_src = rr
