@@ -47,6 +47,7 @@ import math
 import os
 import re
 import sys
+import threading
 import urllib.error
 import urllib.request
 from collections.abc import Mapping
@@ -359,6 +360,11 @@ class Corpus:
         self._local_embedder_failed = False
         self._reranker = None
         self._reranker_failed = False
+        # One lock for loading AND running the bundled models: the HTTP server answers each request on its own
+        # thread, and parallel requests running the models on the GPU at once crashed the server with "CUDA error:
+        # an illegal memory access" (4 clients, 165 searches, 2026-10-29). Concurrent first requests also loaded a
+        # model twice. The studio's own search serialises each model the same way (model_cache).
+        self._model_lock = threading.RLock()
         self.rerank_enabled = bool(self.cfg["reranker"]) and bool(rs.get("rerank_enabled", False))
         self.rerank_top_n = int(rs.get("rerank_top_n", 50))
         if self.semantic and not self.keyword and not self.embed_base \
@@ -386,6 +392,12 @@ class Corpus:
         """SentenceTransformer loaded from corpus/embedder/, or None."""
         if self._local_embedder is not None or self._local_embedder_failed:
             return self._local_embedder
+        with self._model_lock:
+            return self._load_embedder()
+
+    def _load_embedder(self):
+        if self._local_embedder is not None or self._local_embedder_failed:
+            return self._local_embedder   # another request loaded it while this one waited
         d = self.dir / "embedder"
         if not self._looks_like_model(d):
             return None
@@ -405,6 +417,12 @@ class Corpus:
         """CrossEncoder loaded from corpus/reranker/, or None."""
         if (self._reranker is not None or self._reranker_failed
                 or not self.rerank_enabled):
+            return self._reranker
+        with self._model_lock:
+            return self._load_reranker()
+
+    def _load_reranker(self):
+        if self._reranker is not None or self._reranker_failed:
             return self._reranker
         d = self.dir / "reranker"
         if not self._looks_like_model(d):
@@ -444,8 +462,9 @@ class Corpus:
         """Embed the query: bundled model → API endpoint → None (keyword-only)."""
         model = self.local_embedder()
         if model is not None:
-            v = np.asarray(model.encode([self.query_prefix + query], normalize_embeddings=True),
-                           dtype=np.float32)[0]
+            with self._model_lock:
+                v = np.asarray(model.encode([self.query_prefix + query], normalize_embeddings=True),
+                               dtype=np.float32)[0]
             return v
         if not self.embed_base:
             return None
@@ -537,7 +556,8 @@ class Corpus:
         if reranker is not None and len(hits) > 1:
             pool = hits[: self.rerank_top_n]
             try:
-                ce = reranker.predict([(query, h["text"]) for h in pool])
+                with self._model_lock:
+                    ce = reranker.predict([(query, h["text"]) for h in pool])
                 for h, s in zip(pool, ce):
                     h["ce_score"] = round(float(s), 6)
                 pool.sort(key=lambda h: -h["ce_score"])
