@@ -75,6 +75,9 @@ turns that section into the release's notes.
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
 ### Fixed
+- Smart Brain standalone server: several clients searching at once no longer crash it. Parallel requests ran the
+  bundled embedder and reranker on the GPU at the same time ("CUDA error: an illegal memory access" after a few
+  hundred searches) and could load a model twice; model loading and use are now one at a time.
 - Training stops and fails in plain words when the loss or the gradient becomes NaN ("Training diverged at step N
   ... the last checkpoint before it is ...") instead of finishing as **done**. Such a run used to log a loss of 0.0
   for its remaining steps and merge and export weights that answer nothing.
