@@ -140,9 +140,9 @@
     <div class="card-head"><div>
       <div class="card-title">Step 5 · Test it</div>
       <div class="card-sub text-dim">
-        Generates a quiz that covers <b>every row</b> of the training data —
-        100 rows means 100 questions — and scores the trained model's answers.
-        The pass rate tells you whether the model actually learned the material.
+        Generates a quiz from <b>every row</b> of the training data — 100 rows means 100 questions — and scores
+        the trained model's answers. This is a training-set recall check, not a held-out generalization score;
+        use a separate held-out or reworded quiz to measure generalization.
       </div>
     </div><span class="pill outline" id="wiz-test-pill">…</span></div>
     <div class="text-sm" id="wiz-test-sub">checking…</div>
@@ -356,6 +356,8 @@
       api("/api/projects/" + PID + "/datasets").then(function (d) {
         var ds = d.datasets || [];
         var newest = ds[0];
+        wizDatasetRows = newest ? Number(newest.qa_count) || 0 : 0;
+        wizUpdateStepsHint();
         var txt = ds.length + " dataset(s)" + (newest ? " · newest " + (newest.qa_count || "?") + " rows" : "");
         set("wiz-dataset", txt);
         pill("wiz-dataset", ds.length > 0 ? "ready" : "empty", ds.length > 0);
@@ -692,6 +694,10 @@
       }
       var b = await r.blob();
       var rows = r.headers.get("X-Rows"), grounded = r.headers.get("X-Grounded-Rows");
+      if (rows != null) {
+        wizDatasetRows = Number(rows) || 0;
+        wizUpdateStepsHint();
+      }
       line("Dataset built and registered (" + Math.round(b.size / 1024) + " KB" + (rows ? ", " + rows + " rows" + (grounded && grounded !== "0" ? ", " + grounded + " with retrieved context" : "") : "") + ").");
       wizRefresh("dataset");
       return true;
@@ -719,7 +725,7 @@
   // Epochs hint: the real optimizer-step count this run will get, and a warning when it is tiny.
   var wizPresets = {};
   var wizDatasetRows = 0;
-  var TINY_STEPS = 100, GOOD_STEPS = 150;
+  var TINY_STEPS = 100;
   function wizPlannedSteps(epochs, preset) {
     var batch = Number(preset.batch_size) || 2, accum = Number(preset.gradient_accumulation_steps) || 1;
     var train = Math.floor(wizDatasetRows * 0.9);   // the engine holds out 10% (int(n*0.9) train rows)
@@ -747,11 +753,9 @@
     hint.textContent = "About " + p.total + " optimizer steps: " + p.train + " training rows ÷ effective batch " + p.eff +
       " = " + p.perEpoch + " per epoch × " + epochs + " epochs" + (epochsEl.value.trim() ? "." : " (preset default).");
     if (p.total >= TINY_STEPS || !warnEl) return;
-    var need = Math.ceil(GOOD_STEPS / p.perEpoch);
-    warnEl.textContent = "Under " + TINY_STEPS + " steps is too short to memorise facts: expect the final loss to stay above ~0.5. " +
-      "Try " + need + " epochs (~" + (need * p.perEpoch) + " steps) or add more training data.";
+    warnEl.textContent = "Under " + TINY_STEPS + " steps is a smoke test, not a quality benchmark. " +
+      "Quick Start keeps the selected preset; add more diverse training rows or set epochs manually before judging model quality.";
     warnEl.hidden = false;
-    if (sugg) { sugg.textContent = "Use " + need + " epochs"; sugg.dataset.epochs = String(need); sugg.hidden = false; }
     var adv = document.getElementById("wiz-train-adv");
     if (adv) adv.open = true;
   }
@@ -821,6 +825,38 @@
     } finally { setBusy(false); }
   };
 
+  async function wizEnsureMerged(run) {
+    var output = String(run.output_path || "").replace(/[\\/]+$/, "");
+    if (!output) throw new Error("training run has no output path");
+    var mergedPath = output + "/merged";
+    async function hasWeights() {
+      var encoded = mergedPath.split("/").filter(Boolean).map(encodeURIComponent).join("/");
+      var contents = await api("/api/projects/" + PID + "/models/" + encoded + "/contents");
+      return (contents.files || []).some(function (file) { return /\.(safetensors|bin)$/i.test(file.name || ""); });
+    }
+    try { if (await hasWeights()) return mergedPath; } catch (e) { /* merge may not exist yet */ }
+
+    line("No merged weights were saved during training; retrying via the supervised Export job…");
+    var queued = await post("/api/projects/" + PID + "/runs/" + encodeURIComponent(run.id) + "/export", { format: "merged" });
+    if (!queued.export_id) throw new Error(queued.detail || "merged export job was not queued");
+    var deadline = Date.now() + 20 * 60 * 1000;
+    var job = null;
+    while (Date.now() < deadline) {
+      await sleep(3000);
+      job = await api("/api/projects/" + PID + "/exports/" + encodeURIComponent(queued.export_id));
+      var phase = job.phase_detail || job.phase || "merging adapter";
+      set("wiz-test", phase + "…");
+      pill("wiz-test", "merging", false);
+      if (["done", "failed", "error", "cancelled"].indexOf(job.status) >= 0) break;
+    }
+    if (!job || job.status !== "done") {
+      throw new Error("merged export failed: " + (job && job.error || job && job.status || "timed out"));
+    }
+    if (!await hasWeights()) throw new Error("merged export finished without loadable model weights");
+    line("Merged model recovered through the supervised Export job.");
+    return mergedPath;
+  }
+
   window.wizTest = async function () {
     if (busy) { line("Already running — wait for the current step."); return false; }
     setBusy(true);
@@ -839,11 +875,12 @@
       var suites = await api("/api/training/runs/" + run.id + "/auto-suites");
       if (!Array.isArray(suites) || !suites.length) throw new Error("no quiz was generated");
       var suite = suites[0];
+      var mergedPath = await wizEnsureMerged(run);
       line("Running the " + suite.case_count + "-question test against the trained model — this can take 10-20 minutes…");
       set("wiz-test", "running " + suite.case_count + " questions…");
       var started = await post("/api/testing/run-suite", {
         project_id: PID, suite_path: suite.suite_path,
-        model_path: (run.output_path || "") + "/merged", max_tokens: 256,
+        model_path: mergedPath, max_tokens: 256,
       });
       var bid = started.benchmark_id;
       var runRow = null;
@@ -910,9 +947,28 @@
     line("Quick start: running steps 2-5 in order…");
     if (!await wizGenerate()) return;
     if (!await wizExport()) return;
+
+    var epochsEl = document.getElementById("wiz-epochs");
+    var presetId = (document.getElementById("wiz-preset") || {}).value || "standard";
+    var preset = wizPresets[presetId];
+    if (!preset) {
+      try {
+        var available = await api("/api/training/presets");
+        (Array.isArray(available) ? available : []).forEach(function (p) { wizPresets[p.id] = p; });
+        preset = wizPresets[presetId];
+      } catch (e) { /* use the server preset default if recommendations are unavailable */ }
+    }
+    if (epochsEl && !epochsEl.value.trim() && preset && wizDatasetRows > 0) {
+      var defaultPlan = wizPlannedSteps(Number(preset.num_epochs) || 1, preset);
+      if (defaultPlan.total < TINY_STEPS) {
+        line("Quick Start kept the " + preset.num_epochs + "-epoch preset (~" + defaultPlan.total +
+          " steps): this is a workflow smoke test, not evidence of model quality. Add diverse rows or set epochs explicitly.");
+      }
+    }
+
     if (!await wizTrain()) return;
-    await wizTest();
-    line("Quick start finished. Pin a version (step 6) if you want to keep this exact result.");
+    if (!await wizTest()) return;
+    line("Quick start finished: training and the generated test both completed. Pin a version (step 6) if you want to keep this exact result.");
   };
 
   /* presets + version form + initial status sweep */

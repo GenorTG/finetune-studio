@@ -10,9 +10,10 @@ The whole product from one page. Upload files, then either chain a trained model
 ## Workflow
 1. Step 1 upload files; Step 1b optionally build the Smart Brain now (no training).
 2. Steps 2–5: pairs, dataset, train (base model plus a size-based preset such as Standard; optional epochs override), test.
-3. Or use **Run everything at once**.
-4. Step 6 pins a version: a saved record of the project's datasets, recent training runs and latest Smart Brain build. **Builds on** links it to an earlier version (the latest by default), so **Lineage** shows the chain (v1 → v2 → v3) and what each version held. **Delete** removes only the record; datasets, runs and models stay.
-5. The chain loads the assistant's local model in step 2 and aborts if nothing was mined; it unloads it before training.
+3. Or use **Run everything at once**. If the selected preset would produce fewer than 100 optimizer steps, Quick Start preserves it and labels the run a workflow smoke test; it never silently increases epochs on a tiny dataset.
+4. Step 5's generated quiz asks about the training rows themselves. Its score measures training-set recall/memorization, not held-out generalization; use the Testing page's held-out or reworded quiz for generalization. A missing merged model is retried through the supervised Export job before the test starts.
+5. Step 6 pins a version: a saved record of the project's datasets, recent training runs and latest Smart Brain build. **Builds on** links it to an earlier version (the latest by default), so **Lineage** shows the chain (v1 → v2 → v3) and what each version held. **Delete** removes only the record; datasets, runs and models stay.
+6. In step 2, Quick Start loads a local assistant model if selected; an API assistant is used on demand. It stops if no document was mined, and unloads a resident model before training.
 
 ## Key controls
 - `#wiz-quick` — the quick-start section.
