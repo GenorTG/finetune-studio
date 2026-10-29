@@ -1,7 +1,7 @@
 """Self-test of the format writers: render sample docs to every extension, parse each file with the app's own parser,
 and check that every distinctive token survived.
 
-    cd /home/genorbox1/work/finetune-studio && .venv/bin/python tests/corpus/quillmoor/qmgen/render_selftest.py [--bench N]
+    .venv/bin/python tests/corpus/quillmoor/qmgen/render_selftest.py [--bench N]   # from the repo root
 
 Non-OCR formats must keep 100% of their tokens (exit 1 otherwise); OCR formats (images, scanned PDF) report a
 recovery rate. A parser exception fails every format, including OCR. Tokens are compared with whitespace collapsed:

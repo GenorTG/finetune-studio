@@ -292,7 +292,7 @@ Each valid mode row contains six packages: three archive formats × encryption o
 | Base model | training file | validation fact overlap | status | artifact valid | dataset rows | steps | job min | training min | final loss | eval loss | validated GGUF | detail |
 |---|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
 | `HuggingFaceTB__SmolLM3-3B` | `train.jsonl` | 0/431 (clean) | failed | no | 4306 | 0 | 0.9 | 0.0 | None | None | — | OutOfMemoryError: CUDA out of memory. Tried to allocate 20.00 MiB. GPU 0 has a total capacity of 23.56 GiB of which 13.4 |
-| `/home/genorbox1/work/finetune-studio/models/safetensors/Qwen3.5-9B` | `train.jsonl` | 0/431 (clean) | done | yes | 4306 | 972 | 20.1 | 12.4 | 0.299 | None | 5.63 GB | — |
+| `models/safetensors/Qwen3.5-9B` | `train.jsonl` | 0/431 (clean) | done | yes | 4306 | 972 | 20.1 | 12.4 | 0.299 | None | 5.63 GB | — |
 | `Qwen__Qwen3-1.7B` | `train.jsonl` | 0/431 (clean) | done | yes | 4306 | 972 | 17.8 | 15.9 | 0.311 | None | 1.83 GB | — |
 | `Qwen__Qwen3-1.7B` | `train_x3_grouped.jsonl` | 0/431 (clean) | failed | no | 12918 | 590 | 5.0 | 4.7 | 0.353 | None | — | AcceleratorError: CUDA error: an illegal memory access was encountered Search for `cudaErrorIllegalAddress' in https://d |
 | `Qwen__Qwen3-1.7B` | `train_x3.jsonl` | 1165/1167 (leak) | done | yes | 12918 | 5816 | 45.7 | 44.9 | 0.001 | None | 1.83 GB | — |
@@ -301,7 +301,7 @@ Each valid mode row contains six packages: three archive formats × encryption o
 | `allenai__OLMo-2-0425-1B-Instruct` | `train.jsonl` | 0/431 (clean) | done | yes | 4306 | 972 | 7.7 | 6.4 | 0.339 | None | 1.58 GB | — |
 | `google__gemma-4-E2B-it` | `train.jsonl` | 0/431 (clean) | failed | no | 4306 | 0 | 0.3 | 0.0 | None | None | — | ValueError: Target module Gemma4ClippableLinear(   (linear): Linear(in_features=768, out_features=768, bias=False) ) is  |
 | `ibm-granite__granite-3.3-2b-instruct` | `train.jsonl` | 0/431 (clean) | done | yes | 4306 | 972 | 19.2 | 18.2 | 0.277 | None | 2.69 GB | — |
-| `microsoft__Phi-4-mini-instruct` | `train.jsonl` | 0/431 (clean) | failed | no | 4306 | 0 | 0.2 | 0.0 | None | None | — | ImportError: cannot import name 'LossKwargs' from 'transformers.utils' (/home/genorbox1/work/finetune-studio/.venv/lib/p |
+| `microsoft__Phi-4-mini-instruct` | `train.jsonl` | 0/431 (clean) | failed | no | 4306 | 0 | 0.2 | 0.0 | None | None | — | ImportError: cannot import name 'LossKwargs' from 'transformers.utils' (.venv/lib/p |
 | `unsloth__Llama-3.1-8B-Instruct` | `train.jsonl` | 0/431 (clean) | done | yes | 4306 | 972 | 17.2 | 10.2 | 0.325 | None | 4.92 GB | — |
 | `unsloth__Llama-3.2-3B-Instruct` | `train.jsonl` | 0/431 (clean) | done | yes | 4306 | 972 | 15.6 | 13.9 | 0.341 | None | 3.42 GB | — |
 | `unsloth__Llama-3.2-3B-Instruct` | `train_x3_grouped.jsonl` | 0/431 (clean) | done | yes | 12918 | 2908 | 21.1 | 20.0 | 0.004 | None | 3.42 GB | — |

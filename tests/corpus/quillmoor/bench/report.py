@@ -49,6 +49,16 @@ def response_latency(rows: list[dict[str, Any]]) -> str:
     return f"{statistics.fmean(values):.2f} / {p90:.2f}"
 
 
+REPO_ROOT = Path(__file__).resolve().parents[4]
+
+
+def public_text(text: str, repo_root: Path = REPO_ROOT, home: Path | None = None) -> str:
+    """The tables are committed: show checkout paths relative to the repo and the home directory as ~."""
+    home = Path.home() if home is None else home
+    text = text.replace(f"{repo_root}/", "").replace(str(repo_root), ".")
+    return text.replace(f"{home}/", "~/").replace(str(home), "~")
+
+
 def pct(x: float | None) -> str:
     return "—" if x is None else f"{100 * x:.1f}"
 
@@ -645,10 +655,10 @@ def main() -> int:
     ap.add_argument("--tiers", nargs="+", required=True)
     a = ap.parse_args()
     tiers = [Path(t) for t in a.tiers]
-    print("## Ingest per file type\n\n" + ingest(tiers) + "\n")
+    print(public_text("## Ingest per file type\n\n" + ingest(tiers) + "\n"))
     archetype_report = archetypes(tiers)
     if archetype_report:
-        print("## Ingest by document archetype\n\n" + archetype_report + "\n")
+        print(public_text("## Ingest by document archetype\n\n" + archetype_report + "\n"))
     for t in tiers:
         for title, fn in (("Smart Brain retrieval", brain), ("Smart Brain export combinations", export_matrix),
                           ("Answers (AI judge)", answers), ("Fine-tuning runs", finetune),
@@ -656,7 +666,7 @@ def main() -> int:
                           ("Trained vs held-out facts", held_out)):
             body = fn(t)
             if body:
-                print(f"## {title} — tier {t.name.upper()}\n\n{body}\n")
+                print(public_text(f"## {title} — tier {t.name.upper()}\n\n{body}\n"))
     return 0
 
 

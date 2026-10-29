@@ -37,7 +37,7 @@ from finetune import (
     training_result_ok,
 )
 from judge import JUDGE_PROTOCOL, case_for, has_valid_judgment, needs_judge, score
-from report import answers, archetypes, brain, held_out, response_latency
+from report import answers, archetypes, brain, held_out, public_text, response_latency
 from report import export_matrix as export_matrix_report
 from report import finetune as finetune_report
 from report import ingest as ingest_report
@@ -993,3 +993,10 @@ def test_rag_answer_run_stops_retries_after_local_server_dies(tmp_path: Path, mo
     assert len(rows) == 2
     assert "connection refused" in rows[0]["error"]
     assert "server unavailable" in rows[1]["error"]
+
+
+def test_public_text_hides_checkout_and_home_paths() -> None:
+    root, home = Path("/srv/u/work/fts"), Path("/srv/u")
+    text = "| `/srv/u/work/fts/models/x` | (/srv/u/work/fts/.venv/lib) | /srv/u/.cache/hf | /srv/u |"
+
+    assert public_text(text, repo_root=root, home=home) == "| `models/x` | (.venv/lib) | ~/.cache/hf | ~ |"
