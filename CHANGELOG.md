@@ -75,6 +75,9 @@ turns that section into the release's notes.
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
 ### Fixed
+- Uploading many pictures or scanned PDFs at once no longer grinds the machine: every OCR run now uses one CPU
+  thread. With a dozen files parsing in parallel, one small photo took 137 s to read and could hit the 180 s
+  limit; it now takes about 2 s.
 - Heretic export keeps a trial that actually works: the KL budget default drops from 0.5 to 0.1. With 0.5 the
   end-to-end run kept a trial at KL 0.287 and the exported model repeated "(Please, choose a few questions…" forever,
   while another trial of the same study at KL 0.0028 answered normally. KL is not comparable across models, so the
