@@ -97,7 +97,7 @@ def test_baseline_uses_the_adaptive_training_advisor(arguments: dict[str, str], 
 
 @pytest.mark.parametrize("requested", ["Qwen3.5-0.8B", "Qwen/Qwen3.5-0.8B"])
 def test_training_resolves_project_model_alias_to_its_local_path(requested: str, tmp_path: Path) -> None:
-    configured = "/home/genorbox1/.finetune-studio/hf_models/Qwen__Qwen3.5-0.8B"
+    configured = "/srv/fts/hf_models/Qwen__Qwen3.5-0.8B"
     pid = _project(base_model=configured)
     _dataset(pid, tmp_path)
 
