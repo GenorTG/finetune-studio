@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import Callable, Iterator
 from typing import Any
 
@@ -33,16 +34,39 @@ FORCED_FINAL_PROMPT = (
     "results above. Do not call any tool. If something is still unknown, say so."
 )
 MAX_RESULT_CHARS = 12000
+_NAVIGATION_REQUEST = re.compile(
+    r"(?:^|[.!?]\s+)(?:please\s+)?(?:open|go to|navigate to|switch to|take me to|bring me to)\b"
+    r"|\b(?:can|could|would) you (?:please\s+)?(?:open|go to|navigate to|switch to|take me to|bring me to)\b",
+    re.IGNORECASE,
+)
+_NAVIGATION_NEGATION = re.compile(
+    r"\b(?:don't|do not|never|without)\s+(?:please\s+)?(?:open|navigate|go|switch|take|bring)\b",
+    re.IGNORECASE,
+)
 
 
 def authoritative_readiness_reply(tool_calls: list[dict], reply: str) -> str:
-    """Use server-computed readiness facts instead of a model paraphrase."""
-    if not tool_calls or tool_calls[-1].get("name") != "inspect_project_readiness":
+    """Keep the answer and append the exact server-computed readiness facts."""
+    readiness_call = next(
+        (call for call in reversed(tool_calls) if call.get("name") == "inspect_project_readiness"),
+        None,
+    )
+    if readiness_call is None:
         return reply
-    result = tool_calls[-1].get("result") or {}
-    if result.get("summary"):
-        return str(result["summary"])
-    return reply
+    result = readiness_call.get("result") or {}
+    summary = str(result.get("summary") or "")
+    if not summary or summary in reply:
+        return reply
+    if not reply.strip():
+        return summary
+    return f"{reply.rstrip()}\n\nCurrent project state: {summary}"
+
+
+def _user_explicitly_requested_navigation(messages: list[dict]) -> bool:
+    """Navigation changes the visible page, so require an explicit user request."""
+    last_user = next((str(item.get("content") or "") for item in reversed(messages)
+                      if item.get("role") == "user"), "")
+    return bool(_NAVIGATION_REQUEST.search(last_user) and not _NAVIGATION_NEGATION.search(last_user))
 
 
 def _fallback_reply(tool_calls: list[dict]) -> str:
@@ -98,6 +122,11 @@ def run_guide_loop(
             key = f"{name}:{json.dumps(args, sort_keys=True, default=str)}"
             if key in seen:
                 result: dict[str, Any] = {"error": "identical call already made this turn; use the earlier result"}
+            elif name == "navigate" and not _user_explicitly_requested_navigation(messages):
+                seen.add(key)
+                result = {
+                    "error": "The user asked for information, not a page switch. Answer the question in place; navigate only when they explicitly ask to open or switch pages."
+                }
             else:
                 seen.add(key)
                 result = run_tool(ctx, name, args)

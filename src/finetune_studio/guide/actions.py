@@ -46,9 +46,11 @@ CATALOG: list[dict[str, Any]] = [
     },
     {
         "name": "start_training",
-        "description": "Action: start a training run. dataset_id defaults to the newest dataset, base_model to the project's base model, preset to 'standard'.",
+        "description": "Action: prepare a training run for confirmation. Omit base_model to use the project's selected base; if overriding, pass its exact local path or Hub ID, not a display-name fragment. Use tier for the Training page's adaptive effort preset (smoke, balanced, precision, overkill); the UI label 'Baseline' means balanced. The legacy preset argument still accepts fixed backend preset IDs.",
         "parameters": _obj({"dataset_id": {"type": "string"}, "base_model": {"type": "string"},
-                            "preset": {"type": "string"}, "num_epochs": {"type": "integer", "minimum": 1, "maximum": 100}}),
+                            "tier": {"type": "string", "enum": ["smoke", "balanced", "precision", "overkill"]},
+                            "preset": {"type": "string", "description": "Legacy fixed preset ID, or 'baseline' as an alias for tier=balanced."},
+                            "num_epochs": {"type": "integer", "minimum": 1, "maximum": 100}}),
     },
     {
         "name": "build_reworded_quiz",
@@ -108,6 +110,24 @@ def _dataset(pid: str, dataset_id: str) -> dict[str, Any]:
     raise ActionError(f"unknown dataset {dataset_id!r}; datasets: {[d['id'] + ' ' + d['name'] for d in datasets]}")
 
 
+def _same_model_ref(requested: str, configured: str) -> bool:
+    """Match a model display/repo name to the project's configured local model path."""
+    left = requested.strip().replace("\\", "/").rstrip("/")
+    right = configured.strip().replace("\\", "/").rstrip("/")
+    if left.casefold() == right.casefold():
+        return True
+    requested_leaf = left.rsplit("/", 1)[-1]
+    configured_leaf = right.rsplit("/", 1)[-1]
+    if "__" in configured_leaf:  # HF-cache directories encode Org/Repo as Org__Repo.
+        configured_repo = configured_leaf.replace("__", "/", 1)
+        if left.count("/") == 1 and left.casefold() == configured_repo.casefold():
+            return True
+        configured_leaf = configured_leaf.split("__", 1)[-1]
+    # The Guide sometimes emits just the displayed repo leaf. Resolve that only
+    # against the project's selected model; do not turn it into a Hub lookup.
+    return "/" not in left and requested_leaf.casefold() == configured_leaf.casefold()
+
+
 def list_suites(pid: str) -> dict[str, Any]:
     from finetune_studio.benchmarks.suite_defs import discover_suites
 
@@ -162,13 +182,58 @@ def _prepare(pid: str, name: str, args: dict[str, Any]) -> dict[str, Any]:
                 "body": {}}
     if name == "start_training":
         import finetune_studio.webui.app  # noqa: F401 - loads the route modules in the app's own order (no cycle)
+        from finetune_studio.training.preset_advisor import propose
         from finetune_studio.webui.routes.training import TRAINING_PRESETS
 
         ds = _dataset(pid, str(args.get("dataset_id") or ""))
-        model = str(args.get("base_model") or project.get("base_model") or "").strip()
+        project_model = str(project.get("base_model") or "").strip()
+        requested_model = str(args.get("base_model") or "").strip()
+        model = (project_model if requested_model and project_model
+                 and _same_model_ref(requested_model, project_model) else requested_model or project_model)
         if not model:
             raise ActionError("no base model: pass base_model, or set the project's base model (project Settings)")
-        preset = str(args.get("preset") or "standard")
+        tier = str(args.get("tier") or "").strip().lower()
+        preset = str(args.get("preset") or "").strip().lower()
+        if tier == "baseline":
+            tier = "balanced"
+        if not tier and preset in {"baseline", "smoke", "balanced", "precision", "overkill"}:
+            tier = "balanced" if preset == "baseline" else preset
+
+        if tier:
+            try:
+                advice = propose(tier=tier, base_model_ref=model, dataset_path=ds.get("data_path"))
+            except ValueError as exc:
+                raise ActionError(str(exc)) from exc
+            epochs = advice.num_epochs
+            if args.get("num_epochs") not in (None, ""):
+                epochs = int(args["num_epochs"])
+                if not 1 <= epochs <= 100:
+                    raise ActionError("num_epochs must be 1-100")
+            steps = advice.pair_count * epochs // max(advice.effective_batch, 1)
+            body = {
+                "project_id": pid, "dataset_id": ds["id"], "model_path": model,
+                "training_mode": "sft", "output_dir": "output", "num_epochs": epochs,
+                "lora_rank": advice.lora_rank, "lora_alpha": advice.lora_alpha,
+                "learning_rate": advice.learning_rate, "batch_size": advice.batch_size,
+                "gradient_accumulation_steps": advice.gradient_accumulation_steps,
+                "max_seq_length": 2048, "warmup_steps": advice.warmup_steps,
+                "merge_on_save": True, "unsloth": False, "save_checkpoints": True,
+                "system_prompt_mode": "bake",
+            }
+            warning = f" Warnings: {'; '.join(advice.warnings)}" if advice.warnings else ""
+            return {
+                "label": f"Train {model.rstrip('/').rsplit('/', 1)[-1]} on {ds['name']}",
+                "detail": (f"Adaptive {tier} tier (the page's Baseline is balanced): {epochs} epochs, "
+                           f"rank {advice.lora_rank}, alpha {advice.lora_alpha}, learning rate "
+                           f"{advice.learning_rate}, batch size {advice.batch_size}, gradient accumulation "
+                           f"{advice.gradient_accumulation_steps}, warmup {advice.warmup_steps} steps, "
+                           f"max sequence length 2048; about {steps} optimizer steps.{warning} "
+                           "The final model is merged when training finishes. "
+                           "Uses the GPU until it ends; Training page shows progress."),
+                "method": "POST", "url": "/api/training/start", "body": body,
+            }
+
+        preset = preset or "standard"
         if preset not in TRAINING_PRESETS:
             raise ActionError(f"unknown preset {preset!r}; presets: {sorted(TRAINING_PRESETS)}")
         overrides: dict[str, Any] = {}

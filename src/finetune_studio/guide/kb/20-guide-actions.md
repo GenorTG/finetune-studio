@@ -8,8 +8,8 @@ keywords: guide panel corner assistant chat agent action actions run skip confir
 The Guide sits in the corner of every page (the guide button in the header). It answers questions about the app, checks your project, recommends settings, opens pages, highlights controls and pre-fills forms. It can also do the work: **start mining** files, **build the dataset**, **build the Smart Brain**, **start training**, **build a reworded quiz**, **run a test** and **pin a version**. It runs on the AI assistant's *Guide chat* job (Settings → AI assistant).
 
 ## Workflow
-1. Open the Guide and say what you want, e.g. "mine all my files", "train on the newest dataset with the standard preset", "test the latest model on the reworded quiz".
-2. **Ask before each action** (default): the Guide checks your project, then shows an action card with what it will do. **Run** does it through the same endpoint as the page's own button; **Skip** leaves it. The Guide then reports the result and suggests the next step.
+1. Open the Guide and say what you want, e.g. "mine all my files", "start training on the newest dataset with Baseline", "test the latest model on the reworded quiz". Baseline uses the Training page's adaptive `balanced` recommendation.
+2. **Ask before each action** (default): an explicit request prepares an action card without asking you to repeat yourself. The Guide checks your project and shows what it will do. **Run** is the confirmation and sends it through the same endpoint as the page's own button; **Skip** leaves it. The Guide then reports the result and suggests the next step.
 3. **Hands-free**: pick it in the selector at the top of the Guide. The Guide runs the actions it prepares at once and carries on with the next step, up to 4 actions in a row per message; after that a card waits for Run.
 4. Long jobs (mining, training, Smart Brain, tests) start and run in the background; their pages show progress.
 

@@ -75,6 +75,8 @@ turns that section into the release's notes.
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
 ### Fixed
+- Guide and page copy: informational answers survive readiness checks, current-page help wins relevant searches, unrequested page switches are blocked, Compare explains its installed-model fallback, and Pairs/Testing/Benchmarks/Export labels match the flow (steps 1/3/3/4).
+- Guide: each request now includes the complete current-route KB entry ahead of stale chat history; Dashboard, Project Settings and Settings facts are corrected, and Training now identifies step 2 and says training loss is not held-out quality.
 - Smart Brain standalone server: several clients searching at once no longer crash it. Parallel requests ran the
   bundled embedder and reranker on the GPU at the same time ("CUDA error: an illegal memory access" after a few
   hundred searches) and could load a model twice; model loading and use are now one at a time.

@@ -1,6 +1,6 @@
 ---
 id: export
-title: Export page (step 5)
+title: Export page (step 4)
 page: export
 keywords: export gguf quant q4_k_m q6_k q8_0 f16 merged abliterated herectic heretic uncensored decensor refusal llama.cpp ollama lm studio quantization overwrite adapter imatrix importance matrix calibration
 ---

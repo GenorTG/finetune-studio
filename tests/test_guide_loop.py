@@ -52,15 +52,135 @@ def test_loop_streams_tool_call_then_result_then_final() -> None:
     assert "Dashboard" in system and "- app_help(query)" in system and "suggest_settings(page, settings)" in system
 
 
+def test_prompt_includes_fresh_project_readiness_over_old_chat_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    from finetune_studio.guide import state
+    from finetune_studio.guide.prompt import build_system_prompt
+
+    summary = "1 source(s), 1 parsed; 0 approved, 28 pending, and 0 rejected Q&A pair(s). Next: Review pending Q&A pairs."
+    monkeypatch.setattr(state, "readiness", lambda _pid: {"summary": summary})
+
+    prompt = build_system_prompt(ToolContext(pid="project-1", page="data-prep"), "scratch-project")
+
+    assert "# Current project state" in prompt
+    assert "overrides older project-state/tool results in chat history" in prompt
+    assert summary in prompt
+
+
+def test_prompt_includes_authoritative_current_page_kb_entry() -> None:
+    from finetune_studio.guide.prompt import build_system_prompt
+
+    prompt = build_system_prompt(ToolContext(pid="project-1", page="project_settings"))
+
+    assert "# Current page reference" in prompt
+    assert "Change settings for this project only" in prompt
+    assert "The folded WebUI log tail below the form is the studio service log shared across projects." in prompt
+    assert "Do not infer controls or behavior that this reference does not list." in prompt
+
+
+def test_prompt_prefers_page_specific_entry_over_generic_app_map() -> None:
+    from finetune_studio.guide.prompt import build_system_prompt
+
+    prompt = build_system_prompt(ToolContext(pid=None, page="dashboard"))
+
+    assert "Dashboard (page: /)" in prompt
+    assert "The Dashboard is the studio-wide start page." in prompt
+    assert "One-page shortcut: Quick work" not in prompt
+    assert "For informational questions, answer every part in place" in prompt
+    assert "never navigate unless the user explicitly asks to open or switch pages" in prompt
+    assert "Never substitute an action for the answer" in prompt
+
+
+def test_training_prompt_uses_step_two_from_the_project_flow() -> None:
+    from finetune_studio.guide.prompt import build_system_prompt
+
+    prompt = build_system_prompt(ToolContext(pid="project-1", page="training"))
+
+    assert "Training page (step 2)" in prompt
+    assert "Step 2 of the project flow" in prompt
+    assert "Training page (step 3)" not in prompt
+    assert "Training loss measures fit to the training examples; it does not prove held-out quality." in prompt
+    assert "Final loss below 0.5" not in prompt
+
+
+@pytest.mark.parametrize(
+    ("page", "expected_title", "stale_title"),
+    [
+        ("pairs", "Question-answer pairs page (step 1)", "Question-answer pairs page (step 2)"),
+        ("testing", "Testing page (step 3)", "Testing page (step 4)"),
+        ("export", "Export page (step 4)", "Export page (step 5)"),
+    ],
+)
+def test_project_flow_page_references_match_the_visible_navigation(
+    page: str, expected_title: str, stale_title: str,
+) -> None:
+    from finetune_studio.guide.prompt import build_system_prompt
+
+    prompt = build_system_prompt(ToolContext(pid="project-1", page=page))
+
+    assert expected_title in prompt
+    assert stale_title not in prompt
+
+
+def test_settings_prompt_states_the_real_claude_and_heretic_paths() -> None:
+    from finetune_studio.guide.kb import load_kb
+    from finetune_studio.guide.prompt import (
+        _CURRENT_PAGE_HELP_MAX_CHARS,
+        build_system_prompt,
+    )
+
+    settings_entry = load_kb()["settings"]
+    full_reference = settings_entry.render(max_chars=100_000)
+    prompt = build_system_prompt(ToolContext(pid=None, page="settings"))
+
+    assert len(full_reference) <= _CURRENT_PAGE_HELP_MAX_CHARS
+    assert full_reference in prompt
+
+    assert "OpenRouter" in prompt
+    assert "anthropic/claude-3.5-sonnet" in prompt
+    assert "This form does not have an Anthropic-specific preset." in prompt
+    assert "Heretic (integrated optional feature)" in prompt
+    assert "The Heretic format remains an Export-page feature." in prompt
+
+
+def test_prompt_survives_unavailable_project_readiness(monkeypatch: pytest.MonkeyPatch) -> None:
+    from finetune_studio.guide import state
+    from finetune_studio.guide.prompt import build_system_prompt
+
+    def unavailable(_pid: str) -> dict:
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(state, "readiness", unavailable)
+    prompt = build_system_prompt(ToolContext(pid="project-1", page="data-prep"))
+
+    assert "# Current project state" in prompt
+    assert "snapshot could not be read this turn" in prompt
+
+
 def test_tool_call_event_precedes_its_result_so_the_ui_shows_it_immediately() -> None:
+    messages = [{"role": "user", "content": "Open Settings."}]
     chat = Script(call("navigate", page="settings"), "Opened Settings.")
-    events = list(run_guide_loop(CTX, USER, chat))
+    events = list(run_guide_loop(CTX, messages, chat))
     names = types(events)
     assert names.index("tool_call") < names.index("tool_result") < names.index("ui")
     ui = next(e for e in events if e["type"] == "ui")
     assert ui["event"] == {"type": "navigate", "page": "settings", "url": "/settings", "title": "Settings"}
     # the ui event is NOT left inside the stored result (and not fed back to the model)
     assert "ui_event" not in next(e for e in events if e["type"] == "tool_result")["result"]
+
+
+def test_informational_question_cannot_switch_the_page_without_permission(monkeypatch: pytest.MonkeyPatch) -> None:
+    executed: list[str] = []
+    monkeypatch.setattr(guide_loop, "run_tool", lambda ctx, name, args: executed.append(name) or {})
+    messages = [{"role": "user", "content": "What does the Testing page do?"}]
+    chat = Script(call("navigate", page="pairs"), "Testing runs answers first; judging scores them afterwards.")
+
+    events = list(run_guide_loop(ToolContext(pid="project-1", page="testing"), messages, chat))
+
+    navigation = next(e for e in events if e["type"] == "tool_result")
+    assert navigation["result"]["error"].startswith("The user asked for information")
+    assert "ui" not in types(events)
+    assert executed == []
+    assert events[-1]["reply"] == "Testing runs answers first; judging scores them afterwards."
 
 
 def test_round_limit_forces_a_final_answer() -> None:
@@ -117,12 +237,20 @@ def test_identical_repeat_call_is_not_executed_twice(monkeypatch: pytest.MonkeyP
     assert results[1]["error"].startswith("identical call already made")
 
 
-def test_readiness_summary_is_authoritative(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_readiness_summary_is_appended_without_replacing_the_answer(monkeypatch: pytest.MonkeyPatch) -> None:
     summary = "2 source(s), 1 parsed; 3 approved, 3 pending, and 0 rejected Q&A pair(s); 1 dataset(s); 0 RAG corpus/corpora. Next: Review pending Q&A pairs."
     monkeypatch.setattr(guide_loop, "run_tool", lambda ctx, name, args: {"summary": summary})
-    chat = Script(call("inspect_project_readiness"), "You have 7 approved pairs and 9 sources!")
+    chat = Script(call("inspect_project_readiness"), "Testing is step 3. Run needs an exported model.")
     final = list(run_guide_loop(CTX, USER, chat))[-1]
-    assert final["reply"] == summary
+    assert final["reply"].startswith("Testing is step 3. Run needs an exported model.")
+    assert f"Current project state: {summary}" in final["reply"]
+
+
+def test_readiness_summary_is_not_duplicated_when_the_answer_includes_it() -> None:
+    summary = "1 source(s), 1 parsed; 0 approved pairs."
+    tool_calls = [{"name": "inspect_project_readiness", "result": {"summary": summary}}]
+
+    assert guide_loop.authoritative_readiness_reply(tool_calls, f"State: {summary}") == f"State: {summary}"
 
 
 def test_truncated_tool_call_is_reported_not_swallowed() -> None:

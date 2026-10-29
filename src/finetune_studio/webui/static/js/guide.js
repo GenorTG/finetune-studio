@@ -494,8 +494,7 @@
 
   function skipAction(ev, card) {
     settle(card, ev, "skip", "Skipped.");
-    state.messages.push({ role: "user", content: "ACTION_SKIPPED " + ev.action + ": the user chose not to run it now." });
-    save();
+    handBack("ACTION_SKIPPED " + ev.action + ": the user chose not to run it now.");
   }
 
   function onAction(ev) {
