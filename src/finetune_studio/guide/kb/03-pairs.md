@@ -1,6 +1,6 @@
 ---
 id: pairs
-title: Question-answer pairs page (step 2)
+title: Question-answer pairs page (step 1)
 page: pairs
 keywords: pairs qa question answer mine mining helper checklist inventory data points gaps fill review approve reject pending exclude complete export dataset grounded retrieved context coverage chunk rounds files
 ---

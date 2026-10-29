@@ -137,7 +137,8 @@ class TestChatTools:
 class TestToolCallParser:
     """The regex that extracts <tool_call>{...}</tool_call> blocks."""
 
-    def test_readiness_reply_uses_server_summary_not_model_paraphrase(self):
+    def test_readiness_reply_keeps_the_answer_and_adds_the_server_summary(self):
+        """The server's readiness summary is always shown verbatim; it no longer replaces the rest of the answer."""
         from finetune_studio.guide.loop import (
             authoritative_readiness_reply as _authoritative_readiness_reply,
         )
@@ -145,12 +146,17 @@ class TestToolCallParser:
         summary = "2 source(s), 2 parsed; 3 approved, 3 pending. Next: Review pending Q&A pairs."
         calls = [{"name": "inspect_project_readiness", "result": {"summary": summary}}]
 
-        assert _authoritative_readiness_reply(calls, "There are 0 parsed sources.") == summary
+        paraphrase = _authoritative_readiness_reply(calls, "Next, review the pending pairs on the Pairs page.")
+        assert paraphrase == ("Next, review the pending pairs on the Pairs page.\n\n"
+                              f"Current project state: {summary}")
+        assert _authoritative_readiness_reply(calls, f"Status: {summary} Then train.") == f"Status: {summary} Then train."
+        assert _authoritative_readiness_reply(calls, "  ") == summary
         assert _authoritative_readiness_reply([], "A normal answer.") == "A normal answer."
-        assert _authoritative_readiness_reply(
+        # A later tool call does not hide the readiness facts gathered earlier in the turn.
+        assert summary in _authoritative_readiness_reply(
             calls + [{"name": "read_source", "result": {"text": "details"}}],
             "A combined answer.",
-        ) == "A combined answer."
+        )
 
     def test_extracts_single_call(self):
         from finetune_studio.guide.toolcalls import (

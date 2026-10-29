@@ -81,7 +81,7 @@ TOOLS_CATALOG: list[dict[str, Any]] = [
     },
     {
         "name": "inspect_project_readiness",
-        "description": "Authoritative readiness counts with a `summary` line. Use when the user asks what is done or what to do next; quote the summary verbatim.",
+        "description": "Authoritative readiness counts with a `summary` line. Use when the user asks what is done or what to do next; include the summary verbatim and still answer the rest of the user's question.",
         "parameters": _obj(),
     },
     {
@@ -374,7 +374,7 @@ def run_tool(ctx: ToolContext, name: str, args: dict[str, Any]) -> dict[str, Any
             query = str(args.get("query") or "").strip()
             if not query:
                 return {"error": "query required"}
-            hits = search_kb(query)
+            hits = search_kb(query, preferred_page=ctx.page)
             return {"query": query, "results": hits} if hits else {
                 "query": query, "results": [],
                 "note": "Nothing in the app knowledge base matches; say you do not know rather than guessing.",

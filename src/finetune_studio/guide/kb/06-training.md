@@ -1,11 +1,11 @@
 ---
 id: training
-title: Training page (step 3)
+title: Training page (step 2)
 page: training
 keywords: train training start base model dataset preset smoke balanced precision overkill advisor lora rank learning rate batch accumulation sequence merge unsloth checkpoints live status runs production stop
 ---
 ## Purpose
-Teach a base model your dataset. Hours, not minutes for large bases; the page keeps live progress and survives reloads.
+Step 2 of the project flow (alongside Smart Brain): teach a base model your dataset. Hours, not minutes for large bases; the page keeps live progress and survives reloads.
 
 ## Workflow
 0. For extraction, classification, house style or distilling a big model, start from a use case (see use-cases): the **Start from a use case** card builds the dataset and a held-out test and fills this form.
@@ -40,7 +40,7 @@ Teach a base model your dataset. Hours, not minutes for large bases; the page ke
 - `#past-runs-table` — all runs, with Details, Set production, Open in inference and Export.
 
 ## What to check
-Final loss below 0.5 on small factual datasets, status done, a merged model present. With a tiny dataset make sure early stopping did not end the run before the planned steps. On out-of-memory the page shows "Out of GPU memory" with the knobs to lower (batch, max sequence).
+Check that the run finished successfully and a merged model is present. Training loss measures fit to the training examples; it does not prove held-out quality. Test the model on held-out questions on the Testing page. With a tiny dataset make sure early stopping did not end the run before the planned steps. On out-of-memory the page shows "Out of GPU memory" with the knobs to lower (batch, max sequence).
 
 ## Common mistakes
 Choosing Smoke and expecting recall (it only proves the plumbing); trusting epochs instead of optimizer steps (see training-settings); training while another heavy GPU job runs.

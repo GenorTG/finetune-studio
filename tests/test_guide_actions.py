@@ -63,6 +63,62 @@ def test_training_checks_dataset_preset_and_base_model(tmp_path: Path) -> None:
     assert "no active project" in run_tool(ToolContext(), "build_dataset", {})["error"]
 
 
+@pytest.mark.parametrize("arguments", [{"preset": "baseline"}, {"tier": "balanced"}, {"tier": "baseline"}])
+def test_baseline_uses_the_adaptive_training_advisor(arguments: dict[str, str], tmp_path: Path) -> None:
+    from finetune_studio.training.preset_advisor import propose
+
+    pid = _project()
+    ds = _dataset(pid, tmp_path)
+    advice = propose(tier="balanced", base_model_ref="/models/Qwen3.5-9B", dataset_path=ds["data_path"])
+
+    result = run_tool(ToolContext(pid=pid), "start_training", arguments)
+
+    assert result.get("status") == "awaiting_confirmation"
+    body = result["ui_event"]["body"]
+    assert body["dataset_id"] == ds["id"]
+    assert body["model_path"] == "/models/Qwen3.5-9B"
+    assert "preset_id" not in body
+    assert body["num_epochs"] == advice.num_epochs
+    assert body["lora_rank"] == advice.lora_rank
+    assert body["lora_alpha"] == advice.lora_alpha
+    assert body["learning_rate"] == advice.learning_rate
+    assert body["batch_size"] == advice.batch_size
+    assert body["gradient_accumulation_steps"] == advice.gradient_accumulation_steps
+    assert body["warmup_steps"] == advice.warmup_steps
+    assert "Baseline is balanced" in result["ui_event"]["detail"]
+    detail = result["ui_event"]["detail"]
+    assert f"alpha {advice.lora_alpha}" in detail
+    assert f"learning rate {advice.learning_rate}" in detail
+    assert f"batch size {advice.batch_size}" in detail
+    assert f"gradient accumulation {advice.gradient_accumulation_steps}" in detail
+    assert f"warmup {advice.warmup_steps} steps" in detail
+    assert "max sequence length 2048" in detail and "final model is merged" in detail
+
+
+@pytest.mark.parametrize("requested", ["Qwen3.5-0.8B", "Qwen/Qwen3.5-0.8B"])
+def test_training_resolves_project_model_alias_to_its_local_path(requested: str, tmp_path: Path) -> None:
+    configured = "/srv/fts/hf_models/Qwen__Qwen3.5-0.8B"
+    pid = _project(base_model=configured)
+    _dataset(pid, tmp_path)
+
+    result = run_tool(ToolContext(pid=pid), "start_training", {"base_model": requested, "tier": "smoke"})
+
+    assert result.get("status") == "awaiting_confirmation"
+    assert result["ui_event"]["body"]["model_path"] == configured
+
+
+def test_training_keeps_a_distinct_explicit_model_override(tmp_path: Path) -> None:
+    pid = _project(base_model="/models/Qwen3.5-0.8B")
+    _dataset(pid, tmp_path)
+
+    result = run_tool(ToolContext(pid=pid), "start_training", {
+        "base_model": "org/OtherModel", "preset": "qlora",
+    })
+
+    assert result.get("status") == "awaiting_confirmation"
+    assert result["ui_event"]["body"]["model_path"] == "org/OtherModel"
+
+
 def test_each_action_targets_the_pages_own_endpoint(tmp_path: Path) -> None:
     pid = _project()
     ds = _dataset(pid, tmp_path)
@@ -121,5 +177,7 @@ def test_the_panel_runs_only_prepared_app_requests_and_limits_hands_free() -> No
     assert "if (!/^\\/api\\//.test(ev.url)" in js and 'credentials: "same-origin"' in js
     assert f"var MAX_AUTO_ACTIONS = {actions.MAX_AUTO_ACTIONS};" in js
     assert '"ACTION_RESULT "' in js and '"ACTION_SKIPPED "' in js
+    skip_action = js.split("function skipAction(ev, card) {", 1)[1].split("\n  }", 1)[0]
+    assert 'handBack("ACTION_SKIPPED "' in skip_action
     assert "'/api/settings/guide'" in js.replace('"', "'")
     assert "data-guide-run" not in js or "guideRun" in js
