@@ -75,6 +75,9 @@ turns that section into the release's notes.
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
 ### Fixed
+- Training stops and fails in plain words when the loss or the gradient becomes NaN ("Training diverged at step N
+  ... the last checkpoint before it is ...") instead of finishing as **done**. Such a run used to log a loss of 0.0
+  for its remaining steps and merge and export weights that answer nothing.
 - Smart Brain: after **Re-embed only** with another embedder, exporting the index **with models** works again (it
   refused: "does not reference a shared embedder"). A reranker chosen in **Search settings** is now bundled into an
   exported package (it was left out without a word, so the package ran without reranking), and rebuilding the

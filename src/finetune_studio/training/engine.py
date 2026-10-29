@@ -100,17 +100,54 @@ def _merged_dir_complete(merged_dir: str) -> bool:
     return False
 
 
+class TrainingDiverged(RuntimeError):
+    """The loss or the gradient stopped being a number: the weights from that step on are unusable."""
+
+
+def _non_finite(logs: dict[str, Any]) -> str:
+    """The first logged training value that is NaN or infinite (``loss`` / ``grad_norm``), else ``""``."""
+    for key in ("loss", "grad_norm"):
+        v = logs.get(key)
+        if isinstance(v, (int, float)) and not math.isfinite(v):
+            return key
+    return ""
+
+
 def _stop_training_callback(engine: "TrainingEngine") -> Any:
-    """Create the Trainer callback that turns a stop request into a stop flag."""
+    """Create the Trainer callback that turns a stop request into a stop flag, and stops a run whose loss or
+    gradient became NaN/inf (``engine._diverged``): such a run used to finish as "done" with a logged loss of 0.0
+    and merge / export weights that answer nothing (Quillmoor benchmark, 2026-10-29)."""
     from transformers import TrainerCallback
 
     class StopCallback(TrainerCallback):
         def on_step_end(self, args: Any, state: Any, control: Any, **kwargs: Any) -> Any:
-            if engine._stop_requested():
+            if engine._stop_requested() or engine._diverged:
+                control.should_training_stop = True
+            return control
+
+        def on_log(self, args: Any, state: Any, control: Any, logs: dict | None = None, **kwargs: Any) -> Any:
+            key = _non_finite(logs or {})
+            if key and not engine._diverged:
+                engine._diverged = {"step": int(state.global_step), "value": key, "output_dir": str(args.output_dir)}
                 control.should_training_stop = True
             return control
 
     return StopCallback()
+
+
+def _divergence_message(info: dict[str, Any]) -> str:
+    step = info["step"]
+    what = "loss" if info["value"] == "loss" else "gradient"
+    ckpts = []
+    for name in os.listdir(info["output_dir"]) if os.path.isdir(info["output_dir"]) else []:
+        if name.startswith("checkpoint-") and name[len("checkpoint-"):].isdigit():
+            ckpts.append(int(name[len("checkpoint-"):]))
+    good = max((c for c in ckpts if c < step), default=0)
+    back = (f" The last checkpoint before it is step {good} (checkpoint-{good}): a new run can start from it."
+            if good else " No checkpoint was saved before it.")
+    return (f"Training diverged at step {step}: the {what} became NaN (not a number), so the weights from that "
+            f"step on are unusable and nothing was saved, merged or exported.{back} Usual fixes: a lower learning "
+            "rate (half), a smaller batch, or fewer LoRA targets.")
 
 
 def _free_cuda() -> None:
@@ -299,6 +336,7 @@ class TrainingEngine:
         self.current_run_id: str | None = None
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
+        self._diverged: dict[str, Any] | None = None
         self._callbacks: list = []
         # E2E-40: training runs in a spawn child so uvicorn never imports unsloth.
         self._process: object | None = None
@@ -576,6 +614,7 @@ class TrainingEngine:
                 split_data,
             )
             self._early_stop_step = 0
+            self._diverged = None
             self.state.status = "loading"
             self.state.message = "Loading model..."
             self._notify()
@@ -636,7 +675,7 @@ class TrainingEngine:
                 self._notify()
                 self._persist_run_output()
         except Exception as e:
-            msg = _format_exc(e)
+            msg = str(e) if isinstance(e, TrainingDiverged) else _format_exc(e)
             log.exception("Training failed: %s", msg)
             self.state.status = "error"
             self.state.error = msg
@@ -805,6 +844,8 @@ class TrainingEngine:
         self.state.message = f"Training with {kind.upper()} preferences..."
         self._notify()
         trainer.train()
+        if self._diverged:
+            raise TrainingDiverged(_divergence_message(self._diverged))
         self._early_stop_step = _early_stop_step(cfg, trainer.state)
         if self._stop_requested():
             try:
@@ -1152,6 +1193,8 @@ class TrainingEngine:
         self.state.message = "Training…"
         self._notify()
         trainer.train()
+        if self._diverged:
+            raise TrainingDiverged(_divergence_message(self._diverged))
         self._early_stop_step = _early_stop_step(cfg, trainer.state)
         if self._stop_requested():
             # Persist the partial adapter so the work is not lost, then stop.
@@ -1246,6 +1289,8 @@ class TrainingEngine:
         self.state.message = "Training…"
         self._notify()
         trainer.train()
+        if self._diverged:
+            raise TrainingDiverged(_divergence_message(self._diverged))
         self._early_stop_step = _early_stop_step(cfg, trainer.state)
         if self._stop_requested():
             # Persist the partial adapter so the work is not lost, then stop.
