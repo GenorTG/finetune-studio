@@ -176,6 +176,20 @@ def dataset_id(c, pid: str, corpus: Path, out: Path, train_file: str = "train.js
     return d["id"], d["data_path"]
 
 
+TIER_KEYS = ("num_epochs", "lora_rank", "lora_alpha", "learning_rate", "batch_size", "gradient_accumulation_steps",
+             "warmup_steps")
+
+
+def tier_settings(tier: str, model_dir: Path, data_path: str) -> dict[str, Any]:
+    """What the Training page proposes for ``tier`` on this model and dataset (training.preset_advisor)."""
+    from finetune_studio.training.preset_advisor import propose
+
+    advice = propose(tier=tier, base_model_ref=str(model_dir), dataset_path=data_path)
+    out = {k: getattr(advice, k) for k in TIER_KEYS}
+    out["learning_rate"] = float(out["learning_rate"])
+    return out
+
+
 def held_out_questions(data_path: str) -> list[str]:
     """The user questions of the rows the SFT trainer keeps for validation (same split code, same seed)."""
     from finetune_studio.training.data import sft_validation_rows
@@ -263,6 +277,9 @@ def main() -> int:
     ap.add_argument("--tag", default="", help="suffix of the result files (another recipe for the same model)")
     ap.add_argument("--epochs", type=int, default=0)
     ap.add_argument("--rank", type=int, default=0)
+    ap.add_argument("--tier", choices=("smoke", "balanced", "precision", "overkill"), default="",
+                    help="the Training page's adaptive tier: its preset advisor picks epochs, rank, LR and batch "
+                         "for each model and this dataset (the product default, instead of the fixed SETTINGS)")
     ap.add_argument("--refresh-metrics", action="store_true",
                     help="refresh saved run-step metadata without starting or retrying training")
     a = ap.parse_args()
@@ -314,7 +331,11 @@ def main() -> int:
                 prior_ggufs, previous.get("quant"),
             ):
                 continue
-        res = run_one(c, pid, did, name, quant or "q8_0", data_path, settings)
+        run_settings = dict(settings)
+        if a.tier:
+            run_settings.update(tier_settings(a.tier, HF / name, data_path))
+            print(f"[{name}] {a.tier} tier: {json.dumps({k: run_settings[k] for k in TIER_KEYS})}", flush=True)
+        res = run_one(c, pid, did, name, quant or "q8_0", data_path, run_settings)
         res["tag"] = a.tag
         res["train_file"] = a.train_file
         write_json(rf, res)
