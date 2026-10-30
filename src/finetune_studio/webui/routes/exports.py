@@ -34,6 +34,12 @@ from finetune_studio.webui.live_sse import sse_comment, sse_data, sse_response
 log = logging.getLogger(__name__)
 router = APIRouter()
 
+# Preserve the route module's historical helper names for callers and tests;
+# implementation and validation now live in the shared Export service.
+DEFAULT_QUANT = export_service.DEFAULT_QUANT
+SUPPORTED_QUANTS = export_service.SUPPORTED_QUANTS
+_safe_name = export_service._safe_name
+
 
 def _project_404(pid: str) -> JSONResponse | None:
     """Return a 404 response when the project does not exist, else None.
