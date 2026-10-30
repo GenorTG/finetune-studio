@@ -184,7 +184,9 @@
           const done = g.models.reduce(function(n, m) { return n + (m.progress_done || 0); }, 0);
           const total = g.models.reduce(function(n, m) { return n + (m.progress_total || 0); }, 0);
           const state = g.status.run === 'running' ? 'answering ' + done + '/' + total
-            : g.status.judge === 'running' ? 'judging…' : g.status.run;
+            : g.status.judge === 'running' ? 'judging…'
+            : g.status.judge === 'cancelled' ? 'judging stopped'
+            : g.status.run === 'cancelled' ? 'stopped' : g.status.run;
           const modelState = function(m) {
             if (m.status === 'running') return 'answering ' + (m.progress_done || 0) + '/' + (m.progress_total || 0);
             if (m.status === 'queued') return 'queued';
@@ -226,7 +228,9 @@
     $('cp-stop-btn').hidden = !(running || judging);
     $('cp-judge-btn').disabled = $('cp-judge-redo').disabled = running || judging;
     const err = v.models.filter(function(m) { return m.error || m.judge_error; });
-    $('cp-job-msg').textContent = err.map(function(m) { return m.label + ': ' + (m.error || m.judge_error); }).join(' · ');
+    const stopped = v.status.judge === 'cancelled' ? 'Judging stopped. Verdicts so far are kept.'
+      : v.status.run === 'cancelled' ? 'Comparison stopped. Answers saved so far are kept.' : '';
+    $('cp-job-msg').textContent = err.map(function(m) { return m.label + ': ' + (m.error || m.judge_error); }).join(' · ') || stopped;
     const cols = 'repeat(' + v.models.length + ', minmax(0, 1fr))';
     $('cp-sum').style.gridTemplateColumns = cols;
     $('cp-sum').innerHTML = v.models.map(function(m) {
@@ -297,7 +301,12 @@
   $('cp-judge-btn').addEventListener('click', function() { judge(true); });
   $('cp-judge-redo').addEventListener('click', function() { judge(false); });
   $('cp-stop-btn').addEventListener('click', async function() {
-    try { await jreq('POST', API + '/groups/' + encodeURIComponent(S.gid) + '/cancel'); await refresh(); }
+    try {
+      const judging = S.view && S.view.status.judge === 'running';
+      await jreq('POST', API + '/groups/' + encodeURIComponent(S.gid) + '/cancel');
+      notify(judging ? 'Stopping after current judge calls finish…' : 'Stopping after current model answer finishes…', 'info');
+      await refresh();
+    }
     catch (e) { notify('Could not stop: ' + e.message, 'error'); }
   });
 
