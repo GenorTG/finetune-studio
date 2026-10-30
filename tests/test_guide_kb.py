@@ -77,6 +77,7 @@ QUESTIONS = [
     ("what is the helper model", {"helper-model"}),
     ("how do I load a model and set the context length", {"inference"}),
     ("what does the quick work wizard do", {"wizard"}),
+    ("how do I pin or inspect project versions from the terminal", {"wizard"}),
     ("what does the dashboard show", {"dashboard"}),
     ("how do I use Claude and Heretic from Settings", {"settings"}),
     ("what does project settings change and where can I see the app log", {"project-settings"}),
@@ -124,6 +125,13 @@ def test_pairs_guide_links_terminal_review_and_export_commands() -> None:
     assert "fts qa list" in common_mistakes
     assert "fts qa approve" in common_mistakes and "fts qa reject" in common_mistakes
     assert "fts mining" in common_mistakes and "fts dataset build" in common_mistakes
+
+
+def test_wizard_guide_links_terminal_version_history() -> None:
+    common_mistakes = load_kb()["wizard"].sections["Common mistakes"]
+    assert "fts versions" in common_mistakes
+    workflow = load_kb()["wizard"].sections["Workflow"]
+    assert "--root" in workflow and "lineage" in workflow
 
 
 def test_compare_kb_and_ui_allow_installed_models_without_project_exports() -> None:
