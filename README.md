@@ -229,6 +229,9 @@ pump X is installed?").
 | Llama 3.2 3B (local) | 71.3 % | **77.7 %** |
 | Gemma 3 4B (local) | 70.3 % | **76.3 %** |
 
+API model and Qwen with both changes; Llama and Gemma with the reranker only (the follow-up search does not help them, so
+the chat has a switch for it).
+
 Fine-tuning on the same 4,306 facts showed that **passes per fact** decide recall (4 passes: 12.5 % of the trained
 facts, 12 passes: 97 %), and that the Training page's presets trained too few passes on large datasets; that is being
 fixed. Write-up: [`docs/benchmarks/quillmoor-2026-10.md`](docs/benchmarks/quillmoor-2026-10.md) · every experiment:
