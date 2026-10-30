@@ -85,6 +85,9 @@ def test_testing_stop_feedback_matches_run_and_parallel_judge_boundaries(client)
     assert "BASE + '/runs/' + S.cur + '/cancel'" in body
     assert "Stopping after the current answer…" in body
     assert "Stopping after current judge calls finish…" in body
+    assert "r.judge_status === 'cancelled'" in body
+    assert "judging stopped" in body
+    assert "verdicts so far are kept" in body
 
 
 def test_benchmarks_for_project_lists_runs_newest_first_with_run_name(temp_db) -> None:
