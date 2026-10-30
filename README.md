@@ -214,6 +214,26 @@ What I take from it:
 - **For facts, the Smart Brain wins clearly**: up to 97 of 102 with sources, and it declines correctly.
   So the app recommends the Smart Brain for "know my documents" and an adapter for "answer in this style".
 
+### Measured at scale: Quillmoor (generated company, up to 10,407 files)
+
+Korvane is hand-written and small, so I also generate a company with every fact known: 42 file formats, S/M/L tiers of
+415 / 1,927 / 10,407 files. Parsing found 99.8–99.9 % of the known values with zero failed files. On 376 fixed
+questions (same AI judge), tracing the misses led to two Smart Brain changes in this beta: a stronger reranker on
+machines with a GPU and a follow-up search for questions that go through another item ("who manages the site where
+pump X is installed?").
+
+| Answer model | Smart Brain before | after |
+|---|---:|---:|
+| DeepSeek v4.1 Flash (API) | 81.1 % | **96.1 %** |
+| Qwen 3.5 4B (local) | 80.2 % | **91.1 %** |
+| Llama 3.2 3B (local) | 71.3 % | **77.7 %** |
+| Gemma 3 4B (local) | 70.3 % | **76.3 %** |
+
+Fine-tuning on the same 4,306 facts showed that **passes per fact** decide recall (4 passes: 12.5 % of the trained
+facts, 12 passes: 97 %), and that the Training page's presets trained too few passes on large datasets; that is being
+fixed. Write-up: [`docs/benchmarks/quillmoor-2026-10.md`](docs/benchmarks/quillmoor-2026-10.md) · every experiment:
+[`tests/corpus/quillmoor/EXPERIMENTS.md`](tests/corpus/quillmoor/EXPERIMENTS.md).
+
 ---
 
 ## What's in the beta
