@@ -135,6 +135,7 @@ Precedence (highest first): **command-line flags > environment (`RAG_*`) >
 | answer model endpoint | `--llm-base-url` | `RAG_LLM_BASE_URL` | `{llm_base_url}` |
 | answer model | `--llm-model` | `RAG_LLM_MODEL` | `{llm_model}` |
 | answer model API key | — | `RAG_LLM_API_KEY` | none |
+| follow-up searches per answer (0 = off) | — | `RAG_FOLLOW_UP` | `1` |
 | HTTP bearer token | `--auth-token` | `RAG_AUTH_TOKEN` | none |
 | embedding endpoint | `--embed-base-url` | `RAG_EMBED_BASE_URL` | none |
 | embedding model | `--embed-model` | `RAG_EMBED_MODEL` | from the index |
@@ -245,7 +246,7 @@ automatically (`--no-reranker` turns it off).
 
 `install.sh` sets up the venv for this (numpy + sentence-transformers; the
 torch wheel is the big download, a few minutes once). The first search
-loads the model into RAM (~1-2 GB) and takes a second or two; after that it
+loads the models into memory (~1-4 GB) and takes a few seconds; after that it
 is fast. The device defaults to `auto`: the GPU (NVIDIA CUDA, AMD ROCm, Intel
 XPU or Apple MPS) when one is usable, the CPU only otherwise. Force one with
 `--device cpu|cuda|cuda:N|xpu|mps` (or `RAG_DEVICE=…`).
@@ -638,7 +639,10 @@ can switch a shipped layer off, never on one that is not in the package.
 Without it the server returns passages and your own model or agent writes the answer (the usual MCP setup). With it
 on, `GET /ask?q=...` / `POST /ask` (and the MCP tool `rag_answer`) send the passages to an OpenAI-compatible chat
 endpoint (Ollama, LM Studio, llama.cpp server, vLLM, OpenAI…) with the same grounded prompt as the studio's Smart
-Brain chat, and return the answer with its sources:
+Brain chat, and return the answer with its sources. A question that reaches its answer through another item ("who
+manages the site where asset X is installed?") finds the first item but not the second, which it never names: the
+answer model may then ask for one more search (`SEARCH: …`) before it answers, and the reply lists it under
+`follow_up_searches`. `RAG_FOLLOW_UP=0` turns that off; up to 3 are allowed.
 
 ```bash
 export RAG_LLM_BASE_URL="{cfg.llm_base_url or 'http://127.0.0.1:11434/v1'}"   # set at export: {cfg.llm_base_url or 'not set'}

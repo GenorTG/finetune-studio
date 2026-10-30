@@ -89,7 +89,7 @@
       <div class="card-sub">
         Split this project's <b>parsed text sources</b> into chunks and turn them
         into a searchable index. First build may download the embedding model
-        (~2.2 GB); later rebuilds reuse it.
+        (~2.2 GB) and, on a machine with a GPU, the reranker (~2.2 GB); later rebuilds reuse them.
         Upload new files on the files page first — there is no upload on this page.
       </div>
     </div>
@@ -155,8 +155,8 @@
       <label class="block text-xs muted mb-1"
              title="A reranker is a small cross-encoder model (separate from the embedder) that reads the query AND each candidate chunk together and outputs a relevance score. More accurate than raw embedding similarity but slower.">Reranker (cross-encoder) <span class="dim">?</span></label>
       <select id="s-reranker" aria-label="Reranker model" class="select">
-        <option value="cross-encoder/ms-marco-MiniLM-L-6-v2" selected>ms-marco-MiniLM-L-6-v2 (English, fast)</option>
-        <option value="BAAI/bge-reranker-v2-m3">bge-reranker-v2-m3 (multilingual, larger)</option>
+        <option value="BAAI/bge-reranker-v2-m3" selected>bge-reranker-v2-m3 (multilingual, most accurate; default with a GPU)</option>
+        <option value="cross-encoder/ms-marco-MiniLM-L-6-v2">ms-marco-MiniLM-L-6-v2 (English, small; default without a GPU)</option>
       </select>
     </div>
     <div class="col-span-3">
@@ -439,7 +439,7 @@
       <div class="text-xs mt-2" id="mcp-pipeline" role="status" aria-live="polite"></div>
     </fieldset>
     <div class="flex gap-4 items-center mb-2 text-xs">
-      <label class="flex items-center gap-2" title="Ship the embedding model (for meaning search) and the reranker inside, for fully offline use (~2 GB). Model weights are public and are NOT encrypted."><input id="mcp-models" type="checkbox"> Include models (not encrypted)</label>
+      <label class="flex items-center gap-2" title="Ship the embedding model (for meaning search) and the reranker inside, for fully offline use (about 0.2 GB with the small MiniLM models, about 4.5 GB with e5-large and bge-reranker-v2-m3). Model weights are public and are NOT encrypted."><input id="mcp-models" type="checkbox"> Include models (not encrypted)</label>
       <label class="flex items-center gap-2 brain-plaintext-opt" title="Off the default path. Documents and index become plain files in the archive."><input id="mcp-noenc" type="checkbox"> Export WITHOUT encryption (plaintext)</label>
     </div>
     <div class="flex gap-2 items-center">
@@ -743,6 +743,11 @@
       const reply = d.reply || d.response || '';
       box.insertAdjacentHTML('beforeend',
         '<div class="text-xs"><b>Assistant</b>: ' + esc(reply) + '</div>');
+      if (d.follow_up_searches && d.follow_up_searches.length) {
+        // The model asked for a second search before answering (a question that goes through another item).
+        box.insertAdjacentHTML('beforeend', '<div class="text-xs dim">Also searched: ' +
+          esc(d.follow_up_searches.map(function(q) { return '"' + q + '"'; }).join(', ')) + '</div>');
+      }
       if (d.sources && d.sources.length) {
         box.insertAdjacentHTML('beforeend',
           // Numbered like the answer's [n] citations (the context blocks are labelled by rank); a bare repeated list of
@@ -960,7 +965,7 @@
     var body = mcpVals();
     if (passEl.value && body.encrypt) body.passphrase = passEl.value;
     if (note) note.textContent = body.include_models
-      ? 'Building the package with the models inside (from ~170 MB for MiniLM to ~2 GB for e5-large) \u2014 this can take a minute, then the download starts.'
+      ? 'Building the package with the models inside (about 0.2 GB with the MiniLM models, about 4.5 GB with e5-large and bge-reranker-v2-m3) \u2014 this can take a few minutes, then the download starts.'
       : 'Building the package \u2014 the download starts when it is ready.';
     if (btn) btn.disabled = true;
     try {
@@ -1048,6 +1053,7 @@
       const r = await fetch('/api/projects/' + PID + '/brain/settings');
       if (!r.ok) return;
       const s = await r.json();
+      if (!s.exists && s.default_reranker) s.reranker = s.default_reranker;   // what a first build will use here
       const setVal = function(id, v) {
         const el = document.getElementById(id);
         if (!el || v == null) return;

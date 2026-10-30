@@ -67,11 +67,15 @@ A question goes through up to four layers, each one switchable:
 2. **Word search** — BM25 over the passages' words (exact identifiers, part numbers, names).
 3. **Rank fusion** — when both run, their rankings are merged by Reciprocal Rank Fusion (RRF).
 4. **Reranker** — a cross-encoder reads the question together with each of the best candidates (50 by default) and
-   re-orders them.
+   re-orders them. A new index gets bge-reranker-v2-m3 (multilingual, run in half precision) on a machine with a GPU
+   and ms-marco-MiniLM-L-6-v2 (small, English) without one.
 
 Then the **answer layer** gives the best passages to a chat model with a grounded prompt ("answer from these
 passages, cite them, say so when they do not contain the answer"). Any OpenAI-compatible endpoint works: a local
-llama.cpp server, an API, or the studio's own model.
+llama.cpp server, an API, or the studio's own model. When the passages lack a fact the question needs — typically the
+second step of "who manages the site where asset X is installed?" — the model may reply `SEARCH: <query>` instead;
+that search runs, its passages join the first ones, and the model answers (one follow-up by default, `RAG_FOLLOW_UP`
+in an exported package).
 
 ### Export
 - **Standalone package**: a self-installing directory (`install.sh`, `run-http.sh`, `run-mcp.sh`) with a small

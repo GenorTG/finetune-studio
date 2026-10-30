@@ -124,6 +124,12 @@ SETTING_HELP: dict[str, dict[str, str]] = {
         "pitfall": "Only approved pairs go in; approving or editing pairs later shows 'rebuild needed'.",
         "kb": "brain",
     },
+    "reranker": {
+        "meaning": "The cross-encoder that re-scores the retrieved candidates.",
+        "guidance": "With a GPU keep bge-reranker-v2-m3 (the default there: 89% vs 79% top-5 hits on the Quillmoor benchmark, ~0.2 s per search); without a GPU MiniLM is the default because it stays fast on a CPU.",
+        "pitfall": "bge-reranker-v2-m3 is a ~2 GB download and makes a standalone export with models that much larger.",
+        "kb": "brain",
+    },
     "rerank_enabled": {
         "meaning": "Re-score retrieved candidates with a cross-encoder.",
         "guidance": "More accurate, slower; disable for fast lookup-only use.",

@@ -10,6 +10,7 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Added
+- Smart Brain answers can make a **follow-up search**. A question that reaches its answer through another item ("who manages the site where pump X is installed?") finds the pump's row, never the site's profile; the answer model may now ask for one more search before answering. The Smart Brain chat shows it as *Also searched*, and an exported package's `/ask` and `rag_answer` do the same (`RAG_FOLLOW_UP`, 0 turns it off). On the Quillmoor benchmark (376 judged answers, API model) two-step questions went from 10 % to 46 % with the old default search and to 84 % with the new reranker.
 - **Heretic** (optional tool): remove a model's refusals properly. Heretic searches the abliteration parameters
   (Optuna) instead of applying one fixed strength, so the result stays closer to the original model's behaviour. It
   is a separate program with its own license (AGPL-3.0), installed on demand from Settings → **Heretic** (or
@@ -72,6 +73,7 @@ turns that section into the release's notes.
   way to reach it from the page), and a cancelled job shows *cancelled* instead of *error*.
 
 ### Changed
+- New Smart Brain indexes on a machine with a GPU rerank with **bge-reranker-v2-m3** (run in half precision) instead of ms-marco-MiniLM: on the Quillmoor benchmark it found the right passage in the top 5 for 89 % of questions instead of 79 % (reverse look-ups such as "which asset has serial SN…": 40/40 instead of 24/40) at about 0.2 s per search, and the API model's judged answers rose from 81.1 % to 88.4 % (96.1 % with follow-up search). Machines without a GPU keep MiniLM, which stays fast on a CPU; existing indexes keep the reranker they have (Search settings switches it, no rebuild). The reranker is a ~2.2 GB download, and a standalone export with models grows to about 4.5 GB.
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
 ### Fixed

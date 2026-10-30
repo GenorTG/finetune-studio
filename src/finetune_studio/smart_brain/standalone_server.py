@@ -26,6 +26,7 @@ Configuration precedence:  CLI flags > env (RAG_*) > rag.config.json > defaults.
     embed_base_url/RAG_EMBED_BASE_URL  embed_api_key/RAG_EMBED_API_KEY
     query_prefix/RAG_QUERY_PREFIX (prepended to the embedded query; Qwen3: "Instruct: ...\\nQuery:")
     dense_extra/RAG_DENSE_EXTRA (also return the N best passages by meaning alone)
+    follow_up/RAG_FOLLOW_UP (answers: follow-up searches the answer model may ask for, 0 = off; default 1)
     config path: --config / RAG_CONFIG / <this dir>/rag.config.json
 
 Embedding, best available source first:
@@ -74,7 +75,7 @@ DEFAULT_CONFIG: dict = {
     "embed_base_url": "", "embed_api_key": "", "query_prefix": "", "dense_extra": 0,
     "semantic": True, "keyword": True, "answer": False,
     "llm_base_url": "", "llm_model": "", "llm_api_key": "", "answer_max_tokens": 512,
-    "llm_headers": {}, "llm_body": {},
+    "llm_headers": {}, "llm_body": {}, "follow_up": 1,
 }
 ENV_KEYS = {
     "host": "RAG_HOST", "port": "RAG_PORT", "top_k": "RAG_TOP_K",
@@ -85,7 +86,7 @@ ENV_KEYS = {
     "semantic": "RAG_SEMANTIC", "keyword": "RAG_KEYWORD", "answer": "RAG_ANSWER",
     "llm_base_url": "RAG_LLM_BASE_URL", "llm_model": "RAG_LLM_MODEL", "llm_api_key": "RAG_LLM_API_KEY",
     "answer_max_tokens": "RAG_ANSWER_MAX_TOKENS",
-    "llm_headers": "RAG_LLM_HEADERS", "llm_body": "RAG_LLM_BODY",
+    "llm_headers": "RAG_LLM_HEADERS", "llm_body": "RAG_LLM_BODY", "follow_up": "RAG_FOLLOW_UP",
 }
 SECRET_KEYS = frozenset({"auth_token", "embed_api_key", "llm_api_key"})
 BOOL_KEYS = frozenset({"reranker", "semantic", "keyword", "answer"})
@@ -102,6 +103,19 @@ DEFAULT_SYSTEM_PROMPT = (
 CONTEXT_MARKER = "CONTEXT:\n"
 _BLOCK_SEP = "\n\n---\n\n"
 ANSWER_CONTEXT_CHARS = 24000
+MAX_FOLLOW_UPS = 3
+# A question that reaches its answer through another item ("who manages the site where asset X is installed?") finds
+# the first hop (X's row names the site) but never the second (that site's profile): the site is not in the question.
+# The answer model is allowed to ask for one more search instead of answering. The studio's Smart Brain chat calls
+# answer_with_follow_ups below, so both answer the same way (tests/test_brain_follow_up.py).
+FOLLOW_UP_INSTRUCTION = (
+    "If the context lacks a fact the question needs (often a second fact about something the context names but "
+    "does not describe: the question reaches it through another item, e.g. the site an asset is installed at and "
+    "then that site's manager), do not guess and do not answer yet: reply with only one line, SEARCH: followed by "
+    "a short search for the missing fact."
+)
+_SEARCH_LINE = re.compile(r"(?:^[\s*`_>#-]*|(?<=[.!?)\]])\s+[*`_]*)SEARCH:[*`_]*\s*(?P<q>[^\n]{2,300}?)[\s*`_.]*$",
+                          re.IGNORECASE | re.MULTILINE)
 _STOP = frozenset(["what", "which", "when", "where", "whom", "whose", "does", "that", "this", "with", "from", "have",
                    "about", "tell", "there", "their", "into"])
 
@@ -148,7 +162,7 @@ class ConfigError(Exception):
 
 def _coerce(key: str, value: object) -> object:
     try:
-        if key in ("port", "top_k", "dense_extra", "answer_max_tokens"):
+        if key in ("port", "top_k", "dense_extra", "answer_max_tokens", "follow_up"):
             return int(value)  # type: ignore[call-overload]
         if key == "query_prefix":   # "\n" in an env value / unit file = a newline (Qwen3: "Instruct: …\nQuery:")
             return str(value).replace("\\n", "\n")
@@ -200,6 +214,8 @@ def resolve_config(flags: Mapping[str, object], env: Mapping[str, str],
         raise ConfigError(f"dense_extra must be 0..{MAX_TOP_K}")
     if not 16 <= cfg["answer_max_tokens"] <= 32768:
         raise ConfigError("answer_max_tokens must be 16..32768")
+    if not 0 <= cfg["follow_up"] <= MAX_FOLLOW_UPS:
+        raise ConfigError(f"follow_up must be 0..{MAX_FOLLOW_UPS}")
     if not (cfg["semantic"] or cfg["keyword"]):
         raise ConfigError("meaning search and word search are both off: turn on at least one")
     cfg["llm_base_url"] = str(cfg["llm_base_url"]).rstrip("/")
@@ -429,8 +445,11 @@ class Corpus:
             return None
         try:
             from sentence_transformers import CrossEncoder
-            self._reranker = CrossEncoder(
-                str(d), device=self.device)
+            kwargs: dict = {"max_length": 512}   # the studio's own reranker reads passages the same length
+            if self.device.startswith("cuda"):   # fp16 on a GPU: ~4x faster, same ranking (scores are not stored)
+                import torch
+                kwargs["model_kwargs"] = {"torch_dtype": torch.float16}
+            self._reranker = CrossEncoder(str(d), device=self.device, **kwargs)
             print(f"[rag-server] local reranker loaded from {d}", file=sys.stderr)
         except Exception as e:  # noqa: BLE001
             self._reranker_failed = True
@@ -637,8 +656,14 @@ class Corpus:
         if not hits:
             return {"question": question, "answer": "Nothing in this corpus matches the question.",
                     "sources": [], "weak": True, "model": None}
-        messages = [{"role": "system", "content": build_system_prompt(format_context_blocks(hits))},
-                    {"role": "user", "content": question}]
+        result = answer_with_follow_ups(question, hits, lambda q: self.search(q, top_k), self._chat,
+                                        follow_ups=int(self.cfg["follow_up"]))
+        sources = [{"rank": h["rank"], "filename": h["filename"], "chunk_id": h["chunk_id"]} for h in result["hits"]]
+        return {"question": question, "answer": result["answer"], "sources": sources, "weak": weak,
+                "model": self.cfg["llm_model"], "follow_up_searches": result["follow_up_searches"]}
+
+    def _chat(self, messages: list[dict]) -> str:
+        """One completion from the configured answer model; the reply with any <think> block removed."""
         body = json.dumps({"model": self.cfg["llm_model"], "messages": messages,
                            "max_tokens": int(self.cfg["answer_max_tokens"]), "temperature": 0.2,
                            **self.cfg["llm_body"]}).encode()
@@ -657,8 +682,7 @@ class Corpus:
             raise RuntimeError(f"answer model at {self.cfg['llm_base_url']} said {e.code}: {detail}") from e
         except (urllib.error.URLError, KeyError, IndexError, ValueError, TimeoutError) as e:
             raise RuntimeError(f"answer model unavailable at {self.cfg['llm_base_url']}: {e}") from e
-        return {"question": question, "answer": strip_thinking(text), "sources": sources, "weak": weak,
-                "model": self.cfg["llm_model"]}
+        return strip_thinking(text)
 
 
 def format_context_blocks(results: list[dict], max_chars: int = ANSWER_CONTEXT_CHARS) -> str:
@@ -677,6 +701,63 @@ def format_context_blocks(results: list[dict], max_chars: int = ANSWER_CONTEXT_C
 
 def build_system_prompt(context: str) -> str:
     return f"{DEFAULT_SYSTEM_PROMPT}\n\n{CONTEXT_MARKER}{context}"
+
+
+def follow_up_query(reply: str) -> str:
+    """The search an answer model asked for (a ``SEARCH: …`` line in its reply; the last one wins), else ``""``.
+
+    Models often explain first ("X is at site Y, but the context does not name its manager.") and put the
+    search on the last line, so the line may come anywhere; a reply that asks for a search is not an answer.
+    """
+    found = _SEARCH_LINE.findall(reply or "")
+    return found[-1].strip().strip("\"'") if found else ""
+
+
+def merge_follow_up_hits(hits: list[dict], extra: list[dict]) -> list[dict]:
+    """The passages already used, interleaved with a follow-up search's new ones, ranks renumbered.
+
+    Interleaved, not appended: the context is cut at a character budget, and appended passages of the second hop
+    were the ones cut.
+    """
+    seen = {h.get("chunk_id") for h in hits}
+    new = [h for h in extra if h.get("chunk_id") not in seen]
+    merged: list[dict] = []
+    for i in range(max(len(hits), len(new))):
+        merged.extend(x[i] for x in (hits, new) if i < len(x))
+    return [{**h, "rank": rank} for rank, h in enumerate(merged, start=1)]
+
+
+def answer_with_follow_ups(question: str, hits: list[dict], search, chat, *, follow_ups: int = 1,
+                           max_chars: int = ANSWER_CONTEXT_CHARS, system_prompt: str = "",
+                           history: list[dict] | None = None) -> dict:
+    """Answer from ``hits``; the model may instead ask for up to ``follow_ups`` more searches.
+
+    ``search(query) -> hits`` and ``chat(messages) -> reply`` are the caller's (this server's search and answer
+    endpoint, or the studio's index and loaded model). ``history`` = earlier conversation turns before the question.
+    The last round never offers a search, so the model always ends with an answer.
+    Returns ``{"answer", "hits", "follow_up_searches"}``.
+    """
+    asked: list[str] = []
+    base = system_prompt or DEFAULT_SYSTEM_PROMPT
+    offering = follow_ups > 0
+    while True:
+        instructions = f"{base} {FOLLOW_UP_INSTRUCTION}" if offering else base
+        messages = [{"role": "system", "content": f"{instructions}\n\n{CONTEXT_MARKER}"
+                                                  f"{format_context_blocks(hits, max_chars=max_chars)}"},
+                    *(history or []), {"role": "user", "content": question}]
+        reply = chat(messages)
+        wanted = follow_up_query(reply) if offering else ""
+        if not wanted:
+            break
+        if wanted.lower() in {a.lower() for a in [question, *asked]}:   # nothing new to find: answer now
+            offering = False
+            continue
+        asked.append(wanted)
+        hits = merge_follow_up_hits(hits, search(wanted))
+        offering = len(asked) < follow_ups
+    if follow_up_query(reply):   # it asked for a search although none was offered: there is no answer to show
+        reply = "I could not find the answer in the documents."
+    return {"answer": reply, "hits": hits, "follow_up_searches": asked}
 
 
 def weak_match(query: str, hits: list[dict]) -> bool:

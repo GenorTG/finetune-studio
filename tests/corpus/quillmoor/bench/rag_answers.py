@@ -36,6 +36,7 @@ from finetune_studio.smart_brain.standalone_server import (
     DEFAULT_CONFIG as DEFAULTS,
 )
 from finetune_studio.smart_brain.standalone_server import (
+    answer_with_follow_ups,
     build_system_prompt,
     format_context_blocks,
     strip_thinking,
@@ -69,7 +70,8 @@ def retrieve(corpus: Path, config: str, package: Path, flags: list[str], qs: lis
 
 def answer_all(qs: list[dict], hits: dict[str, list[dict]] | None, out: Path, *, base_url: str, model: str,
                api_key: str, label: str, workers: int, client: ChatClient | None = None,
-               server_health_url: str | None = None) -> None:
+               server_health_url: str | None = None, follow_up: tuple[int, Any] | None = None) -> None:
+    """``follow_up`` = (max follow-up searches, search(query) -> hits): /ask's follow-up loop, live searches."""
     have = done_ids(out)
     lock = threading.Lock()
     server_dead = threading.Event()
@@ -77,6 +79,7 @@ def answer_all(qs: list[dict], hits: dict[str, list[dict]] | None, out: Path, *,
     def one(q: dict) -> None:
         h = hits.get(q["id"], []) if hits is not None else []
         t0, err, ans = time.time(), "", ""
+        used_hits, searches = h, []
         if hits is not None and not h:
             ans = "Nothing in this corpus matches the question."
         else:
@@ -87,12 +90,17 @@ def answer_all(qs: list[dict], hits: dict[str, list[dict]] | None, out: Path, *,
                     err = "local inference server unavailable after an earlier health-check failure"
                     break
                 try:
-                    if client is not None:   # an app API connection: its key stays in the app's vault
-                        ans = strip_thinking(client.chat(msgs, max_tokens=int(DEFAULTS["answer_max_tokens"]), temperature=0.2,
-                                                         timeout=180))
+                    def complete(messages: list[dict[str, Any]]) -> str:
+                        if client is not None:   # an app API connection: its key stays in the app's vault
+                            return strip_thinking(client.chat(messages, max_tokens=int(DEFAULTS["answer_max_tokens"]),
+                                                              temperature=0.2, timeout=180))
+                        return strip_thinking(chat(base_url, messages, model=model, api_key=api_key,
+                                                   max_tokens=int(DEFAULTS["answer_max_tokens"]), extra={"temperature": 0.2}))
+                    if follow_up is not None and hits is not None:
+                        result = answer_with_follow_ups(q["question"], h, follow_up[1], complete, follow_ups=follow_up[0])
+                        ans, used_hits, searches = result["answer"], result["hits"], result["follow_up_searches"]
                     else:
-                        ans = strip_thinking(chat(base_url, msgs, model=model, api_key=api_key,
-                                                  max_tokens=int(DEFAULTS["answer_max_tokens"]), extra={"temperature": 0.2}))
+                        ans = complete(msgs)
                     if not ans.strip():
                         raise RuntimeError("model returned an empty answer")
                     err = ""
@@ -111,8 +119,10 @@ def answer_all(qs: list[dict], hits: dict[str, list[dict]] | None, out: Path, *,
                     time.sleep(3 * (attempt + 1))
         rec = {"id": q["id"], "type": q["type"], "question": q["question"], "key": q["answer"], "accept": q["accept"],
                "wrong": q["wrong"], "formats": q["formats"], "etype": q["etype"], "attr": q["attr"], "answer": ans,
-               "sources": [x.get("filename") for x in h], "error": err, "latency": round(time.time() - t0, 3),
+               "sources": [x.get("filename") for x in used_hits], "error": err, "latency": round(time.time() - t0, 3),
                "label": label, "mode": "rag" if hits is not None else "closed"}
+        if follow_up is not None:
+            rec["follow_up_searches"] = searches
         with lock, open(out, "a") as fh:
             fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
 
@@ -137,6 +147,8 @@ def main() -> int:
                     help="llama-server prompt context per parallel slot (default: 8192)")
     ap.add_argument("--limit", type=int, default=0, help="first N questions only (smoke tests)")
     ap.add_argument("--closed", action="store_true", help="no retrieval: the --connection models answer alone")
+    ap.add_argument("--follow-up", type=int, default=0,
+                    help="answers may ask for this many follow-up searches (/ask's follow_up), run live on the package")
     a = ap.parse_args()
     corpus = Path(a.corpus)
     qs = subset(load_jsonl(corpus / "eval" / "questions.jsonl"), 140, 60)
@@ -153,33 +165,48 @@ def main() -> int:
         return 0
     hits = retrieve(corpus, a.config, Path(a.package).expanduser(), a.flags, qs)
     hits.pop("_mode", None)
+    follow_up = None
+    if a.follow_up:
+        package = Path(a.package).expanduser()
+        pkg = package if (package / "server.py").exists() else next(p for p in package.iterdir() if p.is_dir())
+        server, base = start_server(pkg, a.flags, ROOT / ".tmp" / "bench" / f"server-rag-{a.config}-follow-up.log")
+
+        def live_search(query: str) -> list[dict]:
+            r = httpx.post(f"{base}/search", json={"query": query}, timeout=300)
+            r.raise_for_status()
+            return r.json()["hits"]
+        follow_up = (a.follow_up, live_search)
+    suffix = f"-fu{a.follow_up}" if a.follow_up else ""
     for spec in a.model:
         label, _, path = spec.partition("=")
-        f = out_dir / f"{label}__rag-{a.config}.jsonl"
+        f = out_dir / f"{label}__rag-{a.config}{suffix}.jsonl"
         t0 = time.time()
         with llama_server(Path(path).expanduser(), ctx_per_slot=a.ctx_per_slot, parallel=a.workers,
                           log=ROOT / ".tmp" / "bench" / f"llama-{label}-rag.log") as url:
             health_url = f"{url.removesuffix('/v1')}/health"
             answer_all(qs, hits, f, base_url=url, model="local", api_key="", label=label, workers=a.workers,
-                       server_health_url=health_url)
+                       server_health_url=health_url, follow_up=follow_up)
         print(f"[{label}] {len(qs)} RAG answers in {time.time() - t0:.0f}s", flush=True)
         print(judge_files([f]), flush=True)
         print(f.stem, json.dumps(score(load_jsonl(f))), flush=True)
     for spec in a.api:
         label, _, rest = spec.partition("=")
         url, model, keyfile = (rest.split("|") + ["", ""])[:3]
-        f = out_dir / f"{label}__rag-{a.config}.jsonl"
+        f = out_dir / f"{label}__rag-{a.config}{suffix}.jsonl"
         key = Path(keyfile).read_text().strip() if keyfile else ""
-        answer_all(qs, hits, f, base_url=url, model=model, api_key=key, label=label, workers=8)
+        answer_all(qs, hits, f, base_url=url, model=model, api_key=key, label=label, workers=8, follow_up=follow_up)
         print(judge_files([f]), flush=True)
         print(f.stem, json.dumps(score(load_jsonl(f))), flush=True)
     for spec in a.connection:
         from finetune_studio.models.assistant import connection_client
         label, _, conn = spec.partition("=")
-        f = out_dir / f"{label}__rag-{a.config}.jsonl"
-        answer_all(qs, hits, f, base_url="", model="", api_key="", label=label, workers=8, client=connection_client(conn))
+        f = out_dir / f"{label}__rag-{a.config}{suffix}.jsonl"
+        answer_all(qs, hits, f, base_url="", model="", api_key="", label=label, workers=8, client=connection_client(conn),
+                   follow_up=follow_up)
         print(judge_files([f]), flush=True)
         print(f.stem, json.dumps(score(load_jsonl(f))), flush=True)
+    if follow_up is not None:
+        stop(server)
     return 0
 
 
