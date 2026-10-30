@@ -387,7 +387,7 @@ connecting to embedding vectors in real time.
 
 ![Smart Brain](docs/screenshots/06_brain.png)
 
-### Training — step 3 (`/projects/{pid}/training`)
+### Training — step 2 (`/projects/{pid}/training`)
 
 Configure an adapter run, watch loss curves live. Base-model and preset
 pickers recommend rank/LR/epochs from your base size and dataset size. Each
@@ -398,7 +398,7 @@ the GPU or the CPU.
 
 ![Training](docs/screenshots/07_training.png)
 
-### Testing — step 4 (`/projects/{pid}/testing`)
+### Testing — step 3 (`/projects/{pid}/testing`)
 
 Did it learn *your* material? A test is two separate steps. **Run** asks the
 model every question (auto-generated project suites cover **every row** of the
@@ -413,7 +413,7 @@ start by itself after each run if you tick that box (off by default).
 
 ![Testing](docs/screenshots/10_testing.png)
 
-### Models — step 5 (`/projects/{pid}/models`)
+### Models — step 4, use it (`/projects/{pid}/models`)
 
 Every trained export from every run, in a 7-column table (Name / Format /
 Size / Source run / Created / Copy path / Actions). Click any row's name
@@ -423,7 +423,7 @@ directory listing. ▶ Open in inference jumps straight to chat.
 
 ![Models](docs/screenshots/08_models.png)
 
-### Export (`/projects/{pid}/export`)
+### Export — step 4, use it (`/projects/{pid}/export`)
 
 Pick a run, pick a format, hit RUN. Supported formats today:
 
