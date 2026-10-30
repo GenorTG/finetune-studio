@@ -202,6 +202,28 @@ not representative and does not support an error-rate estimate. Taken together, 
 in recall accompanied by catastrophic loss of held-out abstention for this recipe and synthetic task. Section 9 traces the low recall to the recipe's 4 passes per fact (12 passes reach 97 %). They do not prove
 SFT is ineffective in general, but this result is not a releasable quality claim.
 
+### 6.1 Llama 3.2 3B preset-tier follow-up (2026-10-30)
+
+Four app-advised runs on the same 4,306-row S dataset isolate the effect of training duration. Each evaluation used the
+same 431 trained facts and 431 held-out facts, one question per fact. The corrected Precision run used the advisor's
+12 epochs / rank 128 / α256 recipe, completed 2,916/2,916 optimizer steps in 1,218.7 s (trainer-reported; 1,302 s
+wall-clock in the run log), final loss 0.0004, and exported a 3.42 GB q8_0 GGUF. Its closed evaluation completed with
+862/862 answers and judgments, zero judge errors, and zero train/validation fact overlap.
+
+| Preset run | Epochs | Rank | Seen pass | Seen weighted | Held-out correct abstention | Overall pass / weighted |
+|---|---:|---:|---:|---:|---:|---:|
+| Balanced (original, tier-balanced) | 6 | 32 | 5.80% | 6.26% | 0.00% | 2.90% / 3.13% |
+| Balanced (fixed, tier-balanced-fixed) | 6 | 32 | 69.84% | 70.77% | 0.00% | 34.92% / 35.38% |
+| Precision (earlier, tier-precision) | 4 | 128 | 26.68% | 27.38% | 0.00% | 13.34% / 13.69% |
+| Precision (corrected, tier-precision-12) | 12 | 128 | **100.00%** | **100.00%** | **0.00%** | **50.00% / 50.00%** |
+
+The 12-epoch Precision result is a strong seen-fact recall gain, not a model-quality win: it answers every held-out fact
+incorrectly instead of abstaining. Overall pass is exactly half because the evaluation is balanced between seen and
+held-out examples. It confirms memorization under this recipe; it does not establish useful generalization. These
+synthetic-task, AI-judge results are not customer-data accuracy claims. Run artifacts are in
+.tmp/quillmoor/s/results/{finetune,sft-facts}/ (git-ignored); the terminal training/evaluation trace is
+.tmp/diag/tier-precision-12.log.
+
 ## 7. Scope and limitations
 
 These scores apply to the deterministic synthetic Quillmoor files, fixed prompts, tested model versions, and this
