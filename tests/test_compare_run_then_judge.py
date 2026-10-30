@@ -9,6 +9,8 @@ are faked (tests/testing_run_support.py); the jobs, the DB rows and the routes a
 from __future__ import annotations
 
 import json
+import re
+import threading
 import time
 from pathlib import Path
 
@@ -269,6 +271,43 @@ def test_group_cancel_route_and_busy_gpu(
     assert len(session.list_groups(pid)) == 1  # the refused request left no rows behind
 
 
+def test_stopping_group_judging_keeps_in_flight_verdicts_and_marks_group_cancelled(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, _isolated: dict[str, object],
+) -> None:
+    pid = _project(client)
+    _engine(monkeypatch, _isolated)
+    started = threading.Event()
+    release = threading.Event()
+    lock = threading.Lock()
+    calls: list[str] = []
+
+    def block_judge(question: str) -> None:
+        with lock:
+            calls.append(question)
+            if len(calls) == 4:
+                started.set()
+        assert release.wait(timeout=5)
+
+    install_judge(monkeypatch, concurrent=True, on_chat=block_judge)
+    gid = _start(client, pid, _suite(tmp_path, 8))['group_id']
+    _finished(client, pid, gid)
+    rows = session.group_rows(pid, gid)
+    provider = _api_provider()
+    response = client.post(f"{API}/{pid}/groups/{gid}/judge", json={"provider_id": provider})
+    assert response.status_code == 202, response.text
+    assert started.wait(timeout=5), "the first API judge wave did not start"
+
+    cancelled = client.post(f"{API}/{pid}/groups/{gid}/cancel")
+    assert cancelled.status_code == 200, cancelled.text
+    release.set()
+
+    view = _finished(client, pid, gid, judge=True)
+    assert view["status"]["judge"] == "cancelled"
+    assert len(calls) == 4  # no further API judge calls were submitted after Stop
+    assert sum(row["scores"]["judged"] for row in view["models"]) == 4
+    assert all(db.get_benchmark(row["id"])["judge_status"] == "cancelled" for row in rows)
+
+
 # ── input validation ─────────────────────────────────────────────────────────
 
 
@@ -363,6 +402,11 @@ def test_compare_page_renders_and_is_in_the_project_nav(client: TestClient, tmp_
     assert r.status_code == 200
     for needle in ('id="cp-run-btn"', 'id="cp-suite"', 'id="cp-models"', 'id="cp-judge-btn"', 'id="cp-cases"', "Nothing is scored by string matching"):
         assert needle in r.text, needle
+    assert "Stopping after current judge calls finish…" in r.text
+    assert "Judging stopped. Verdicts so far are kept." in r.text
+    assert "Comparison stopped. Answers saved so far are kept." in r.text
+    assert "window.fts.notify(" in r.text
+    assert re.search(r"(?<![.\w])notify\(", r.text) is None
     assert f'href="/projects/{pid}/testing"' in r.text and 'data-tab="compare"' in r.text
     assert client.get("/projects/nope/compare").status_code == 404
 

@@ -170,7 +170,7 @@
       await open(r.group_id);
     } catch (e) {
       $('cp-run-msg').textContent = '';
-      notify('Could not start the comparison: ' + e.message, 'error');
+      window.fts.notify('Could not start the comparison: ' + e.message, 'error');
     } finally { syncRunBtn(); }
   });
 
@@ -184,7 +184,9 @@
           const done = g.models.reduce(function(n, m) { return n + (m.progress_done || 0); }, 0);
           const total = g.models.reduce(function(n, m) { return n + (m.progress_total || 0); }, 0);
           const state = g.status.run === 'running' ? 'answering ' + done + '/' + total
-            : g.status.judge === 'running' ? 'judging…' : g.status.run;
+            : g.status.judge === 'running' ? 'judging…'
+            : g.status.judge === 'cancelled' ? 'judging stopped'
+            : g.status.run === 'cancelled' ? 'stopped' : g.status.run;
           const modelState = function(m) {
             if (m.status === 'running') return 'answering ' + (m.progress_done || 0) + '/' + (m.progress_total || 0);
             if (m.status === 'queued') return 'queued';
@@ -196,7 +198,10 @@
         }).join('') + '</tbody></table>'
         : '<div class="empty small">No comparisons yet. Pick models and a quiz above.</div>';
       $('cp-groups').querySelectorAll('[data-open]').forEach(function(b) { b.addEventListener('click', function() { open(b.getAttribute('data-open')); }); });
-    } catch (e) { $('cp-groups').innerHTML = '<div class="empty small">Could not load comparisons: ' + esc(e.message) + '</div>'; }
+    } catch (e) {
+      $('cp-groups').innerHTML = '<div class="empty small">Could not load comparisons: ' + esc(e.message) + '</div>';
+      window.fts.notify('Could not load comparisons: ' + e.message, 'error');
+    }
   }
 
   // ── side-by-side view ──
@@ -211,7 +216,7 @@
     if (!S.gid) return;
     clearTimeout(S.timer);
     try { S.view = await jreq('GET', API + '/groups/' + encodeURIComponent(S.gid)); }
-    catch (e) { notify('Could not load the comparison: ' + e.message, 'error'); return; }
+    catch (e) { window.fts.notify('Could not load the comparison: ' + e.message, 'error'); return; }
     render();
     const busy = S.view.status.run === 'running' || S.view.status.judge === 'running';
     if (busy) S.timer = setTimeout(refresh, 2000);
@@ -226,7 +231,9 @@
     $('cp-stop-btn').hidden = !(running || judging);
     $('cp-judge-btn').disabled = $('cp-judge-redo').disabled = running || judging;
     const err = v.models.filter(function(m) { return m.error || m.judge_error; });
-    $('cp-job-msg').textContent = err.map(function(m) { return m.label + ': ' + (m.error || m.judge_error); }).join(' · ');
+    const stopped = v.status.judge === 'cancelled' ? 'Judging stopped. Verdicts so far are kept.'
+      : v.status.run === 'cancelled' ? 'Comparison stopped. Answers saved so far are kept.' : '';
+    $('cp-job-msg').textContent = err.map(function(m) { return m.label + ': ' + (m.error || m.judge_error); }).join(' · ') || stopped;
     const cols = 'repeat(' + v.models.length + ', minmax(0, 1fr))';
     $('cp-sum').style.gridTemplateColumns = cols;
     $('cp-sum').innerHTML = v.models.map(function(m) {
@@ -279,7 +286,7 @@
     try {
       await jreq('PUT', TEST + '/runs/' + encodeURIComponent(bid) + '/cases/' + encodeURIComponent(cid) + '/verdict', { verdict: verdict, reasoning: '' });
       await refresh();
-    } catch (e) { notify('Could not save the verdict: ' + e.message, 'error'); }
+    } catch (e) { window.fts.notify('Could not save the verdict: ' + e.message, 'error'); }
   }
   $('cp-filter').querySelectorAll('[data-f]').forEach(function(b) {
     b.addEventListener('click', function() {
@@ -292,13 +299,18 @@
     try {
       await jreq('POST', API + '/groups/' + encodeURIComponent(S.gid) + '/judge', { provider_id: $('cp-judge').value, only_unjudged: onlyUnjudged });
       await refresh();
-    } catch (e) { notify('Could not start judging: ' + e.message, 'error'); }
+    } catch (e) { window.fts.notify('Could not start judging: ' + e.message, 'error'); }
   }
   $('cp-judge-btn').addEventListener('click', function() { judge(true); });
   $('cp-judge-redo').addEventListener('click', function() { judge(false); });
   $('cp-stop-btn').addEventListener('click', async function() {
-    try { await jreq('POST', API + '/groups/' + encodeURIComponent(S.gid) + '/cancel'); await refresh(); }
-    catch (e) { notify('Could not stop: ' + e.message, 'error'); }
+    try {
+      const judging = S.view && S.view.status.judge === 'running';
+      await jreq('POST', API + '/groups/' + encodeURIComponent(S.gid) + '/cancel');
+      window.fts.notify(judging ? 'Stopping after current judge calls finish…' : 'Stopping after current model answer finishes…', 'info');
+      await refresh();
+    }
+    catch (e) { window.fts.notify('Could not stop: ' + e.message, 'error'); }
   });
 
   syncRunBtn();

@@ -10,6 +10,7 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Fixed
+- Compare: Stop now confirms it is stopping, then leaves a clear “stopped; saved work is kept” status after a run or judge cancellation.
 - Testing: stopping parallel API judging now lets only already-running judge calls finish; it no longer queues the rest of the answers, and the page says what it is waiting for.
 
 ### Added
