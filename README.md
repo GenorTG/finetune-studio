@@ -434,8 +434,8 @@ Pick a run, pick a format, hit RUN. Supported formats today:
   otherwise the API fails with a clear install hint. Optional
   **importance matrix** measured on the run's own training data (better
   q4/q3/q2 quality at the same file size)
-- **abliterated** — optional refusal-direction edit of a merged checkpoint. Heretic integration is planned and owned by
-  a separate implementation agent; the current implementation has not yet been verified end to end on a real model.
+- **Abliterated** — the built-in refusal-direction edit of a merged checkpoint.
+- **Heretic** — a separate optional export format that uses the Heretic tool to search for a refusal-direction edit while keeping the model closer to its original behaviour. It is shipped alongside Abliterated, not a replacement for it; the real Export API path has been run end to end. Heretic is installed on demand from Settings and has its own AGPL-3.0 license.
 
 The trained-exports table uses the same expand-row pattern as Models —
 click a row to inspect its contents, then ▶ Open in inference.
@@ -531,10 +531,11 @@ Python 3.12; the package also accepts 3.13, which is not tested.
   for on-demand server logs.
 - **Inference:** HuggingFace Transformers for safetensors / LoRA merges;
   llama.cpp (via `llama-cpp-python`) for GGUF when available.
-- **Export:** merged safetensors, and GGUF (plain or with an importance
-  matrix) when the llama.cpp tools are on the host; the optional Abliterated export is being rebuilt around Heretic
-  and is not yet verified end to end. Missing tools return clear errors instead
-  of fake success.
+- **Export:** merged safetensors, GGUF (plain or with an importance
+  matrix) when the llama.cpp tools are on the host, plus separate built-in
+  Abliterated and optional Heretic formats. Heretic has completed an end-to-end
+  run through the real Export API; it is installed on demand. Missing tools
+  return clear errors instead of fake success.
 - **Testing:** the Playwright route suite `tests/e2e_ui_qa.py` is non-mutating;
   the Guide flow `tests/e2e_guide_sandbox.py` runs against its own fake helper
   and temporary database. Both have a real-browser path. Other live E2E

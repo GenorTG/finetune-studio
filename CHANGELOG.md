@@ -75,6 +75,7 @@ turns that section into the release's notes.
   way to reach it from the page), and a cancelled job shows *cancelled* instead of *error*.
 
 ### Changed
+- README now distinguishes the built-in Abliterated export from the separately shipped, optional Heretic format and records the verified Heretic Export API path.
 - Training preset advisor: datasets larger than the ~500-example reference keep each tier's planned epochs instead of silently shrinking passes per fact; small datasets still scale up to reach useful optimizer-step counts. See the Quillmoor results for the measured recall/abstention trade-off.
 - New Smart Brain indexes on a machine with a GPU rerank with **bge-reranker-v2-m3** (run in half precision) instead of ms-marco-MiniLM: on the Quillmoor benchmark it found the right passage in the top 5 for 89 % of questions instead of 79 % (reverse look-ups such as "which asset has serial SN…": 40/40 instead of 24/40) at about 0.2 s per search, and the API model's judged answers rose from 81.1 % to 88.4 % (96.1 % with follow-up search). Machines without a GPU keep MiniLM, which stays fast on a CPU; existing indexes keep the reranker they have (Search settings switches it, no rebuild). The reranker is a ~2.2 GB download, and a standalone export with models grows to about 4.5 GB.
 - The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
