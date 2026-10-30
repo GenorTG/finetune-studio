@@ -132,29 +132,15 @@ async def delete_project(pid: str):
     leaving the actual data behind — found while a 121GB cleanup turned up
     three "deleted" projects whose files were all still resident.
     """
+    from finetune_studio.project_lifecycle import delete_project as delete_project_data
+
+    # Validate the path resource before any other work; missing projects are 404.
     missing = _project_404(pid)
     if missing is not None:
         return missing
-    db.delete_project(pid)
-
-    import shutil
-    from pathlib import Path
-
-    from finetune_studio.config import settings
-    from finetune_studio.data.fs.paths import brain_index_dir
-    from finetune_studio.data.fs.paths import root as fts_root
-
-    def _remove_dirs() -> None:
-        for project_dir in (
-            fts_root() / "projects" / pid,
-            Path(settings.db_path).parent / "projects" / pid,
-            Path("output") / "projects" / pid,
-            brain_index_dir(pid),
-        ):
-            shutil.rmtree(project_dir, ignore_errors=True)
-
-    # Project dirs can hold gigabytes of weights: never rmtree on the loop.
-    await asyncio.to_thread(_remove_dirs)
+    deleted = await asyncio.to_thread(delete_project_data, pid)
+    if not deleted:
+        return _project_404(pid)
 
     # The deleted project's trained exports stay in the model registry (and the
     # model pickers) until the next rescan — drop them now.

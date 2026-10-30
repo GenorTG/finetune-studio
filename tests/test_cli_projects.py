@@ -1,6 +1,7 @@
 """Project lifecycle commands for the local `fts` CLI."""
 from __future__ import annotations
 
+import io
 import json
 import sys
 
@@ -8,6 +9,7 @@ import pytest
 
 from finetune_studio import db
 from finetune_studio.cli import _registry
+from finetune_studio.cli.commands import projects as project_commands
 
 
 def run_cli(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str],
@@ -102,3 +104,85 @@ def test_projects_help_describes_supported_commands(monkeypatch, capsys):
     code, create_help, err = run_cli(monkeypatch, capsys, "projects", "create", "--help")
     assert code == 0 and not err
     assert "--name" in create_help and "--allow-duplicate" in create_help
+
+
+def test_projects_delete_requires_explicit_confirmation_without_tty(monkeypatch, capsys):
+    project = db.create_project("Keep me")
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+
+    code, out, err = run_cli(monkeypatch, capsys, "projects", "delete", project["id"])
+
+    assert code == 1 and not out
+    assert "requires --yes" in err
+    assert db.get_project(project["id"]) is not None
+
+
+def test_projects_delete_prompt_can_cancel_without_mutation(monkeypatch, capsys):
+    project = db.create_project("Keep me")
+
+    class TerminalInput(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setattr(sys, "stdin", TerminalInput("no\n"))
+    code, out, err = run_cli(monkeypatch, capsys, "projects", "delete", project["name"])
+
+    assert code == 0 and not err
+    assert "Cancelled." in out
+    assert db.get_project(project["id"]) is not None
+
+
+def test_projects_delete_json_cancel_is_machine_readable(monkeypatch, capsys):
+    project = db.create_project("Keep me")
+
+    class TerminalInput(io.StringIO):
+        def isatty(self) -> bool:
+            return True
+
+    monkeypatch.setattr(sys, "stdin", TerminalInput("n\n"))
+    code, out, err = run_cli(monkeypatch, capsys, "projects", "delete", project["id"], "--json")
+
+    assert code == 0 and "Delete project" in err
+    assert json.loads(out) == {"ok": False, "cancelled": True}
+    assert db.get_project(project["id"]) is not None
+
+
+def test_projects_delete_yes_removes_all_project_data_and_refreshes_registry(
+    monkeypatch, capsys, mock_settings, tmp_path,
+):
+    from pathlib import Path
+
+    from finetune_studio.data.fs import paths as fts_paths
+
+    monkeypatch.chdir(tmp_path)
+    fts_root = tmp_path / "fts-home"
+    monkeypatch.setattr(fts_paths, "_ROOT", fts_root)
+    monkeypatch.setattr(fts_paths, "_PROJECTS", fts_root / "projects")
+    project = db.create_project("Disposable project")
+    project_dirs = (
+        fts_root / "projects" / project["id"],
+        Path(mock_settings.db_path).parent / "projects" / project["id"],
+        tmp_path / "output" / "projects" / project["id"],
+        fts_paths.brain_index_dir(project["id"]),
+    )
+    for directory in project_dirs:
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / "owned.txt").write_text("disposable")
+    invalidations: list[str] = []
+    monkeypatch.setattr(project_commands, "_invalidate_model_registry", lambda: invalidations.append("invalidate"))
+
+    code, out, err = run_cli(monkeypatch, capsys, "projects", "delete", project["id"], "--yes", "--json")
+
+    assert code == 0 and not err
+    payload = json.loads(out)
+    assert payload["ok"] is True
+    assert payload["project"]["id"] == project["id"]
+    assert db.get_project(project["id"]) is None
+    assert all(not directory.exists() for directory in project_dirs)
+    assert invalidations == ["invalidate"]
+
+
+def test_projects_delete_help_documents_confirmation(monkeypatch, capsys):
+    code, out, err = run_cli(monkeypatch, capsys, "projects", "delete", "--help")
+    assert code == 0 and not err
+    assert "--yes" in out and "--json" in out

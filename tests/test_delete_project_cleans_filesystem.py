@@ -14,6 +14,11 @@ from pathlib import Path
 
 
 class TestDeleteProjectCleansFilesystem:
+    def test_delete_missing_project_returns_404(self, client):
+        response = client.delete("/api/projects/00000000")
+        assert response.status_code == 404
+        assert response.json()["detail"] == "project not found"
+
     def test_delete_removes_all_three_on_disk_trees(
         self, client, mock_settings, monkeypatch, tmp_path,
     ):
@@ -29,6 +34,10 @@ class TestDeleteProjectCleansFilesystem:
         fts_project_dir = fts_root / "projects" / pid / "files" / "raw"
         fts_project_dir.mkdir(parents=True)
         (fts_project_dir / "original.txt").write_text("raw upload")
+
+        brain_index = fts_paths.brain_index_dir(pid)
+        brain_index.mkdir(parents=True)
+        (brain_index / "index.json").write_text("{}")
 
         data_project_dir = Path(mock_settings.db_path).parent / "projects" / pid / "datasets"
         data_project_dir.mkdir(parents=True)
@@ -56,6 +65,7 @@ class TestDeleteProjectCleansFilesystem:
             assert not (Path("output") / "projects" / pid).exists(), (
                 "output/projects/<pid>/ must be removed"
             )
+            assert not brain_index.exists(), "the project's Brain index must be removed"
             assert db.get_project(pid) is None
         finally:
             import shutil

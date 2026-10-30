@@ -8,6 +8,7 @@ no-cache static mount, and every router include. Also owns the process-wide
 that route modules import lazily from here.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -233,6 +234,20 @@ def _activity_kind(path: str) -> str:
     if "/system-update" in p or "/system/" in p:
         return "system_update"
     return "operation"
+
+
+@app.middleware("http")
+async def refresh_invalidated_model_registry(request: Request, call_next):
+    """Observe CLI-originated model-list changes before any route renders models."""
+    from finetune_studio.models.registry_invalidation import read_generation
+    from finetune_studio.webui.routes import models as model_routes
+
+    if read_generation() > model_routes._registry_generation:
+        try:
+            await asyncio.to_thread(model_routes.refresh_model_registry_if_invalidated)
+        except Exception:  # noqa: BLE001 — a stale model list must not take down unrelated routes
+            _log.exception("Model registry refresh after external invalidation failed")
+    return await call_next(request)
 
 
 @app.middleware("http")

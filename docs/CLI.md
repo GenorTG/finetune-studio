@@ -7,7 +7,7 @@ server unless their help says otherwise.
 
 ## Projects
 
-List, inspect, and create projects from a terminal:
+List, inspect, create, and delete projects from a terminal:
 
 ```bash
 fts projects list
@@ -17,6 +17,8 @@ fts projects show <project-id> --json
 fts projects create --name "Maintenance notes" \
   --description "Equipment manuals and maintenance procedures" \
   --base-model /path/to/base-model
+fts projects delete "Maintenance notes"  # asks for confirmation
+fts projects delete <project-id> --yes --json
 ```
 
 - `list` shows each project's name, id, and base model. With `--json`, it
@@ -27,10 +29,15 @@ fts projects create --name "Maintenance notes" \
 - `create` requires a non-empty `--name`; description, base model, and system
   prompt are optional. Existing names are rejected case-insensitively unless
   `--allow-duplicate` is provided.
-- All three commands accept `--json` for machine-readable output.
+- `delete` accepts an id or name and removes the project record, file library,
+  datasets, Brain index, run outputs, and exported models. It asks for explicit
+  confirmation on a terminal; scripts must pass `--yes`. `--json` returns the
+  deleted project's id and name. A missing project exits nonzero without changing data.
+- `list`, `show`, `create`, and `delete` accept `--json` for machine-readable output.
 
-The same records appear on the WebUI's **Projects** page. Project data remains
-in the configured local Finetune Studio data directory.
+The same records and deletion behavior are available on the WebUI's **Projects**
+page. Deletion is permanent and removes that project's stored data from the
+configured local Finetune Studio data directory and output directory.
 
 ## Files
 
