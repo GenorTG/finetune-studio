@@ -201,3 +201,18 @@ def test_data_page_renders_v2_controls(client) -> None:
                    "fb-usage-modal", "fb-bulk-zip", "fb-bulk-tag", "fb-bulk-reparse",
                    "fb-trash-retention", "fb-content-results"):
         assert marker in html, marker
+
+
+def test_empty_file_filter_refreshes_pagination_count() -> None:
+    template = (
+        Path(__file__).resolve().parents[1]
+        / "src"
+        / "finetune_studio"
+        / "webui"
+        / "templates"
+        / "project_data.html"
+    ).read_text(encoding="utf-8")
+    render = template.split("function renderTable()", 1)[1].split("function ", 1)[0]
+    empty_branch = render.split("if (!rows.length) {", 1)[1].split("return;", 1)[0]
+
+    assert "updatePageBar();" in empty_branch
