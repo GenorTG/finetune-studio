@@ -24,7 +24,7 @@ SETTING_HELP: dict[str, dict[str, str]] = {
     },
     "num_epochs": {
         "meaning": "How many passes over the whole training set.",
-        "guidance": "Think in optimizer steps: steps = pairs × epochs ÷ (batch size × gradient accumulation). Tier floors: Baseline 400, Precision 700, Overkill 1000. Small datasets need more epochs, big ones fewer (the advisor scales by √(500 ÷ pairs)).",
+        "guidance": "For facts, count passes: each epoch shows every fact once, and recall needs many passes (4,306 facts: 4 passes recalled 12.5 %, 12 passes 97 %). Small datasets get extra epochs to clear the tier's optimizer-step floor (Baseline 400, Precision 700, Overkill 1000); large ones keep the tier's epochs (Baseline 6, Precision 12), so a big dataset is a long run.",
         "pitfall": "Raising epochs on a tiny dataset reaches the step floor by memorising, not learning; add data instead.",
         "kb": "training-settings",
     },

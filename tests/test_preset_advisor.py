@@ -88,3 +88,17 @@ def test_missing_dataset_falls_back_to_reference(tmp_path) -> None:
 def test_invalid_tier_raises() -> None:
     with pytest.raises(ValueError):
         propose(tier="bogus", base_model_ref="Qwen3-4B")
+
+
+def test_large_dataset_keeps_the_tier_epochs() -> None:
+    """Every fact needs its passes however many facts there are (Quillmoor S, 4,306 facts, Llama 3.2 3B): epochs shrunk
+    by sqrt(500/pairs) left Balanced at 2 epochs = 5.8 % recall of the trained facts and Precision at 4 = 26.7 %."""
+    balanced = propose(tier="balanced", base_model_ref="Llama-3.2-3B", pair_count_hint=4306)
+    precision = propose(tier="precision", base_model_ref="Llama-3.2-3B", pair_count_hint=4306)
+    assert balanced.num_epochs == 6
+    assert precision.num_epochs == 12
+    assert precision.optimizer_steps == 4306 * 12 // precision.effective_batch
+
+
+def test_small_dataset_still_gets_more_epochs_than_the_anchor() -> None:
+    assert propose(tier="balanced", base_model_ref="Qwen3-4B", pair_count_hint=125).num_epochs > 6

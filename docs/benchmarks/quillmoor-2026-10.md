@@ -210,6 +210,27 @@ with the judge on 12 and found contradictions/over-crediting; it is not represen
 human-graded. The measurements therefore show a real recall/abstention trade-off for this recipe on this synthetic task,
 not that fine-tuning is generally ineffective or that the outputs meet customer-data quality requirements.
 
+#### Preset-tier follow-up: more epochs improved recall, not generalization
+
+On 2026-10-30, the Llama 3.2 3B SFT runs were repeated against the same 431 trained and 431 held-out facts after
+finding that the advisor's dataset-size scaling reduced epochs on large datasets. The corrected Precision setting
+(12 epochs, LoRA rank 128 / α256, batch 8 × 2, max sequence length 256) completed all 2,916 steps in 1,218.7 s,
+finished at loss 0.0004, and exported successfully. Its closed evaluation judged all 862 answers with full coverage,
+zero judge errors, and zero split overlap.
+
+| Run | Epochs / rank | Seen-fact pass | Held-out correct abstention | Overall pass / weighted score |
+|---|---:|---:|---:|---:|
+| Balanced, original | 6 / 32 | 5.80% | 0.00% | 2.90% / 3.13% |
+| Balanced, fixed | 6 / 32 | 69.84% | 0.00% | 34.92% / 35.38% |
+| Precision, earlier | 4 / 128 | 26.68% | 0.00% | 13.34% / 13.69% |
+| Precision, corrected | 12 / 128 | **100.00%** | **0.00%** | **50.00% / 50.00%** |
+
+The corrected run memorized the trained facts and failed to abstain correctly on every held-out fact. Its 50% overall
+pass is the balanced average of those outcomes, not evidence of generalized answer quality. All results remain
+synthetic-corpus, automated-judge measurements; the existing 12/19 stratified judge audit remains an important
+limitation. Per-run records and the trace are retained locally under .tmp/quillmoor/s/results/ and
+.tmp/diag/tier-precision-12.log.
+
 ### 4.3 What this establishes—and does not
 
 These are reproducible product-path measurements on generated, mechanically keyed documents. They establish parsing,
