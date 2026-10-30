@@ -448,6 +448,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_uc_ab.add_argument("--judge-provider", default="", help="Judge provider id; defaults to Testing settings")
     p_uc_ab.add_argument("--json", action="store_true", help="Output A/B job state as JSON")
 
+    # ── compute device ──
+    p_compute = sub.add_parser("compute-device", help="Show or save the device used at the next app start")
+    compute_sub = p_compute.add_subparsers(dest="compute_device_action", required=True)
+    p_compute_show = compute_sub.add_parser("show", help="Show detected devices and the saved/effective choice")
+    p_compute_show.add_argument("--json", action="store_true", help="Output the device report as JSON")
+    p_compute_set = compute_sub.add_parser("set", help="Save auto, CPU, or one GPU for the next app start")
+    p_compute_set.add_argument("mode", choices=("auto", "cpu", "gpu"))
+    p_compute_set.add_argument("--device-id", help="GPU id from `fts compute-device show` (required for gpu)")
+    p_compute_set.add_argument("--json", action="store_true", help="Output the saved device report as JSON")
+
     # ── assistant settings ──
     p_assistant = sub.add_parser("assistant", help="Manage AI connections, the main assistant and job routing")
     assistant_sub = p_assistant.add_subparsers(dest="assistant_action", required=True)

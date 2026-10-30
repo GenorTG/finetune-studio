@@ -20,6 +20,7 @@ from finetune_studio.cli.commands.assistant import cmd_assistant
 from finetune_studio.cli.commands.benchmark import cmd_benchmark
 from finetune_studio.cli.commands.brain import cmd_brain
 from finetune_studio.cli.commands.compare import cmd_compare
+from finetune_studio.cli.commands.compute_device import cmd_compute_device
 from finetune_studio.cli.commands.convert import cmd_convert
 from finetune_studio.cli.commands.dataset import cmd_dataset
 from finetune_studio.cli.commands.export import cmd_export
@@ -67,6 +68,7 @@ COMMANDS = {
     "webui": cmd_webui,
     "brain": cmd_brain,
     "compare": cmd_compare,
+    "compute-device": cmd_compute_device,
     "benchmark": cmd_benchmark,
     "analyze": cmd_analyze,
     "validate-hallucination": cmd_validate_hallucination,
