@@ -222,6 +222,8 @@ questions (same AI judge), tracing the misses led to two Smart Brain changes in 
 machines with a GPU and a follow-up search for questions that go through another item ("who manages the site where
 pump X is installed?").
 
+![Smart Brain answers before and after](docs/benchmarks/img/quillmoor-answers.svg)
+
 | Answer model | Smart Brain before | after |
 |---|---:|---:|
 | DeepSeek v4.1 Flash (API) | 81.1 % | **96.1 %** |

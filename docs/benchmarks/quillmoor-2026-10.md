@@ -239,6 +239,10 @@ not the site's profile: the site is not in the question. The answer step may now
 answering; that search runs and the model answers from both result sets. The studio's Smart Brain chat, an exported
 package's `/ask` and `fts brain ask` share the loop.
 
+![Smart Brain answers before and after](img/quillmoor-answers.svg)
+
+![API answer model by question type](img/quillmoor-question-types.svg)
+
 | Answer model | before (MiniLM) | bge reranker | bge + follow-up search |
 |---|---:|---:|---:|
 | DeepSeek v4.1 Flash (API) | 81.1 % | 88.4 % | **96.1 %** |
@@ -251,6 +255,8 @@ models do not use the follow-up well (Gemma asked for 173 searches out of 376 an
 switch for it.
 
 ### 5.3 Fine-tuning: passes per fact, not phrasings, and presets that trained too little
+
+![Fine-tuning recipes](img/quillmoor-sft-passes.svg)
 
 On Llama 3.2 3B with 4,306 facts, recall of the trained facts was 12.5 % after 4 passes per fact and 97.0 % after 12;
 three phrasings per fact at 12 passes reached 99.8 %. The Training page's own presets shrank the epochs as the dataset
