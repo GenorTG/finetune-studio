@@ -25,6 +25,7 @@ from finetune_studio.cli.commands.files import cmd_files
 from finetune_studio.cli.commands.heretic import cmd_heretic
 from finetune_studio.cli.commands.jobs import cmd_jobs
 from finetune_studio.cli.commands.models import cmd_models
+from finetune_studio.cli.commands.projects import cmd_projects
 from finetune_studio.cli.commands.service import cmd_down, cmd_service, cmd_up
 from finetune_studio.cli.commands.suite import cmd_suite
 from finetune_studio.cli.commands.supervisor import (
@@ -49,6 +50,7 @@ COMMANDS = {
     "jobs": cmd_jobs,
     "server": cmd_server,
     "models": cmd_models,
+    "projects": cmd_projects,
     "train": cmd_train,
     "test": cmd_test,
     "suite": cmd_suite,

@@ -25,6 +25,23 @@ def build_parser() -> argparse.ArgumentParser:
     p_models.add_argument("--dirs", nargs="*", help="Extra directories to scan")
     p_models.add_argument("--json", action="store_true", help="Output as JSON")
 
+    # ── projects (list, inspect and create local projects) ──
+    p_projects = sub.add_parser("projects", help="List, inspect or create projects")
+    projects_sub = p_projects.add_subparsers(dest="projects_action", required=True)
+    p_projects_list = projects_sub.add_parser("list", help="List projects")
+    p_projects_list.add_argument("--json", action="store_true", help="Output as JSON")
+    p_projects_show = projects_sub.add_parser("show", help="Show a project by id or name")
+    p_projects_show.add_argument("project", help="Project id or exact name")
+    p_projects_show.add_argument("--json", action="store_true", help="Output as JSON")
+    p_projects_create = projects_sub.add_parser("create", help="Create a project")
+    p_projects_create.add_argument("--name", required=True, help="Project name")
+    p_projects_create.add_argument("--description", default="", help="Optional project description")
+    p_projects_create.add_argument("--base-model", default="", help="Optional base model path or id")
+    p_projects_create.add_argument("--system-prompt", default="", help="Optional project system prompt")
+    p_projects_create.add_argument("--allow-duplicate", action="store_true",
+                                   help="Allow another project with the same name")
+    p_projects_create.add_argument("--json", action="store_true", help="Output as JSON")
+
     # ── train ──
     p_train = sub.add_parser("train", help="Start training")
     p_train.add_argument("model", help="Path to base model")
