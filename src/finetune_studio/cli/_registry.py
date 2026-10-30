@@ -41,6 +41,7 @@ from finetune_studio.cli.commands.supervisor import (
 )
 from finetune_studio.cli.commands.test import cmd_test
 from finetune_studio.cli.commands.train import cmd_train
+from finetune_studio.cli.commands.usecases import cmd_usecases
 from finetune_studio.cli.commands.validate import cmd_validate
 from finetune_studio.cli.commands.validate_hallucination import (
     cmd_validate_hallucination,
@@ -75,6 +76,7 @@ COMMANDS = {
     "qa": cmd_qa,
     "dataset": cmd_dataset,
     "versions": cmd_versions,
+    "usecases": cmd_usecases,
     "supervisor": cmd_supervisor,
     "status": cmd_status,
     "start": cmd_component_action,

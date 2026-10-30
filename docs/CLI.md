@@ -202,3 +202,36 @@ fts export cancel <export-id> --project <project-id>
 - Invalid formats, unavailable tools, missing training data for imatrix,
   project/run mismatches, and a busy GPU/export return a reason and a non-zero
   exit. All commands accept `--json` for machine-readable results.
+
+## Use cases
+
+Build the same template-backed training dataset and held-out suite as **Training → Start from a use case**:
+
+```bash
+fts usecases templates
+fts usecases build --project "Maintenance notes" --template classification --file examples.jsonl \
+  --labels billing,shipping,account --name "Ticket routing" --json
+fts usecases list --project <project-id>
+fts usecases show <usecase-id> --project <project-id>
+fts usecases evaluate <usecase-id> <completed-run-id> --project <project-id>
+fts usecases report <usecase-id> <group-id> --project <project-id>
+fts usecases delete <usecase-id> --project <project-id>  # asks for confirmation
+fts usecases delete <usecase-id> --project <project-id> --yes --json
+```
+
+- `build` accepts a JSON list, `{"rows": [...]}`, or JSONL file with the template's
+  documented row shape. `--schema` reads a JSON Schema file for extraction;
+  `--style-guide` sets house-style context; `--instruction`, `--labels`, and
+  `--seed` match the Training form. Distillation may use `--teacher-provider`
+  (an API connection id) to fill unanswered examples; provider calls send those
+  prompts to that connection. The shared validator reports bad rows and refuses
+  undersized datasets rather than guessing.
+- A successful build registers the training dataset and held-out suite in the
+  project, so Training and Testing see the same records. `evaluate` queues the
+  normal base-vs-trained held-out compare job; it can load models and use the
+  GPU. `report` can be called again to see persistent progress/results. Style
+  use cases use `fts usecases ab <usecase-id> <group-id> --project <id>` for the
+  blind A/B judge after both answers finish.
+- `delete` removes the use-case manifest, held-out suite, and A/B result files;
+  it keeps the registered training dataset and all runs/models. Non-interactive
+  use requires `--yes`. All commands support `--json` where applicable.
