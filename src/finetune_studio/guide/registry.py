@@ -56,7 +56,7 @@ def _pages() -> dict[str, Page]:
     rows = [
         ("dashboard", "Dashboard", "/", "index.html", False, "System overview: projects, GPU, loaded model."),
         ("projects", "Projects", "/projects", "projects.html", False, "Create, import, search and delete projects."),
-        ("models_library", "Model library", "/models/explore", "hf_models.html", False, "Search and download base models from Hugging Face."),
+        ("models_library", "Model library", "/models/explore", "hf_models.html", False, "Search, download, monitor and delete downloaded base models from Hugging Face."),
         ("my_models", "My models", "/models", "models_index.html", False, "Models already on disk: downloaded bases and trained exports."),
         ("inference", "Inference", "/inference", "inference.html", False, "Load any model, set context and GPU layers, chat."),
         ("settings", "Settings", "/settings", "settings.html", False, "Updates, access (password, tokens, network address), AI assistant (connections, jobs, test judge), compute device."),
@@ -190,6 +190,8 @@ def _controls() -> dict[str, Control]:
         ("chat.message_box", "chat", "#chat-input", "Chat message box"),
         # models / inference / settings
         ("models_library.search", "models_library", "#hf-q", "Model search"),
+        ("models_library.downloads", "models_library", "#hf-local-models", "Downloaded models on this computer"),
+        ("models_library.refresh_downloads", "models_library", "#hf-local-refresh", "Refresh downloaded models"),
         ("my_models.table", "my_models", "#models-index-table", "Local models table"),
         ("my_models.rescan", "my_models", "#models-rescan", "Rescan folders"),
         ("inference.model_select", "inference", "#model-select", "Model picker"),
