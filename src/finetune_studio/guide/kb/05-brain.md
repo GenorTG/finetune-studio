@@ -31,6 +31,7 @@ While it builds, the bar shows the passages embedded, the time taken and the tim
 - `#s-rerank-top-n` — how many candidates to rerank (default 50).
 - `#q-text` — search test box.
 - `#brain-chat` — grounded chat section.
+- `#chat-answer-with` — who writes the chat's answer: **the loaded chat model** (top-bar pill) or **the AI assistant**: the API connection of its *Smart Brain chat* job (Settings → AI assistant), so grounded chat works without loading a local model, e.g. on a machine without a GPU. Picked automatically when no model is loaded and that job has an API connection. Your question and the retrieved passages are sent to that API. On the Quillmoor benchmark the API model with follow-up search scored 96.1 %.
 - `#chat-follow-up` — lets the model ask for one follow-up search before answering (on by default). Measured gain with models that follow the instruction (API model 88.4 → 96.1 %, Qwen 3.5 4B 88.8 → 91.1 %); none with Llama 3.2 3B or Gemma 3 4B, and Gemma abstained less, so turn it off for small models that over-use it.
 - `#brain-import-panel` — import an encrypted `.ftsrag` bundle from another studio (works in a new project with no index).
 - `#mcp-layers` — standalone export: the search layers, one switch each.

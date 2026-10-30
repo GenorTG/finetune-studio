@@ -25,6 +25,7 @@ import logging
 import re
 import time
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
@@ -78,6 +79,9 @@ class ChatRequest(BaseModel):
     # Follow-up searches the model may ask for before answering (a question that reaches its answer through another
     # item: the site of an asset, then that site's manager). 0 = one search, answer from it.
     follow_up: int = Field(default=1, ge=0, le=3)
+    # "model": the chat model loaded from the top-bar pill. "assistant": the AI assistant's "Smart Brain chat" job
+    # (Settings -> AI assistant; an API connection), so grounded chat works without loading a local model.
+    answer_with: Literal["model", "assistant"] = "model"
 
 
 class BuildRequest(BaseModel):
@@ -476,6 +480,25 @@ class _NoChatModel(Exception):
     pass
 
 
+NO_API_ASSISTANT = ("The Smart Brain chat job of the AI assistant has no API connection: add one in Settings -> AI "
+                    "assistant (or pick one for the Smart Brain chat job there), or answer with the loaded model.")
+
+
+def _assistant_chat_client():
+    """The API connection the AI assistant's ``brain`` job runs on (Settings -> AI assistant), ready to chat.
+
+    Raises ApiError 409 ``no_api_assistant`` when that job resolves to the local model: the local model is what
+    "answer with the loaded model" already uses, and loading it here would replace the model on the card."""
+    from finetune_studio.models import assistant
+    from finetune_studio.models.manager import get_manager
+
+    pid = assistant.job_provider_id("brain")
+    row = get_manager().get_provider(pid)
+    if not row or row.get("kind") != "openai_compat":
+        raise ApiError(409, NO_API_ASSISTANT, code="no_api_assistant")
+    return assistant.connection_client(pid)
+
+
 def _chat_model_loaded() -> bool:
     from finetune_studio.models.manager import get_manager
     from finetune_studio.webui.app import inference_engine
@@ -485,10 +508,10 @@ def _chat_model_loaded() -> bool:
 
 @router.post("/{pid}/brain/chat")
 async def brain_chat(pid: str, req: ChatRequest):
-    """RAG-augmented chat. Retrieves top-k from project corpus, prepends to
-    the conversation, runs the loaded model.
+    """RAG-augmented chat using the loaded model or configured API assistant.
 
-    Returns: {reply, sources: [{filename, score, chunk_text}], messages_full}
+    Retrieves top-k from the project corpus and answers with those passages
+    and the prior conversation. Returns the reply, cited sources, and follow-up searches.
     """
     from finetune_studio.smart_brain import BrainIndex
     from finetune_studio.smart_brain.prompt import context_char_budget
@@ -502,7 +525,10 @@ async def brain_chat(pid: str, req: ChatRequest):
     user_messages = [m for m in req.messages if m.get("role") == "user"]
     if not user_messages:
         return JSONResponse({"detail": "no user message to search for"}, status_code=400)
-    if not await asyncio.to_thread(_chat_model_loaded):   # before the embedder load + search it would waste
+    assistant_client = None
+    if req.answer_with == "assistant":
+        assistant_client = await asyncio.to_thread(_assistant_chat_client)
+    elif not await asyncio.to_thread(_chat_model_loaded):   # before the embedder load + search it would waste
         raise ApiError(409, NO_CHAT_MODEL, code="no_model")
     last_user = user_messages[-1]["content"]
     try:
@@ -511,13 +537,18 @@ async def brain_chat(pid: str, req: ChatRequest):
         return JSONResponse({"detail": f"load failed: {e}"}, status_code=500)
 
     hits = await asyncio.to_thread(q.search, last_user, top_k=req.top_k)
-    n_ctx = inference_engine.n_ctx if inference_engine.model is not None else (_active_n_ctx() or None)
+    n_ctx = None if assistant_client is not None else (
+        inference_engine.n_ctx if inference_engine.model is not None else (_active_n_ctx() or None))
     history_chars = sum(len(str(m.get("content", ""))) for m in req.messages) + len(req.system_prompt or "")
     budget = context_char_budget(n_ctx, max_new_tokens=req.max_tokens, history_chars=history_chars)
     last_index = max(i for i, m in enumerate(req.messages) if m.get("role") == "user")
     history = [{"role": m["role"], "content": m["content"]} for m in req.messages[:last_index]]
 
     def _generate(msgs: list[dict]) -> str:
+        if assistant_client is not None:
+            from finetune_studio.models.assistant import instruct
+            return assistant_client.chat(instruct("brain", msgs), max_tokens=req.max_tokens,
+                                         temperature=req.temperature).strip()
         if inference_engine.model is not None:
             return inference_engine.generate(
                 msgs, max_tokens=req.max_tokens,

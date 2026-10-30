@@ -436,7 +436,7 @@ def test_brain_ia_workflow_and_cta(client: TestClient) -> None:
         "3. Search settings",
         "4. Documents in the index",
         "5. Search test",
-        "6. Ask the model (grounded)",
+        "6. Ask about your documents",
         "7. Download / export the index",
         "8. Shared search models",
     ):
