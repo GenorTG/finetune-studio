@@ -219,7 +219,7 @@ async def test_an_auto_judge_that_cannot_start_is_recorded_not_swallowed(monkeyp
     install_engine(monkeypatch)
     install_judge(monkeypatch)
     row = await start_run_job(_spec(pid, 2, auto_judge=True, judge_provider_id="no-such-provider"))
-    done = await await_finished(row["id"])
+    done = await await_finished(row["id"], judge=True)
     assert done["status"] == "done" and done["progress_done"] == 2  # the run itself is complete and saved
     assert done["judge_status"] == "failed" and "no-such-provider" in done["judge_error"]
 
