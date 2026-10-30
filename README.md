@@ -564,6 +564,7 @@ Full list with versions and licenses → **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTI
 - **[docs/TUTORIAL.md](docs/TUTORIAL.md)** — end-to-end first-model tutorial (users start here)
 - **[docs/DESIGN.md](docs/DESIGN.md)** — layout, rules and checks for contributors
 - **[docs/INSTALL.md](docs/INSTALL.md)** — install on Linux, prerequisites, troubleshooting
+- **[docs/CLI.md](docs/CLI.md)** — command-line reference (currently includes project list, show and create)
 - **[docs/DEPENDENCIES.md](docs/DEPENDENCIES.md)** — every dependency mapped to its consumers
 - **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** — service, update pipeline, generic ops notes
 - **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTIONS.md)** — every package, version, license
