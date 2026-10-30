@@ -175,3 +175,35 @@ def test_cli_brain_ask_runs_the_same_loop(tmp_path, capsys) -> None:
     assert out["follow_up_searches"] == ["Quellvoe Desalination Plant manager"]
     assert [s["filename"] for s in out["sources"]] == ["asset.txt", "site.txt"]
     engine.unload.assert_called_once()
+
+
+def test_brain_page_has_a_follow_up_switch_that_reaches_the_api() -> None:
+    from pathlib import Path
+
+    html = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/brain.html").read_text()
+    assert 'id="chat-follow-up" type="checkbox" checked' in html
+    assert "follow_up: (document.getElementById('chat-follow-up') || {}).checked === false ? 0 : 1" in html
+
+
+def test_studio_chat_follow_up_zero_never_offers_a_search(client) -> None:
+    pid = client.post("/api/projects", json={"name": "follow-up off"}).json()["id"]
+    q = MagicMock()
+    q.search.return_value = [{**FIRST[0], "source": "asset.txt"}]
+    rag = MagicMock()
+    rag.exists.return_value = True
+    rag.load.return_value = q
+    sent: list[list[dict]] = []
+    from finetune_studio.webui import app as webapp
+
+    def gen(msgs, **_kw):
+        sent.append(msgs)
+        return "SEARCH: anything"
+
+    with patch("finetune_studio.smart_brain.BrainIndex", return_value=rag), \
+         patch.object(webapp.inference_engine, "model", object()), \
+         patch.object(webapp.inference_engine, "generate", side_effect=gen):
+        r = client.post(f"/api/projects/{pid}/brain/chat",
+                        json={"messages": [{"role": "user", "content": "q?"}], "follow_up": 0})
+    assert r.status_code == 200, r.text
+    assert len(sent) == 1 and srv.FOLLOW_UP_INSTRUCTION not in sent[0][0]["content"]
+    assert r.json()["follow_up_searches"] == []

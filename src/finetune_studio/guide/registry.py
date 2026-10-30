@@ -117,6 +117,7 @@ def _controls() -> dict[str, Control]:
         ("brain.rerank_toggle", "brain", "#s-rerank-enabled", "Rerank toggle"),
         ("brain.hybrid_toggle", "brain", "#s-hybrid-enabled", "Hybrid toggle"),
         ("brain.export_layers", "brain", "#mcp-layers", "Standalone export: search layers"),
+        ("brain.chat_follow_up", "brain", "#chat-follow-up", "Grounded chat: follow-up search"),
         ("brain.export_semantic", "brain", "#mcp-sem", "Export: meaning search (vectors)"),
         ("brain.export_keyword", "brain", "#mcp-kw", "Export: word search (BM25)"),
         ("brain.export_reranker", "brain", "#mcp-rerank", "Export: reranker"),
