@@ -217,3 +217,49 @@ indexing, retrieval, judged answer behavior, package behavior, and measured clos
 and settings. They do not establish support for every real-world file producer/layout, answer quality on customer data,
 stable throughput on an isolated GPU, or browser-level feedback. The renderer/parser self-test also covers representative
 generated samples, not every extension/layout pair. Unsupported Outlook `.msg` remains explicitly outside the measured corpus.
+
+## 5. What the measurements changed in the app (2026-10-30)
+
+Each weak cell above was traced to a cause and, where the cause was in the app, fixed and measured again on the same
+376 questions with the same judge. The full ledger of experiments, including the ones that did not pan out, is in
+[`EXPERIMENTS.md`](../../tests/corpus/quillmoor/EXPERIMENTS.md); the numbers in
+[RESULTS.md §8–9](../../tests/corpus/quillmoor/RESULTS.md).
+
+### 5.1 Reverse look-ups were lost in the reranker
+
+A per-stage trace showed keyword search finding the row for "which asset has serial SN…" in its top 5 for 37 of 40
+questions, and the default MiniLM reranker pushing it back out. bge-reranker-v2-m3 over the same candidates: hit@5
+78.6 % → 89.2 %, reverse look-ups 24/40 → 40/40; in half precision it costs 190 ms per search on the test GPU. New
+indexes on a machine with a GPU now get it; CPU-only machines keep MiniLM.
+
+### 5.2 Two-step questions never searched their second step
+
+"Who manages the site where UV reactor UVR-4655-R is installed?" finds the reactor's row, which names the site, but
+not the site's profile: the site is not in the question. The answer step may now reply `SEARCH: <query>` instead of
+answering; that search runs and the model answers from both result sets. The studio's Smart Brain chat, an exported
+package's `/ask` and `fts brain ask` share the loop.
+
+| Answer model | before (MiniLM) | bge reranker | bge + follow-up search |
+|---|---:|---:|---:|
+| DeepSeek v4.1 Flash (API) | 81.1 % | 88.4 % | **96.1 %** |
+| Qwen 3.5 4B | 80.2 % | 88.8 % | **91.1 %** |
+| Llama 3.2 3B | 71.3 % | **77.7 %** | 77.1 % |
+| Gemma 3 4B | 70.3 % | **76.3 %** | 76.1 % |
+
+With the API model, multi-hop went from 10 % to 84 % and unanswerable questions stayed at 100 %. The two weakest local
+models do not use the follow-up well (Gemma asked for 173 searches out of 376 and abstained less), so the chat has a
+switch for it.
+
+### 5.3 Fine-tuning: passes per fact, not phrasings, and presets that trained too little
+
+On Llama 3.2 3B with 4,306 facts, recall of the trained facts was 12.5 % after 4 passes per fact and 97.0 % after 12;
+three phrasings per fact at 12 passes reached 99.8 %. The Training page's own presets shrank the epochs as the dataset
+grew (Balanced: 2 epochs, 5.8 %; Precision: 4 epochs, 26.7 %); the advisor fix that keeps the tier's epochs on large
+datasets is being measured (RESULTS.md §9). Adding "I don't know" rows lifted correct abstention on held-out facts only from 0 % to 14.5 %: for questions
+outside the trained facts, use the Smart Brain, which abstained correctly on 100 % of them.
+
+### 5.4 What is still weak
+
+Records in XML/JSON/YAML files can be split across two passages (most remaining API misses); small models pick a stale
+value more often with the stronger reranker; the AI judge occasionally fails a correct terse answer; and the Qwen 3.5 9B
+closed-book evaluation still crashes on this GPU. All scores are on generated documents.

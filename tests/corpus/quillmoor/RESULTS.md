@@ -199,7 +199,7 @@ unresolved; no context-size fix is claimed.
 These percentages are the app's DeepSeek v4.1 Flash Test-judge outputs, not ground truth. A deliberately outcome-stratified
 19-case human/agent audit agreed with the judge on 12 cases and found contradictory reasoning and over-crediting; it is
 not representative and does not support an error-rate estimate. Taken together, the results show a measurable increase
-in recall accompanied by catastrophic loss of held-out abstention for this recipe and synthetic task. They do not prove
+in recall accompanied by catastrophic loss of held-out abstention for this recipe and synthetic task. Section 9 traces the low recall to the recipe's 4 passes per fact (12 passes reach 97 %). They do not prove
 SFT is ineffective in general, but this result is not a releasable quality claim.
 
 ## 7. Scope and limitations
@@ -245,9 +245,61 @@ interleaves its passages with the first ones and asks again without the option (
 `SEARCH:` on its last line (12 of the 23 unaided two-step failures). The shipped parser takes the last `SEARCH:` line
 anywhere in the reply. The other follow-up rows use it.
 
+**Local answer models on the same packages.** One llama-server per model (q8_0, one slot, 12,288-token context so a
+merged follow-up context fits), the package's exact `/ask` prompt, same judge:
+
+| Answer model | MiniLM (old default) | bge-reranker-v2-m3 | bge + follow-up | follow-ups used | what changed with the follow-up |
+|---|---:|---:|---:|---:|---|
+| DeepSeek v4.1 Flash (API) | 81.1% | 88.4% | **96.1%** | 87 | multi-hop 32 → 84 |
+| Qwen 3.5 4B | 80.2% | 88.8% | **91.1%** | 68 | multi-hop 34 → 64; reverse 100 → 92.5 |
+| Llama 3.2 3B | 71.3% | **77.7%** | 77.1% | 65 | multi-hop 14 → 22; paraphrase 84.3 → 80.0 |
+| Gemma 3 4B | 70.3% | **76.3%** | 76.1% | 173 | multi-hop 8 → 22; unanswerable 79.2 → 65.8 |
+
+The reranker helped every model (+6.0 to +8.7 points; reverse look-ups 52.5–70 % → 92.5–100 %). The follow-up search
+helps models that follow its instruction (API +7.7, Qwen 3.5 4B +2.3) and is a wash for the two weakest (Llama 3.2 3B
+−0.6, Gemma 3 4B −0.2). Gemma asked for a search on 173 of 376 questions, and the extra passages talked it out of
+abstaining: correct "not in the documents" fell from 79.2 % to 65.8 %. With the bge reranker, Llama 3.2 3B also chose
+the stale value more often on changed-value questions (57.7 → 42.3 %, 26 questions): bge ranks the old directory row
+first more often (stale-first 26.9 % vs 15.4 % in §5); the API model resolves it (100 %), small models do not. Answers in
+`.tmp/quillmoor/s/results/answers/<model>__rag-{default,e5-bge}[-fu1].jsonl`.
+
 The package's `/search` ran the old copy of `server.py` (fp32 reranker, no length cap); retrieval results do not depend
 on the precision (hit@5 identical above), latency does. The follow-up costs a second model call when it is used: 87 of
 376 answers here, 38 of them on unanswerable questions (the model looked once more, then said the documents do not
 contain it: unanswerable stayed 100 %). The remaining failures are mostly records cut in two by the passage chunker
 (an XML catalogue entry's SKU at the end of one passage, its supplier in the next) and judge strictness (a correct
 "B" marked fail).
+
+## 9. Fine-tuning recipe experiments (2026-10-30)
+
+Why did tuned models recall only 7–16 % of the facts they were trained on (§6)? Llama 3.2 3B, the same seen/held-out
+protocol (one question per fact, worded exactly as its training question; app-held-out facts for abstention), the
+same judge. Every run below has all answers judged and zero split overlap.
+
+| Training data and settings | rows | exposures / fact | steps | trained-fact pass | held-out correct abstention |
+|---|---:|---:|---:|---:|---:|
+| 1 phrasing, 4 epochs, r32 (the §6 recipe) | 4,306 | 4 | 972 | 12.53 % (431) | 0 % (431) |
+| 1 phrasing, 12 epochs, r32 | 4,306 | 12 | 2,916 | **96.98 %** (431) | 0 % (431) |
+| 3 phrasings, 4 epochs, r32 | 12,918 | 12 | 2,908 | 99.77 % (431) | 0 % (431) |
+| 3 phrasings + abstention rows, 4 epochs, r32 | 13,518 | 12 | 3,040 | 95.92 % (392) | **14.54 %** (392) |
+| Training page **Balanced** tier as the advisor proposed it: 2 epochs, r64, batch 2 × 4 | 4,306 | 2 | 970 | 5.80 % (431) | 0 % (431) |
+| Training page **Precision** tier as proposed: 4 epochs, r128, batch 2 × 4 | 4,306 | 4 | 1,940 | 26.68 % (431) | 0 % (431) |
+| Balanced with the corrected advisor: 6 epochs | 4,306 | 6 | ~2,900 | *running* | |
+| Precision with the corrected advisor: 12 epochs | 4,306 | 12 | ~5,800 | *queued* | |
+
+**Exposures, not phrasings, carry recall.** Repeating the single phrasing three times as often lifted exact-question
+recall from 12.5 % to 97.0 %; three phrasings per fact at the same 12 exposures added about three more points. (The
+seen questions here are the trained wording; rephrasings may matter more for questions worded differently, which this
+protocol does not test.)
+
+**Abstention rows help a little.** `bench/train_abstain.py` answers a seeded 10 % of facts (all three phrasings) with
+"I don't know: that is not in the material I was trained on." and adds 600 questions about made-up entities. Correct
+abstention on held-out facts rose from 0 % to 14.5 %, at the cost of 14 of 392 trained facts now answered "I don't
+know"; on the other 85 % of held-out questions the model still states a confident, wrong value. Closed-book fine-tuning
+is not a way to make a model say when it does not know; the Smart Brain abstained on 100 % of unanswerable questions (§8).
+
+**The app's own presets were the real problem.** The Training page's advisor scaled epochs by √(500 ÷ pairs) from a
+500-pair reference, so on 4,306 facts Balanced trained 2 epochs and Precision 4 — 5.8 % and 26.7 % recall of the
+facts they were trained on, although both cleared their optimizer-step floors (970 and 1,940 steps). Steps were not
+the limit; passes per fact were. The fix keeps the tier's epochs (Balanced 6, Precision 12) for datasets larger than
+the reference; the corrected runs above are the evidence for it (`fix/advisor-epochs-large-datasets`).

@@ -105,6 +105,17 @@ question reaches its answer through another item. Same 376 questions, same API a
 | bge-reranker-v2-m3 | 88.4% | 100.0% | 32.0% | 100.0% | 1.78 s / 4.36 s |
 | bge-reranker-v2-m3 + follow-up search | **96.1%** | 100.0% | 84.0% | 100.0% | 1.58 s / 6.46 s |
 
+Local answer models on the same packages (same questions and judge):
+
+| Local answer model | MiniLM | bge-reranker-v2-m3 | bge + follow-up |
+|---|---:|---:|---:|
+| Qwen 3.5 4B | 80.2% | 88.8% | **91.1%** |
+| Llama 3.2 3B | 71.3% | **77.7%** | 77.1% |
+| Gemma 3 4B | 70.3% | **76.3%** | 76.1% |
+
+The reranker helped every model. The follow-up search helps models that follow its instruction and does nothing for
+the two weakest (Gemma also abstained less with it), so the Smart Brain chat has a switch to turn it off.
+
 The reranker alone lifted retrieval hit@5 from 78.6% to 89.2% at about 0.2 s per search on the test GPU; a CPU-only
 machine keeps MiniLM. The follow-up costs a second model call on the answers that use it (87 of 376). Details and the
 per-stage trace are in [RESULTS.md §8](../../tests/corpus/quillmoor/RESULTS.md).

@@ -4,6 +4,8 @@ A generated, fully known world for measuring what Finetune Studio does with real
 generated format parse, does Smart Brain find the right passage, does an answer model use it, and how much does a fine-tuned
 adapter remember on its own. Nothing here is real, so a model can only answer from what the app gave it.
 
+Every experiment run on it, with its question, result and status: [`EXPERIMENTS.md`](EXPERIMENTS.md).
+
 Korvane (`tests/corpus/korvane/`) is the hand-written corpus (80 files, 1,130 facts, reviewed by people). Quillmoor is
 its large, generated counterpart: every fact is known to the generator, so every number below is checked mechanically
 against ground truth, at any size.
