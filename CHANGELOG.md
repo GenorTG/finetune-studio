@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Add `fts export` start/list/status/cancel commands using the Export page's shared validation and supervised jobs.
+
 ### Fixed
 - Compare: Stop now confirms it is stopping, then leaves a clear “stopped; saved work is kept” status after a run or judge cancellation.
 - Testing: stopping API judging now shows a persistent “judging stopped” state with the number of verdicts kept, including after a page reload.

@@ -16,19 +16,15 @@ Tool discovery looks in PATH first, then in ~/llama.cpp, /opt/llama.cpp,
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
 import shutil
-import time
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import JSONResponse
 
 from finetune_studio import db
-from finetune_studio.training.export_response import ExportResult
-from finetune_studio.training.run_export import validate_export_request
-from finetune_studio.webui import export_jobs
+from finetune_studio.webui import export_jobs, export_service
 from finetune_studio.webui.export_work import (
     refresh_registry_quietly,
     run_single_quant_gguf,
@@ -49,20 +45,6 @@ def _project_404(pid: str) -> JSONResponse | None:
     if not db.get_project(pid):
         return JSONResponse({"detail": "project not found"}, status_code=404)
     return None
-
-# Quantization levels supported by llama.cpp's llama-quantize + convert's
-# built-in --outtype flag. f16/bf16/f32/Q8_0 are single-step via convert;
-# everything else needs the two-step HF -> fp16 GGUF -> quantized flow.
-SUPPORTED_QUANTS = {
-    "f16", "bf16", "f32",
-    "Q8_0",
-    "Q5_K_M", "Q5_K_S",
-    "Q4_K_M", "Q4_K_S",
-    "Q3_K_M", "Q3_K_S", "Q3_K_L",
-    "Q2_K",
-    "IQ4_XS", "IQ4_NL", "IQ3_XXS", "IQ3_S", "IQ2_XXS", "IQ2_XS",
-}
-DEFAULT_QUANT = "Q4_K_M"
 
 # Common install locations for llama.cpp. Searched in order.
 # Project-local first (per the "boxed in" rule) — install.sh drops a build
@@ -88,10 +70,6 @@ def _human_size(n: int) -> str:
             return f"{n:.1f} {unit}" if unit != "B" else f"{n} B"
         n /= 1024
     return f"{n:.1f} PB"
-
-
-def _safe_name(s: str) -> str:
-    return "".join(c if c.isalnum() or c in "-_." else "_" for c in s)
 
 
 def _find_llama_tool(name: str) -> str | None:
@@ -155,140 +133,15 @@ async def export_run(pid: str, rid: str, request: Request):
             body = None
     if not isinstance(body, dict):
         return JSONResponse(
-            {"ok": False, "status": "failed",
-             "detail": "request body must be a JSON object"},
-            status_code=400,
+            {"ok": False, "status": "failed", "detail": "request body must be a JSON object"}, status_code=400,
         )
-    fmt = str(body.get("format") or "gguf").lower()
-    auto_merge = bool(body.get("auto_merge", True))
-    base_model_raw = body.get("base_model")
-    base_model = (
-        str(base_model_raw).strip() or None
-        if base_model_raw is not None else None
-    )
-
-    run = db.get_run(rid)
-    if not run:
-        return JSONResponse(
-            {"ok": False, "status": "failed", "detail": "run not found"},
-            status_code=404,
-        )
-    if run.get("project_id") and pid and run["project_id"] != pid:
-        return JSONResponse(
-            {
-                "ok": False,
-                "status": "failed",
-                "detail": "run does not belong to this project",
-            },
-            status_code=400,
-        )
-
-    def _err(msg: str, *, status_code: int = 400, **extra: object):
-        payload = {"ok": False, "status": "failed", "detail": msg, "code": "export_refused", **extra}
-        return JSONResponse(payload, status_code=status_code)
-
-    # AWQ and GPTQ are not supported formats; they are refused here with the
-    # clear removal message (not a generic "unsupported").
-    imatrix = body.get("imatrix", False)
-    if not isinstance(imatrix, bool):
-        return _err("imatrix must be true or false")
-    use_multi = (
-        "quants" in body
-        or imatrix
-        or fmt in ("abliterated", "merged", "awq", "gptq", "heretic")
-        or bool(body.get("force")) and "quant" not in body
-    )
-    if use_multi:
-        quants_raw = body.get("quants")
-        quants = [str(q) for q in quants_raw] if isinstance(quants_raw, list) else None
-        refused = await asyncio.to_thread(  # reads the run's dataset when imatrix is on: never on the loop
-            validate_export_request, run, fmt=fmt, quants=quants, force=bool(body.get("force", False)),
-            imatrix=imatrix,
-        )
-        if refused is not None:
-            payload = ExportResult.from_raw(refused).model_dump(exclude_none=False)
-            payload.pop("error", None)
-            return _err(str(refused.get("error") or "export refused"), **payload)
-        label = (quants[0] if quants else None) or (
-            DEFAULT_QUANT if fmt == "gguf" else "safetensors"
-        )
-        return _start(
-            pid, rid, fmt=fmt, quant=label, quants=quants,
-            work=("multi_export_work", {"run": run, "fmt": fmt, "quants": quants,
-                                        "force": bool(body.get("force", False)), "base_model": base_model,
-                                        "imatrix": imatrix}),
-        )
-
-    if fmt != "gguf":
-        return _err(f"unsupported format: {fmt}", format=fmt)
-    quant_raw = str(body.get("quant") or DEFAULT_QUANT)
-    # SUPPORTED_QUANTS mixes case (f16 vs Q8_0): match case-insensitively
-    # and keep the canonical spelling.
-    quant = {q.upper(): q for q in SUPPORTED_QUANTS}.get(quant_raw.upper())
-    if quant is None:
-        return _err(
-            f"unsupported quant: {quant_raw}",
-            supported=sorted(SUPPORTED_QUANTS),
-        )
-
-    output_path = (run.get("output_path") or "").strip()
-    if not output_path:
-        return _err("run has no output_path; training did not finish")
-    merged_dir = os.path.join(output_path, "merged")
-    if not auto_merge and (not os.path.isdir(merged_dir) or not os.listdir(merged_dir)):
-        return _err(
-            "run has not been merged; POST /merge first, "
-            "or set auto_merge=true in the request body",
-        )
-    refused = validate_export_request(run, fmt=fmt)
-    if refused is not None:
-        return _err(str(refused["error"]), status_code=400)
-
-    base = os.path.basename(base_model or run.get("base_model") or "model")
-    out_path = os.path.join(output_path, "gguf", f"{_safe_name(base)}-{quant}.gguf")
-    return _start(
-        pid, rid, fmt=fmt, quant=quant, quants=[quant],
-        extra={"output_path": out_path},
-        work=("single_quant_work", {"run": run, "base_model": base_model, "auto_merge": auto_merge,
-                                    "out_path": out_path, "quant": quant}),
-    )
-
-
-def _start(
-    pid: str, rid: str, *, fmt: str, quant: str, quants: list[str] | None,
-    work: export_jobs.WorkSpec, extra: dict | None = None,
-) -> JSONResponse:
-    """Queue the job; 202 with its id, or 409 when another export (or GPU job) is running."""
-    try:
-        row = export_jobs.start_job(
-            project_id=pid, run_id=rid, fmt=fmt, quant=quant, quants=quants, work=work,
-        )
-    except export_jobs.ExportBusy as busy:
-        return JSONResponse(
-            {
-                "ok": False, "status": "busy", "detail": str(busy),
-                "active_export_id": busy.active.get("id"),
-                "active_project_id": busy.active.get("project_id"),
-            },
-            status_code=409,
-        )
-    return JSONResponse(
-        {"ok": True, "export_id": row["id"], "status": "queued",
-         "format": fmt, "quant": quant, "quants": quants or [], **(extra or {})},
-        status_code=202,
-    )
+    result = await asyncio.to_thread(export_service.submit_export, pid, rid, body)
+    return JSONResponse(result.body, status_code=result.status_code)
 
 
 def _row_view(row: dict) -> dict:
     """Export row + derived fields the UI needs (all read-only)."""
-    try:
-        quants = json.loads(row.get("quants_json") or "[]")
-    except ValueError:
-        quants = []
-    return {
-        **row, "quants": quants, "server_now": time.time(),
-        "active": export_jobs.is_active(row["id"]),
-    }
+    return export_service.row_view(row)
 
 
 @router.get("/projects/{pid}/exports/active")
@@ -313,10 +166,8 @@ async def get_export(pid: str, eid: str):
     missing = _project_404(pid)
     if missing is not None:
         return missing
-    row = db.get_export(eid)
-    if not row or row.get("project_id") != pid:
-        return JSONResponse({"detail": "not found"}, status_code=404)
-    return _row_view(row)
+    result = export_service.get_export(pid, eid)
+    return JSONResponse(result.body, status_code=result.status_code) if result.status_code != 200 else result.body
 
 
 @router.post("/projects/{pid}/exports/{eid}/cancel")
@@ -329,20 +180,8 @@ async def cancel_export(pid: str, eid: str):
     missing = _project_404(pid)
     if missing is not None:
         return missing
-    row = db.get_export(eid)
-    if not row or row.get("project_id") != pid:
-        return JSONResponse({"detail": "not found"}, status_code=404)
-    if (row.get("status") or "") in export_jobs.TERMINAL_STATUSES:
-        return JSONResponse(
-            {"ok": False, "detail": f"export already {row['status']}"},
-            status_code=409,
-        )
-    if not export_jobs.cancel_job(eid):
-        return JSONResponse(
-            {"ok": False, "detail": "export is not running in this server process"},
-            status_code=409,
-        )
-    return {"ok": True, "status": "cancelling", "export_id": eid}
+    result = export_service.cancel_export(pid, eid)
+    return JSONResponse(result.body, status_code=result.status_code) if result.status_code != 200 else result.body
 
 
 @router.get("/projects/{pid}/exports/{eid}/events")
@@ -388,7 +227,7 @@ async def list_project_exports(pid: str, limit: int = Query(100, ge=1, le=1000))
     missing = _project_404(pid)
     if missing is not None:
         return missing
-    return db.list_exports_for_project(pid, limit=limit)
+    return export_service.list_exports(pid, limit=limit)
 
 
 _refresh_registry_quietly = refresh_registry_quietly
