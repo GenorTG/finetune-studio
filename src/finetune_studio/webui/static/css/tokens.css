@@ -2,28 +2,28 @@
 
 :root {
   --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --bg-app:        #0b1020;
-  --bg-nav:        #090e1a;
-  --bg-panel:      #121a2b;
-  --bg-panel-2:    #172338;
-  --bg-elevated:   #1d2b42;
-  --bg:             #0b1020;
-  --fg:             #e8eef8;
-  --card:           #121a2b;
+  --bg-app:        #0d1420;
+  --bg-nav:        #111a28;
+  --bg-panel:      #151f2e;
+  --bg-panel-2:    #1b293a;
+  --bg-elevated:   #24354a;
+  --bg:             #0d1420;
+  --fg:             #e9eff7;
+  --card:           #151f2e;
 
-  --border:        #29364c;
-  --border-strong: #3b4c68;
-  --border-hot:    #78a6ff;
+  --border:        #2b3b50;
+  --border-strong: #41566f;
+  --border-hot:    #68d5c3;
 
-  --text:          #e8eef8;
-  --text-muted:    #a9b7cd;
-  --text-dim:      #8393ad;
+  --text:          #e9eff7;
+  --text-muted:    #adbacb;
+  --text-dim:      #8c9bb0;
 
-  --accent:        #78a6ff;
+  --accent:        #68d5c3;
   --accent-2:      #9b8cff;
-  --accent-glow:   rgba(120,166,255,.18);
+  --accent-glow:   rgba(104,213,195,.16);
   /* Text on an accent fill; contrast-safe in both themes. */
-  --on-accent:     #08101e;
+  --on-accent:     #09201e;
   /* Legacy token aliases — templates reference these names; resolving them
      through the real tokens makes every one of them theme-aware (the light
      palette below overrides the targets, so the alias follows). */
@@ -39,11 +39,11 @@
   --surface:       var(--bg-panel);
   --font-mono:     "Share Tech Mono", ui-monospace, monospace;
   --mono:          "Share Tech Mono", ui-monospace, monospace;
-  --warn:          #f1b85b;
-  --err:           #f0787c;
-  --ok:            #4fc995;
-  --cyan:          #60c4e8;
-  --magenta:       #d29af4;
+  --warn:          #f3bf69;
+  --err:           #f08087;
+  --ok:            #58c99a;
+  --cyan:          #66c8e8;
+  --magenta:       #c6a0ed;
 
   --radius:        8px;
   --radius-lg:     12px;
@@ -58,11 +58,11 @@
 }
 
 :root[data-theme="light"] {
-  --bg-app: #f5f7fb; --bg-nav: #eef2f8; --bg-panel: #fff; --bg-panel-2: #f3f6fb; --bg-elevated: #e8edf6;
-  --bg: #f5f7fb; --fg: #202a3a; --card: #fff;
-  --border: #d4dce9; --border-strong: #bdc9dc; --border-hot: #315ec9;
-  --text: #202a3a; --text-muted: #53627a; --text-dim: #64748b;
-  --accent: #315ec9; --accent-2: #5b4bc4; --accent-glow: rgba(49,94,201,.16); --on-accent: #fff;
+  --bg-app: #f3f6f8; --bg-nav: #fff; --bg-panel: #fff; --bg-panel-2: #f5f8fa; --bg-elevated: #e9eff2;
+  --bg: #f3f6f8; --fg: #1c2934; --card: #fff;
+  --border: #d7e0e5; --border-strong: #bccbd2; --border-hot: #167a70;
+  --text: #1c2934; --text-muted: #52636f; --text-dim: #687984;
+  --accent: #167a70; --accent-2: #6151a6; --accent-glow: rgba(22,122,112,.14); --on-accent: #fff;
   --warn: #b56b12; --warn-text: #81500f; --ok: #19794e; --ok-text: #16724d;
   --err: #b93442; --err-text: #a52b35; --cyan: #087a9e; --cyan-text: #0c6887;
   --magenta: #894da9; --magenta-text: #7443a2;
