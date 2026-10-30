@@ -302,7 +302,14 @@
            title="A retrieval-augmented chat: your question is embedded, top-K matching chunks are pulled from the index, and the model is asked to answer using those chunks as context. Reduces hallucination and lets the model cite sources."
            onkeydown="if(event.key==='Enter'){event.preventDefault();sendChat();}">
     <button onclick="sendChat()" id="chat-btn" class="btn primary"
-            title="Send your question. The system retrieves relevant chunks, prepends them to your message, and sends everything to the loaded model. Requires a model to be loaded first (top-bar pill turns green when one is).">Send</button>
+            title="Send your question. The system retrieves relevant chunks and sends them with your message to the selected answer source: the loaded chat model or the AI assistant API connection.">Send</button>
+  </div>
+  <div class="flex items-center gap-2 text-xs mt-2">
+    <label for="chat-answer-with" title="Which model writes the answer. The loaded chat model is the one from the top-bar pill. The AI assistant is the API connection of its Smart Brain chat job (Settings → AI assistant): grounded chat without loading a local model; your question and the retrieved passages are sent to that API.">Answer with</label>
+    <select id="chat-answer-with" class="select" aria-label="Answer with">
+      <option value="model">the loaded chat model</option>
+      <option value="assistant">the AI assistant (API connection)</option>
+    </select>
   </div>
   <label class="flex items-center gap-2 text-xs mt-2"
          title="When the passages lack a fact the question needs (who manages the site where asset X is installed?), the model may ask for one more search before answering. It helped the API model and Qwen 3.5 4B on the Quillmoor benchmark; for small models that over-use it (Llama 3.2 3B, Gemma 3 4B gained nothing and Gemma abstained less) turn it off.">
@@ -743,6 +750,7 @@
         messages: [{ role: 'user', content: text }],
         top_k: 10,
         follow_up: (document.getElementById('chat-follow-up') || {}).checked === false ? 0 : 1,
+        answer_with: (document.getElementById('chat-answer-with') || {}).value || 'model',
       });
       const reply = d.reply || d.response || '';
       box.insertAdjacentHTML('beforeend',
@@ -1050,6 +1058,28 @@
     }
   };
 
+  // "Answer with": the loaded model when one is loaded, else the AI assistant when its Smart Brain chat job has an API
+  // connection (grounded chat then works without loading anything). The option names the connection it will use.
+  window.initChatAnswerWith = async function() {
+    const sel = document.getElementById('chat-answer-with');
+    if (!sel) return;
+    try {
+      const [inf, asst] = await Promise.all([
+        fetch('/api/inference/status').then(r => r.ok ? r.json() : {}),
+        fetch('/api/settings/assistant').then(r => r.ok ? r.json() : {}),
+      ]);
+      const job = (asst.jobs || []).find(j => j.id === 'brain') || {};
+      const api = job.provider_kind === 'openai_compat';
+      const opt = sel.querySelector('option[value="assistant"]');
+      if (opt) {
+        opt.textContent = api ? 'the AI assistant (' + (job.provider_label || 'API') + ')'
+                              : 'the AI assistant (needs an API connection: Settings → AI assistant)';
+        opt.disabled = !api;
+      }
+      if (!inf.loaded && api) sel.value = 'assistant';
+    } catch (_e) { /* keep "the loaded chat model" */ }
+  };
+
   // Fill the form controls from the saved manifest so "Save" doesn't
   // silently overwrite stored settings with the hardcoded defaults.
   window.loadRagSettings = async function() {
@@ -1321,6 +1351,7 @@
   // after an SPA swap it never fires, so run immediately in that case.
   function init() {
     loadRagSettings();
+    initChatAnswerWith();
     loadIndexedDocs();
     loadBrainStatus();
     loadSharedModels();

@@ -16,6 +16,7 @@ helper job runs on it unless the job names another connection:
 - ``drafting``   drafts of use-case examples (labels, extracted JSON, requests) for review
 - ``teacher``    answers for use-case rows that have none
 - ``vision``     reading pictures in documents (default **off**: pictures leave the machine only on purpose)
+- ``brain``      Smart Brain chat answers when the chat is set to answer with the AI assistant (API connections only)
 
 Per job the user may add instructions; they reach the model as a system message in front of the job's own prompt
 (``instruct``). Empty by default, so a job's built-in prompt is unchanged until the user writes something.
@@ -72,6 +73,9 @@ JOBS: tuple[Job, ...] = (
         "from a bigger one.", "the use-case rows you upload", api_only=True),
     Job("vision", "Reading pictures", "Transcribes pictures in documents (scans, charts, table screenshots) while "
         "mining; off = OCR text only.", "the pictures in the documents you mine", default=OFF),
+    Job("brain", "Smart Brain chat", "Answers Smart Brain chat questions from the passages it retrieves, when the "
+        "chat is set to answer with the AI assistant instead of the loaded model.",
+        "your question and the passages retrieved from your documents", api_only=True),
 )
 JOB_IDS: tuple[str, ...] = tuple(j.id for j in JOBS)
 

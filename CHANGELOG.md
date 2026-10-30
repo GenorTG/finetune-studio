@@ -10,6 +10,7 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Added
+- Smart Brain chat can answer with the AI assistant's API connection, so grounded chat works without loading a local model; it sends the question and retrieved passages to the selected connection and identifies the source in the UI.
 - Smart Brain chat: a **Follow-up search** switch under the message box (on by default). Measured on Quillmoor: follow-up search lifted the API model 88.4 % → 96.1 % and Qwen 3.5 4B 88.8 % → 91.1 %, but gave Llama 3.2 3B and Gemma 3 4B nothing (77.7 → 77.1, 76.3 → 76.1) and made Gemma abstain less; turn it off for small models that over-use it.
 - Smart Brain answers can make a **follow-up search**. A question that reaches its answer through another item ("who manages the site where pump X is installed?") finds the pump's row, never the site's profile; the answer model may now ask for one more search before answering. The Smart Brain chat shows it as *Also searched*, and an exported package's `/ask` and `rag_answer` do the same (`RAG_FOLLOW_UP`, 0 turns it off). On the Quillmoor benchmark (376 judged answers, API model) two-step questions went from 10 % to 68 % with the old default search (81.1 % → 90.3 % overall) and to 84 % with the new reranker (96.1 % overall).
 - **Heretic** (optional tool): remove a model's refusals properly. Heretic searches the abliteration parameters
