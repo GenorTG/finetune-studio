@@ -235,3 +235,35 @@ fts usecases delete <usecase-id> --project <project-id> --yes --json
 - `delete` removes the use-case manifest, held-out suite, and A/B result files;
   it keeps the registered training dataset and all runs/models. Non-interactive
   use requires `--yes`. All commands support `--json` where applicable.
+
+## AI assistant
+
+Inspect or manage the connections and per-job routing shown in **Settings → AI assistant**:
+
+```bash
+fts assistant show
+fts assistant connections list --json
+fts assistant main <connection-id>
+fts assistant jobs list
+fts assistant jobs set judge --connection main --instructions "Explain a failed answer briefly."
+fts assistant connections add --name "OpenCode Go" --base-url https://opencode.ai/zen/go/v1 \
+  --model deepseek-v4.1-flash --preset opencode-go --key-file ~/.config/fts/opencode.key
+fts assistant connections update <connection-id> --reasoning-effort medium --concurrency 4
+fts assistant test <connection-id>
+fts assistant models <connection-id>
+fts assistant connections delete <connection-id>  # asks for confirmation
+```
+
+- API keys are never accepted as command-line arguments or printed. Add reads a key
+  from an owner-only file (mode 600), stdin, or a hidden terminal prompt; update
+  keeps the saved key unless a replacement is explicitly supplied. Keys remain
+  encrypted in the shared provider store. Changing a saved connection's URL
+  requires the key again because it must not be sent to a different endpoint.
+- The main assistant must have a saved key for API connections. Jobs default to
+  the main assistant; `vision` alone can be turned off, and its local-file option
+  needs a GGUF with a matching vision projector. Removing the main connection is
+  blocked; removing another connection returns its assigned jobs to the main
+  assistant. Deletion asks for confirmation unless `--yes` is used.
+- `test` sends one real request to the provider. `models` calls its
+  OpenAI-compatible `/models` endpoint. These commands make network requests;
+  connection state and saved keys are not included in their output.
