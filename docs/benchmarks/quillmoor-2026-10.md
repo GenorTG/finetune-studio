@@ -180,8 +180,8 @@ An earlier, separate 17-question held-out slice scored 0/17 for each of four bas
 Manual comparison of the 68 tuned answers agreed with the judge's one correct answer per family. That small sample is
 retained as historical evidence, not a generalization claim.
 
-The larger matched closed-book SFT evaluation compares **431 trained facts and 431 app-held-out facts per run**, two
-question forms per fact (**862 expected answers**). Seven base/tuned family pairs completed, a Qwen 3.5 9B pair is
+The larger matched closed-book SFT evaluation compares **431 trained facts and 431 app-held-out facts per run**, one
+question per fact, worded exactly as the fact's training question (**862 expected answers**). Seven base/tuned family pairs completed, a Qwen 3.5 9B pair is
 unscored after runtime failures, and one grouped Llama 3.2 3B x3 run completed. Every scored run has 862/862 answers and
 judgments, zero validation overlap, and zero judge errors. Exact-pass results are:
 

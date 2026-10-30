@@ -28,7 +28,7 @@ from pathlib import Path
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from finetune_studio.data.fs.paths import brain_index_dir
 from finetune_studio.knowledge.errors import KnowledgeError
@@ -75,6 +75,9 @@ class ChatRequest(BaseModel):
     top_k: int = DEFAULT_TOP_K
     temperature: float = 0.0
     max_tokens: int = 400
+    # Follow-up searches the model may ask for before answering (a question that reaches its answer through another
+    # item: the site of an asset, then that site's manager). 0 = one search, answer from it.
+    follow_up: int = Field(default=1, ge=0, le=3)
 
 
 class BuildRequest(BaseModel):
@@ -133,8 +136,10 @@ async def brain_get_settings(pid: str):
     from finetune_studio.smart_brain import BrainIndex
     index = BrainIndex(_corpus_dir(pid))
     if not index.exists():
-        # Not an error: the page asks before any index exists.
-        return {"exists": False}
+        # Not an error: the page asks before any index exists. The reranker a first build will get depends on the
+        # machine (GPU: bge-reranker-v2-m3, CPU only: MiniLM), so the form shows that one.
+        from finetune_studio.smart_brain.rerankers import default_reranker
+        return {"exists": False, "default_reranker": await asyncio.to_thread(default_reranker)}
     m = await asyncio.to_thread(index.read_manifest)
     return {
         "exists": True,
@@ -486,10 +491,8 @@ async def brain_chat(pid: str, req: ChatRequest):
     Returns: {reply, sources: [{filename, score, chunk_text}], messages_full}
     """
     from finetune_studio.smart_brain import BrainIndex
-    from finetune_studio.smart_brain.prompt import (
-        build_messages,
-        context_char_budget,
-    )
+    from finetune_studio.smart_brain.prompt import context_char_budget
+    from finetune_studio.smart_brain.standalone_server import answer_with_follow_ups
     from finetune_studio.webui.app import inference_engine
 
     index = BrainIndex(_corpus_dir(pid))
@@ -510,14 +513,11 @@ async def brain_chat(pid: str, req: ChatRequest):
     hits = await asyncio.to_thread(q.search, last_user, top_k=req.top_k)
     n_ctx = inference_engine.n_ctx if inference_engine.model is not None else (_active_n_ctx() or None)
     history_chars = sum(len(str(m.get("content", ""))) for m in req.messages) + len(req.system_prompt or "")
-    context = q.format_context(hits, max_chars=context_char_budget(
-        n_ctx, max_new_tokens=req.max_tokens, history_chars=history_chars))
+    budget = context_char_budget(n_ctx, max_new_tokens=req.max_tokens, history_chars=history_chars)
+    last_index = max(i for i, m in enumerate(req.messages) if m.get("role") == "user")
+    history = [{"role": m["role"], "content": m["content"]} for m in req.messages[:last_index]]
 
-    # Layout lives in smart_brain.prompt — shared with the context-grounded
-    # training rows (data/prep/grounding.py); do not inline it here again.
-    msgs = build_messages(req.messages, context, req.system_prompt)
-
-    def _generate() -> str:
+    def _generate(msgs: list[dict]) -> str:
         if inference_engine.model is not None:
             return inference_engine.generate(
                 msgs, max_tokens=req.max_tokens,
@@ -532,18 +532,31 @@ async def brain_chat(pid: str, req: ChatRequest):
             temperature=req.temperature, top_p=0.9,
         ).strip()
 
+    from finetune_studio.webui.thinking import split_thinking
+    raw: list[str] = []
+
+    def _answer() -> dict:
+        def chat(msgs: list[dict]) -> str:
+            raw.append(_generate(msgs))
+            parts = split_thinking(raw[-1])
+            return parts["response"].strip() if parts.get("response") else raw[-1]
+        # The prompt layout is smart_brain.prompt's (the context-grounded training rows use it too); the follow-up
+        # loop is the standalone server's /ask, so the studio and an exported package answer the same way.
+        return answer_with_follow_ups(last_user, hits, lambda query: q.search(query, top_k=req.top_k), chat,
+                                      follow_ups=req.follow_up, max_chars=budget,
+                                      system_prompt=req.system_prompt, history=history)
+
     try:
         async with ENGINE_LOCK:
-            reply = await asyncio.to_thread(_generate)
+            result = await asyncio.to_thread(_answer)
     except _NoChatModel:
         raise ApiError(409, NO_CHAT_MODEL, code="no_model") from None   # unloaded while the search ran
     except ValueError as e:
         return JSONResponse({"detail": str(e)}, status_code=400)
 
-    # Strip thinking block for UI
-    from finetune_studio.webui.thinking import split_thinking
-    parts = split_thinking(reply)
-    clean = parts["response"].strip() if parts.get("response") else reply
+    clean = result["answer"]
+    hits = result["hits"]
+    parts = split_thinking(raw[-1]) if raw else {}
 
     sources = [{
         "filename": h["filename"], "source": h["source"],
@@ -552,6 +565,7 @@ async def brain_chat(pid: str, req: ChatRequest):
     } for h in hits]
     return {"reply": clean, "sources": sources,
             "raw_reply_thinking": parts.get("thinking", ""),
+            "follow_up_searches": result["follow_up_searches"],
             "hits": hits}
 
 

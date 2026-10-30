@@ -84,30 +84,34 @@ def _search(args: argparse.Namespace) -> None:
 def _ask(args: argparse.Namespace) -> None:
     """One question to a model with the Smart Brain's context (the same prompt layout as the WebUI chat)."""
     from finetune_studio.inference import describe_worker, get_engine
-    from finetune_studio.smart_brain.prompt import (
-        build_messages,
-        format_context_blocks,
-    )
+    from finetune_studio.smart_brain.standalone_server import answer_with_follow_ups
 
     if not Path(args.model).exists():
         _die(f"model not found: {args.model}")
-    hits = _loaded(args).search(args.question, top_k=args.top_k)
+    index = _loaded(args)
+    hits = index.search(args.question, top_k=args.top_k)
     engine = get_engine()
     print(f"Loading {args.model}...", file=sys.stderr)
     engine.load(args.model)
     print(f"Served by {describe_worker(engine)}.", file=sys.stderr)
     try:
-        messages = build_messages([{"role": "user", "content": args.question}], format_context_blocks(hits),
-                                  args.system_prompt)
-        answer = engine.generate(messages, max_tokens=args.max_tokens)
+        # The Smart Brain chat's answer step, follow-up search included (smart_brain.standalone_server).
+        result = answer_with_follow_ups(
+            args.question, hits, lambda query: index.search(query, top_k=args.top_k),
+            lambda messages: engine.generate(messages, max_tokens=args.max_tokens),
+            follow_ups=args.follow_up, system_prompt=args.system_prompt)
     finally:
         engine.unload()
+    answer, hits = result["answer"], result["hits"]
     sources = [{"filename": h["filename"], "score": h.get("ce_score", h.get("rrf_score", 0)), "text": h["text"][:200]}
                for h in hits]
     if args.json:
-        print(json.dumps({"response": answer, "sources": sources}, indent=2, default=str))
+        print(json.dumps({"response": answer, "sources": sources, "follow_up_searches": result["follow_up_searches"]},
+                         indent=2, default=str))
         return
     print(f"\nAI: {answer}")
+    for query in result["follow_up_searches"]:
+        print(f"(also searched: {query})")
     if sources:
         print(f"\n--- Sources ({len(sources)}) ---")
         for s in sources:
@@ -316,6 +320,8 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     sp.add_argument("--top-k", type=int, default=5)
     sp.add_argument("--max-tokens", type=int, default=512)
     sp.add_argument("--system-prompt", default="")
+    sp.add_argument("--follow-up", type=int, default=1, choices=range(4), metavar="N",
+                    help="follow-up searches the model may ask for before answering (0-3, default 1; 0 = off)")
     sp.add_argument("--json", action="store_true")
 
     sp = target(brain.add_parser("eval", help="Retrieval + grounding + portability tests"))

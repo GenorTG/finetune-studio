@@ -7,9 +7,29 @@ Special name prefixes:
 from __future__ import annotations
 
 from finetune_studio.smart_brain.constants import (
+    CPU_RERANKER,
     DEFAULT_RERANKER,
     RERANKER_LOCAL_PREFIX,
 )
+
+
+def default_reranker(device: str = "auto") -> str:
+    """The reranker a new index gets: the accurate multilingual one with a GPU, the small English one without."""
+    from finetune_studio.smart_brain.devices import resolve_device
+
+    return CPU_RERANKER if resolve_device(device).split(":")[0] == "cpu" else DEFAULT_RERANKER
+
+
+def half_precision_kwargs(device: str) -> dict:
+    """``CrossEncoder`` kwargs for fp16 weights on a CUDA/ROCm GPU (~4x faster, same ranking), none elsewhere.
+
+    Rerank scores only order one query's passages, so unlike the embedder (fp32: index and query vectors must
+    match across machines) half precision changes nothing that is stored.
+    """
+    if not device.startswith("cuda"):
+        return {}
+    import torch
+    return {"model_kwargs": {"torch_dtype": torch.float16}}
 
 
 def get_reranker(name: str = DEFAULT_RERANKER, device: str = "auto"):
@@ -41,7 +61,7 @@ def get_reranker(name: str = DEFAULT_RERANKER, device: str = "auto"):
         local_path = resolved[len(RERANKER_LOCAL_PREFIX):]
     load_target = local_path if local_path else resolved
 
-    model = CrossEncoder(load_target, device=device, max_length=512)
+    model = CrossEncoder(load_target, device=device, max_length=512, **half_precision_kwargs(device))
 
     def rerank(query: str, docs: list[str]) -> list[float]:
         if not docs:

@@ -93,6 +93,22 @@ labels. Multi-hop was the weakest full-coverage category: 2.0–10.0% across Gem
 Llama 3.2 3B, and the API RAG run. The 0.8B score has only 50.8% coverage and must not be compared as a full benchmark result.
 Per-type, latency and run details are in the [Quillmoor tables](../../tests/corpus/quillmoor/RESULTS-TABLES.md).
 
+### After the 2026-10-30 default changes
+
+Two Smart Brain defaults changed after the misses above were traced: new indexes on a machine with a GPU rerank with
+**bge-reranker-v2-m3** (half precision) instead of MiniLM, and the answer step may run one **follow-up search** when a
+question reaches its answer through another item. Same 376 questions, same API answer model and judge:
+
+| Exported E5-large hybrid package | Score | Reverse | Multi-hop | Unanswerable | p50 / p95 answer time |
+|---|---:|---:|---:|---:|---:|
+| MiniLM reranker (the row above) | 81.1% | 70.0% | 10.0% | 100.0% | 1.78 s / 3.79 s |
+| bge-reranker-v2-m3 | 88.4% | 100.0% | 32.0% | 100.0% | 1.78 s / 4.36 s |
+| bge-reranker-v2-m3 + follow-up search | **96.1%** | 100.0% | 84.0% | 100.0% | 1.58 s / 6.46 s |
+
+The reranker alone lifted retrieval hit@5 from 78.6% to 89.2% at about 0.2 s per search on the test GPU; a CPU-only
+machine keeps MiniLM. The follow-up costs a second model call on the answers that use it (87 of 376). Details and the
+per-stage trace are in [RESULTS.md §8](../../tests/corpus/quillmoor/RESULTS.md).
+
 ## Fine-tuning versus retrieval
 
 Fine-tuning and Smart Brain solve different problems. In the matched Quillmoor closed-book SFT test, seven model-family

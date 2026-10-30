@@ -24,7 +24,6 @@ from finetune_studio.data import shared_models as _sm
 from finetune_studio.smart_brain.bm25 import BM25Index
 from finetune_studio.smart_brain.constants import (
     DEFAULT_EMBEDDER,
-    DEFAULT_RERANKER,
     EMBEDDER_LOCAL_PREFIX,
     RERANKER_LOCAL_PREFIX,
     SCHEMA_VERSION,
@@ -41,6 +40,7 @@ from finetune_studio.smart_brain.model_cache import (
     cached_embedder as get_embedder,
 )
 from finetune_studio.smart_brain.query import BrainQuery
+from finetune_studio.smart_brain.rerankers import default_reranker
 from finetune_studio.smart_brain.schema import (
     ChunkSettings,
     IndexDocument,
@@ -238,7 +238,7 @@ class BrainIndex:
             chunk_settings=ChunkSettings(size=chunk_size, overlap=overlap,
                                          splitter=splitter or ("rows+tokens" if count_tokens else "rows+chars")),
             rag_settings=(dataclasses.replace(rag_settings, embedder=embedder) if rag_settings else
-                          RetrievalSettings(embedder=embedder, reranker=DEFAULT_RERANKER,
+                          RetrievalSettings(embedder=embedder, reranker=default_reranker(),
                                             rerank_enabled=True, hybrid_enabled=True)),
         )
         all_chunks = chunk_documents(docs, chunk_size, overlap, count_tokens)
@@ -284,7 +284,7 @@ class BrainIndex:
         # settings chose (the default only when none was chosen): a rebuild used to reset it to the default.
         m = Manifest.from_json(read_json(self.manifest_path))
         register_shared_models(m, embedder=embedder,
-                               reranker=(rag_settings.reranker if rag_settings else "") or DEFAULT_RERANKER)
+                               reranker=(rag_settings.reranker if rag_settings else "") or default_reranker())
         write_json(self.manifest_path, m.to_json())
 
         self._write_readme(manifest)
@@ -579,7 +579,7 @@ class BrainIndex:
                     m.embedding_model.name = DEFAULT_EMBEDDER
                     m.rag_settings.embedder = DEFAULT_EMBEDDER
                 else:
-                    m.rag_settings.reranker = DEFAULT_RERANKER
+                    m.rag_settings.reranker = default_reranker()
 
         m.updated_at = time.time()
 

@@ -169,8 +169,8 @@ An earlier, separate **17-question** held-out slice scored 0/17 for each of four
 model. An agent manually checked the 68 tuned answers and agreed with that one correct answer per family. That sample
 was too small to establish meaningful generalization; its local per-case review is excluded from the public report.
 
-The larger matched closed-book SFT evaluation uses **431 trained facts + 431 app-held-out facts per run**, with two
-question forms per fact (**862 expected answers**). Seven base/tuned family pairs completed, one Qwen 3.5 9B pair is
+The larger matched closed-book SFT evaluation uses **431 trained facts + 431 app-held-out facts per run**, one
+question per fact: the fact's training question, asked exactly as trained for seen facts (**862 expected answers**). Seven base/tuned family pairs completed, one Qwen 3.5 9B pair is
 unscored after runtime failures, and one grouped Llama 3.2 3B x3 run completed. Every scored evaluation has 862/862
 answers and AI judgments, zero split overlap, and zero judge errors. The table shows exact-pass rates; full weighted
 scores, latency, contexts and coverage are in
@@ -208,3 +208,46 @@ These scores apply to the deterministic synthetic Quillmoor files, fixed prompts
 shared RTX 3090 host. The generated formats and parser survival checks do not prove every real producer/layout; the
 answer judge is automated; the held-out quality slice has only 17 facts; and no browser-level feedback walkthrough is
 included. Do not present these as general customer-data accuracy or a completed beta gate.
+
+## 8. Answer-quality changes (2026-10-30)
+
+Two changes to the Smart Brain defaults, measured on tier S before they shipped. The answer model is the app's API
+connection (DeepSeek v4.1 Flash), judged by the same Test-judge as §6 on the same fixed 376 questions; every row has
+376/376 answers and judgments.
+
+**Where the misses came from.** A per-stage trace on the S index (`bench/retrieval_stages.py`) showed
+reverse look-ups ("which asset has serial SN…") failing in the *reranker*, not in retrieval: keyword search had the
+right passage in its top 5 for 37/40, and the MiniLM reranker pushed it out. Two-step questions failed because the
+second hop is never searched: "who manages the site where UVR-4655-R is installed?" finds the asset's row (it names the
+site) but not the site profile, whose name is not in the question. Both hops reached the top 10 for 17/50.
+
+**Reranker.** Same hybrid candidates (top 50), one client, RTX 3090, 547 non-verbatim questions (`bench/rerank_ab.py`):
+
+| Reranker | hit@5 | reverse@5 | multi-hop@5 | p50 | p95 | peak VRAM |
+|---|---:|---:|---:|---:|---:|---:|
+| ms-marco-MiniLM-L-6-v2 (old default) | 78.6% | 24/40 | 3/50 | 87 ms | 101 ms | 0.9 GB |
+| bge-reranker-v2-m3, fp32 | 89.2% | 40/40 | 10/50 | 731 ms | 906 ms | 3.3 GB |
+| bge-reranker-v2-m3, fp16 | 89.2% | 40/40 | 10/50 | 190 ms | 241 ms | 1.9 GB |
+
+**Follow-up search.** The answer model may reply `SEARCH: <query>` instead of answering; the server runs that search,
+interleaves its passages with the first ones and asks again without the option (`answer_with_follow_ups` in
+`smart_brain/standalone_server.py`, used by the package's `/ask` and the studio's Smart Brain chat). One follow-up.
+
+| Exported package (E5-large + hybrid) | score | paraphrase | verbatim | superseded | reverse | multi-hop | unanswerable | p50 | p95 | follow-ups |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| MiniLM reranker (the §6 baseline) | 81.1% | 92.1 | 96.7 | 96.2 | 70.0 | 10.0 | 100.0 | 1.78 s | 3.79 s | — |
+| MiniLM + follow-up (first parser) ¹ | 85.8% | 92.5 | 96.7 | 92.3 | 70.0 | 46.0 | 100.0 | 2.03 s | 5.12 s | 23 |
+| MiniLM + follow-up | 90.3% | 93.2 | 96.7 | 96.2 | 80.0 | 68.0 | 100.0 | 1.79 s | 9.52 s | 109 |
+| bge-reranker-v2-m3 | 88.4% | 95.0 | 96.7 | 98.1 | 100.0 | 32.0 | 100.0 | 1.78 s | 4.36 s | — |
+| **bge-reranker-v2-m3 + follow-up** | **96.1%** | 96.1 | 98.3 | 100.0 | 100.0 | 84.0 | 100.0 | 1.58 s | 6.46 s | 87 |
+
+¹ The first parser only accepted a reply that *was* the search line; the model often explained first and put
+`SEARCH:` on its last line (12 of the 23 unaided two-step failures). The shipped parser takes the last `SEARCH:` line
+anywhere in the reply. The other follow-up rows use it.
+
+The package's `/search` ran the old copy of `server.py` (fp32 reranker, no length cap); retrieval results do not depend
+on the precision (hit@5 identical above), latency does. The follow-up costs a second model call when it is used: 87 of
+376 answers here, 38 of them on unanswerable questions (the model looked once more, then said the documents do not
+contain it: unanswerable stayed 100 %). The remaining failures are mostly records cut in two by the passage chunker
+(an XML catalogue entry's SKU at the end of one passage, its supplier in the next) and judge strictness (a correct
+"B" marked fail).

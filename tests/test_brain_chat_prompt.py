@@ -82,23 +82,24 @@ def test_missing_user_message_is_400(client) -> None:
 
 def test_context_cap_follows_the_loaded_window_not_a_fixed_4000_chars(client) -> None:
     """The old cap fed a 32k-token model ~1.3k tokens (2 of 5 chunks); the budget is derived from n_ctx."""
+    from finetune_studio.smart_brain import standalone_server as srv
     from finetune_studio.webui import app as webapp
 
     pid = _project(client)
     fake_q = MagicMock()
     fake_q.search.return_value = HITS
-    fake_q.format_context.return_value = "ctx"
     fake_rag = MagicMock()
     fake_rag.exists.return_value = True
     fake_rag.load.return_value = fake_q
     with patch("finetune_studio.smart_brain.BrainIndex", return_value=fake_rag), \
          patch.object(webapp.inference_engine, "model", object()), \
          patch.object(webapp.inference_engine, "n_ctx", 262144), \
-         patch.object(webapp.inference_engine, "generate", return_value="ok"):
+         patch.object(webapp.inference_engine, "generate", return_value="ok"), \
+         patch.object(srv, "answer_with_follow_ups", wraps=srv.answer_with_follow_ups) as loop:
         r = client.post(f"/api/projects/{pid}/brain/chat",
                         json={"messages": [{"role": "user", "content": "q"}], "max_tokens": 512})
     assert r.status_code == 200, r.text
-    cap = fake_q.format_context.call_args.kwargs["max_chars"]
+    cap = loop.call_args.kwargs["max_chars"]
     assert cap == (262144 - 512 - 1024) * 3          # one-character history costs 0 tokens
 
 

@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 
 from finetune_studio.data import shared_models as sm
-from finetune_studio.smart_brain.constants import DEFAULT_RERANKER
+from finetune_studio.smart_brain.constants import CPU_RERANKER, DEFAULT_RERANKER
 from finetune_studio.smart_brain.schema import EmbeddingModelInfo
 from finetune_studio.smart_brain.server_package import build_package
 from finetune_studio.smart_brain.store import BrainIndex
@@ -94,15 +94,16 @@ def test_reembed_keeps_a_shared_ref_it_was_given(tmp_path: Path, store) -> None:
     assert _manifest(corpus)["embedding_model"]["name"] == ref
 
 
-def test_rebuild_keeps_the_reranker_the_settings_chose(tmp_path: Path, store) -> None:
+def test_rebuild_keeps_the_reranker_the_settings_chose(tmp_path: Path, store, monkeypatch) -> None:
+    monkeypatch.setattr("finetune_studio.smart_brain.devices.resolve_device", lambda _d="auto": "cuda")
     corpus = tmp_path / "corpus"
     _build(tmp_path, corpus)
     assert _manifest(corpus)["rag_settings"]["reranker"] == f"shared:reranker:{DEFAULT_RERANKER.replace('/', '__')}@fake"
     m = _manifest(corpus)
-    m["rag_settings"]["reranker"] = "BAAI/bge-reranker-v2-m3"       # what POST /brain/settings saves
+    m["rag_settings"]["reranker"] = CPU_RERANKER                       # what POST /brain/settings saves
     (corpus / "manifest.json").write_text(json.dumps(m))
     _build(tmp_path, corpus)
-    assert _manifest(corpus)["rag_settings"]["reranker"] == "shared:reranker:BAAI__bge-reranker-v2-m3@fake"
+    assert _manifest(corpus)["rag_settings"]["reranker"] == f"shared:reranker:{CPU_RERANKER.replace('/', '__')}@fake"
 
 
 def test_export_bundles_a_reranker_saved_by_name(tmp_path: Path, store) -> None:
