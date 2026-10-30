@@ -304,6 +304,9 @@
     <button onclick="sendChat()" id="chat-btn" class="btn primary"
             title="Send your question. The system retrieves relevant chunks, prepends them to your message, and sends everything to the loaded model. Requires a model to be loaded first (top-bar pill turns green when one is).">Send</button>
   </div>
+  <label class="flex items-center gap-2 text-xs mt-2"
+         title="When the passages lack a fact the question needs (who manages the site where asset X is installed?), the model may ask for one more search before answering. It helped the API model and Qwen 3.5 4B on the Quillmoor benchmark; for small models that over-use it (Llama 3.2 3B, Gemma 3 4B gained nothing and Gemma abstained less) turn it off.">
+    <input id="chat-follow-up" type="checkbox" checked> Follow-up search for questions that go through another item</label>
 </div>
 
 {# Import: reachable before any index exists (a new project is where a received bundle goes) #}
@@ -739,6 +742,7 @@
       const d = await api().post('/api/projects/' + PID + '/brain/chat', {
         messages: [{ role: 'user', content: text }],
         top_k: 10,
+        follow_up: (document.getElementById('chat-follow-up') || {}).checked === false ? 0 : 1,
       });
       const reply = d.reply || d.response || '';
       box.insertAdjacentHTML('beforeend',
