@@ -1408,7 +1408,7 @@
       const opt = document.createElement('option');
       opt.value = m.path;
       const gb = (m.size_bytes / 1e9).toFixed(2);
-      opt.textContent = `${m.repo_id.replace(/__/g, '/')} (${gb} GB)`;
+      opt.textContent = `${m.hub_repo_id || m.repo_id.replace(/__/g, '/')} (${gb} GB)`;
       sel.appendChild(opt);
       // Re-enable if the page rendered the empty placeholder.
       sel.disabled = false;

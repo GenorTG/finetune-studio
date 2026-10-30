@@ -5,6 +5,41 @@ Start with `fts --help` to see every installed command and `fts <command> --help
 for that command's options. Commands that run locally do not require the WebUI
 server unless their help says otherwise.
 
+## Models
+
+`fts models` without an action keeps listing installed models. Use its library
+actions to search Hugging Face, manage background downloads, and remove only
+models in Finetune Studio's own cache:
+
+```bash
+fts models
+fts models search "Qwen3 0.6B" --limit 10
+fts models search "Qwen3" --task "" --json
+fts models local --json
+fts models download hf-internal-testing/tiny-random-gpt2
+fts models download-status <job-id>
+fts models cancel-download <job-id>
+fts models delete hf-internal-testing/tiny-random-gpt2  # asks for confirmation
+fts models delete hf-internal-testing/tiny-random-gpt2 --yes --json
+```
+
+- `search` accepts optional query text, `--task`, `--library`, `--sort` and
+  `--limit` (1–100). Hugging Face must be reachable.
+- `download` queues a persistent background job and prints its id. `--file`
+  downloads one repository file; otherwise the full repository is downloaded.
+  Check progress or cancel it with the job id. The WebUI Activity drawer shows
+  the same job.
+- `local` lists only the app-managed Hugging Face cache. `delete` removes only
+  that cache entry, asks before removing files, refuses non-interactive use
+  without `--yes`, and protects a model currently loaded, loading, or still
+  downloading. Trained exports, helpers and models elsewhere on disk are not
+  affected. In JSON output, `hub_repo_id` is the original repository id when
+  the cache folder can be identified unambiguously.
+- All actions accept `--json`; errors exit nonzero with a plain-language reason.
+
+The WebUI Model Library shows the same downloaded cache and provides a
+confirmation before deleting a local download.
+
 ## Projects
 
 List, inspect, create, and delete projects from a terminal:

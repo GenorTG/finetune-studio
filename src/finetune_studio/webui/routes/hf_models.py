@@ -14,16 +14,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-import shutil
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-
-from finetune_studio.webui.routes.models import (
-    refresh_model_registry as _refresh_model_registry,
-)
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -61,6 +56,17 @@ class SearchRequest(BaseModel):
 def _local_models() -> list[dict]:
     """Walk the local cache and return one entry per (repo_id, branch_or_file)."""
     _LOCAL.mkdir(parents=True, exist_ok=True)
+    from finetune_studio import db
+
+    identities: dict[str, set[str]] = {}
+    for job in db.list_hf_downloads_recent(limit=5000):
+        repo_id = str(job.get("repo_id") or "")
+        if repo_id:
+            identities.setdefault(repo_id.replace("/", "__"), set()).add(repo_id)
+    active_repos = {
+        str(job.get("repo_id") or "")
+        for job in db.list_hf_downloads_in_progress(limit=10000)
+    }
     out = []
     for repo_dir in sorted(_LOCAL.iterdir()):
         if not repo_dir.is_dir():
@@ -76,8 +82,17 @@ def _local_models() -> list[dict]:
                     "path": str(p.relative_to(_LOCAL)),
                     "size_bytes": n,
                 })
+        known_ids = identities.get(repo_dir.name, set())
+        unambiguous_repo_id = next(iter(known_ids)) if len(known_ids) == 1 else None
         out.append({
+            # Keep the legacy field stable; the folder name is a lossy encoding.
+            # New callers should use hub_repo_id, which exists only when durable
+            # download history identifies the original id unambiguously.
             "repo_id": repo_dir.name,
+            "hub_repo_id": unambiguous_repo_id,
+            "repo_id_known": unambiguous_repo_id is not None,
+            "downloading": unambiguous_repo_id in active_repos if unambiguous_repo_id else False,
+            "cache_key": repo_dir.name,
             "path": str(repo_dir),
             "size_bytes": size,
             "file_count": len(files),
@@ -293,16 +308,15 @@ async def hf_local():
 @router.delete("/hf/local/{repo_id:path}")
 async def hf_delete_local(repo_id: str):
     """Delete a locally cached model."""
-    target = _local_dir(repo_id)
-    if not target.exists():
-        return JSONResponse({"detail": "not found"}, status_code=404)
-    # Model dirs are gigabytes: delete off the event loop.
-    await asyncio.to_thread(shutil.rmtree, target)
-    # The registry still lists the deleted model (and every model picker offers it) until a rescan.
     try:
-        await asyncio.to_thread(_refresh_model_registry)
-    except Exception:  # the delete already succeeded; a rescan failure must not undo that
-        log.warning("model registry rescan after HF model delete failed", exc_info=True)
+        from finetune_studio.models.hf_cache import HFCacheError, delete_cached_model
+
+        await asyncio.to_thread(delete_cached_model, repo_id)
+    except HFCacheError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=exc.status_code)
+    except Exception as exc:
+        log.exception("HF model delete failed")
+        return JSONResponse({"detail": f"could not delete downloaded model: {exc}"}, status_code=500)
     return {"ok": True, "deleted": repo_id}
 
 

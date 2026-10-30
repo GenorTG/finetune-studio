@@ -40,6 +40,18 @@
   <div id="hf-status" class="mt-2 text-xs muted"><span class="spinner"></span> Loading…</div>
 </div>
 
+<section class="card mb-4" id="hf-local-models" aria-labelledby="hf-local-title">
+  <div class="flex gap-3 items-center wrap">
+    <div class="flex-1">
+      <h2 id="hf-local-title" class="text-lg">Downloaded to this computer</h2>
+      <div class="text-xs dim">Only models downloaded into this app's Hugging Face cache appear here. Deleting one removes its local files.</div>
+    </div>
+    <button type="button" class="btn sm" id="hf-local-refresh" onclick="loadLocalModels()">Refresh</button>
+  </div>
+  <div id="hf-local-status" class="text-xs dim mt-2" role="status" aria-live="polite">Loading downloads…</div>
+  <div id="hf-local-list" class="mt-2"></div>
+</section>
+
 <div id="hf-results">
   <div class="hf-grid" id="hf-grid"></div>
   <div class="empty" id="hf-empty">
@@ -186,6 +198,55 @@ function esc(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<
 function fmtM(n) { return (n/1e6).toFixed(n>=1e6 ? 1 : 2) + 'M'; }
 function fmtK(n) { return (n/1e3).toFixed(n>=1e3 ? 1 : 2) + 'K'; }
 
+async function loadLocalModels() {
+  const status = document.getElementById('hf-local-status');
+  const list = document.getElementById('hf-local-list');
+  const refresh = document.getElementById('hf-local-refresh');
+  if (!status || !list) return;
+  if (refresh) refresh.disabled = true;
+  status.textContent = 'Checking downloaded models…';
+  try {
+    const data = await fts.api.get('/api/hf/local');
+    const models = data.models || [];
+    list.innerHTML = models.map(model => {
+      const action = model.downloading
+        ? '<button type="button" class="btn sm" disabled title="Wait for the download to finish before deleting">Downloading…</button>'
+        : model.repo_id_known
+        ? `<button type="button" class="btn sm danger" data-repo="${esc(model.hub_repo_id)}"
+                   aria-label="Delete downloaded model ${esc(model.hub_repo_id)}"
+                   onclick="deleteLocalModel(this.dataset.repo)">Delete</button>`
+        : '<span class="text-xs dim" title="The original Hugging Face id is not recorded; the cache-folder name is ambiguous.">Cannot safely identify</span>';
+      return `
+        <div class="src hf-local-row">
+          <div class="body min-w-0">
+            <div class="name truncate">${esc(model.hub_repo_id || model.repo_id)}</div>
+            <div class="meta">${(model.size_bytes / (1024 ** 3)).toFixed(2)} GB · ${model.file_count} file${model.file_count === 1 ? '' : 's'}</div>
+          </div>
+          ${action}
+        </div>`;
+    }).join('');
+    status.textContent = models.length ? `${models.length} downloaded model${models.length === 1 ? '' : 's'}.` : 'No models downloaded yet.';
+  } catch (e) {
+    status.textContent = 'Could not load downloaded models: ' + (e.message || e);
+  } finally {
+    if (refresh) refresh.disabled = false;
+  }
+}
+
+async function deleteLocalModel(repo) {
+  if (!confirm(`Delete downloaded model ${repo} and all its local files? This cannot be undone.`)) return;
+  const status = document.getElementById('hf-local-status');
+  status.textContent = `Deleting ${repo}…`;
+  try {
+    await api.del(`/api/hf/local/${encodeURIComponent(repo)}`);
+    status.textContent = `Deleted ${repo}.`;
+    if (window.fts) window.fts.notify(`Deleted downloaded model ${repo}.`, 'success');
+    await loadLocalModels();
+  } catch (e) {
+    status.textContent = 'Could not delete model: ' + (e.message || e);
+  }
+}
+
 let _hfModalPrevFocus = null;
 function closeHfModal() {
   const m = document.getElementById('hf-modal');
@@ -274,5 +335,6 @@ async function showFiles(repo, btn) {
 
 // Initial load — results are never server-rendered; favorites first so stars render right.
 loadFavorites().then(doSearch);
+loadLocalModels();
 </script>
 {% endblock %}
