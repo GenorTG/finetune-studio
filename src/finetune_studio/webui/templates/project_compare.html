@@ -170,7 +170,7 @@
       await open(r.group_id);
     } catch (e) {
       $('cp-run-msg').textContent = '';
-      notify('Could not start the comparison: ' + e.message, 'error');
+      window.fts.notify('Could not start the comparison: ' + e.message, 'error');
     } finally { syncRunBtn(); }
   });
 
@@ -198,7 +198,10 @@
         }).join('') + '</tbody></table>'
         : '<div class="empty small">No comparisons yet. Pick models and a quiz above.</div>';
       $('cp-groups').querySelectorAll('[data-open]').forEach(function(b) { b.addEventListener('click', function() { open(b.getAttribute('data-open')); }); });
-    } catch (e) { $('cp-groups').innerHTML = '<div class="empty small">Could not load comparisons: ' + esc(e.message) + '</div>'; }
+    } catch (e) {
+      $('cp-groups').innerHTML = '<div class="empty small">Could not load comparisons: ' + esc(e.message) + '</div>';
+      window.fts.notify('Could not load comparisons: ' + e.message, 'error');
+    }
   }
 
   // ── side-by-side view ──
@@ -213,7 +216,7 @@
     if (!S.gid) return;
     clearTimeout(S.timer);
     try { S.view = await jreq('GET', API + '/groups/' + encodeURIComponent(S.gid)); }
-    catch (e) { notify('Could not load the comparison: ' + e.message, 'error'); return; }
+    catch (e) { window.fts.notify('Could not load the comparison: ' + e.message, 'error'); return; }
     render();
     const busy = S.view.status.run === 'running' || S.view.status.judge === 'running';
     if (busy) S.timer = setTimeout(refresh, 2000);
@@ -283,7 +286,7 @@
     try {
       await jreq('PUT', TEST + '/runs/' + encodeURIComponent(bid) + '/cases/' + encodeURIComponent(cid) + '/verdict', { verdict: verdict, reasoning: '' });
       await refresh();
-    } catch (e) { notify('Could not save the verdict: ' + e.message, 'error'); }
+    } catch (e) { window.fts.notify('Could not save the verdict: ' + e.message, 'error'); }
   }
   $('cp-filter').querySelectorAll('[data-f]').forEach(function(b) {
     b.addEventListener('click', function() {
@@ -296,7 +299,7 @@
     try {
       await jreq('POST', API + '/groups/' + encodeURIComponent(S.gid) + '/judge', { provider_id: $('cp-judge').value, only_unjudged: onlyUnjudged });
       await refresh();
-    } catch (e) { notify('Could not start judging: ' + e.message, 'error'); }
+    } catch (e) { window.fts.notify('Could not start judging: ' + e.message, 'error'); }
   }
   $('cp-judge-btn').addEventListener('click', function() { judge(true); });
   $('cp-judge-redo').addEventListener('click', function() { judge(false); });
@@ -304,10 +307,10 @@
     try {
       const judging = S.view && S.view.status.judge === 'running';
       await jreq('POST', API + '/groups/' + encodeURIComponent(S.gid) + '/cancel');
-      notify(judging ? 'Stopping after current judge calls finish…' : 'Stopping after current model answer finishes…', 'info');
+      window.fts.notify(judging ? 'Stopping after current judge calls finish…' : 'Stopping after current model answer finishes…', 'info');
       await refresh();
     }
-    catch (e) { notify('Could not stop: ' + e.message, 'error'); }
+    catch (e) { window.fts.notify('Could not stop: ' + e.message, 'error'); }
   });
 
   syncRunBtn();

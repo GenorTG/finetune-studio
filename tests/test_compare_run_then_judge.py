@@ -9,6 +9,7 @@ are faked (tests/testing_run_support.py); the jobs, the DB rows and the routes a
 from __future__ import annotations
 
 import json
+import re
 import threading
 import time
 from pathlib import Path
@@ -404,6 +405,8 @@ def test_compare_page_renders_and_is_in_the_project_nav(client: TestClient, tmp_
     assert "Stopping after current judge calls finish…" in r.text
     assert "Judging stopped. Verdicts so far are kept." in r.text
     assert "Comparison stopped. Answers saved so far are kept." in r.text
+    assert "window.fts.notify(" in r.text
+    assert re.search(r"(?<![.\w])notify\(", r.text) is None
     assert f'href="/projects/{pid}/testing"' in r.text and 'data-tab="compare"' in r.text
     assert client.get("/projects/nope/compare").status_code == 404
 
