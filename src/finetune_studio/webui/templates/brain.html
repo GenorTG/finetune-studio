@@ -287,17 +287,16 @@
 <div class="card mb-4" id="brain-chat" data-needs-index>
   <div class="card-head">
     <div>
-      <div class="card-title">6. Ask the model (grounded)</div>
+      <div class="card-title">6. Ask about your documents</div>
       <div class="card-sub">
-        Chat that looks up your documents first and answers using them as context
-        (needs a chat model loaded — see the pill in the top bar).
-        The grounding comes from this index, not from fine-tuned weights.
+        Smart Brain finds relevant passages in this index, then answers with the source you choose below: the loaded chat model or the AI assistant's API connection.
+        This uses your indexed documents; it does not change what a model learned during training.
       </div>
     </div>
   </div>
   <div id="chat-messages" class="flex flex-col gap-2 mb-3 brain-chat-log"></div>
   <div class="flex gap-2">
-    <input id="chat-input" type="text" placeholder="Ask anything — model uses the retrieved documents as context…"
+    <input id="chat-input" type="text" placeholder="Ask a question about your indexed documents…"
            class="input flex-1"
            title="A retrieval-augmented chat: your question is embedded, top-K matching chunks are pulled from the index, and the model is asked to answer using those chunks as context. Reduces hallucination and lets the model cite sources."
            onkeydown="if(event.key==='Enter'){event.preventDefault();sendChat();}">

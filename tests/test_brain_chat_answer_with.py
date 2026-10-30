@@ -81,6 +81,10 @@ def test_unknown_answer_with_is_rejected(client) -> None:
 
 def test_brain_page_offers_the_choice_and_sends_it() -> None:
     html = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/brain.html").read_text()
+    chat_card = html.split('id="brain-chat"', 1)[1].split('id="chat-messages"', 1)[0]
+    assert "loaded chat model or the AI assistant's API connection" in chat_card
+    assert "needs a chat model loaded" not in chat_card
+    assert 'placeholder="Ask a question about your indexed documents…"' in html
     select = html.split('id="chat-answer-with"', 1)[1].split("</select>", 1)[0]
     assert 'value="model"' in select and 'value="assistant"' in select
     assert "answer_with: (document.getElementById('chat-answer-with') || {}).value || 'model'" in html
