@@ -113,6 +113,12 @@ def test_app_help_prefers_the_named_current_page() -> None:
     assert result["results"][0]["entry"] == "testing"
 
 
+def test_projects_guide_explains_permanent_data_deletion() -> None:
+    workflow = load_kb()["projects"].sections["What to check"]
+    assert "Deleting a project is permanent" in workflow
+    assert "file library, datasets, Smart Brain index" in workflow
+
+
 def test_compare_kb_and_ui_allow_installed_models_without_project_exports() -> None:
     workflow = load_kb()["compare"].sections["Workflow"]
     template = _template_text("compare")

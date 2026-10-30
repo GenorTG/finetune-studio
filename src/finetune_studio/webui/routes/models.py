@@ -4,6 +4,7 @@ import asyncio
 import logging
 import os
 import subprocess
+import threading
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -14,6 +15,8 @@ from finetune_studio.webui.engine_guard import ENGINE_LOCK
 
 router = APIRouter()
 log = logging.getLogger(__name__)
+_registry_refresh_lock = threading.RLock()
+_registry_generation = 0
 
 
 async def _json_body(request: Request) -> dict:
@@ -214,16 +217,37 @@ def refresh_model_registry() -> int:
     Blocking (disk walk). The list is replaced in one slice assignment so
     concurrent readers never observe it empty. Returns the model count.
     """
+    global _registry_generation
     from finetune_studio.config import settings
     from finetune_studio.models.registry import scan_models
+    from finetune_studio.models.registry_invalidation import read_generation
     from finetune_studio.webui.app import discovered_models
-    dirs = list(settings.model_dirs)
-    for d in settings.model_dirs_extra:
-        if d not in dirs:
-            dirs.append(d)
-    discovered = scan_models(dirs)
-    discovered_models[:] = discovered
-    return len(discovered)
+
+    with _registry_refresh_lock:
+        dirs = list(settings.model_dirs)
+        for d in settings.model_dirs_extra:
+            if d not in dirs:
+                dirs.append(d)
+        discovered = scan_models(dirs)
+        discovered_models[:] = discovered
+        _registry_generation = read_generation()
+        return len(discovered)
+
+
+def refresh_model_registry_if_invalidated() -> bool:
+    """Rescan after another local process removes or adds model files."""
+    global _registry_generation
+    from finetune_studio.models.registry_invalidation import read_generation
+
+    if read_generation() <= _registry_generation:
+        return False
+    with _registry_refresh_lock:
+        generation = read_generation()
+        if generation <= _registry_generation:
+            return False
+        refresh_model_registry()
+        _registry_generation = generation
+        return True
 
 
 @router.post("/refresh")

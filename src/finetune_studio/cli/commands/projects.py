@@ -90,8 +90,50 @@ def _create(args: argparse.Namespace) -> None:
         print(f"Created project {project['name']!r} [{project['id']}]")
 
 
+def _invalidate_model_registry() -> None:
+    """Tell the running WebUI process to rescan its in-memory model list."""
+    from finetune_studio.models.registry_invalidation import invalidate_model_registry
+
+    invalidate_model_registry()
+
+
+def _delete(args: argparse.Namespace) -> None:
+    db.init_db()
+    project = _resolve_project(args.project)
+    if not args.yes:
+        if not sys.stdin.isatty():
+            raise ProjectCommandError("deleting a project without a terminal requires --yes")
+        prompt = f"Delete project {project['name']!r} [{project['id']}] and all its stored data? [y/N] "
+        if args.json:
+            print(prompt, file=sys.stderr, end="")
+            answer = input()
+        else:
+            answer = input(prompt)
+        if answer.strip().casefold() not in {"y", "yes"}:
+            if args.json:
+                print(json.dumps({"ok": False, "cancelled": True}, indent=2))
+            else:
+                print("Cancelled.")
+            return
+
+    from finetune_studio.project_lifecycle import delete_project
+
+    if not delete_project(str(project["id"])):
+        raise ProjectCommandError(f"project not found: {args.project!r}")
+    try:
+        _invalidate_model_registry()
+    except Exception as exc:  # noqa: BLE001 — deletion succeeded; stale registry is recoverable by rescan
+        print(f"Warning: project deleted, but model registry refresh failed: {exc}", file=sys.stderr)
+
+    result = {"ok": True, "project": _project_fields(project)}
+    if args.json:
+        print(json.dumps(result, indent=2))
+    else:
+        print(f"Deleted project {project['name']!r} [{project['id']}] and its stored data.")
+
+
 def cmd_projects(args: argparse.Namespace) -> None:
-    """Handle `fts projects {list,show,create}`."""
+    """Handle `fts projects {list,show,create,delete}`."""
     try:
         if args.projects_action == "list":
             _list(args)
@@ -99,6 +141,8 @@ def cmd_projects(args: argparse.Namespace) -> None:
             _show(args)
         elif args.projects_action == "create":
             _create(args)
+        elif args.projects_action == "delete":
+            _delete(args)
         else:
             raise ProjectCommandError(f"unknown projects command: {args.projects_action}")
     except ProjectCommandError as exc:
