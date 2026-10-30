@@ -172,3 +172,33 @@ fts versions delete <version-id> --project <project-id>
 - `delete` asks for confirmation in a terminal. Scripts must pass `--yes`.
   It deletes only the snapshot record; datasets, runs, model files and Brain
   indexes referenced by the manifest remain untouched.
+
+## Trained model exports
+
+Queue and inspect exports from a terminal using the same validator, durable job
+records, and cancellation behavior as the Export page:
+
+```bash
+fts export start <run-id> --project "Maintenance notes" --quants Q4_K_M Q5_K_M
+fts export start <run-id> --project <project-id> --format gguf --quants Q4_K_M --imatrix --json
+fts export start <run-id> --project <project-id> --quant Q8_0
+fts export start <run-id> --project <project-id> --format merged
+fts export start <run-id> --project <project-id> --format heretic --force
+fts export list --project <project-id> --json
+fts export status <export-id> --project <project-id>
+fts export cancel <export-id> --project <project-id>
+```
+
+- `start` accepts `gguf`, `merged`, `abliterated`, and `heretic`; the optional
+  Heretic tool must be installed first. GGUF defaults to Q4_K_M; use `--quants`
+  for one or more formats, `--quant` for the single-quant form, and `--imatrix`
+  to calibrate quantization from the run's training text. `--base-model` selects
+  a compatible base for merge-at-export; `--no-auto-merge` refuses an unmerged
+  run; `--force` overwrites existing outputs.
+- `start` returns as soon as the persistent job is queued. `list` shows this
+  project's export records; `status` shows phase, progress, and the output or
+  error; `cancel` requests a cooperative stop. A torch merge stops between
+  phases; a running llama.cpp child is stopped as a process group.
+- Invalid formats, unavailable tools, missing training data for imatrix,
+  project/run mismatches, and a busy GPU/export return a reason and a non-zero
+  exit. All commands accept `--json` for machine-readable results.

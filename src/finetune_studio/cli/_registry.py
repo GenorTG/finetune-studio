@@ -21,6 +21,7 @@ from finetune_studio.cli.commands.brain import cmd_brain
 from finetune_studio.cli.commands.compare import cmd_compare
 from finetune_studio.cli.commands.convert import cmd_convert
 from finetune_studio.cli.commands.dataset import cmd_dataset
+from finetune_studio.cli.commands.export import cmd_export
 from finetune_studio.cli.commands.files import cmd_files
 from finetune_studio.cli.commands.heretic import cmd_heretic
 from finetune_studio.cli.commands.jobs import cmd_jobs
@@ -51,6 +52,7 @@ from finetune_studio.cli.commands.webui import cmd_webui
 COMMANDS = {
     "auth": cmd_auth,
     "jobs": cmd_jobs,
+    "export": cmd_export,
     "server": cmd_server,
     "models": cmd_models,
     "projects": cmd_projects,

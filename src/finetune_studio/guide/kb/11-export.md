@@ -27,4 +27,6 @@ Two GGUF files for two quants under the run's `gguf/` folder. Prefer q6_k or q4_
 
 ## Common mistakes
 Exporting GGUF when it is marked unavailable (the page shows why); ticking the importance matrix for a run whose training file was deleted (refused with the reason); ticking Abliterated without understanding it removes refusal behaviour.
+
+Terminal alternative: `fts export start <run-id> --project <project-id>` queues the same export job; `fts export list`, `status`, and `cancel` inspect or stop it. Run `fts export start --help` for quant, imatrix, merge, and overwrite options.
 Ticking Heretic when it is greyed out (Settings → Heretic installs it; the page says why it cannot run). Heretic also needs more GPU time than Abliterated: it searches parameters across many trials instead of applying one fixed strength.

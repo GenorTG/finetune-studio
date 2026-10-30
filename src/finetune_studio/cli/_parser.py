@@ -155,6 +155,31 @@ def build_parser() -> argparse.ArgumentParser:
     p_jg.add_argument("-n", "--lines", type=int, default=100)
     p_jobs.set_defaults(all=False)
 
+    # ── trained model exports: the same supervised queue as the Export page ──
+    p_export = sub.add_parser("export", help="Export a finished training run and inspect its job")
+    export_sub = p_export.add_subparsers(dest="export_action", required=True)
+    p_export_start = export_sub.add_parser("start", help="Queue GGUF, merged, Abliterated or Heretic export")
+    p_export_start.add_argument("run_id", help="Training run id")
+    p_export_start.add_argument("--project", required=True, help="Owning project id or name")
+    p_export_start.add_argument("--format", default="gguf", help="gguf, merged, abliterated or heretic")
+    quant_options = p_export_start.add_mutually_exclusive_group()
+    quant_options.add_argument("--quant", help="One GGUF quant (default Q4_K_M)")
+    quant_options.add_argument("--quants", nargs="+", help="One or more GGUF quants for a multi-quant job")
+    p_export_start.add_argument("--imatrix", action="store_true", help="Measure importance on the run's training text")
+    p_export_start.add_argument("--base-model", help="Compatible base model for merge-at-export")
+    p_export_start.add_argument("--force", action="store_true", help="Overwrite existing export files")
+    p_export_start.add_argument("--no-auto-merge", action="store_true", help="Refuse if the run has no merged model")
+    p_export_start.add_argument("--json", action="store_true", help="Output the queue result as JSON")
+    p_export_list = export_sub.add_parser("list", help="List this project's export records")
+    p_export_list.add_argument("--project", required=True, help="Project id or name")
+    p_export_list.add_argument("--limit", type=int, default=100, help="Maximum records (1-1000; default 100)")
+    p_export_list.add_argument("--json", action="store_true", help="Output as JSON")
+    for action, help_text in (("status", "Show an export's phase and result"), ("cancel", "Stop an active export")):
+        p_export_job = export_sub.add_parser(action, help=help_text)
+        p_export_job.add_argument("export_id", help="Export id")
+        p_export_job.add_argument("--project", required=True, help="Owning project id or name")
+        p_export_job.add_argument("--json", action="store_true", help="Output as JSON")
+
     # ── access: password, API tokens, sessions, listen address ──
     p_auth = sub.add_parser("auth", help="Password, API tokens and browser sessions (who may use the web UI)")
     auth_sub = p_auth.add_subparsers(dest="auth_action", required=True)
