@@ -34,9 +34,11 @@ in the configured local Finetune Studio data directory.
 
 ## Files
 
-Inspect a project's shared file library and parse a file from a terminal:
+Upload, inspect, and parse files in a project's shared file library:
 
 ```bash
+fts files upload --project "Maintenance notes" ./manual.pdf ./faq.md
+fts files upload --project <project-id> ./manual.pdf --json
 fts files list --project "Maintenance notes"
 fts files list --project <project-id> --mime text/ --json
 fts files show --project <project-id> "maintenance.txt" --json
@@ -52,9 +54,14 @@ fts files parse --project <project-id> <file-id> --reparse
   WebUI. It reports parser errors and exits nonzero. `--reparse` is explicit
   because it discards a hand-edited parsed version and regenerates it from the
   original file.
+- `upload` accepts one or more local paths. Readable formats are parsed into
+  the same source library used by the WebUI; duplicate content is skipped and
+  re-uploading a changed file under the same name creates a new version. Each
+  file is reported independently, and the command exits nonzero if any upload
+  fails. `--json` emits the full per-file report.
 - `trash` remains the existing maintenance command for listing or purging
-  trashed files. File upload and other file-management commands are not yet
-  available in the CLI; parity work continues through the beta.
+  trashed files. Other file-management commands are not yet available in the
+  CLI; parity work continues through the beta.
 
 The CLI and WebUI use the same local project and file records. Use `fts --help`
 for the current installed command set.

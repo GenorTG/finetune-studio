@@ -2,9 +2,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import mimetypes
 import sys
+import tempfile
 import time
+from pathlib import Path
 from typing import Any
 
 from finetune_studio import db
@@ -151,6 +155,127 @@ def _parse_file(args: argparse.Namespace) -> None:
         raise SystemExit(1)
 
 
+def _stage_path(pid: str, path: Path) -> tuple[Path, int, str]:
+    """Copy a local file into project staging while hashing it in bounded memory."""
+    staging_dir = fl.project_files_root(pid) / ".uploads"
+    staging_dir.mkdir(parents=True, exist_ok=True)
+    digest = hashlib.sha256()
+    size = 0
+    with path.open("rb") as source_file, tempfile.NamedTemporaryFile(
+        prefix="upload-", suffix=".part", dir=staging_dir, delete=False
+    ) as staged:
+        staged_path = Path(staged.name)
+        try:
+            while chunk := source_file.read(8 * 1024 * 1024):
+                staged.write(chunk)
+                digest.update(chunk)
+                size += len(chunk)
+        except Exception:
+            staged_path.unlink(missing_ok=True)
+            raise
+    return staged_path, size, digest.hexdigest()
+
+
+def _parse_uploaded_source(pid: str, file_id: str, filename: str) -> dict[str, Any] | None:
+    """Parse supported uploads through the same source pipeline as the WebUI."""
+    if not sources.is_parseable(filename):
+        return None
+    try:
+        source = sources.stage(pid, file_id)
+        source = sources.parse(pid, source.id)
+    except SourceError as exc:
+        return {"status": sources.ERROR, "error": str(exc)}
+    return {
+        "id": source.id,
+        "status": source.status,
+        "parser": source.parser,
+        "char_count": source.char_count,
+        "chunk_count": source.chunk_count,
+        "error": source.error,
+    }
+
+
+def _upload_files(args: argparse.Namespace) -> None:
+    project = _resolve_project(args.project)
+    pid = str(project["id"])
+    fl.ensure_dirs(pid)
+    report: list[dict[str, Any]] = []
+    counts = {"uploaded": 0, "duplicates_skipped": 0, "errors": 0}
+
+    for raw_path in args.paths:
+        path = Path(raw_path).expanduser()
+        name = path.name or "unnamed"
+        staged_path: Path | None = None
+        try:
+            if not path.is_file():
+                raise FileNotFoundError(f"not a regular file: {path}")
+            staged_path, size_bytes, raw_hash = _stage_path(pid, path)
+            if not size_bytes:
+                raise ValueError("empty upload")
+
+            existing = fl.find_existing_hash(pid, raw_hash)
+            if existing:
+                staged_path.unlink(missing_ok=True)
+                staged_path = None
+                source = _parse_uploaded_source(pid, str(existing["id"]), str(existing["original_name"]))
+                report.append({
+                    "filename": name,
+                    "status": "duplicate",
+                    "duplicate_of": existing["original_name"],
+                    "file_id": existing["id"],
+                    "source": source,
+                })
+                counts["duplicates_skipped"] += 1
+                continue
+
+            mime_hint = mimetypes.guess_type(name)[0]
+            meta = fl.write_staged_upload(
+                pid=pid,
+                staged_path=staged_path,
+                original_name=name,
+                raw_hash=raw_hash,
+                size_bytes=size_bytes,
+                mime_hint=mime_hint,
+            )
+            staged_path = None  # adopted by the library
+            source = _parse_uploaded_source(pid, meta.file_id, name)
+            report.append({
+                "filename": name,
+                "status": "uploaded",
+                "file_id": meta.file_id,
+                "mime_type": meta.mime_type,
+                "size_bytes": meta.size_bytes,
+                "raw_hash": meta.raw_hash,
+                "auto_kind": meta.auto_kind,
+                "source": source,
+                "parse_status": source["status"] if source else "not staged",
+            })
+            counts["uploaded"] += 1
+        except Exception as exc:  # noqa: BLE001 - isolate bulk uploads like the WebUI route
+            if staged_path is not None:
+                staged_path.unlink(missing_ok=True)
+            report.append({"filename": name, "status": "error", "error": str(exc)})
+            counts["errors"] += 1
+
+    result = {"ok": counts["errors"] == 0, "project": {"id": pid, "name": project["name"]},
+              "counts": counts, "report": report}
+    if args.json:
+        print(json.dumps(result, indent=2))
+    else:
+        for item in report:
+            if item["status"] == "error":
+                print(f"Error uploading {item['filename']!r}: {item['error']}", file=sys.stderr)
+            elif item["status"] == "duplicate":
+                print(f"Skipped duplicate {item['filename']!r}; already stored as {item['duplicate_of']!r}")
+            else:
+                source = item.get("source")
+                parse_note = f" · parse {source['status']}" if source else " · no parser for this file type"
+                print(f"Uploaded {item['filename']!r} [{item['file_id']}] · {item['size_bytes']} bytes{parse_note}")
+        print(f"Uploaded {counts['uploaded']}; skipped duplicates {counts['duplicates_skipped']}; errors {counts['errors']}.")
+    if counts["errors"]:
+        raise SystemExit(1)
+
+
 def _cmd_files_trash(args: argparse.Namespace) -> None:
     """List or purge trash; purge is the existing explicit maintenance command."""
     pid_filter = getattr(args, "project_id", None)
@@ -212,14 +337,16 @@ def _cmd_files_trash(args: argparse.Namespace) -> None:
 
 
 def cmd_files(args: argparse.Namespace) -> None:
-    """Handle `fts files {list,show,parse,trash}`."""
+    """Handle `fts files {upload,list,show,parse,trash}`."""
     db.init_db()
     sub = getattr(args, "files_command", None)
     try:
         if sub is None:
-            print("Usage: fts files {list,show,parse,trash} ...")
+            print("Usage: fts files {upload,list,show,parse,trash} ...")
             return
-        if sub == "list":
+        if sub == "upload":
+            _upload_files(args)
+        elif sub == "list":
             _list_files(args)
         elif sub == "show":
             _show_file(args)

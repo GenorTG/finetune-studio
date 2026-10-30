@@ -10,6 +10,7 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Added
+- CLI: `fts files upload` adds one or more local files to the same project file library as the WebUI, with content deduplication, versioning, parsing and per-file reports. See `docs/CLI.md`.
 - CLI: `fts projects list`, `show` (by id or name) and `create` now manage the same project records as the WebUI; JSON output and duplicate-name checks are included. See `docs/CLI.md`.
 - CLI: `fts files list`, `show`, and `parse` inspect the shared project file library; reparsing is an explicit option because it replaces hand-edited parsed text. See `docs/CLI.md`.
 - Smart Brain chat can answer with the AI assistant's API connection, so grounded chat works without loading a local model; it sends the question and retrieved passages to the selected connection and identifies the source in the UI.
