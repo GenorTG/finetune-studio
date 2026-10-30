@@ -24,8 +24,10 @@ from finetune_studio.cli.commands.dataset import cmd_dataset
 from finetune_studio.cli.commands.files import cmd_files
 from finetune_studio.cli.commands.heretic import cmd_heretic
 from finetune_studio.cli.commands.jobs import cmd_jobs
+from finetune_studio.cli.commands.mining import cmd_mining
 from finetune_studio.cli.commands.models import cmd_models
 from finetune_studio.cli.commands.projects import cmd_projects
+from finetune_studio.cli.commands.qa import cmd_qa
 from finetune_studio.cli.commands.service import cmd_down, cmd_service, cmd_up
 from finetune_studio.cli.commands.suite import cmd_suite
 from finetune_studio.cli.commands.supervisor import (
@@ -66,6 +68,8 @@ COMMANDS = {
     "accel": cmd_accel,
     "heretic": cmd_heretic,
     "files": cmd_files,
+    "mining": cmd_mining,
+    "qa": cmd_qa,
     "dataset": cmd_dataset,
     "supervisor": cmd_supervisor,
     "status": cmd_status,

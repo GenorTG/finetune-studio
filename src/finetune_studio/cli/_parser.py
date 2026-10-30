@@ -285,6 +285,48 @@ def build_parser() -> argparse.ArgumentParser:
     p_files_trash.add_argument("--dry-run", action="store_true",
                                 help="Show what would be purged, do not delete")
 
+    # ── mining jobs (persistent per-file helper work) ──
+    p_mining = sub.add_parser("mining", help="Queue and inspect persistent per-file Mining jobs")
+    mining_sub = p_mining.add_subparsers(dest="mining_action", required=True)
+    p_mining_start = mining_sub.add_parser("start", help="Mine files or fill gaps in their Q&A coverage")
+    p_mining_start.add_argument("files", nargs="+", help="Parsed file ids or names")
+    p_mining_start.add_argument("--project", required=True, help="Project id or name")
+    p_mining_start.add_argument("--kind", choices=("mine", "fill"), default="mine",
+                                 help="mine builds the inventory; fill revisits open data points")
+    p_mining_start.add_argument("--json", action="store_true", help="Output queued jobs as JSON")
+    p_mining_list = mining_sub.add_parser("list", help="List Mining jobs in a project")
+    p_mining_list.add_argument("--project", required=True, help="Project id or name")
+    p_mining_list.add_argument("--source-id", help="Filter by parsed source id")
+    p_mining_list.add_argument("--active", action="store_true", help="Show only queued and running jobs")
+    p_mining_list.add_argument("--limit", type=int, default=100, help="Maximum jobs to show (default: 100)")
+    p_mining_list.add_argument("--json", action="store_true", help="Output jobs and helper settings as JSON")
+    for action, help_text in (("status", "Show one job's progress"), ("cancel", "Cancel or stop a Mining job")):
+        p_mining_job = mining_sub.add_parser(action, help=help_text)
+        p_mining_job.add_argument("job_id", help="Mining job id")
+        p_mining_job.add_argument("--project", required=True, help="Owning project id or name")
+        p_mining_job.add_argument("--json", action="store_true", help="Output as JSON")
+
+    # ── qa review ──
+    p_qa = sub.add_parser("qa", help="Review mined Q&A pairs and inspect their status")
+    qa_sub = p_qa.add_subparsers(dest="qa_action", required=True)
+    p_qa_list = qa_sub.add_parser("list", help="List the review queue")
+    p_qa_list.add_argument("--project", required=True, help="Project id or name")
+    p_qa_list.add_argument("--status", choices=("pending", "approved", "rejected"), help="Filter by review status")
+    p_qa_list.add_argument("--source", help="Filter by source id or parsed file name")
+    p_qa_list.add_argument("--search", default="", help="Search question and answer text")
+    p_qa_list.add_argument("--offset", type=int, default=0, help="Skip this many matching pairs")
+    p_qa_list.add_argument("--limit", type=int, default=200, help="Maximum pairs to show (default: 200)")
+    p_qa_list.add_argument("--json", action="store_true", help="Output the queue page and counts as JSON")
+    for action, help_text in (("approve", "Approve Q&A pairs for export"), ("reject", "Reject Q&A pairs")):
+        p_qa_review = qa_sub.add_parser(action, help=help_text)
+        p_qa_review.add_argument("ids", nargs="+", help="Q&A pair ids")
+        p_qa_review.add_argument("--project", required=True, help="Project id or name")
+        p_qa_review.add_argument("--note", help="Optional reviewer note")
+        if action == "reject":
+            p_qa_review.add_argument("--yes", action="store_true",
+                                     help="Confirm rejection that would leave mined facts uncovered")
+        p_qa_review.add_argument("--json", action="store_true", help="Output counts and updated pairs as JSON")
+
     # ── dataset (build a training dataset from a project's Q&A pairs) ──
     p_dataset = sub.add_parser("dataset", help="Build training datasets from a project")
     dataset_sub = p_dataset.add_subparsers(dest="dataset_command")

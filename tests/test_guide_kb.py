@@ -119,6 +119,13 @@ def test_projects_guide_explains_permanent_data_deletion() -> None:
     assert "file library, datasets, Smart Brain index" in workflow
 
 
+def test_pairs_guide_links_terminal_review_and_export_commands() -> None:
+    common_mistakes = load_kb()["pairs"].sections["Common mistakes"]
+    assert "fts qa list" in common_mistakes
+    assert "fts qa approve" in common_mistakes and "fts qa reject" in common_mistakes
+    assert "fts mining" in common_mistakes and "fts dataset build" in common_mistakes
+
+
 def test_compare_kb_and_ui_allow_installed_models_without_project_exports() -> None:
     workflow = load_kb()["compare"].sections["Workflow"]
     template = _template_text("compare")
