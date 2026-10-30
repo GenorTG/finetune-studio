@@ -16,7 +16,7 @@ import json
 import logging
 import re
 from collections.abc import Callable, Iterator
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -390,12 +390,25 @@ def judge_many(
             done += 1
         return done
     with ThreadPoolExecutor(max_workers=JUDGE_PARALLEL_API, thread_name_prefix="fts-judge") as pool:
-        for start in range(0, len(items), JUDGE_PARALLEL_API * 4):
-            if should_stop():
-                break
-            batch = items[start:start + JUDGE_PARALLEL_API * 4]
-            futures = [(key, pool.submit(judge_one, judge.chat, case)) for key, case in batch]
-            for key, fut in futures:
-                on_result(key, fut.result())
+        pending = iter(items)
+        futures = {}
+
+        def submit_available() -> None:
+            while len(futures) < JUDGE_PARALLEL_API and not should_stop():
+                try:
+                    key, case = next(pending)
+                except StopIteration:
+                    return
+                futures[pool.submit(judge_one, judge.chat, case)] = key
+
+        submit_available()
+        while futures:
+            completed, _ = wait(futures, return_when=FIRST_COMPLETED)
+            for future in completed:
+                key = futures.pop(future)
+                on_result(key, future.result())
                 done += 1
+            # Keep concurrency full while running, but never queue more requests than workers:
+            # after Stop, already in-flight calls are kept and drained, and no new calls start.
+            submit_available()
     return done

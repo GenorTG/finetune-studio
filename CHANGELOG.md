@@ -9,6 +9,9 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+### Fixed
+- Testing: stopping parallel API judging now lets only already-running judge calls finish; it no longer queues the rest of the answers, and the page says what it is waiting for.
+
 ### Added
 - CLI: `fts files upload` adds one or more local files to the same project file library as the WebUI, with content deduplication, versioning, parsing and per-file reports. See `docs/CLI.md`.
 - CLI: `fts projects list`, `show` (by id or name) and `create` now manage the same project records as the WebUI; JSON output and duplicate-name checks are included. See `docs/CLI.md`.

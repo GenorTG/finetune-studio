@@ -778,7 +778,12 @@
   });
   $('rv-provider').addEventListener('change', function() { renderControls(S.run || {}); });
   $('rv-stop').addEventListener('click', async function() {
-    try { await jreq('POST', BASE + '/runs/' + S.cur + '/cancel'); notify('Stopping after the current answer…', 'info'); refresh(true); }
+    try {
+      await jreq('POST', BASE + '/runs/' + S.cur + '/cancel');
+      const running = S.run && (S.run.status === 'running' || S.run.status === 'queued');
+      notify(running ? 'Stopping after the current answer…' : 'Stopping after current judge calls finish…', 'info');
+      refresh(true);
+    }
     catch (e) { notify(e.message, 'error'); }
   });
   $('rv-delete').addEventListener('click', async function() {

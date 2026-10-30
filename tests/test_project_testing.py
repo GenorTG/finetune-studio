@@ -79,6 +79,14 @@ def test_testing_page_lists_runs_from_the_api_not_a_server_snapshot(client) -> N
     assert 'id="t-runs"' in r.text and "/api/testing/projects/" in r.text
 
 
+def test_testing_stop_feedback_matches_run_and_parallel_judge_boundaries(client) -> None:
+    pid = _project(client)
+    body = client.get(f"/projects/{pid}/testing").text
+    assert "BASE + '/runs/' + S.cur + '/cancel'" in body
+    assert "Stopping after the current answer…" in body
+    assert "Stopping after current judge calls finish…" in body
+
+
 def test_benchmarks_for_project_lists_runs_newest_first_with_run_name(temp_db) -> None:
     from finetune_studio import db
     from finetune_studio.db.connection import cursor
