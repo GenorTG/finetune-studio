@@ -16,6 +16,7 @@ from finetune_studio.cli._parser import build_parser
 from finetune_studio.cli.commands.accel import cmd_accel
 from finetune_studio.cli.commands.access import cmd_auth, cmd_server
 from finetune_studio.cli.commands.analyze import cmd_analyze
+from finetune_studio.cli.commands.assistant import cmd_assistant
 from finetune_studio.cli.commands.benchmark import cmd_benchmark
 from finetune_studio.cli.commands.brain import cmd_brain
 from finetune_studio.cli.commands.compare import cmd_compare
@@ -52,6 +53,7 @@ from finetune_studio.cli.commands.webui import cmd_webui
 
 COMMANDS = {
     "auth": cmd_auth,
+    "assistant": cmd_assistant,
     "jobs": cmd_jobs,
     "export": cmd_export,
     "server": cmd_server,

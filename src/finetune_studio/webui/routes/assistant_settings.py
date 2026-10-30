@@ -59,7 +59,7 @@ def _presets() -> list[dict[str, Any]]:
             for p in PROVIDER_PRESETS if p["id"] in _API_PRESET_IDS]
 
 
-def _concurrency(extra: dict[str, Any]) -> int:
+def connection_concurrency(extra: dict[str, Any]) -> int:
     try:
         return max(1, min(MAX_API_CONCURRENCY, int(extra.get("concurrency") or DEFAULT_API_CONCURRENCY)))
     except (TypeError, ValueError):
@@ -98,7 +98,7 @@ def _connection(row: dict[str, Any], seat: str, used_by: dict[str, list[str]]) -
         out.update({"base_url": row.get("base_url", ""), "key_set": bool(row.get("api_key_set")),
                     "key_state": row.get("api_key_state") or "unset", "preset": str(extra.get("preset") or "custom"),
                     "reasoning_effort": str((extra.get("body") or {}).get("reasoning_effort") or ""),
-                    "concurrency": _concurrency(extra)})
+                    "concurrency": connection_concurrency(extra)})
     else:
         path = str(row.get("model_id") or "")
         out.update({"path": path, "present": bool(path) and Path(path).expanduser().is_file()})
@@ -201,7 +201,7 @@ def _new_id(name: str) -> str:
     return pid
 
 
-def _upsert_connection(pid: str | None, body: dict[str, Any]) -> str:
+def upsert_connection(pid: str | None, body: dict[str, Any]) -> str:
     """Create (``pid`` None) or update an API connection; a blank key keeps the stored one, ``clear_key`` removes it.
     A field the body omits keeps its stored value."""
     mgr = get_manager()
@@ -266,7 +266,7 @@ async def create_connection(request: Request):
     body = await _json(request)
 
     def _apply() -> dict[str, Any]:
-        return {"id": _upsert_connection(None, body), **_state()}
+        return {"id": upsert_connection(None, body), **_state()}
 
     return await asyncio.to_thread(_apply)
 
@@ -276,7 +276,7 @@ async def update_connection(pid: str, request: Request):
     body = await _json(request)
 
     def _apply() -> dict[str, Any]:
-        return {"id": _upsert_connection(pid, body), **_state()}
+        return {"id": upsert_connection(pid, body), **_state()}
 
     return await asyncio.to_thread(_apply)
 
@@ -284,27 +284,29 @@ async def update_connection(pid: str, request: Request):
 @router.delete("/api/settings/connections/{pid}")
 async def delete_connection(pid: str):
     """Remove an API connection and its key. Jobs that used it go back to the main assistant (pictures: off)."""
-    def _apply() -> dict[str, Any]:
-        mgr = get_manager()
-        row = mgr.get_provider(pid)
-        if row is None:
-            raise HTTPException(status_code=404, detail=f"unknown connection {pid!r}")
-        if row.get("kind") != "openai_compat":
-            raise HTTPException(status_code=400, detail="the local model cannot be removed (it can be changed)")
-        if pid == assistant.assistant_provider_id():
-            raise HTTPException(status_code=409, detail="this connection is the main assistant: pick another main "
-                                                        "assistant first")
-        if (mgr.active() or {}).get("id") == pid:
-            mgr.unload()
-        assistant.forget_connection(pid)
-        assistant.drop_client(pid)
-        mgr.delete_provider(pid)
-        return _state()
-
-    return await asyncio.to_thread(_apply)
+    await asyncio.to_thread(delete_connection_record, pid)
+    return await asyncio.to_thread(_state)
 
 
-def _probe_config(body: dict[str, Any]) -> ProviderConfig:
+def delete_connection_record(pid: str) -> None:
+    """Shared CLI/HTTP deletion path; protects the main seat and resets jobs using the removed connection."""
+    mgr = get_manager()
+    row = mgr.get_provider(pid)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"unknown connection {pid!r}")
+    if row.get("kind") != "openai_compat":
+        raise HTTPException(status_code=400, detail="the local model cannot be removed (it can be changed)")
+    if pid == assistant.assistant_provider_id():
+        raise HTTPException(status_code=409, detail="this connection is the main assistant: pick another main "
+                                                    "assistant first")
+    if (mgr.active() or {}).get("id") == pid:
+        mgr.unload()
+    assistant.forget_connection(pid)
+    assistant.drop_client(pid)
+    mgr.delete_provider(pid)
+
+
+def probe_connection_config(body: dict[str, Any]) -> ProviderConfig:
     """Config to test: typed-in values over the stored connection ``body["id"]`` (its stored key when none is typed)."""
     mgr = get_manager()
     pid = str(body.get("id") or "").strip()
@@ -336,7 +338,7 @@ def _probe_config(body: dict[str, Any]) -> ProviderConfig:
 @router.post("/api/settings/connections/test")
 async def test_connection(request: Request):
     """One real chat call with the typed-in (or stored) values: proves URL, key, model and latency."""
-    cfg = _probe_config(await _json(request))
+    cfg = probe_connection_config(await _json(request))
     if not cfg.model_id or not cfg.api_key:
         return JSONResponse({"ok": False, "detail": "enter the model name and API key first"}, status_code=400)
     provider = OpenAICompatProvider(cfg)
@@ -359,7 +361,7 @@ async def test_connection(request: Request):
 @router.post("/api/settings/connections/models")
 async def list_connection_models(request: Request):
     """Model ids the provider offers (``GET {base}/models``), so the user picks instead of typing."""
-    cfg = _probe_config(await _json(request))
+    cfg = probe_connection_config(await _json(request))
     if not cfg.api_key:
         return JSONResponse({"ok": False, "detail": "enter the API key first"}, status_code=400)
     headers = {"Authorization": f"Bearer {cfg.api_key}"}
