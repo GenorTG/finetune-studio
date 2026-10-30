@@ -10,7 +10,7 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Added
-- Smart Brain answers can make a **follow-up search**. A question that reaches its answer through another item ("who manages the site where pump X is installed?") finds the pump's row, never the site's profile; the answer model may now ask for one more search before answering. The Smart Brain chat shows it as *Also searched*, and an exported package's `/ask` and `rag_answer` do the same (`RAG_FOLLOW_UP`, 0 turns it off). On the Quillmoor benchmark (376 judged answers, API model) two-step questions went from 10 % to 46 % with the old default search and to 84 % with the new reranker.
+- Smart Brain answers can make a **follow-up search**. A question that reaches its answer through another item ("who manages the site where pump X is installed?") finds the pump's row, never the site's profile; the answer model may now ask for one more search before answering. The Smart Brain chat shows it as *Also searched*, and an exported package's `/ask` and `rag_answer` do the same (`RAG_FOLLOW_UP`, 0 turns it off). On the Quillmoor benchmark (376 judged answers, API model) two-step questions went from 10 % to 68 % with the old default search (81.1 % → 90.3 % overall) and to 84 % with the new reranker (96.1 % overall).
 - **Heretic** (optional tool): remove a model's refusals properly. Heretic searches the abliteration parameters
   (Optuna) instead of applying one fixed strength, so the result stays closer to the original model's behaviour. It
   is a separate program with its own license (AGPL-3.0), installed on demand from Settings → **Heretic** (or

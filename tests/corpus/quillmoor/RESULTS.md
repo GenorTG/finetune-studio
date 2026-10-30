@@ -237,12 +237,13 @@ interleaves its passages with the first ones and asks again without the option (
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
 | MiniLM reranker (the §6 baseline) | 81.1% | 92.1 | 96.7 | 96.2 | 70.0 | 10.0 | 100.0 | 1.78 s | 3.79 s | — |
 | MiniLM + follow-up (first parser) ¹ | 85.8% | 92.5 | 96.7 | 92.3 | 70.0 | 46.0 | 100.0 | 2.03 s | 5.12 s | 23 |
+| MiniLM + follow-up | 90.3% | 93.2 | 96.7 | 96.2 | 80.0 | 68.0 | 100.0 | 1.79 s | 9.52 s | 109 |
 | bge-reranker-v2-m3 | 88.4% | 95.0 | 96.7 | 98.1 | 100.0 | 32.0 | 100.0 | 1.78 s | 4.36 s | — |
 | **bge-reranker-v2-m3 + follow-up** | **96.1%** | 96.1 | 98.3 | 100.0 | 100.0 | 84.0 | 100.0 | 1.58 s | 6.46 s | 87 |
 
 ¹ The first parser only accepted a reply that *was* the search line; the model often explained first and put
 `SEARCH:` on its last line (12 of the 23 unaided two-step failures). The shipped parser takes the last `SEARCH:` line
-anywhere in the reply. The bge rows use it.
+anywhere in the reply. The other follow-up rows use it.
 
 The package's `/search` ran the old copy of `server.py` (fp32 reranker, no length cap); retrieval results do not depend
 on the precision (hit@5 identical above), latency does. The follow-up costs a second model call when it is used: 87 of

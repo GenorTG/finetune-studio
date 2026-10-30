@@ -2,8 +2,8 @@
 
 Quillmoor S, 376 judged answers, API answer model, default package (tests/corpus/quillmoor/RESULTS.md §6): the
 first search finds the asset's row (it names the site) but never the site's profile (the question never names the
-site), so two-step questions scored 10 %. Letting the model ask for one more search lifted them to 46 % and the
-whole set from 81.1 % to 85.8 % with no loss on unanswerable questions. These tests pin the loop both the package's
+site), so two-step questions scored 10 %. Letting the model ask for one more search lifted them to 68 % and the
+whole set from 81.1 % to 90.3 % (96.1 % with the bge reranker) with no loss on unanswerable questions. These tests pin the loop both the package's
 /ask and the studio's Smart Brain chat run.
 """
 from __future__ import annotations
