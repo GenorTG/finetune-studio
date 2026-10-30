@@ -35,3 +35,5 @@ Every file reaches **complete**. Read the pairs, do not bulk-approve: questions 
 
 ## Common mistakes
 Approving everything unread; exporting while pairs are still pending (they are excluded); rejecting the only pair that states a fact and not filling the gap it opens; resetting a file (that deletes its unreviewed pairs and checklist; reviewed pairs stay).
+
+Terminal alternative: `fts qa list` shows the review queue, `fts qa approve` and `fts qa reject` change verdicts, `fts mining` manages background jobs, and `fts dataset build` exports through the same completeness check.

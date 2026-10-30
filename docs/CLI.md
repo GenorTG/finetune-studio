@@ -72,3 +72,45 @@ fts files parse --project <project-id> <file-id> --reparse
 
 The CLI and WebUI use the same local project and file records. Use `fts --help`
 for the current installed command set.
+
+## Mining jobs
+
+Mining uses the configured **Mining** helper and runs in a persistent worker,
+so a queued job continues after the `fts` command exits:
+
+```bash
+fts mining start --project "Maintenance notes" "maintenance.txt"
+fts mining start --project <project-id> --kind fill maintenance.txt --json
+fts mining list --project <project-id> --active
+fts mining status <job-id> --project <project-id>
+fts mining cancel <job-id> --project <project-id>
+```
+
+- `start` accepts parsed file names or source ids. `mine` builds a file's
+  inventory and Q&A pairs; `fill` retries open data points on an already-mined
+  file. The configured helper must be usable before any job is queued.
+- `list` shows job status, stage and file; `--active` limits it to queued/running
+  work. `status` and `cancel` require the owning project so a job from another
+  project cannot be mistaken for this one. All commands support `--json`.
+
+## Q&A review and export
+
+Inspect and review pairs from the same queue used by the Pairs page:
+
+```bash
+fts qa list --project "Maintenance notes" --status pending
+fts qa list --project <project-id> --source maintenance.txt --search pump --json
+fts qa approve --project <project-id> <pair-id> <another-pair-id>
+fts qa reject --project <project-id> <pair-id>
+fts qa reject --project <project-id> <pair-id> --yes --json
+fts dataset build --project <project-id>
+```
+
+- `list` includes project-wide pending/approved/rejected counts and accepts a
+  status, source file/id, text search, offset and page limit.
+- `approve` and `reject` update the same pair records and review timestamps as
+  the WebUI. Rejecting the last pair that covers a mined fact requires a
+  terminal confirmation; non-interactive scripts must pass `--yes`.
+- Export is `fts dataset build`, not a second Q&A export path: it applies the
+  same completeness gate, approved-pair selection, optional grounded context,
+  and dataset registration as the WebUI's **Export approved → Training**.
