@@ -267,3 +267,26 @@ fts assistant connections delete <connection-id>  # asks for confirmation
 - `test` sends one real request to the provider. `models` calls its
   OpenAI-compatible `/models` endpoint. These commands make network requests;
   connection state and saved keys are not included in their output.
+
+## Compute device
+
+Inspect the detected GPUs and save which device Finetune Studio should use the
+next time its processes start, as in **Settings → Compute device**:
+
+```bash
+fts compute-device show
+fts compute-device show --json
+fts compute-device set auto
+fts compute-device set cpu
+fts compute-device set gpu --device-id nvidia:GPU-...
+```
+
+- GPU ids come from `show`; a missing or unknown id is rejected. The choice is
+  saved under `$FTS_ROOT/compute_device.json`, the same file used by Settings.
+- Saving a choice does not change a running process. The report says when a
+  restart is needed and gives the applicable command. Explicit device-policy
+  environment variables still override a saved choice and are listed in the
+  report; a restart cannot remove an environment override.
+- The command uses vendor inventory tools only; it does not initialize a CUDA
+  context or move work between GPUs. `--json` returns the same report fields as
+  the compute-device API.
