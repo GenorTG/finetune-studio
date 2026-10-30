@@ -290,3 +290,30 @@ fts compute-device set gpu --device-id nvidia:GPU-...
 - The command uses vendor inventory tools only; it does not initialize a CUDA
   context or move work between GPUs. `--json` returns the same report fields as
   the compute-device API.
+
+## Application updates
+
+Run the same update pipeline as **Settings → Updates**, and inspect its durable
+history:
+
+```bash
+fts update check
+fts update apply                    # asks before changing packages/restarting
+fts update apply --no-pull --no-llama --no-restart --yes
+fts update repair                   # asks before rebuilding the Python environment
+fts update repair --yes
+fts update history --limit 5
+fts update status <update-id> --full
+```
+
+- `check` is a dry-run update/health check. `apply` installs the current branch's
+  update; `repair` recreates the Python environment from scratch. `--no-pull`,
+  `--no-llama`, and `--no-restart` match the updater options. Apply and repair
+  ask for confirmation; pass `--yes` for a deliberate non-interactive run.
+- The CLI runs the same update worker and records the same database history as
+  the Settings page. Script output streams to the terminal; `history` and
+  `status` read those durable records. `--json` emits one final record with the
+  saved log tail and status, not progress lines. A failed update exits nonzero.
+- Avoid running `repair` casually: it rebuilds the Python environment and can
+  take several minutes. Do not interrupt an update while dependencies or the
+  service are being changed.

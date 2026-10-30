@@ -13,6 +13,7 @@ turns that section into the release's notes.
 - Add `fts usecases` template/build/list/show/delete/evaluate/report/A-B commands using the Training page's shared dataset, suite, and evaluation services.
 - Add `fts assistant` connection and job-routing commands with encrypted key storage, hidden/file/stdin key input, and shared WebUI validation.
 - Add `fts compute-device show|set` for the same saved device choice and validation as Settings; report restart requirements and environment overrides.
+- Add `fts update check|apply|repair`, plus durable history/status commands; apply and repair require confirmation and share the WebUI update worker.
 
 ### Fixed
 - Compare: Stop now confirms it is stopping, then leaves a clear “stopped; saved work is kept” status after a run or judge cancellation.

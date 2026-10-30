@@ -43,6 +43,7 @@ from finetune_studio.cli.commands.supervisor import (
 )
 from finetune_studio.cli.commands.test import cmd_test
 from finetune_studio.cli.commands.train import cmd_train
+from finetune_studio.cli.commands.update import cmd_update
 from finetune_studio.cli.commands.usecases import cmd_usecases
 from finetune_studio.cli.commands.validate import cmd_validate
 from finetune_studio.cli.commands.validate_hallucination import (
@@ -69,6 +70,7 @@ COMMANDS = {
     "brain": cmd_brain,
     "compare": cmd_compare,
     "compute-device": cmd_compute_device,
+    "update": cmd_update,
     "benchmark": cmd_benchmark,
     "analyze": cmd_analyze,
     "validate-hallucination": cmd_validate_hallucination,

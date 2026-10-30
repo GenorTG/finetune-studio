@@ -458,6 +458,26 @@ def build_parser() -> argparse.ArgumentParser:
     p_compute_set.add_argument("--device-id", help="GPU id from `fts compute-device show` (required for gpu)")
     p_compute_set.add_argument("--json", action="store_true", help="Output the saved device report as JSON")
 
+    # ── application updates ──
+    p_update = sub.add_parser("update", help="Check, apply or repair this Finetune Studio install")
+    update_sub = p_update.add_subparsers(dest="update_action", required=True)
+    for action, help_text in (("check", "Check for updates and run the health check (no install changes)"),
+                              ("apply", "Install the latest code and dependencies, then restart"),
+                              ("repair", "Recreate the Python environment, then restart")):
+        command = update_sub.add_parser(action, help=help_text)
+        command.add_argument("--no-pull", action="store_true", help="Skip fetching/pulling code")
+        command.add_argument("--no-llama", action="store_true", help="Skip llama.cpp CLI setup")
+        command.add_argument("--no-restart", action="store_true", help="Do not restart the service")
+        command.add_argument("--yes", action="store_true", help="Confirm apply/repair without prompting")
+        command.add_argument("--json", action="store_true", help="Output the final durable update record as JSON")
+    p_update_history = update_sub.add_parser("history", help="List recent update attempts")
+    p_update_history.add_argument("--limit", type=int, default=10, choices=range(1, 51))
+    p_update_history.add_argument("--json", action="store_true", help="Output history as JSON")
+    p_update_status = update_sub.add_parser("status", help="Show one update attempt and its log")
+    p_update_status.add_argument("update_id", help="Update id from the command or history")
+    p_update_status.add_argument("--full", action="store_true", help="Show the full saved log")
+    p_update_status.add_argument("--json", action="store_true", help="Output the update record as JSON")
+
     # ── assistant settings ──
     p_assistant = sub.add_parser("assistant", help="Manage AI connections, the main assistant and job routing")
     assistant_sub = p_assistant.add_subparsers(dest="assistant_action", required=True)

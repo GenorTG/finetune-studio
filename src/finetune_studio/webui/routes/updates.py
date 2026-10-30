@@ -22,6 +22,7 @@ import asyncio
 import logging
 import os
 import subprocess
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -93,7 +94,7 @@ async def trigger_update(request: Request, background: BackgroundTasks):
     triggered_by = str(body.get("triggered_by") or "user")[:32]
     row = db.create_update(mode=mode, options=options,
                            triggered_by=triggered_by)
-    background.add_task(_update_worker, row["id"], mode, options)
+    background.add_task(run_update_worker, row["id"], mode, options)
     return {"ok": True, "update_id": row["id"], "status": "queued",
             "mode": mode, "options": options}
 
@@ -183,21 +184,32 @@ async def get_update_status(uid: str, full: bool = False):
     return row
 
 
-def _update_worker(uid: str, mode: str, options: dict) -> None:
-    """Spawn update.sh as subprocess, stream output to the DB row.
+def run_update_worker(
+    uid: str,
+    mode: str,
+    options: dict[str, bool],
+    on_log: Callable[[str], None] | None = None,
+) -> None:
+    """Run update.sh and persist output for both the WebUI and CLI.
 
     Test mode: FTS_SKIP_UPDATE=1 emits a canned log and marks the row
-    done without spawning anything. Use this for unit/integration tests.
+    done without spawning anything. ``on_log`` receives each persisted line
+    for immediate CLI feedback.
     """
+    def append_log(line: str) -> None:
+        db.append_update_log(uid, line)
+        if on_log is not None:
+            on_log(line)
+
     if os.environ.get("FTS_SKIP_UPDATE") == "1":
         db.mark_update_running(uid)
-        db.append_update_log(uid, "[FTS_SKIP_UPDATE=1] test mode \u2014 not running real update.sh\n")
-        db.append_update_log(uid, f"  mode={mode} options={options}\n")
-        db.append_update_log(uid, "  step 1: git pull (skipped)\n")
-        db.append_update_log(uid, "  step 2: pip sync (skipped)\n")
-        db.append_update_log(uid, "  step 3: llama.cpp (skipped)\n")
-        db.append_update_log(uid, "  step 4: init_db (skipped)\n")
-        db.append_update_log(uid, "  step 5: restart (skipped)\n")
+        append_log("[FTS_SKIP_UPDATE=1] test mode \u2014 not running real update.sh\n")
+        append_log(f"  mode={mode} options={options}\n")
+        append_log("  step 1: git pull (skipped)\n")
+        append_log("  step 2: pip sync (skipped)\n")
+        append_log("  step 3: llama.cpp (skipped)\n")
+        append_log("  step 4: init_db (skipped)\n")
+        append_log("  step 5: restart (skipped)\n")
         db.mark_update_done(uid)
         return
 
@@ -220,7 +232,7 @@ def _update_worker(uid: str, mode: str, options: dict) -> None:
         args.append("--repair")
 
     db.mark_update_running(uid)
-    db.append_update_log(uid, f"$ {' '.join(args)}\n")
+    append_log(f"$ {' '.join(args)}\n")
 
     try:
         proc = subprocess.Popen(
@@ -239,7 +251,7 @@ def _update_worker(uid: str, mode: str, options: dict) -> None:
         for line in proc.stdout:
             if "Restarting finetune-studio.service" in line:
                 restart_seen = True
-            db.append_update_log(uid, line)
+            append_log(line)
         proc.wait()
         if proc.returncode == 0:
             db.mark_update_done(uid)
@@ -247,7 +259,7 @@ def _update_worker(uid: str, mode: str, options: dict) -> None:
             # update.sh was SIGTERMed by the very restart it triggered —
             # every real step (pull, deps, migrations) already succeeded.
             # Mark done, not error: -15 here is success, not failure.
-            db.append_update_log(uid,
+            append_log(
                 "\n[worker] update.sh ended by the service restart it "
                 "triggered (expected) → marked done\n")
             db.mark_update_done(uid)
@@ -259,3 +271,8 @@ def _update_worker(uid: str, mode: str, options: dict) -> None:
     except Exception as e:
         log.exception("update worker failed")
         db.mark_update_failed(uid, error=str(e))
+
+
+def _update_worker(uid: str, mode: str, options: dict[str, bool]) -> None:
+    """Compatibility wrapper retained for tests and existing integrations."""
+    run_update_worker(uid, mode, options)
