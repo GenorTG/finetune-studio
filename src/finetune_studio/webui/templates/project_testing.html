@@ -443,6 +443,11 @@
     if (r.judge_status === 'running') {
       return '<span class="pill solid-cyan">judging</span> ' + (r.judge_done || 0) + '/' + (r.judge_total || 0) + bar(r.judge_done || 0, r.judge_total || 0, 'judge');
     }
+    if (r.judge_status === 'cancelled') {
+      const judged = sc.judged || 0, total = sc.total || r.judge_total || r.progress_total || 0;
+      return '<span class="pill solid-orange">judging stopped</span> <span class="text-xs dim">'
+        + judged + '/' + total + ' verdicts kept</span>';
+    }
     const by = sc.by_judge || {};
     const legacy = (by.scripted || 0) + (by.heuristic || 0);
     const parts = [(sc.judged || 0) + '/' + (sc.total || 0) + ' judged'];
@@ -546,7 +551,11 @@
     else if (r.status === 'cancelled') h += 'Run stopped after ' + (r.progress_done || 0) + ' of ' + (r.progress_total || 0) + ' answers (kept below).';
     if (r.judge_status === 'running') h += '<div class="mt-1">Judge <b>' + esc(baseName(r.judge_model || r.judge_provider_id)) + '</b>: <b>' + (r.judge_done || 0) + ' / ' + (r.judge_total || 0) + '</b>' + bar(r.judge_done || 0, r.judge_total || 0, 'judge') + '</div>';
     else if (r.judge_status === 'failed') h += '<div class="mt-1 err">Judge failed: ' + esc(r.judge_error) + '</div>';
-    else if (r.judge_status === 'cancelled') h += '<div class="mt-1">Judging stopped (verdicts so far are kept).</div>';
+    else if (r.judge_status === 'cancelled') {
+      const sc = r.scores || {}, judged = sc.judged || 0, total = sc.total || r.judge_total || r.progress_total || 0;
+      h += '<div class="mt-1">Judging stopped after ' + judged + ' of ' + total
+        + '; verdicts so far are kept.</div>';
+    }
     else if (r.judge_status === 'done' && r.judge_model) h += '<div class="mt-1 dim">Last judge: ' + esc(r.judge_model) + '</div>';
     el.innerHTML = h;
   }
