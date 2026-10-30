@@ -327,6 +327,30 @@ def build_parser() -> argparse.ArgumentParser:
                                      help="Confirm rejection that would leave mined facts uncovered")
         p_qa_review.add_argument("--json", action="store_true", help="Output counts and updated pairs as JSON")
 
+    # ── versions (project snapshots and lineage) ──
+    p_versions = sub.add_parser("versions", help="Pin and inspect project snapshots and their lineage")
+    versions_sub = p_versions.add_subparsers(dest="versions_action", required=True)
+    p_versions_list = versions_sub.add_parser("list", help="List pinned project versions")
+    p_versions_list.add_argument("--project", required=True, help="Project id or name")
+    p_versions_list.add_argument("--json", action="store_true", help="Output versions and manifests as JSON")
+    p_versions_pin = versions_sub.add_parser("pin", help="Pin current datasets, runs and Smart Brain build")
+    p_versions_pin.add_argument("--project", required=True, help="Project id or name")
+    p_versions_pin.add_argument("--label", default="", help="Optional version label")
+    p_versions_pin.add_argument("--notes", default="", help="Optional snapshot notes")
+    pin_parent = p_versions_pin.add_mutually_exclusive_group()
+    pin_parent.add_argument("--parent", help="Build on this version id (default: latest version)")
+    pin_parent.add_argument("--root", action="store_true", help="Start a new lineage instead of using the latest")
+    p_versions_pin.add_argument("--json", action="store_true", help="Output the pinned version as JSON")
+    for action, help_text in (("show", "Show one version and its manifest"),
+                              ("lineage", "Show the root-to-version history"),
+                              ("delete", "Delete a version record only")):
+        p_version = versions_sub.add_parser(action, help=help_text)
+        p_version.add_argument("version_id", help="Version id from `fts versions list`")
+        p_version.add_argument("--project", required=True, help="Owning project id or name")
+        if action == "delete":
+            p_version.add_argument("--yes", action="store_true", help="Confirm deleting only the version record")
+        p_version.add_argument("--json", action="store_true", help="Output the result as JSON")
+
     # ── dataset (build a training dataset from a project's Q&A pairs) ──
     p_dataset = sub.add_parser("dataset", help="Build training datasets from a project")
     dataset_sub = p_dataset.add_subparsers(dest="dataset_command")

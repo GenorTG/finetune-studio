@@ -114,3 +114,26 @@ fts dataset build --project <project-id>
 - Export is `fts dataset build`, not a second Q&A export path: it applies the
   same completeness gate, approved-pair selection, optional grounded context,
   and dataset registration as the WebUI's **Export approved → Training**.
+
+## Project versions
+
+Pin the current project inputs and inspect how snapshots build on each other:
+
+```bash
+fts versions list --project "Maintenance notes"
+fts versions pin --project <project-id> --label "first reviewed set" --notes "Before the first training run"
+fts versions pin --project <project-id> --label "independent experiment" --root
+fts versions show <version-id> --project <project-id> --json
+fts versions lineage <version-id> --project <project-id>
+fts versions delete <version-id> --project <project-id>
+```
+
+- `pin` records the project's current datasets, recent training runs and latest
+  Smart Brain build, matching Quick Work step 6. It builds on the newest
+  version by default; use `--parent <version-id>` to branch from another one or
+  `--root` to start a separate lineage.
+- `list`, `show`, and `lineage` accept `--json`; IDs shown by `list` identify
+  versions for the other commands. Lineage is reported oldest to newest.
+- `delete` asks for confirmation in a terminal. Scripts must pass `--yes`.
+  It deletes only the snapshot record; datasets, runs, model files and Brain
+  indexes referenced by the manifest remain untouched.

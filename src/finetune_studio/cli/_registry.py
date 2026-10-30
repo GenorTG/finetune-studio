@@ -44,6 +44,7 @@ from finetune_studio.cli.commands.validate import cmd_validate
 from finetune_studio.cli.commands.validate_hallucination import (
     cmd_validate_hallucination,
 )
+from finetune_studio.cli.commands.versions import cmd_versions
 from finetune_studio.cli.commands.vram import cmd_vram
 from finetune_studio.cli.commands.webui import cmd_webui
 
@@ -71,6 +72,7 @@ COMMANDS = {
     "mining": cmd_mining,
     "qa": cmd_qa,
     "dataset": cmd_dataset,
+    "versions": cmd_versions,
     "supervisor": cmd_supervisor,
     "status": cmd_status,
     "start": cmd_component_action,

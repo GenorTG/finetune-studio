@@ -14,6 +14,7 @@ turns that section into the release's notes.
 - Testing: stopping API judging now shows a persistent “judging stopped” state with the number of verdicts kept, including after a page reload.
 
 ### Added
+- CLI: `fts versions` pins, lists and inspects project snapshots and lineage; deleting a snapshot leaves its datasets and model artifacts intact. See `docs/CLI.md`.
 - CLI: `fts files upload` adds one or more local files to the same project file library as the WebUI, with content deduplication, versioning, parsing and per-file reports. See `docs/CLI.md`.
 - CLI: `fts projects list`, `show` (by id or name) and `create` now manage the same project records as the WebUI; JSON output and duplicate-name checks are included. See `docs/CLI.md`.
 - CLI: `fts projects delete` removes a project's database record and stored data like the WebUI; terminal confirmation is required unless `--yes` is supplied. The running WebUI refreshes its model list after CLI deletion. See `docs/CLI.md`.
