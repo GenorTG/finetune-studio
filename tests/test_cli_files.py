@@ -92,6 +92,66 @@ def test_files_parse_and_explicit_reparse_match_webui_preview(monkeypatch, capsy
     assert "Temporary hand-edited" not in preview.json()["parsed_md"]
 
 
+def test_files_upload_uses_shared_library_with_dedup_versioning_and_parsing(
+    monkeypatch, capsys, client, fts_root, tmp_path
+):
+    project_response = client.post("/api/projects", json={"name": "CLI Upload Test"})
+    pid = project_response.json()["id"]
+    capsys.readouterr()
+    first = tmp_path / "notes.txt"
+    binary = tmp_path / "image.bin"
+    first.write_text("Useful upload content that the shared parser can read.")
+    binary.write_bytes(b"non-parser binary data")
+
+    code, out, err = run_cli(monkeypatch, capsys, "files", "upload", "--project", pid,
+                             str(first), str(binary), "--json")
+    assert code == 0 and not err and out.strip(), (code, repr(out), err)
+    assert out.lstrip().startswith("{"), repr(out)
+    result = json.loads(out)
+    assert result["counts"] == {"uploaded": 2, "duplicates_skipped": 0, "errors": 0}
+    assert result["report"][0]["source"]["status"] == "ready"
+    assert result["report"][1]["parse_status"] == "not staged"
+    file_id = result["report"][0]["file_id"]
+    assert client.get(f"/api/projects/{pid}/files/{file_id}/parsed").json()["parsed_md"].startswith("Useful upload")
+    listed = client.get(f"/api/projects/{pid}/files").json()["files"]
+    assert {item["original_name"] for item in listed} == {"notes.txt", "image.bin"}
+
+    alias = tmp_path / "same-content.md"
+    alias.write_bytes(first.read_bytes())
+    code, out, err = run_cli(monkeypatch, capsys, "files", "upload", "--project", pid, str(alias), "--json")
+    assert code == 0 and not err
+    duplicate = json.loads(out)
+    assert duplicate["counts"]["duplicates_skipped"] == 1
+    assert duplicate["report"][0]["status"] == "duplicate"
+    assert len(client.get(f"/api/projects/{pid}/files").json()["files"]) == 2
+
+    first.write_text("A changed upload creates a new version of this named file.")
+    code, out, err = run_cli(monkeypatch, capsys, "files", "upload", "--project", pid, str(first), "--json")
+    assert code == 0 and not err
+    revised = json.loads(out)
+    assert revised["report"][0]["file_id"] == file_id
+    assert client.get(f"/api/projects/{pid}/files/{file_id}").json()["current_version"] == 2
+
+
+def test_files_upload_reports_per_file_failures_and_continues(monkeypatch, capsys, client, fts_root, tmp_path):
+    project_response = client.post("/api/projects", json={"name": "CLI Partial Upload Test"})
+    pid = project_response.json()["id"]
+    capsys.readouterr()
+    valid = tmp_path / "valid.txt"
+    empty = tmp_path / "empty.txt"
+    valid.write_text("This valid file should still upload when other paths fail.")
+    empty.touch()
+    missing = tmp_path / "missing.txt"
+
+    code, out, err = run_cli(monkeypatch, capsys, "files", "upload", "--project", pid,
+                             str(missing), str(empty), str(valid), "--json")
+    assert code == 1 and not err
+    result = json.loads(out)
+    assert result["counts"] == {"uploaded": 1, "duplicates_skipped": 0, "errors": 2}
+    assert [item["status"] for item in result["report"]] == ["error", "error", "uploaded"]
+    assert len(client.get(f"/api/projects/{pid}/files").json()["files"]) == 1
+
+
 def test_files_commands_report_missing_items_and_resolve_versioned_name(monkeypatch, capsys, client, fts_root):
     pid, fid = _project_and_file(client, "CLI Versioned Name Test")
     replacement = client.post(
@@ -168,7 +228,7 @@ def test_files_trash_list_and_dry_run_never_purge(monkeypatch, capsys):
 def test_files_help_documents_safe_reparse_flag(monkeypatch, capsys):
     code, out, err = run_cli(monkeypatch, capsys, "files", "--help")
     assert code == 0 and not err
-    assert "list" in out and "show" in out and "parse" in out and "trash" in out
+    assert "upload" in out and "list" in out and "show" in out and "parse" in out and "trash" in out
 
     code, out, err = run_cli(monkeypatch, capsys, "files", "parse", "--help")
     assert code == 0 and not err

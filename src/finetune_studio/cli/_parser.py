@@ -247,8 +247,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_vram_profile.add_argument("--json", action="store_true")
 
     # ── files (project file library) ──
-    p_files = sub.add_parser("files", help="List, inspect, parse or clean up project files")
+    p_files = sub.add_parser("files", help="Upload, inspect, parse or clean up project files")
     files_sub = p_files.add_subparsers(dest="files_command")
+    p_files_upload = files_sub.add_parser("upload", help="Upload one or more files into a project")
+    p_files_upload.add_argument("paths", nargs="+", help="Local file paths to upload")
+    p_files_upload.add_argument("--project", required=True, help="Project id or name")
+    p_files_upload.add_argument("--json", action="store_true", help="Output the upload report as JSON")
     p_files_list = files_sub.add_parser("list", help="List files in a project")
     p_files_list.add_argument("--project", required=True, help="Project id or name")
     p_files_list.add_argument("--search", help="Filter by file name")
