@@ -10,6 +10,7 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 - Add `fts export` start/list/status/cancel commands using the Export page's shared validation and supervised jobs.
+- Add `fts usecases` template/build/list/show/delete/evaluate/report/A-B commands using the Training page's shared dataset, suite, and evaluation services.
 
 ### Fixed
 - Compare: Stop now confirms it is stopping, then leaves a clear “stopped; saved work is kept” status after a run or judge cancellation.
