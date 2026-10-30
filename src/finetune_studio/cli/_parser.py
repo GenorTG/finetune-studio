@@ -246,9 +246,26 @@ def build_parser() -> argparse.ArgumentParser:
     p_vram_profile.add_argument("--steps", type=int, default=5)
     p_vram_profile.add_argument("--json", action="store_true")
 
-    # ── files (project file library housekeeping) ──
-    p_files = sub.add_parser("files", help="Manage the per-project file library (trash, etc.)")
+    # ── files (project file library) ──
+    p_files = sub.add_parser("files", help="List, inspect, parse or clean up project files")
     files_sub = p_files.add_subparsers(dest="files_command")
+    p_files_list = files_sub.add_parser("list", help="List files in a project")
+    p_files_list.add_argument("--project", required=True, help="Project id or name")
+    p_files_list.add_argument("--search", help="Filter by file name")
+    p_files_list.add_argument("--mime", help="Filter by MIME type prefix, e.g. text/")
+    p_files_list.add_argument("--include-deleted", action="store_true", help="Include files in trash")
+    p_files_list.add_argument("--json", action="store_true", help="Output as JSON")
+    p_files_show = files_sub.add_parser("show", help="Show one file by id or name")
+    p_files_show.add_argument("file", help="File id or exact name")
+    p_files_show.add_argument("--project", required=True, help="Project id or name")
+    p_files_show.add_argument("--include-deleted", action="store_true", help="Allow a file in trash")
+    p_files_show.add_argument("--json", action="store_true", help="Output as JSON")
+    p_files_parse = files_sub.add_parser("parse", help="Parse a file into readable text and passages")
+    p_files_parse.add_argument("file", help="File id or exact name")
+    p_files_parse.add_argument("--project", required=True, help="Project id or name")
+    p_files_parse.add_argument("--reparse", action="store_true",
+                               help="Discard any hand-edited parsed text and parse the original file again")
+    p_files_parse.add_argument("--json", action="store_true", help="Output as JSON")
     p_files_trash = files_sub.add_parser("trash", help="List or purge trashed files")
     p_files_trash.add_argument("--list", action="store_true",
                                 help="List trashed files instead of purging")
