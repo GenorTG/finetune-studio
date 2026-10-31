@@ -183,6 +183,46 @@ def test_informational_question_cannot_switch_the_page_without_permission(monkey
     assert events[-1]["reply"] == "Testing runs answers first; judging scores them afterwards."
 
 
+def test_affirmative_reply_can_accept_an_offered_navigation(monkeypatch: pytest.MonkeyPatch) -> None:
+    executed: list[str] = []
+
+    def navigate(ctx: ToolContext, name: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        executed.append(name)
+        return {"ui_event": {"type": "navigate", "page": "files", "url": "/projects/project-1/data",
+                             "title": "Files"}}
+
+    monkeypatch.setattr(guide_loop, "run_tool", navigate)
+    messages = [
+        {"role": "assistant", "content": "Want me to open the Files page so you can upload your first document?"},
+        {"role": "user", "content": "Yes, open the Files page."},
+    ]
+    chat = Script(call("navigate", page="files"), "The Files page is open.")
+
+    events = list(run_guide_loop(ToolContext(pid="project-1", page="project"), messages, chat))
+
+    assert executed == ["navigate"]
+    assert next(event for event in events if event["type"] == "ui")["event"] == {
+        "type": "navigate", "page": "files", "url": "/projects/project-1/data", "title": "Files",
+    }
+
+
+def test_affirmative_navigation_match_does_not_override_a_negation(monkeypatch: pytest.MonkeyPatch) -> None:
+    executed: list[str] = []
+    monkeypatch.setattr(guide_loop, "run_tool", lambda ctx, name, arguments: executed.append(name) or {})
+    messages = [
+        {"role": "assistant", "content": "Want me to open the Files page?"},
+        {"role": "user", "content": "No, don't open the Files page."},
+    ]
+    chat = Script(call("navigate", page="files"), "You can open Files from the project navigation.")
+
+    events = list(run_guide_loop(ToolContext(pid="project-1", page="project"), messages, chat))
+
+    navigation = next(event for event in events if event["type"] == "tool_result")
+    assert navigation["result"]["error"].startswith("The user asked for information")
+    assert "ui" not in types(events)
+    assert executed == []
+
+
 def test_round_limit_forces_a_final_answer() -> None:
     """Live finding: a tool loop that used every round ended with no assistant message."""
     n = {"i": 0}
