@@ -7,6 +7,7 @@ registry names — must read as  <Project> · <Base> [· version] · <Kind>
 from __future__ import annotations
 
 from finetune_studio import naming
+from finetune_studio.data.fs import qa as qa_fs
 
 # ── pure helpers ─────────────────────────────────────────────────────────
 
@@ -134,13 +135,12 @@ def test_dataset_export_name_is_readable(client) -> None:
 
     r = client.post("/api/projects", json={"name": "Readable DS"})
     pid = r.json()["id"]
-    body = ("# Lore\n\n" + ("Keeper Odo swore on green wax in 1841, and the vow bound the archive to him. " * 60)).encode()
-    up = client.post(
-        f"/api/projects/{pid}/files/upload",
-        files=[("files", (f"ds-{secrets.token_hex(3)}.md", body, "text/markdown"))],
-    )
-    assert up.status_code == 200, up.text
-    # Nothing is mined here: the completeness gate would answer 409, the name is what this test is about.
+    qa_fs.write_qa_pair(pid, {
+        "id": f"name-{secrets.token_hex(3)}", "source_id": "synthetic-source",
+        "question": "What sealed the archive?", "answer": "A vow on green wax.",
+        "status": "approved",
+    })
+    # The approved synthetic row exercises naming; no file mining or GPU work is involved.
     ex = client.get(f"/api/projects/{pid}/data-prep/export?force=true")
     assert ex.status_code == 200, ex.text
     ds = client.get(f"/api/projects/{pid}/datasets").json()["datasets"]
