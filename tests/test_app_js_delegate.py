@@ -28,9 +28,9 @@ def test_doc_click_listeners_once_guard() -> None:
 
 def test_json_form_branch_has_catch() -> None:
     src = _app_js()
-    # Locate the JSON (non-multipart) form branch around api.post
-    idx = src.find("api.post(url, data)")
-    assert idx != -1, "expected api.post(url, data) in form handler"
+    # Forms may override the default POST for APIs that use another verb.
+    idx = src.find('api.request(url, form.dataset.method || "POST", data)')
+    assert idx != -1, "expected method-aware api.request in form handler"
     window = src[idx : idx + 400]
     assert ".catch(" in window, "JSON form branch must notify on rejection"
 
