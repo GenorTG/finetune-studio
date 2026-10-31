@@ -37,7 +37,7 @@
     </select>
     <button class="btn primary" onclick="doSearch()">Search</button>
   </div>
-  <div id="hf-status" class="mt-2 text-xs muted"><span class="spinner"></span> Loading…</div>
+  <div id="hf-status" class="mt-2 text-xs muted" role="status" aria-live="polite"><span class="spinner"></span> Loading…</div>
 </div>
 
 <section class="card mb-4" id="hf-local-models" aria-labelledby="hf-local-title">
@@ -79,6 +79,9 @@
 {% block scripts %}
 <script>
 async function doSearch() {
+  // A pending typing hint must not replace the search result or failure.
+  if (_hfTypingTimer) clearTimeout(_hfTypingTimer);
+  _hfTypingTimer = null;
   const q = document.getElementById('hf-q').value.trim();
   const task = document.getElementById('hf-task').value;
   const sort = document.getElementById('hf-sort').value;
@@ -186,7 +189,7 @@ function renderResults(results) {
         </div>
         <div class="actions">
           <button class="btn sm primary" onclick="showInfo('${esc(repo)}', this)">View</button>
-          <button class="btn sm" onclick="showFiles('${esc(repo)}', this)">Files</button>
+          <button class="btn sm" onclick="showFiles('${esc(repo)}', this)">Downloaded files</button>
           <button class="btn sm" data-confirm="Download all files of ${esc(repo)}?" data-action="/api/hf/download" data-body='${JSON.stringify({repo_id: repo})}' data-method="POST" title="Download every file of this model to this machine">Download</button>
         </div>
       </div>`;
@@ -296,7 +299,7 @@ async function showInfo(repo, btn) {
     `;
     document.getElementById('hf-modal-foot').innerHTML = `
       <button class="btn primary" data-confirm="Download all files of ${esc(repo)}?" data-action="/api/hf/download" data-body='${JSON.stringify({repo_id: repo})}' data-method="POST">Download all files</button>
-      <button class="btn" onclick="showFiles('${esc(repo)}', null)">Pick files…</button>
+      <button class="btn" onclick="showFiles('${esc(repo)}', null)">Downloaded files</button>
     `;
   } catch (e) {
     document.getElementById('hf-modal-body').textContent = 'Failed: ' + e.message;
@@ -305,7 +308,7 @@ async function showInfo(repo, btn) {
 
 async function showFiles(repo, btn) {
   const m = document.getElementById('hf-modal');
-  document.getElementById('hf-modal-title').textContent = `Files in ${repo}`;
+  document.getElementById('hf-modal-title').textContent = `Downloaded files in ${repo}`;
   document.getElementById('hf-modal-body').innerHTML = '<div class="spinner lg"></div>';
   document.getElementById('hf-modal-foot').innerHTML = '';
   openHfModal();
