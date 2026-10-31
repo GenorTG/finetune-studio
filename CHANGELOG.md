@@ -28,6 +28,7 @@ turns that section into the release's notes.
 - Testing: stopping API judging now shows a persistent “judging stopped” state with the number of verdicts kept, including after a page reload.
 
 ### Added
+- Guide: a **Project models** entry explains the project's trained exports (expand a row, read the producing run and settings, copy a path), and the page is now a guide-registry target like every other page.
 - Model library: downloaded Hugging Face models are listed with a confirmed Delete action; loaded, loading, or actively downloading models are protected. `fts models search`, `local`, `download`, `download-status`, `cancel-download`, and confirmed `delete` now cover the same library operations while bare `fts models` keeps its installed-model listing. See `docs/CLI.md`.
 - CLI: `fts versions` pins, lists and inspects project snapshots and lineage; deleting a snapshot leaves its datasets and model artifacts intact. See `docs/CLI.md`.
 - CLI: `fts files upload` adds one or more local files to the same project file library as the WebUI, with content deduplication, versioning, parsing and per-file reports. See `docs/CLI.md`.

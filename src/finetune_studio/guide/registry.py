@@ -72,6 +72,7 @@ def _pages() -> dict[str, Page]:
         ("export", "Export", "/projects/{pid}/export", "export_models.html", True, "Export GGUF quants / merged / abliterated; browse trained exports."),
         ("chat", "Chat", "/projects/{pid}/chat", "chat_v2.html", True, "Test chat with the project's model, or Agent (guide) mode."),
         ("project_settings", "Project settings", "/projects/{pid}/settings", "project_settings.html", True, "Project settings and the service log tail."),
+        ("project_models", "Project models", "/projects/{pid}/models", "project_models.html", True, "Trained adapters, merged checkpoints and exported GGUFs of this project; expand a row for files, run and settings."),
     ]
     return {r[0]: Page(*r) for r in rows}
 
