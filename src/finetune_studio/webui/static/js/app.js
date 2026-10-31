@@ -130,11 +130,13 @@
 
   const api = {
     get: (url) => fetch(url).then(_ok),
-    post: (url, body) => fetch(url, {
-      method: "POST",
+    request: (url, method, body) => fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body || {}),
     }).then(_ok),
+    post: (url, body) => api.request(url, "POST", body),
+    patch: (url, body) => api.request(url, "PATCH", body),
     upload: (url, file) => {
       const fd = new FormData();
       fd.append("file", file);
@@ -283,7 +285,7 @@
           }).catch((err) => notify(err.message || "Upload failed", "error"));
         } else {
           const data = Object.fromEntries(new FormData(form));
-          api.post(url, data).then((d) => {
+          api.request(url, form.dataset.method || "POST", data).then((d) => {
             if (d && d.run_id) { notify("Training started · run " + d.run_id.slice(0, 8), "success"); surfaceRun(); }
             else notify("Done", "success");
             if (form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
