@@ -21,6 +21,12 @@ def test_page_has_the_job_panel_and_cancel_button(client) -> None:
                    'id="export-job-detail"', 'id="export-job-error"', 'id="export-cancel-btn"'):
         assert marker in html, marker
 
+def test_empty_exports_page_has_a_stable_refresh_target(client) -> None:
+    html = _page(client)
+    assert '<div class="card" id="trained-exports-card">' in html
+    assert "No exports yet." in html
+    assert "const card = $('trained-exports-card')" in html
+
 
 def test_script_follows_the_job_via_sse_and_reattaches(client) -> None:
     html = _page(client)

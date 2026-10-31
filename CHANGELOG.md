@@ -16,6 +16,7 @@ turns that section into the release's notes.
 - Add `fts update check|apply|repair`, plus durable history/status commands; apply and repair require confirmation and share the WebUI update worker.
 
 ### Fixed
+- Export: the trained-exports list now refreshes after the first export, replacing the initial empty state without requiring a page reload.
 - Compare: Stop now confirms it is stopping, then leaves a clear “stopped; saved work is kept” status after a run or judge cancellation.
 - Testing: stopping API judging now shows a persistent “judging stopped” state with the number of verdicts kept, including after a page reload.
 

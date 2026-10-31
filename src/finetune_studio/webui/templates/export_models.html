@@ -220,7 +220,7 @@
   .export-detail-inner .files-list .sz { color: var(--muted); }
 </style>
 
-<div class="card">
+<div class="card" id="trained-exports-card">
   <div class="card-head">
     <div>
       <div class="card-title">Trained exports</div>
@@ -539,14 +539,14 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
 
   // Re-render the "Trained exports" table from a fresh copy of this page (server-rendered rows, same markup).
   async function refreshTrainedExports() {
-    const box = $('trained-exports-table-scroll');
-    if (!box) return;
+    const card = $('trained-exports-card');
+    if (!card) return;
     try {
       const r = await fetch(location.pathname + location.search, { cache: 'no-store', credentials: 'same-origin' });
       if (!r.ok) return;
       const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
-      const fresh = doc.getElementById('trained-exports-table-scroll');
-      if (fresh) box.replaceWith(document.importNode(fresh, true));
+      const fresh = doc.getElementById('trained-exports-card');
+      if (fresh) card.replaceWith(document.importNode(fresh, true));
     } catch (e) { /* the list stays as it was; the result card above already names the file */ }
   }
 
