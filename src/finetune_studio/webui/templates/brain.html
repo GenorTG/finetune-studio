@@ -619,10 +619,30 @@
     }
   };
 
+  function clearBrainTransientOutput() {
+    const queryStatus = document.getElementById('q-status');
+    const queryResults = document.getElementById('q-results');
+    const chatMessages = document.getElementById('chat-messages');
+    const chatInput = document.getElementById('chat-input');
+    const buildStatus = document.getElementById('build-status');
+    const quickStatus = document.getElementById('quick-index-status');
+    if (queryStatus) queryStatus.textContent = 'No indexed passages. Build the index to search.';
+    if (queryResults) {
+      queryResults.replaceChildren();
+      queryResults.hidden = true;
+    }
+    if (chatMessages) chatMessages.replaceChildren();
+    if (chatInput) chatInput.value = '';
+    if (buildStatus) buildStatus.textContent = 'Sources cleared. Build the index again to search and chat.';
+    if (quickStatus) quickStatus.textContent = 'Sources cleared. Build the index again to search and chat.';
+  }
+
   window.clearAllDocuments = async function() {
     if (!await fts.confirm('Remove ALL sources? You will need to rebuild the index.', {danger: true, okText: 'Remove all'})) return;
     try {
       await api().del('/api/projects/' + PID + '/brain/documents');
+      clearBrainTransientOutput();
+      loadBrainStatus();
       loadIndexedDocs(); notify('All sources cleared', 'success');
     } catch (e) { notify('Failed: ' + e.message, 'error'); }
   };
@@ -1049,6 +1069,7 @@
       // rebuild with reset=true wipes the index dir; we only need the wipe
       // when there are no files — fall back to clearing sources.
       await api().del('/api/projects/' + PID + '/brain/documents');
+      clearBrainTransientOutput();
       notify('Index sources cleared — rebuild to re-index', 'success');
       loadBrainStatus();
       loadIndexedDocs();
