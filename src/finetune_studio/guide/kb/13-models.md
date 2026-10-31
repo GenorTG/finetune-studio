@@ -16,6 +16,8 @@ keywords: model library download hugging face safetensors gguf base model my mod
 5. A model copied in by hand shows up after **Rescan folders** on My models (see the my-models entry).
 6. CLI parity: `fts models search`, `local`, `download`, `download-status`, `cancel-download`, and `delete`; the no-argument `fts models` still lists installed models.
 
+**View** opens the model details. **Downloaded files** lists files already in this app's cache; it is not a remote file picker. **Download** downloads the whole repository after confirmation.
+
 ## Key controls
 - `#hf-q` — search box.
 - `#hf-task` — task filter.
