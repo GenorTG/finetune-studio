@@ -246,7 +246,7 @@
       <button class="btn ghost icon ml-auto" onclick="document.getElementById('settings-modal').hidden=true">✕</button>
     </div>
     <div class="modal-body">
-      <form id="settings-form" data-api="/api/projects/{{ project.id }}" data-reload="true">
+      <form id="settings-form" data-api="/api/projects/{{ project.id }}" data-method="PATCH" data-reload="true">
         <label class="block mb-3">
           <span class="muted text-xs">Name</span>
           <input class="input" name="name" value="{{ project.name }}">

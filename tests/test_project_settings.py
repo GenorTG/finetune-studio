@@ -36,6 +36,18 @@ def test_settings_page_renders_log_tail_card(client) -> None:
     assert "multilingual-e5-large" not in body.split('name="base_model"', 1)[1].split(">", 1)[0]
 
 
+def test_project_settings_forms_use_patch_method(client) -> None:
+    pid = _project(client)
+    for path in (f"/projects/{pid}", f"/projects/{pid}/settings"):
+        response = client.get(path)
+        assert response.status_code == 200, response.text
+        assert 'id="settings-form" data-api="/api/projects/' + pid + '"' in response.text
+        assert 'data-method="PATCH"' in response.text
+
+    app_js = Path(__file__).parents[1] / "src/finetune_studio/webui/static/js/app.js"
+    assert 'api.request(url, form.dataset.method || "POST", data)' in app_js.read_text(encoding="utf-8")
+
+
 def test_logs_endpoint_shape(client, tmp_path: Path, monkeypatch) -> None:
     pid = _project(client)
     log = tmp_path / "uvicorn.log"
