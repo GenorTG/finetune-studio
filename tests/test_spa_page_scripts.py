@@ -70,6 +70,19 @@ def test_projects_page_puts_selectTemplate_in_page_scripts(client) -> None:
     assert "function selectTemplate" not in html[content_pos:scripts_pos]
 
 
+def test_project_template_switches_replace_defaults_and_cancel_resets() -> None:
+    page = (_TEMPLATES / "projects.html").read_text(encoding="utf-8")
+    assert 'onclick="resetNewProjectForm()"' in page
+    scripts = page.split("{% block scripts %}", 1)[1].split("{% endblock %}", 1)[0]
+    select = scripts[scripts.index("function selectTemplate("):]
+    select = select[: select.index("function bulkDelete(")]
+    assert "if (tags && !_npTemplateDirty.has('tags')) tags.value = t.tags;" in select
+    assert "if (sp && !_npTemplateDirty.has('system_prompt')) sp.value = t.system_prompt;" in select
+    assert 'function resetNewProjectForm()' in select
+    assert 'form.reset();' in select
+    assert '_npTemplateDirty.clear();' in select
+
+
 def test_spa_navigate_updates_the_url_before_page_scripts_run() -> None:
     """Live finding 2026-10-09: /compare?group=… reached through an in-app link listed the comparisons but opened
     none, because the page script read location.search while the URL still belonged to the previous page."""

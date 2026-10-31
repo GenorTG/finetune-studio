@@ -16,6 +16,8 @@ turns that section into the release's notes.
 - Add `fts update check|apply|repair`, plus durable history/status commands; apply and repair require confirmation and share the WebUI update worker.
 
 ### Fixed
+- Quick work: empty approved-pair exports no longer register zero-row datasets; dataset/export and training actions stay disabled until their inputs are ready.
+- Projects: switching templates now updates untouched tags and prompts; Cancel resets the form and active template instead of reopening stale settings.
 - Testing: Dataset check stays disabled with a clear missing-dataset/model message until both a project dataset and a test model are available.
 - Export: the trained-exports list now refreshes after the first export, replacing the initial empty state without requiring a page reload.
 - Compare: Stop now confirms it is stopping, then leaves a clear “stopped; saved work is kept” status after a run or judge cancellation.

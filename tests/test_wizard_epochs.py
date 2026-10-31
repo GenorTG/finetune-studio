@@ -22,7 +22,8 @@ def test_dataset_refresh_recalculates_the_optimizer_step_hint() -> None:
         "async function wizExplainFailure()", 1
     )[0]
 
-    assert "wizDatasetRows = newest ? Number(newest.qa_count) || 0 : 0;" in refresh
+    assert "var newestRows = newest && newest.qa_count != null ? Number(newest.qa_count) : null;" in refresh
+    assert "wizDatasetRows = hasRows ? newestRows : 0;" in refresh
     assert "wizUpdateStepsHint();" in refresh
     assert 'r.headers.get("X-Rows")' in export
     assert "wizDatasetRows = Number(rows) || 0;" in export
