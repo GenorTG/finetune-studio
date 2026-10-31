@@ -1,8 +1,8 @@
 ---
 id: project-models
-title: Project models (trained exports)
+title: Project models (files a run produced)
 page: project_models
-keywords: project models trained exports adapters loras merged checkpoints gguf files run expand copy path delete model what did i train
+keywords: project models adapters loras merged checkpoints model files copy path expand row what did i train produced by the run
 ---
 ## Purpose
 **Models** (`/projects/{pid}/models`) lists everything this project's training produced: adapter weights, merged checkpoints and exported GGUF / safetensors files. It is the per-project view; **My models** (`/models`) is the machine-wide list.
