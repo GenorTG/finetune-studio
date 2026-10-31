@@ -237,3 +237,19 @@ def test_mining_job_cancel_unknown_is_404(client) -> None:
     pid = client.post("/api/projects", json={"name": "Prep status"}).json()["id"]
     r = client.post(f"/api/projects/{pid}/mining/jobs/does-not-exist/cancel")
     assert r.status_code == 404 and r.json()["detail"] == "unknown job"
+
+
+def test_brain_source_clear_resets_stale_retrieval_and_chat_feedback() -> None:
+    html = _RAG_HTML.read_text(encoding="utf-8")
+    assert "function clearBrainTransientOutput()" in html
+    helper = html.split("function clearBrainTransientOutput()", 1)[1].split("\n  }", 1)[0]
+    for element_id in ("q-status", "q-results", "chat-messages", "build-status", "quick-index-status"):
+        assert f"getElementById('{element_id}')" in helper
+
+    for action in ("clearAllDocuments", "wipeIndex"):
+        prefix = f"window.{action} = async function() {{"
+        assert prefix in html
+        handler = html.split(prefix, 1)[1].split("\n  };", 1)[0]
+        assert "clearBrainTransientOutput()" in handler
+        assert "loadBrainStatus()" in handler
+        assert "loadIndexedDocs()" in handler
