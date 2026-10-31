@@ -35,7 +35,8 @@ FORCED_FINAL_PROMPT = (
 )
 MAX_RESULT_CHARS = 12000
 _NAVIGATION_REQUEST = re.compile(
-    r"(?:^|[.!?]\s+)(?:please\s+)?(?:open|go to|navigate to|switch to|take me to|bring me to)\b"
+    r"(?:^|[.!?]\s+)(?:(?:yes|yeah|yep|sure|okay|ok)[,;:]?\s+)?(?:please\s+)?"
+    r"(?:open|go to|navigate to|switch to|take me to|bring me to)\b"
     r"|\b(?:can|could|would) you (?:please\s+)?(?:open|go to|navigate to|switch to|take me to|bring me to)\b",
     re.IGNORECASE,
 )

@@ -16,6 +16,7 @@ turns that section into the release's notes.
 - Add `fts update check|apply|repair`, plus durable history/status commands; apply and repair require confirmation and share the WebUI update worker.
 
 ### Fixed
+- Guide: an explicit “Yes, open that page” now accepts a navigation it just offered, instead of incorrectly blocking the page switch.
 - Smart Brain: clearing the index or removing all sources now removes stale search results, chat citations, and build-complete feedback immediately.
 - Quick work: empty approved-pair exports no longer register zero-row datasets; dataset/export and training actions stay disabled until their inputs are ready.
 - Projects: switching templates now updates untouched tags and prompts; Cancel resets the form and active template instead of reopening stale settings.
