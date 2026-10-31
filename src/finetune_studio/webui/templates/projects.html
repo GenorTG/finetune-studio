@@ -59,7 +59,7 @@
     </div>
     <div class="flex gap-2 mt-4">
       <button type="submit" class="btn primary">Create</button>
-      <button type="button" class="btn ghost" onclick="document.getElementById('new-project').hidden=true">Cancel</button>
+      <button type="button" class="btn ghost" onclick="resetNewProjectForm()">Cancel</button>
     </div>
   </form>
 </div>
@@ -328,16 +328,35 @@ var _TEMPLATES = {
   training:   { tags: 'training', system_prompt: 'You answer questions about this project\'s documents. Be exact and brief; say so when the documents do not cover a question.' },
   brain:      { tags: 'smart-brain', system_prompt: 'You are a research assistant. Answer based on the provided context. If you don\'t know, say so.' },
 };
+var _npTemplateDirty = new Set();
+function initTemplateDirtyTracking() {
+  const form = document.getElementById('np-form');
+  if (!form || form.dataset.templateTracking === '1') return;
+  form.dataset.templateTracking = '1';
+  form.querySelectorAll('[name=tags], [name=system_prompt]').forEach(field => {
+    field.addEventListener('input', () => _npTemplateDirty.add(field.name));
+  });
+}
 function selectTemplate(name) {
-  document.querySelectorAll('.template-btn').forEach(b => b.classList.toggle('active', b.dataset.template === name));
   const t = _TEMPLATES[name];
   if (!t) return;
+  document.querySelectorAll('.template-btn').forEach(b => b.classList.toggle('active', b.dataset.template === name));
+  initTemplateDirtyTracking();
   const form = document.getElementById('np-form');
   const tags = form.querySelector('[name=tags]');
   const sp = form.querySelector('[name=system_prompt]');
-  if (tags && !tags.value) tags.value = t.tags;
-  if (sp && !sp.value) sp.value = t.system_prompt;
+  if (tags && !_npTemplateDirty.has('tags')) tags.value = t.tags;
+  if (sp && !_npTemplateDirty.has('system_prompt')) sp.value = t.system_prompt;
 }
+function resetNewProjectForm() {
+  const form = document.getElementById('np-form');
+  if (form) form.reset();
+  _npTemplateDirty.clear();
+  document.querySelectorAll('.template-btn').forEach(b => b.classList.toggle('active', b.dataset.template === 'blank'));
+  const card = document.getElementById('new-project');
+  if (card) card.hidden = true;
+}
+initTemplateDirtyTracking();
 
 function bulkDelete() {
   if (_projSelected.size === 0) return;

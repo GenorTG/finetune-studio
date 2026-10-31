@@ -85,7 +85,7 @@
     <div class="text-sm" id="wiz-dataset-sub">checking…</div>
     <div class="mt-2 text-sm" id="wiz-dataset-gate" role="alert" hidden></div>
     <div class="flex gap-2 wrap mt-2">
-      <button class="btn primary" type="button" id="wiz-dataset-btn" onclick="wizExport()">Build dataset</button>
+      <button class="btn primary" type="button" id="wiz-dataset-btn" onclick="wizExport()" title="Approve at least one Q&A pair first" disabled>Build dataset</button>
       <button class="btn sm" type="button" onclick="wizRefresh('dataset')">Refresh</button>
     </div>
   </div>
@@ -120,7 +120,7 @@
         </select>
       </div>
       <div class="col-span-3 flex items-end">
-        <button class="btn primary w-full" type="button" id="wiz-train-btn" onclick="wizTrain()">Start training</button>
+        <button class="btn primary w-full" type="button" id="wiz-train-btn" onclick="wizTrain()" title="Build a non-empty dataset and choose a base model first" disabled>Start training</button>
       </div>
     </div>
     <details class="mt-2" id="wiz-train-adv">
@@ -231,7 +231,7 @@
       </div><span class="pill outline" id="flow-dataset-pill">…</span></div>
       <div class="flex gap-2 wrap">
         <a class="btn sm" href="/projects/{{ pid }}/training" data-link>Go to training</a>
-        <button class="btn sm" type="button" onclick="flowExport()">Full export</button>
+        <button class="btn sm" type="button" id="flow-dataset-export-btn" onclick="flowExport()" disabled>Full export</button>
       </div>
     </div>
     <div class="card mb-2" id="flow-brain">
@@ -345,10 +345,12 @@
       api("/api/projects/" + PID + "/data-prep/qa").then(function (d) {
         var items = d.items || [];
         var approved = items.filter(function (i) { return i.status === "approved"; }).length;
-        set("wiz-qa", approved + " approved of " + items.length + " pairs");
+        wizApprovedPairs = approved;
+        set("wiz-qa", approved + " approved of " + items.length + " pairs" + (approved > 0 ? "" : (items.length ? " — review or add a pair before building a dataset." : " — generate or add pairs before building a dataset.")));
         pill("wiz-qa", approved > 0 ? "ready" : "empty", approved > 0);
         set("flow-qa", approved + " approved / " + items.length + " pairs");
         pill("flow-qa", approved > 0 ? "ready" : "empty", approved > 0);
+        updateActionReadiness();
         line("qa: " + approved + "/" + items.length + " approved");
       }).catch(function (e) { pill("wiz-qa", "error", false); line("qa: ERROR " + e); });
     }
@@ -356,13 +358,19 @@
       api("/api/projects/" + PID + "/datasets").then(function (d) {
         var ds = d.datasets || [];
         var newest = ds[0];
-        wizDatasetRows = newest ? Number(newest.qa_count) || 0 : 0;
+        var newestRows = newest && newest.qa_count != null ? Number(newest.qa_count) : null;
+        var hasRows = Number.isFinite(newestRows) && newestRows > 0;
+        wizDatasetRows = hasRows ? newestRows : 0;
         wizUpdateStepsHint();
-        var txt = ds.length + " dataset(s)" + (newest ? " · newest " + (newest.qa_count || "?") + " rows" : "");
-        set("wiz-dataset", txt);
-        pill("wiz-dataset", ds.length > 0 ? "ready" : "empty", ds.length > 0);
-        set("flow-dataset", txt);
-        pill("flow-dataset", ds.length > 0 ? ds.length + " ok" : "empty", ds.length > 0);
+        var txt = ds.length + " dataset(s)" + (newest ? " · newest " + (newestRows != null && Number.isFinite(newestRows) ? newestRows : "?") + " rows" : "");
+        var status = ds.length
+          ? txt + (hasRows ? "" : " — newest dataset is empty or has no rows")
+          : (wizApprovedPairs > 0 ? "No dataset yet — build it from approved pairs." : "No dataset yet — approve or generate at least one pair first.");
+        set("wiz-dataset", status);
+        pill("wiz-dataset", hasRows ? "ready" : "empty", hasRows);
+        updateActionReadiness();
+        set("flow-dataset", status);
+        pill("flow-dataset", hasRows ? ds.length + " ok" : "empty", hasRows);
         line("datasets: " + ds.length);
       }).catch(function (e) { pill("wiz-dataset", "error", false); line("datasets: ERROR " + e); });
     }
@@ -541,12 +549,31 @@
 
   /* ── quick-mode actions ── */
   var busy = false;
+  var wizApprovedPairs = 0;
+  function updateActionReadiness() {
+    var hasApprovedPairs = wizApprovedPairs > 0;
+    ["wiz-dataset-btn", "flow-dataset-export-btn"].forEach(function (id) {
+      var button = document.getElementById(id);
+      if (!button) return;
+      button.disabled = busy || !hasApprovedPairs;
+      button.title = hasApprovedPairs ? "Build a dataset from approved Q&A pairs" : "Approve at least one Q&A pair first";
+    });
+    var model = document.getElementById("wiz-base-model");
+    var train = document.getElementById("wiz-train-btn");
+    if (train) {
+      var hasModel = !!(model && !model.disabled && model.value);
+      var hasRows = wizDatasetRows > 0;
+      train.disabled = busy || !hasModel || !hasRows;
+      train.title = !hasModel ? "Choose an available base model first" : !hasRows ? "Build a non-empty dataset from approved pairs first" : "Start training";
+    }
+  }
   function setBusy(b) {
     busy = b;
-    ["wiz-qa-btn", "wiz-dataset-btn", "wiz-train-btn", "wiz-test-btn", "wiz-run-all", "wiz-brain-btn"].forEach(function (id) {
+    ["wiz-qa-btn", "wiz-test-btn", "wiz-run-all", "wiz-brain-btn"].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.disabled = b;
     });
+    updateActionReadiness();
   }
   var wizLastRunId = "";
 
@@ -697,6 +724,7 @@
       if (rows != null) {
         wizDatasetRows = Number(rows) || 0;
         wizUpdateStepsHint();
+        updateActionReadiness();
       }
       line("Dataset built and registered (" + Math.round(b.size / 1024) + " KB" + (rows ? ", " + rows + " rows" + (grounded && grounded !== "0" ? ", " + grounded + " with retrieved context" : "") : "") + ").");
       wizRefresh("dataset");
@@ -765,6 +793,8 @@
     var sugg = document.getElementById("wiz-epochs-suggest");
     if (epochsEl) epochsEl.addEventListener("input", wizUpdateStepsHint);
     if (presetEl) presetEl.addEventListener("change", wizUpdateStepsHint);
+    var modelEl = document.getElementById("wiz-base-model");
+    if (modelEl) modelEl.addEventListener("change", updateActionReadiness);
     if (sugg) sugg.addEventListener("click", function () {
       if (epochsEl) epochsEl.value = sugg.dataset.epochs || "";
       wizUpdateStepsHint();
@@ -773,6 +803,7 @@
       var first = (ds.datasets || [])[0];
       wizDatasetRows = first ? Number(first.qa_count) || 0 : 0;
       wizUpdateStepsHint();
+      updateActionReadiness();
     }).catch(function () { /* hint stays generic */ });
   })();
 
@@ -787,6 +818,10 @@
       var list = ds.datasets || [];
       if (!list.length) { line("Step 4: no dataset yet — run step 3 first."); return false; }
       var dataset = list[0];
+      wizDatasetRows = Number(dataset.qa_count) || 0;
+      wizUpdateStepsHint();
+      updateActionReadiness();
+      if (wizDatasetRows < 1) { line("Step 4: the selected dataset is empty — approve pairs and rebuild it first."); return false; }
       // Free VRAM: a resident helper GGUF + the trainable base can stack past
       // the card and OOM the run at step zero.
       try {

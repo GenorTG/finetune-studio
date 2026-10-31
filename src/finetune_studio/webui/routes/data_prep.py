@@ -425,6 +425,8 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
         result = await asyncio.to_thread(build_qa_export, pid, fmt, only, grounding=grounding)
     except ValueError as e:
         return JSONResponse({"detail": str(e)}, status_code=400)
+    if result.rows == 0:
+        return JSONResponse({"detail": f"no {only} Q&A pairs to export for this project"}, status_code=400)
     body = result.body
     n_grounded = result.grounding.grounded if result.grounding else 0
     # The export lives in a stream buffer; persist it to the project's datasets
