@@ -690,3 +690,42 @@ absent. The shared Qwen3.5-9B base remained. The temporary API token was revoked
 on `dev`, and the saved compute device remained the RTX 3090 (`env_overrides: []`). Install `--check` and `--verify`
 both exited 0 with `issues: none`. Older `agent-test-*` projects were left untouched. Follow-up: fix the Chat-path
 answer inconsistency and improve abstention before treating this model configuration as beta-ready.
+
+
+## 28. B7 remediation: Chat vs Testing, grounded abstention (2026-11-01, `agent-test-b7fix-20261101`, project `9fba484a`, deleted after)
+
+Live :7860 app on `dev` + the #87 branch, RTX 3090. All 19 core Korvane files uploaded and parsed; Smart Brain index at the
+default settings (multilingual-e5-large, bge-reranker-v2-m3): 19 documents, 165 passages. Quiz = the 102 paraphrases + 20
+unanswerable questions of `eval/`. Every verdict by the app's judge (DeepSeek v4.1 Flash API, the saved judge provider).
+"Proxy" = a model trained like B7 (§27) on the same 2,455 golden rows (QLoRA r64/α128, LR 1e-4, batch 2 × accumulation 8,
+seq 1024, empty system prompt) but **3 epochs** (417 steps, final train loss 0.232) instead of 6; exported Q4_K_M.
+
+**Grounded abstention** (answerable pass / unknowns declined; n = 102 / 20):
+
+| Model | Path, prompt | Answerable pass | Unknowns declined |
+|---|---|---|---|
+| Base Qwen3.5-9B Q4_K_M | Smart Brain chat (`/brain/chat`, `smart_brain.prompt` default, temp 0) | **101/102** (1 partial) | **19/20** (1 partial) |
+| Base Qwen3.5-9B Q4_K_M | Testing → Smart Brain quiz (`brain_suite` prompt, temp 0.3) | **100/102** (1 partial) | **20/20** |
+| Proxy (tuned) | Smart Brain chat, default prompt | 99/102 (3 partial) | **0/20** |
+| Proxy (tuned) | Smart Brain chat, v1: "check a passage states the exact fact … a related value is not the answer" | 100/102 (1 partial) | 1/20 |
+| Proxy (tuned) | Smart Brain chat, v2: v1 + "reply exactly: I don't know from the provided documents." | 101/102 | 0/20 |
+| Proxy (tuned) | Testing → Smart Brain quiz | 99/102 (1 partial) | 3/20 |
+
+The grounded prompts are not the cause of B7's 2/20: the untuned model declines 19-20/20 under both. Fine-tuning on
+answer-only rows removes it (0-3/20, as B7's 2/20), and no instruction change brought it back, so **no prompt change was
+merged**. The tuned proxy invents specifics next to related context (CFO base salary "EUR 148,200"; registered capital
+"EUR 1,200,000"; Q2 2022 revenue "EUR 6.14m"). Remediation has to be in the training data: decline examples (the Pairs
+page's Preference pairs "Admit it doesn't know" stage, or grounded rows whose context lacks the answer), measured with a
+training run; not done here.
+
+**Chat vs Testing** (Oakhaven incident reference, 20 asks per path, proxy model, no sources ticked; the proxy does not know
+the key INC-2024-0614 closed-book): Chat at temperature 0.7 (the old slider default) gave **10 different references**, the
+modal one 8/20 and the key once; Chat at 0.3 gave 2 (modal 17/20); Testing (0.3) gave 4 (modal 14/20, same top two).
+B7's project prompt was empty, so its Chat/Testing disagreement was sampling at 0.7 on a weakly learned fact. Tracing both
+paths also found real divergences, fixed in #87: Chat sent the project's current prompt where Testing sends the run's
+trained prompt; a run's model was matched by string prefix, which missed absolute picker paths against the stored relative
+`output/projects/...` (live echo before: `system_prompt_source: project`; after: `trained_run`); the Top-k control was
+dropped; ticked sources were sent without the "say when it is not there" instruction. Chat now starts at 0.3.
+
+The project, its dataset, run (merged model, f16 + Q4_K_M GGUF), test runs and Smart Brain index were deleted afterwards;
+the inference model was unloaded, the temporary API token and the agent browser session revoked.
