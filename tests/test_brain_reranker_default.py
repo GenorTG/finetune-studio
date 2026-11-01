@@ -7,7 +7,7 @@ passages with ~2 GB of weights per search, so a CPU-only machine keeps MiniLM.
 """
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -25,18 +25,38 @@ def test_default_reranker_follows_the_device(device: str, expected: str) -> None
     assert CPU_RERANKER == "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 
-def test_half_precision_only_on_cuda() -> None:
+def _acc(gpu: bool, bf16: bool = False) -> MagicMock:
+    return MagicMock(is_gpu=gpu, supports_bf16=bf16)
+
+
+@pytest.mark.parametrize("device, acc, dtype", [
+    ("cuda:0", _acc(True, bf16=True), "bfloat16"),     # RTX 3090: the accelerator layer's dtype, not a fixed fp16
+    ("cuda:0", _acc(True, bf16=False), "float16"),     # a card without bf16
+    ("xpu", _acc(True, bf16=True), "bfloat16"),        # used to load fp32 on every non-"cuda" GPU
+    ("mps", _acc(True, bf16=False), "float16"),
+    ("cpu", _acc(True, bf16=True), None),              # an explicit cpu request stays fp32
+    ("cuda:0", _acc(False), None),                     # "cuda" asked for on a host with no usable GPU
+])
+def test_half_precision_follows_the_accelerator_layer(device: str, acc: MagicMock, dtype: str | None) -> None:
     import torch
 
-    assert rerankers.half_precision_kwargs("cuda:0") == {"model_kwargs": {"torch_dtype": torch.float16}}
-    assert rerankers.half_precision_kwargs("cpu") == {}
-    assert rerankers.half_precision_kwargs("mps") == {}
+    with patch("finetune_studio.accel.get_accelerator", return_value=acc):
+        kwargs = rerankers.half_precision_kwargs(device)
+    assert kwargs == ({"model_kwargs": {"torch_dtype": getattr(torch, dtype)}} if dtype else {})
 
 
-def test_get_reranker_loads_fp16_on_a_gpu() -> None:
+def test_reranker_source_names_no_backend() -> None:
+    import inspect
+
+    text = inspect.getsource(rerankers)
+    assert "float16" not in text and 'startswith("cuda")' not in text   # dtype/device policy lives in accel
+
+
+def test_get_reranker_loads_half_precision_on_a_gpu() -> None:
     import torch
 
     with patch("sentence_transformers.CrossEncoder") as ce, \
+         patch("finetune_studio.accel.get_accelerator", return_value=_acc(True, bf16=False)), \
          patch("finetune_studio.smart_brain.devices.resolve_device", return_value="cuda:0"), \
          patch("finetune_studio.smart_brain.shared_refs.resolve_model_ref", side_effect=lambda n, _k: n):
         rerankers.get_reranker("BAAI/bge-reranker-v2-m3")

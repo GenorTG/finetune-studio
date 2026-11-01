@@ -699,8 +699,16 @@ def format_context_blocks(results: list[dict], max_chars: int = ANSWER_CONTEXT_C
     return _BLOCK_SEP.join(blocks)
 
 
-def build_system_prompt(context: str) -> str:
-    return f"{DEFAULT_SYSTEM_PROMPT}\n\n{CONTEXT_MARKER}{context}"
+def build_system_prompt(context: str, system_prompt: str = "", extra_instructions: str = "") -> str:
+    """The studio's ``smart_brain.prompt.build_system_prompt``, copied (this file ships on its own)."""
+    instructions = system_prompt or DEFAULT_SYSTEM_PROMPT
+    if extra_instructions:
+        instructions = f"{instructions} {extra_instructions}"
+    return f"{instructions}\n\n{CONTEXT_MARKER}{context}"
+
+
+def _system_turn(hits: list[dict], max_chars: int, system_prompt: str, extra_instructions: str) -> str:
+    return build_system_prompt(format_context_blocks(hits, max_chars=max_chars), system_prompt, extra_instructions)
 
 
 def follow_up_query(reply: str) -> str:
@@ -729,22 +737,22 @@ def merge_follow_up_hits(hits: list[dict], extra: list[dict]) -> list[dict]:
 
 def answer_with_follow_ups(question: str, hits: list[dict], search, chat, *, follow_ups: int = 1,
                            max_chars: int = ANSWER_CONTEXT_CHARS, system_prompt: str = "",
-                           history: list[dict] | None = None) -> dict:
+                           history: list[dict] | None = None, system_turn=None) -> dict:
     """Answer from ``hits``; the model may instead ask for up to ``follow_ups`` more searches.
 
     ``search(query) -> hits`` and ``chat(messages) -> reply`` are the caller's (this server's search and answer
     endpoint, or the studio's index and loaded model). ``history`` = earlier conversation turns before the question.
+    ``system_turn(hits, max_chars, system_prompt, extra_instructions) -> str`` builds the system message; the studio
+    passes ``smart_brain.prompt``'s (the training rows' layout), this server its own copy of it.
     The last round never offers a search, so the model always ends with an answer.
     Returns ``{"answer", "hits", "follow_up_searches"}``.
     """
     asked: list[str] = []
-    base = system_prompt or DEFAULT_SYSTEM_PROMPT
+    system_turn = system_turn or _system_turn
     offering = follow_ups > 0
     while True:
-        instructions = f"{base} {FOLLOW_UP_INSTRUCTION}" if offering else base
-        messages = [{"role": "system", "content": f"{instructions}\n\n{CONTEXT_MARKER}"
-                                                  f"{format_context_blocks(hits, max_chars=max_chars)}"},
-                    *(history or []), {"role": "user", "content": question}]
+        system = system_turn(hits, max_chars, system_prompt, FOLLOW_UP_INSTRUCTION if offering else "")
+        messages = [{"role": "system", "content": system}, *(history or []), {"role": "user", "content": question}]
         reply = chat(messages)
         wanted = follow_up_query(reply) if offering else ""
         if not wanted:

@@ -21,15 +21,21 @@ def default_reranker(device: str = "auto") -> str:
 
 
 def half_precision_kwargs(device: str) -> dict:
-    """``CrossEncoder`` kwargs for fp16 weights on a CUDA/ROCm GPU (~4x faster, same ranking), none elsewhere.
+    """``CrossEncoder`` kwargs for half-precision weights on a GPU (~4x faster, same ranking), none on CPU.
 
-    Rerank scores only order one query's passages, so unlike the embedder (fp32: index and query vectors must
-    match across machines) half precision changes nothing that is stored.
+    The dtype is the accelerator layer's (bf16 where the card supports it, else fp16; ``accel.ops.torch_dtype``),
+    so it follows CUDA, ROCm, XPU and MPS alike. Rerank scores only order one query's passages, so unlike the
+    embedder (fp32: index and query vectors must match across machines) half precision changes nothing stored.
     """
-    if not device.startswith("cuda"):
+    if device.split(":")[0] == "cpu":
         return {}
-    import torch
-    return {"model_kwargs": {"torch_dtype": torch.float16}}
+    from finetune_studio.accel import get_accelerator
+    from finetune_studio.accel.ops import torch_dtype
+
+    acc = get_accelerator()
+    if not acc.is_gpu:
+        return {}
+    return {"model_kwargs": {"torch_dtype": torch_dtype(acc)}}
 
 
 def get_reranker(name: str = DEFAULT_RERANKER, device: str = "auto"):

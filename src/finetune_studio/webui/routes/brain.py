@@ -480,6 +480,10 @@ class _NoChatModel(Exception):
     pass
 
 
+class _AssistantFailed(Exception):
+    """The API connection answering a Smart Brain chat raised (network, auth, provider error)."""
+
+
 NO_API_ASSISTANT = ("The Smart Brain chat job of the AI assistant has no API connection: add one in Settings -> AI "
                     "assistant (or pick one for the Smart Brain chat job there), or answer with the loaded model.")
 
@@ -513,8 +517,7 @@ async def brain_chat(pid: str, req: ChatRequest):
     Retrieves top-k from the project corpus and answers with those passages
     and the prior conversation. Returns the reply, cited sources, and follow-up searches.
     """
-    from finetune_studio.smart_brain import BrainIndex
-    from finetune_studio.smart_brain.prompt import context_char_budget
+    from finetune_studio.smart_brain import BrainIndex, prompt
     from finetune_studio.smart_brain.standalone_server import answer_with_follow_ups
     from finetune_studio.webui.app import inference_engine
 
@@ -540,15 +543,18 @@ async def brain_chat(pid: str, req: ChatRequest):
     n_ctx = None if assistant_client is not None else (
         inference_engine.n_ctx if inference_engine.model is not None else (_active_n_ctx() or None))
     history_chars = sum(len(str(m.get("content", ""))) for m in req.messages) + len(req.system_prompt or "")
-    budget = context_char_budget(n_ctx, max_new_tokens=req.max_tokens, history_chars=history_chars)
+    budget = prompt.context_char_budget(n_ctx, max_new_tokens=req.max_tokens, history_chars=history_chars)
     last_index = max(i for i, m in enumerate(req.messages) if m.get("role") == "user")
     history = [{"role": m["role"], "content": m["content"]} for m in req.messages[:last_index]]
 
     def _generate(msgs: list[dict]) -> str:
         if assistant_client is not None:
             from finetune_studio.models.assistant import instruct
-            return assistant_client.chat(instruct("brain", msgs), max_tokens=req.max_tokens,
-                                         temperature=req.temperature).strip()
+            try:
+                return assistant_client.chat(instruct("brain", msgs), max_tokens=req.max_tokens,
+                                             temperature=req.temperature).strip()
+            except Exception as e:   # any provider failure is the API's answer, reported as 502
+                raise _AssistantFailed(str(e) or type(e).__name__) from e
         if inference_engine.model is not None:
             return inference_engine.generate(
                 msgs, max_tokens=req.max_tokens,
@@ -573,15 +579,24 @@ async def brain_chat(pid: str, req: ChatRequest):
             return parts["response"].strip() if parts.get("response") else raw[-1]
         # The prompt layout is smart_brain.prompt's (the context-grounded training rows use it too); the follow-up
         # loop is the standalone server's /ask, so the studio and an exported package answer the same way.
-        return answer_with_follow_ups(last_user, hits, lambda query: q.search(query, top_k=req.top_k), chat,
-                                      follow_ups=req.follow_up, max_chars=budget,
-                                      system_prompt=req.system_prompt, history=history)
+        # The system turn is smart_brain.prompt's, so with no follow-up offer it is byte-identical to a
+        # context-grounded training row's; the follow-up offer is its declared extra_instructions part.
+        return answer_with_follow_ups(
+            last_user, hits, lambda query: q.search(query, top_k=req.top_k), chat,
+            follow_ups=req.follow_up, max_chars=budget, system_prompt=req.system_prompt, history=history,
+            system_turn=lambda h, chars, system, extra: prompt.build_system_prompt(
+                prompt.format_context_blocks(h, max_chars=chars), system, extra))
 
     try:
-        async with ENGINE_LOCK:
+        if assistant_client is not None:   # an API answer never touches the local engine: no reason to block it
             result = await asyncio.to_thread(_answer)
+        else:
+            async with ENGINE_LOCK:
+                result = await asyncio.to_thread(_answer)
     except _NoChatModel:
         raise ApiError(409, NO_CHAT_MODEL, code="no_model") from None   # unloaded while the search ran
+    except _AssistantFailed as e:
+        raise ApiError(502, f"The AI assistant's API connection failed: {e}", code="assistant_failed") from None
     except ValueError as e:
         return JSONResponse({"detail": str(e)}, status_code=400)
 

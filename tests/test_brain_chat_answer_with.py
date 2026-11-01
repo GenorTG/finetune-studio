@@ -57,6 +57,43 @@ def test_chat_answers_with_the_assistant_connection_without_a_loaded_model(clien
     assert "THREE YEARS" in sent[0]["content"] and sent[-1]["content"] == "How long is the warranty?"
 
 
+def _assistant_chat(client, conn: MagicMock):
+    pid = _project(client)
+    mgr = MagicMock()
+    mgr.get_provider.return_value = {"id": "api-x", "kind": "openai_compat"}
+    from finetune_studio.webui import app as webapp
+
+    with patch("finetune_studio.smart_brain.BrainIndex", return_value=_rag()), \
+         patch.object(webapp.inference_engine, "model", None), \
+         patch("finetune_studio.models.assistant.job_provider_id", return_value="api-x"), \
+         patch("finetune_studio.models.manager.get_manager", return_value=mgr), \
+         patch("finetune_studio.models.assistant.connection_client", return_value=conn):
+        return client.post(f"/api/projects/{pid}/brain/chat",
+                           json={"messages": [{"role": "user", "content": "q"}], "answer_with": "assistant",
+                                 "follow_up": 0})
+
+
+def test_a_provider_failure_is_a_502_with_its_reason(client) -> None:
+    conn = MagicMock()
+    conn.chat.side_effect = RuntimeError("HTTP 401: invalid API key")
+    r = _assistant_chat(client, conn)
+    assert r.status_code == 502, r.text
+    assert r.json()["code"] == "assistant_failed"
+    assert "HTTP 401: invalid API key" in r.json()["detail"]
+
+
+def test_an_api_answer_does_not_wait_for_the_local_engine(client) -> None:
+    """The engine lock serialises local inference; an API answer held it for the whole provider round trip."""
+    from finetune_studio.webui.engine_guard import ENGINE_LOCK
+
+    seen: list[bool] = []
+    conn = MagicMock()
+    conn.chat.side_effect = lambda *_a, **_k: seen.append(ENGINE_LOCK.locked()) or "ok"
+    r = _assistant_chat(client, conn)
+    assert r.status_code == 200, r.text
+    assert seen == [False]
+
+
 def test_assistant_without_an_api_connection_is_a_plain_409(client) -> None:
     pid = _project(client)
     mgr = MagicMock()
