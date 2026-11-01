@@ -15,6 +15,26 @@ from finetune_studio.testing.scoring import rescore_benchmark
 from finetune_studio.testing.suite import CaseResult
 
 
+def _inside(model_path: str, output_path: str) -> bool:
+    """True when ``model_path`` is ``output_path`` or below it; both resolved with ``app_path``, so a run's relative
+    ``output/projects/...`` matches the absolute path a model picker sends (a string prefix test did not)."""
+    from finetune_studio.app_paths import app_path
+
+    model, out = app_path(model_path).resolve(), app_path(output_path).resolve()
+    return model == out or out in model.parents
+
+
+def run_owning_model(project_id: str, model_path: str) -> dict[str, Any] | None:
+    """The finished training run of ``project_id`` whose output folder holds ``model_path`` (merged dir, GGUF), else None."""
+    if not model_path:
+        return None
+    for run in db.list_runs(project_id):
+        output_path = str(run.get("output_path") or "")
+        if run.get("status") == "done" and output_path and _inside(model_path, output_path):
+            return run
+    return None
+
+
 def resolve_owner_run(project_id: str, model_path: str, *, requested_run_id: str = "") -> str:
     """The training run a test run hangs off.
 
@@ -28,11 +48,9 @@ def resolve_owner_run(project_id: str, model_path: str, *, requested_run_id: str
         requested = db.get_run(requested_run_id)
         if requested and requested.get("project_id") == project_id:
             return requested_run_id
-    if model_path:
-        for run in db.list_runs(project_id):
-            output_path = str(run.get("output_path") or "")
-            if run.get("status") == "done" and output_path and model_path.startswith(output_path):
-                return str(run["id"])
+    owner = run_owning_model(project_id, model_path)
+    if owner:
+        return str(owner["id"])
     from finetune_studio.db.runs import EVAL_RUN_NAME
 
     for run in db.list_runs(project_id, include_base_probe=True):

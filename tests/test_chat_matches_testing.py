@@ -94,3 +94,29 @@ def test_grounded_chat_uses_the_smart_brain_prompt_layout(client, monkeypatch) -
     assert brain_prompt.DEFAULT_SYSTEM_PROMPT.split(".")[0] in msgs[0]["content"]
     assert msgs[1:] == [{"role": "user", "content": "Which incident?"}]
     assert data["chunks_retrieved"] == 1 and data["request"]["grounded"] is True
+
+
+def test_relative_run_output_matches_an_absolute_model_path(client) -> None:
+    """Runs store ``output/projects/...`` relative to the checkout; pickers send absolute paths (B7 proxy run, 2026-11-01)."""
+    from finetune_studio.app_paths import APP_ROOT
+    from finetune_studio.testing.run_store import resolve_owner_run
+
+    pid = _project(client, "chatfix-relpath", system_prompt="Persona.")
+    rid = _done_run(pid, f"output/projects/{pid}/runs/r1", "Trained.")
+    absolute = str(APP_ROOT / "output" / "projects" / pid / "runs" / "r1" / "gguf" / "model-q4_k_m.gguf")
+    data, msgs, _ = _chat(client, pid, {"messages": [{"role": "user", "content": "q"}]}, model_path=absolute)
+    assert msgs[0]["content"] == "Trained." and data["request"]["system_prompt_source"] == "trained_run"
+    assert resolve_owner_run(pid, absolute) == rid
+    assert resolve_owner_run(pid, f"output/projects/{pid}/runs/r1/merged") == rid
+    # a sibling run whose id merely shares the prefix is not the owner
+    assert resolve_owner_run(pid, f"output/projects/{pid}/runs/r10/merged") != rid
+
+
+def test_chat_defaults_to_the_testing_temperature(client) -> None:
+    from pathlib import Path
+
+    pid = _project(client, "chatfix-temp")
+    _, _, kw = _chat(client, pid, {"messages": [{"role": "user", "content": "q"}]})
+    assert kw["temperature"] == 0.3
+    html = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/chat_v2.html").read_text()
+    assert 'id="chat-temperature" min="0" max="2" step="0.1" value="0.3"' in html

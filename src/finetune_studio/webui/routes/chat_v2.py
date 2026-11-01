@@ -48,17 +48,14 @@ def loaded_model_trained_prompt(pid: str, model_path: str) -> str | None:
     project prompt applies. Testing asks a run's model under this prompt (``testing_jobs.trained_system_prompt``);
     Chat must ask the same model the same way, or the two pages disagree about one model.
     """
-    from finetune_studio import db
+    from finetune_studio.testing.run_store import run_owning_model
 
-    if not model_path:
+    run = run_owning_model(pid, model_path)
+    if run is None:
         return None
-    for run in db.list_runs(pid):
-        out = str(run.get("output_path") or "")
-        if run.get("status") == "done" and out and str(model_path).startswith(out):
-            if (run.get("system_prompt_mode") or "bake") == "none":
-                return ""
-            return str(run.get("system_prompt") or "")
-    return None
+    if (run.get("system_prompt_mode") or "bake") == "none":
+        return ""
+    return str(run.get("system_prompt") or "")
 
 
 @router.get("/projects")
@@ -172,7 +169,7 @@ async def chat(request: Request, pid: str):
     enabled_index_ids = body.get("enabled_index_ids", [])
     system_prompt_override = body.get("system_prompt_override")
     max_tokens = body.get("max_tokens", 512)
-    temperature = body.get("temperature", 0.7)
+    temperature = body.get("temperature", 0.3)   # the Testing page's default: one model, one answer distribution
     top_p = body.get("top_p", 0.9)
     top_k = body.get("top_k", 40)   # the Top-k control; dropped here before 2026-11-01, so the worker always used 40
 
