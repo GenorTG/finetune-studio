@@ -73,6 +73,16 @@ def audit_source(pid: str, source: Source) -> dict[str, Any]:
     chunks_dir = file_dir(pid, actual_sha, create=False) / "chunks"
     chunks = [p.read_text(encoding="utf-8", errors="replace")
               for p in sorted(chunks_dir.glob("*.txt"))] if chunks_dir.is_dir() else []
+    version_path = chunks_dir / "chunker-version.json"
+    try:
+        stored_chunker_version = int(version_path.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        stored_chunker_version = 0
+    from finetune_studio.data.prep.chunker import CHUNKER_VERSION
+    result["chunker_version"] = stored_chunker_version
+    result["expected_chunker_version"] = CHUNKER_VERSION
+    if stored_chunker_version != CHUNKER_VERSION:
+        result["errors"].append("chunker_version_mismatch_reparse_required")
     expected_chunks = chunk_text(parsed)
     result.update({
         "chunk_count": len(chunks),
