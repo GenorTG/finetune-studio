@@ -25,7 +25,7 @@ def test_delete_rescans_model_registry(client, monkeypatch, tmp_path) -> None:
     model = _stage(monkeypatch, tmp_path)
     calls: list[int] = []
     monkeypatch.setattr(hf_cache, "_LOCAL", tmp_path)
-    monkeypatch.setattr(RemoteEngine, "_status", lambda _self, fresh=False: {"loaded": False})
+    monkeypatch.setattr(RemoteEngine, "_call", lambda _self, *_a: {"loaded": False})
     monkeypatch.setattr("finetune_studio.models.registry_invalidation.invalidate_model_registry",
                         lambda: calls.append(1) or 1)
     r = client.delete("/api/hf/local/Org/Tiny")
@@ -40,7 +40,7 @@ def test_rescan_failure_does_not_fail_the_delete(client, monkeypatch, tmp_path) 
 
     model = _stage(monkeypatch, tmp_path)
     monkeypatch.setattr(hf_cache, "_LOCAL", tmp_path)
-    monkeypatch.setattr(RemoteEngine, "_status", lambda _self, fresh=False: {"loaded": False})
+    monkeypatch.setattr(RemoteEngine, "_call", lambda _self, *_a: {"loaded": False})
 
     def boom() -> int:
         raise OSError("invalidation failed")
@@ -77,7 +77,7 @@ def test_loaded_or_loading_cache_model_cannot_be_deleted(client, monkeypatch, tm
 
     model = _stage(monkeypatch, tmp_path)
     monkeypatch.setattr(hf_cache, "_LOCAL", tmp_path)
-    monkeypatch.setattr(RemoteEngine, "_status", lambda _self, fresh=False: {
+    monkeypatch.setattr(RemoteEngine, "_call", lambda _self, *_a: {
         "loaded": True, "model_path": str(model / "model.safetensors"),
     })
     response = client.delete("/api/hf/local/Org/Tiny")

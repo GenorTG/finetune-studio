@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import shutil
-from pathlib import Path
 
 from finetune_studio import db
+from finetune_studio.app_paths import app_path
 
 
 def delete_project(pid: str) -> bool:
@@ -23,8 +23,8 @@ def delete_project(pid: str) -> bool:
     db.delete_project(pid)
     for project_dir in (
         fts_root() / "projects" / pid,
-        Path(settings.db_path).parent / "projects" / pid,
-        Path("output") / "projects" / pid,
+        app_path(settings.db_path).parent / "projects" / pid,
+        app_path("output") / "projects" / pid,
         brain_index_dir(pid),
     ):
         shutil.rmtree(project_dir, ignore_errors=True)

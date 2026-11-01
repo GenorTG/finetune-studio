@@ -221,3 +221,26 @@ def test_models_command_authenticates_but_never_prints_the_api_key(
     assert code == 0 and not err and json.loads(out) == {"models": ["a-model", "z-model"]}
     assert observed == {"url": "https://api.example/v1/models", "authorization": "Bearer private-key", "timeout": "20"}
     assert "private-key" not in out
+
+
+@pytest.mark.parametrize(("held", "unloaded"), [("same", True), ("other", False), ("none", False)])
+def test_main_switch_unloads_the_old_local_model_from_the_worker(
+    monkeypatch, capsys, client, tmp_path, held: str, unloaded: bool,
+) -> None:
+    """The CLI's own ModelManager never loaded anything, so ``mgr.active()`` could not see the worker's model."""
+    from finetune_studio.inference.remote import RemoteEngine
+
+    gguf = tmp_path / "old-helper.gguf"
+    gguf.write_bytes(b"GGUF")
+    get_manager().upsert_provider(id="local-old-cli", name="Old helper", kind="local_gguf", model_id=str(gguf))
+    assistant.set_assistant_provider_id("local-old-cli")
+    path = {"same": str(gguf), "other": str(tmp_path / "judge.gguf"), "none": ""}[held]
+    calls: list[str] = []
+    monkeypatch.setattr(RemoteEngine, "_call", lambda _self, method, url, *_a: calls.append(url) or {
+        "model_path": path or None})
+    monkeypatch.setattr(RemoteEngine, "unload", lambda _self: calls.append("unload"))
+
+    pid = add_connection()
+    code, _out, err = run_cli(monkeypatch, capsys, "assistant", "main", pid, "--json")
+    assert code == 0 and not err, err
+    assert ("unload" in calls) is unloaded

@@ -146,3 +146,28 @@ def test_quant_options_are_unambiguous_and_list_limit_matches_api(
     code, stdout, stderr = run_cli(monkeypatch, capsys, "export", "start", "run-1", "--project", project["id"],
                                    "--quant", "Q4_K_M", "--quants", "Q5_K_M")
     assert code == 2 and not stdout and "not allowed with argument" in stderr
+
+
+@pytest.mark.parametrize("quant_args", [[], ["--quants", "q4_k_m", "q8_0"], ["--quant", "q4_k_m", "--imatrix"]])
+def test_no_auto_merge_is_honoured_on_the_multi_quant_path(
+    project: dict[str, Any], tmp_path, monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str], quant_args: list[str],
+) -> None:
+    """``gguf`` without ``--quant`` goes through the multi path, which ignored auto_merge and merged anyway."""
+    run = create_run(str(project["id"]))
+    db.update_run(run["id"], status="done", output_path=str(tmp_path / "run"))
+    monkeypatch.setattr(export_service, "validate_export_request", lambda *_a, **_kw: None)
+    queued: list[dict[str, Any]] = []
+    monkeypatch.setattr(export_service.export_jobs, "start_job", lambda **kw: queued.append(kw) or {"id": "x"})
+
+    code, stdout, stderr = run_cli(monkeypatch, capsys, "export", "start", run["id"], "--project", project["id"],
+                                   *quant_args, "--no-auto-merge")
+    assert code == 1 and not stdout and "run has not been merged" in stderr
+    assert queued == []
+
+    (tmp_path / "run" / "merged").mkdir(parents=True)
+    (tmp_path / "run" / "merged" / "config.json").write_text("{}", encoding="utf-8")
+    code, stdout, stderr = run_cli(monkeypatch, capsys, "export", "start", run["id"], "--project", project["id"],
+                                   *quant_args, "--no-auto-merge")
+    assert code == 0 and not stderr
+    assert len(queued) == 1

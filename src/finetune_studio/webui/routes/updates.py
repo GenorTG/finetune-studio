@@ -21,7 +21,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import signal
 import subprocess
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -92,6 +94,13 @@ async def trigger_update(request: Request, background: BackgroundTasks):
         "no_restart": bool(body.get("no_restart", False)),
     }
     triggered_by = str(body.get("triggered_by") or "user")[:32]
+    running = update_in_progress()
+    if running:
+        return JSONResponse({
+            "detail": f"an update is already {running.get('status') or 'running'} ({running['id']}); "
+                      "wait for it to finish",
+            "update_id": running["id"],
+        }, status_code=409)
     row = db.create_update(mode=mode, options=options,
                            triggered_by=triggered_by)
     background.add_task(run_update_worker, row["id"], mode, options)
@@ -234,6 +243,7 @@ def run_update_worker(
     db.mark_update_running(uid)
     append_log(f"$ {' '.join(args)}\n")
 
+    proc: subprocess.Popen | None = None
     try:
         proc = subprocess.Popen(
             args,
@@ -242,6 +252,9 @@ def run_update_worker(
             text=True,
             bufsize=1,
             cwd=str(script_path.parent),
+            # Its own session: a Ctrl-C in the terminal running ``fts update`` must not
+            # SIGINT update.sh halfway through a step (pip sync, migrations).
+            start_new_session=True,
         )
         # Stream output line by line into the DB. We block here until
         # the script exits \u2014 this runs in a FastAPI BackgroundTask,
@@ -271,6 +284,34 @@ def run_update_worker(
     except Exception as e:
         log.exception("update worker failed")
         db.mark_update_failed(uid, error=str(e))
+    except BaseException as e:
+        # Ctrl-C / SystemExit in the CLI: stop update.sh deliberately (between our own
+        # signals, not the terminal's) and record it; a row left "running" blocked the UI.
+        _stop_update_script(proc)
+        append_log(f"\n[worker] interrupted ({type(e).__name__}); update.sh was stopped\n")
+        db.update_update(uid, status="cancelled", finished_at=time.time(),
+                         error=f"interrupted ({type(e).__name__}) before update.sh finished; "
+                               "run it again, or `fts update repair` if it stopped while installing packages")
+        raise
+
+
+def _stop_update_script(proc: subprocess.Popen | None, grace_s: float = 30.0) -> None:
+    """SIGTERM update.sh's process group, then SIGKILL after ``grace_s``."""
+    if proc is None or proc.poll() is not None:
+        return
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+        proc.wait(timeout=grace_s)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait()
+    except ProcessLookupError:
+        pass
+
+
+def update_in_progress() -> dict[str, Any] | None:
+    """The queued/running update, if any: a second one must not run update.sh beside it."""
+    return db.latest_update_in_progress()
 
 
 def _update_worker(uid: str, mode: str, options: dict[str, bool]) -> None:

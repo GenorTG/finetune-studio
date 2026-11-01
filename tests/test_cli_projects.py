@@ -152,9 +152,15 @@ def test_projects_delete_yes_removes_all_project_data_and_refreshes_registry(
 ):
     from pathlib import Path
 
+    from finetune_studio import app_paths
     from finetune_studio.data.fs import paths as fts_paths
 
-    monkeypatch.chdir(tmp_path)
+    # The app's checkout is tmp_path; the CLI runs from an unrelated directory and must
+    # still remove the checkout's output tree (it used to delete <cwd>/output instead).
+    monkeypatch.setattr(app_paths, "APP_ROOT", tmp_path)
+    elsewhere = tmp_path / "elsewhere"
+    (elsewhere / "output" / "projects").mkdir(parents=True)
+    monkeypatch.chdir(elsewhere)
     fts_root = tmp_path / "fts-home"
     monkeypatch.setattr(fts_paths, "_ROOT", fts_root)
     monkeypatch.setattr(fts_paths, "_PROJECTS", fts_root / "projects")
@@ -179,6 +185,7 @@ def test_projects_delete_yes_removes_all_project_data_and_refreshes_registry(
     assert payload["project"]["id"] == project["id"]
     assert db.get_project(project["id"]) is None
     assert all(not directory.exists() for directory in project_dirs)
+    assert (elsewhere / "output" / "projects").is_dir()  # the cwd's own tree is not the app's
     assert invalidations == ["invalidate"]
 
 
@@ -186,3 +193,33 @@ def test_projects_delete_help_documents_confirmation(monkeypatch, capsys):
     code, out, err = run_cli(monkeypatch, capsys, "projects", "delete", "--help")
     assert code == 0 and not err
     assert "--yes" in out and "--json" in out
+
+
+def test_relative_database_path_is_anchored_to_the_checkout(monkeypatch, tmp_path):
+    """``fts`` from another directory used a second, empty ``<cwd>/data`` database."""
+    from finetune_studio import app_paths
+    from finetune_studio.config import settings
+
+    monkeypatch.setattr(app_paths, "APP_ROOT", tmp_path / "checkout")
+    monkeypatch.setattr(settings, "db_path", "data/finetune_studio.db")
+    monkeypatch.chdir(tmp_path)
+    app_paths.anchor_db_path()
+    assert settings.db_path == str(tmp_path / "checkout" / "data" / "finetune_studio.db")
+
+
+def test_fts_from_another_directory_opens_no_database_there(tmp_path):
+    """The CLI package anchors the path before ``finetune_studio.db`` (which opens it on import) loads."""
+    import subprocess
+
+    checkout, cwd = tmp_path / "checkout", tmp_path / "elsewhere"
+    cwd.mkdir()
+    code = (
+        "import sys; from pathlib import Path; import finetune_studio.app_paths as a; "
+        "a.APP_ROOT = Path(sys.argv[1]); import finetune_studio.cli, finetune_studio.db; "
+        "from finetune_studio.config import settings; print(settings.db_path)"
+    )
+    out = subprocess.run([sys.executable, "-c", code, str(checkout)], cwd=cwd, capture_output=True,
+                         text=True, timeout=120, check=True)
+    assert out.stdout.strip().splitlines()[-1] == str(checkout / "data" / "finetune_studio.db")
+    assert (checkout / "data" / "finetune_studio.db").is_file()
+    assert not (cwd / "data").exists()

@@ -22,7 +22,9 @@ def _print_report(report: dict[str, Any]) -> None:
         print(f"  device id: {saved['device_id']} · {'available' if saved['available'] else 'not detected'}")
 
     effective = report["effective"]
-    print(f"Effective now: {effective['device']} — {effective['name']} ({effective['runtime']})")
+    print(f"Effective in this terminal: {effective['device']} — {effective['name']} ({effective['runtime']})")
+    print("  (what this fts command sees; the running service applies the saved choice at its start —"
+          " Settings → Compute device shows what it runs now)")
     if report["devices"]:
         print("Detected GPUs:")
         for device in report["devices"]:

@@ -91,3 +91,80 @@ def test_unknown_update_status_is_plain_error(monkeypatch, capsys, mock_settings
 
     assert code == 1 and not out
     assert "unknown update id" in err and "Traceback" not in err
+
+
+def _running_update() -> dict:
+    row = db.create_update(mode="update", options={}, triggered_by="user")
+    db.mark_update_running(row["id"])
+    return row
+
+
+def test_cli_refuses_a_second_concurrent_update(monkeypatch, capsys, mock_settings) -> None:
+    monkeypatch.setenv("FTS_SKIP_UPDATE", "1")
+    row = _running_update()
+    code, _out, err = run_cli(monkeypatch, capsys, "update", "apply", "--yes")
+    assert code == 1
+    assert "already running" in err and row["id"] in err
+    assert len(db.list_updates_recent(limit=10)) == 1
+
+
+def test_route_refuses_a_second_concurrent_update(client, monkeypatch) -> None:
+    monkeypatch.setenv("FTS_SKIP_UPDATE", "1")
+    row = _running_update()
+    r = client.post("/api/system/update", json={"mode": "update"})
+    assert r.status_code == 409, r.text
+    assert r.json()["update_id"] == row["id"]
+
+
+def test_ctrl_c_stops_update_sh_and_records_the_interruption(monkeypatch, mock_settings, tmp_path) -> None:
+    """A KeyboardInterrupt used to escape ``except Exception``: the row stayed "running" for ever."""
+    import time
+
+    from finetune_studio.webui.routes import updates
+
+    marker = tmp_path / "still-running"
+    script = tmp_path / "update.sh"
+    script.write_text(f"#!/bin/sh\necho started\nsleep 20\ntouch {marker}\n", encoding="utf-8")
+    script.chmod(0o755)
+    monkeypatch.delenv("FTS_SKIP_UPDATE", raising=False)
+    monkeypatch.setattr(updates, "_find_update_script", lambda: script)
+    row = db.create_update(mode="check", options={}, triggered_by="cli")
+
+    def on_log(line: str) -> None:
+        if "started" in line:
+            raise KeyboardInterrupt
+
+    began = time.monotonic()
+    with pytest.raises(KeyboardInterrupt):
+        updates.run_update_worker(row["id"], "check", {}, on_log=on_log)
+    assert time.monotonic() - began < 15  # update.sh's group was stopped, not waited out
+    stored = db.get_update(row["id"])
+    assert stored["status"] == "cancelled"
+    assert "interrupted" in stored["error"]
+    time.sleep(0.5)
+    assert not marker.exists()
+
+
+def test_update_sh_runs_in_its_own_session(monkeypatch, mock_settings, tmp_path) -> None:
+    """The terminal's Ctrl-C must not reach update.sh directly (its process group is its own)."""
+    import subprocess
+
+    from finetune_studio.webui.routes import updates
+
+    script = tmp_path / "update.sh"
+    script.write_text("#!/bin/sh\necho ok\n", encoding="utf-8")
+    script.chmod(0o755)
+    monkeypatch.delenv("FTS_SKIP_UPDATE", raising=False)
+    monkeypatch.setattr(updates, "_find_update_script", lambda: script)
+    seen: dict = {}
+    real = subprocess.Popen
+
+    def spy(*a, **kw):
+        seen.update(kw)
+        return real(*a, **kw)
+
+    monkeypatch.setattr(updates.subprocess, "Popen", spy)
+    row = db.create_update(mode="check", options={}, triggered_by="cli")
+    updates.run_update_worker(row["id"], "check", {})
+    assert seen.get("start_new_session") is True
+    assert db.get_update(row["id"])["status"] == "done"

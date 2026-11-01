@@ -59,6 +59,12 @@ def submit_export(project_id: str, run_id: str, body: dict[str, Any]) -> ExportS
         or force and "quant" not in body
     )
     if use_multi:
+        if not auto_merge and fmt != "merged":
+            # The multi-quant path merges on demand; honour an explicit auto_merge=false
+            # here too instead of silently merging (``fts export start --no-auto-merge``).
+            merged = os.path.join((run.get("output_path") or "").strip(), "merged")
+            if not os.path.isdir(merged) or not os.listdir(merged):
+                return _failure("run has not been merged; POST /merge first, or set auto_merge=true in the request body")
         quants_raw = body.get("quants")
         quants = [str(quant) for quant in quants_raw] if isinstance(quants_raw, list) else None
         refused = validate_export_request(run, fmt=fmt, quants=quants, force=force, imatrix=imatrix)
