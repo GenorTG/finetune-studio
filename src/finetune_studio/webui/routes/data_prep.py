@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import sqlite3
 import time
 from pathlib import Path
 
@@ -407,42 +408,40 @@ async def export_qa(pid: str, fmt: str = "sharegpt", only: str = "approved",
         return JSONResponse({"detail": f"unknown only filter: {only}"}, status_code=400)
     from finetune_studio.data.prep.dataset_build import (
         ExportBlocked,
-        completeness_gate,
-        persist_export,
+        build_project_dataset,
     )
-    from finetune_studio.data.prep.export import build_qa_export
     from finetune_studio.data.prep.grounding import resolve_grounding
     try:
         grounding = resolve_grounding(pid, grounded_share, distractors)
     except ValueError as e:
         return JSONResponse({"detail": str(e)}, status_code=400)
+    # The export lives in a stream buffer; it is persisted to the project's datasets
+    # dir (the same gate → export → persist chain as ``fts dataset build``) so it is
+    # selectable from the Training tab and referenceable forever.
     try:
-        await asyncio.to_thread(completeness_gate, pid, force=force)
+        built = await asyncio.to_thread(build_project_dataset, pid, fmt, only, grounding=grounding, force=force)
     except ExportBlocked as blocked:
         return JSONResponse({"detail": str(blocked), "incomplete_files": blocked.files,
                              "hint": "pass ?force=true to export anyway"}, status_code=409)
-    try:
-        result = await asyncio.to_thread(build_qa_export, pid, fmt, only, grounding=grounding)
     except ValueError as e:
         return JSONResponse({"detail": str(e)}, status_code=400)
-    if result.rows == 0:
-        return JSONResponse({"detail": f"no {only} Q&A pairs to export for this project"}, status_code=400)
-    body = result.body
-    n_grounded = result.grounding.grounded if result.grounding else 0
-    # The export lives in a stream buffer; persist it to the project's datasets
-    # dir so it's selectable from the Training tab and referenceable forever.
-    try:
-        persist_export(pid, fmt, only, body, n_grounded)
-    except Exception:
-        # Don't fail the export if the registry step fails — payload still ships.
+    except (OSError, sqlite3.Error) as e:
+        # Registering is the point of this endpoint: a JSONL that never became a
+        # project dataset must not be reported as "exported into project datasets".
         log.exception("dataset registry failed")
+        return JSONResponse(
+            {"detail": f"The dataset was built but could not be saved to the project: {type(e).__name__}: {e}"},
+            status_code=500,
+        )
     return Response(
-        body.encode("utf-8"),
+        built.export.body.encode("utf-8"),
         media_type="application/x-ndjson",
         headers={
-            "Content-Disposition": f'attachment; filename="{pid}-{fmt}-{only}.jsonl"',
-            "X-Rows": str(result.rows),
-            "X-Grounded-Rows": str(n_grounded),
+            "Content-Disposition": f'attachment; filename="{built.persisted.path.name}"',
+            "X-Rows": str(built.export.rows),
+            "X-Grounded-Rows": str(built.grounded_rows),
+            # The exact registered row: the Training deep link selects it by id, never "newest".
+            "X-Dataset-Id": str(built.persisted.dataset.get("id") or ""),
         },
     )
 
