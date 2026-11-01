@@ -92,7 +92,7 @@
   box-shadow: 0 0 12px var(--accent-glow);
 }
 .btn.primary:hover { background: var(--accent-2); border-color: var(--accent-2); color: var(--on-accent); }
-.btn.danger  { background: rgba(255,58,58,0.12); border-color: var(--err); color: var(--err-text, #ff6a6a); }
+.btn.danger  { background: rgba(255,58,58,0.12); border-color: var(--err); color: var(--err-text, var(--err)); }
 .btn.success { background: rgba(0,255,102,0.12); border-color: var(--accent); color: var(--accent); }
 .btn.ghost   { background: transparent; border-color: var(--border); color: var(--text-muted); }
 .btn.ghost:hover { color: var(--accent); }
@@ -5293,7 +5293,7 @@ label, .field-label { color: var(--text-muted); font-size: 13px; font-weight: 55
 /* Mixed toward --text, not white: white on accent-mixed-with-white fell to 4.0:1 in the light theme. */
 .btn.primary:hover:not(:disabled), .btn.success:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 86%, var(--text)); color: var(--on-accent); }
 /* Danger keeps its red on hover (the generic .btn:hover above is 0,3,0 and used to turn it accent). */
-.btn.danger:hover:not(:disabled) { border-color: var(--err); background: color-mix(in srgb, var(--err) 18%, var(--bg-panel)); color: var(--err-text, #ff6a6a); }
+.btn.danger:hover:not(:disabled) { border-color: var(--err); background: color-mix(in srgb, var(--err) 18%, var(--bg-panel)); color: var(--err-text, var(--err)); }
 .btn:disabled { opacity: .52; cursor: not-allowed; }
 .btn.sm { min-height: 34px; padding: 6px 10px; font-size: 13px; }
 
