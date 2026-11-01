@@ -2015,6 +2015,7 @@ async function dpExportApproved() {
     // Side effect on the server registers project_datasets. The JSONL is offered as a button, not
     // downloaded unasked (every export used to drop a file in the browser's downloads).
     var groundedRows = parseInt(r.headers.get('X-Grounded-Rows') || '0', 10) || 0;
+    var datasetId = r.headers.get('X-Dataset-Id') || '';
     var rowCount = parseInt(r.headers.get('X-Rows') || '', 10);
     var blob = await r.blob();
     if (_dpExportBlobUrl) URL.revokeObjectURL(_dpExportBlobUrl);
@@ -2029,8 +2030,9 @@ async function dpExportApproved() {
       'success'
     );
     // Make the next step un-missable: CTA row attached to the exported-datasets panel.
+    // Only for the dataset this export registered (by id: "newest" picked another one after a re-export).
     var panel = document.getElementById('dp-exported-datasets');
-    if (panel && !panel.hidden) {
+    if (panel && !panel.hidden && datasetId) {
       var cta = document.getElementById('dp-post-export-cta');
       if (!cta) {
         cta = document.createElement('div');
@@ -2041,7 +2043,7 @@ async function dpExportApproved() {
       cta.innerHTML = '<span class="text-xs dim">Next step: configure a run</span>' +
         '<a class="btn sm" id="dp-export-download" href="' + _dpExportBlobUrl + '" download="' +
         escapeHtml(_prepPid + '-sharegpt-approved.jsonl') + '">Download JSONL</a>' +
-        '<a class="btn sm primary" href="/projects/' + encodeURIComponent(_prepPid) + '/training?dataset=latest" data-link>Start training with this dataset →</a>';
+        '<a class="btn sm primary" href="/projects/' + encodeURIComponent(_prepPid) + '/training?dataset=' + encodeURIComponent(datasetId) + '" data-link>Start training with this dataset →</a>';
     }
   } catch (e) {
     dpBridgeStatus('Export failed: ' + ((e && e.message) || e), 'error');
