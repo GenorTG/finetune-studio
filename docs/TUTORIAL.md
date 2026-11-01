@@ -53,7 +53,7 @@ Quick work when you just want the model.
    reads (training pairs and the Smart Brain alike). Tick **in knowledge** next to the search box to search
    the mined facts and the parsed text, and fix a fact right there.
 
-### 2. Turn sources into training pairs (step **2 · pairs**)
+### 2. Turn sources into training pairs (step **1 · pairs**)
 
 Ways to get prompt/response training data out of your parsed sources:
 
@@ -74,15 +74,23 @@ model doesn't learn to parrot internal keys.
 ### 3. Export pairs → dataset
 
 Click **Export approved → Training**. This writes a ShareGPT JSONL and
-registers it under the project. At export, the coverage gate adds verbatim
-extractive pairs for chunks without an approved generated pair. If a chunk
-cannot be covered, export reports the gap rather than treating it as covered.
-This checks dataset coverage; it does not guarantee that the trained model
-learned or can reproduce every fact.
+registers it under the project. Before it writes anything, the completeness
+gate checks every file's data-point checklist: each point must be stated by an
+approved pair or excluded with a reason. An incomplete file stops the export
+and lists its open points; you can fill them, exclude them, or choose
+**export anyway**. Nothing is generated for you at export. This checks the
+dataset, not the model: it does not guarantee that the trained model learned or
+can reproduce every fact.
+
+Two optional builders on the same page write extra datasets from your approved
+pairs with the AI assistant: **Study set** (re-worded questions, re-said answers
+and a short passage per pair, for an adapter that must recall facts) and
+**Preference pairs (DPO)** (a chosen source-faithful or honest “not covered”
+answer next to a rejected guess, for the Preference tuning route).
 A green **Start training with this dataset →** button appears — that's your
 handoff; it opens Training with the dataset preselected.
 
-### 4. Train (step **3 · train**)
+### 4. Train (step **2 · train**)
 
 1. **Base model** — pick a local transformers-compatible base (GGUF
    exports are inference-only; they can't be trained on). The preset picker
@@ -99,7 +107,7 @@ handoff; it opens Training with the dataset preselected.
 5. Runs can be stopped; interrupted runs are reconciled at next startup.
    Past-run rows carry Details / ⭐ Set production / ▶ Open in inference / ⬇ Export.
 
-### 5. Test it (step **4 · test**)
+### 5. Test it (step **3 · test**)
 
 The **Testing** page answers one question: *did it learn MY material?*
 Auto-generated project suites test **every row of the training dataset**
@@ -116,7 +124,7 @@ verdict case by case.
 HellaSwag test sets from Hugging Face, or offline synthetic look-alikes — and a **Compare two runs**
 Δ table with a per-question McNemar test. Useful, and not a substitute for the project test.
 
-### 6. Use it (step **5 · use it**)
+### 6. Use it (step **4 · use it**)
 
 - **Pin a version** — Quick work's Step 6 pins the exact dataset + corpus +
   run + base model into an immutable project version, so any result is
@@ -125,7 +133,9 @@ HellaSwag test sets from Hugging Face, or offline synthetic look-alikes — and 
   base — auto-merged before GGUF; failures land on the run row, never
   silent), **GGUF** (q4_K_M … q8_0, needs llama.cpp tools on the host; tick **importance matrix**
   for better low-bit quality, measured on the run's own training data), **abliterated**
-  (refusal-direction edit of a merged checkpoint; offered, not yet run end to end on a real model).
+  (refusal-direction edit of a merged checkpoint; offered, not yet run end to end on a real model), and
+  **Heretic** (an optional separate tool, installed from *Settings → Heretic*, AGPL-3.0, that searches the
+  refusal-removal parameters to keep the model close to its original behaviour).
 - **Models** page: every export in one table — click a row to expand the
   parent run, settings, and directory contents; ▶ Open in inference.
 - **Chat**: load a safetensors **or GGUF** model, stream, image input for
@@ -149,8 +159,11 @@ keyword search, rank fusion, reranking — often called RAG) and the model quote
    wasn't parsed.
 4. **Search test** — a real query with per-passage scores, no AI answer, so
    you can judge retrieval alone.
-5. **Ask the model (grounded)** — chat over those passages (needs a chat
-   model loaded — the top-bar pill says which).
+5. **Ask the model (grounded)** — chat over those passages. **Answer with**
+   picks who writes the answer: the chat model loaded on this machine (the
+   top-bar pill says which; nothing leaves the machine), or the AI assistant's
+   API connection from *Settings → AI assistant* (needs no local model; the
+   question and the retrieved passages are sent to that provider).
 6. **Download / export** — the encrypted studio bundle (.ftsrag), or the **standalone
    Smart Brain**: one tarball with the index + a small Python server +
    `setup.sh`. On a machine with Python 3 (`python3` with the `venv` module; the tests run its server on 3.12):

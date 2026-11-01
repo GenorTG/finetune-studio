@@ -50,7 +50,8 @@ with `bash install-service.sh`; that script writes the user unit and supports
 GPTQ export support was removed (`gptqmodel`'s wheel metadata declared zero of
 its real runtime deps, making it unreliable to install on fresh machines).
 Merged and GGUF (plain or with an importance matrix) are the export formats in use; abliterated is
-offered but has not been run end to end on a real model yet. Do not
+offered but has not been run end to end on a real model yet. Heretic is a separate optional export format
+(installed on demand from Settings → Heretic, AGPL-3.0). Do not
 commit secrets or HF tokens into this doc; use the host login /
 `huggingface-cli login` as usual.
 
@@ -82,7 +83,8 @@ Six steps, each logged with `[HH:MM:SS]` prefixes (the API streams these lines):
 5. `init_db()` — idempotent schema migrations
 6. `systemctl --user restart finetune-studio` (`--no-restart` skips)
 
-Flags: `--check` (dry run: pull + migrations only, no pip/restart) ·
+Flags: `--check` (read-only: fetches the remote to say whether an update is available and checks
+the environment; no pull, no package install, no migration, no restart) ·
 `--repair` (force venv recreate) · `--no-pull` · `--no-llama` · `--no-restart`.
 
 > ⚠️ A restart **unloads the inference model** — reload via the Inference tab

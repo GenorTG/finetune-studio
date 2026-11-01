@@ -30,10 +30,7 @@ from finetune_studio.testing.suite import load_test_suite
 from finetune_studio.webui import testing_jobs
 from finetune_studio.webui.app import inference_engine
 from finetune_studio.webui.live_sse import sse_comment, sse_data, sse_response
-from finetune_studio.webui.testing_models import (
-    resolve_latest_merged_model,
-    target_model,
-)
+from finetune_studio.webui.testing_models import target_model
 
 router = APIRouter()
 _log = logging.getLogger(__name__)
@@ -47,11 +44,6 @@ async def _json_object(request: Request) -> dict:
     if not isinstance(body, dict):
         raise HTTPException(status_code=400, detail="body must be a JSON object")
     return body
-
-
-def _resolve_merged_model(pid: str) -> str | None:
-    """Return path to the most-recent completed run's merged model, or None."""
-    return resolve_latest_merged_model(pid)
 
 
 # ── Engine load / status (unchanged) ─────────────────────────────────────────

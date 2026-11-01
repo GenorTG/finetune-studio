@@ -5,7 +5,7 @@ page: export
 keywords: export gguf quant q4_k_m q6_k q8_0 f16 merged abliterated herectic heretic uncensored decensor refusal llama.cpp ollama lm studio quantization overwrite adapter imatrix importance matrix calibration
 ---
 ## Purpose
-Take a finished run out of the studio: GGUF for llama.cpp, Ollama and LM Studio; Merged (full safetensors); Abliterated; or Heretic (the optional tool that removes refusals properly). Adapter-only runs are merged onto their base automatically at export time.
+Take a finished run out of the studio: GGUF for llama.cpp, Ollama and LM Studio; Merged (full safetensors); Abliterated; or Heretic (the optional tool that removes refusals with a parameter search). Adapter-only runs are merged onto their base automatically at export time.
 
 ## Workflow
 1. Select a finished run in **Training runs**.

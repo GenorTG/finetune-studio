@@ -73,3 +73,15 @@ def test_build_sft_args_from_config_maps_training_config(
     assert args.gradient_accumulation_steps == cfg.gradient_accumulation_steps
     assert args.push_to_hub is False
     assert args.hub_token is None
+
+
+def test_gradient_clipping_stays_on_so_grad_norm_is_logged(tmp_path: Path) -> None:
+    """The NaN guard (#41, ``engine`` divergence check) reads ``grad_norm`` from the trainer logs, and the Trainer
+    computes and logs it only while clipping is on (``max_grad_norm > 0``). A config that turned clipping off would
+    silently blind the guard to NaN gradients."""
+    args = build_sft_training_args(output_dir=str(tmp_path / "out"), num_train_epochs=1, bf16=False)
+    assert args.max_grad_norm > 0
+    cfg = TrainingConfig(
+        output_dir=str(tmp_path / "out2"), num_epochs=1, batch_size=1, gradient_accumulation_steps=1, bf16=False,
+    )
+    assert build_sft_args_from_config(cfg).max_grad_norm > 0

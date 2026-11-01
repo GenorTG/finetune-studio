@@ -9,12 +9,6 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
-- Add `fts export` start/list/status/cancel commands using the Export page's shared validation and supervised jobs.
-- Add `fts usecases` template/build/list/show/delete/evaluate/report/A-B commands using the Training page's shared dataset, suite, and evaluation services.
-- Add `fts assistant` connection and job-routing commands with encrypted key storage, hidden/file/stdin key input, and shared WebUI validation.
-- Add `fts compute-device show|set` for the same saved device choice and validation as Settings; report restart requirements and environment overrides.
-- Add `fts update check|apply|repair`, plus durable history/status commands; apply and repair require confirmation and share the WebUI update worker.
-
 ### Fixed
 - Look and feel: number fields are no longer 58 px tall and compact fields (the Files list search, verdict notes) keep their small size; a red button stays red on hover; light-theme secondary text, hovered primary buttons and the selected top-bar tab now meet AA contrast. Model library and Inference no longer break when you return to them after a full page load. Quick start no longer reports a stopped test run as finished, and a stopped judge is shown as stopped instead of a 0 % score.
 - Smart Brain chat: answering with the AI assistant's API connection no longer waits for (or blocks) local inference, and a provider failure (bad key, network, provider error) now shows its reason (HTTP 502) instead of a generic server error. The chat's system message is built by the same code as context-grounded training rows, so the two cannot drift; the reranker's half precision now follows the chosen accelerator (bf16 where supported) on CUDA, ROCm, XPU and Apple GPUs.
@@ -22,6 +16,7 @@ turns that section into the release's notes.
 - CLI safety: `fts models delete` refuses when the inference worker cannot say what it holds and refuses cache-folder names (`org__name`); `fts update` refuses a second concurrent update (the WebUI answers 409), keeps update.sh out of the terminal's Ctrl-C and records an interrupted run as cancelled instead of leaving it running; `fts assistant main` unloads the previous local model from the inference worker; `fts export start --no-auto-merge` is honoured for multi-quant and default GGUF exports; `fts compute-device show` labels its device as this terminal's, not the service's.
 - Settings → Compute device no longer blocks the server while it probes the GPUs.
 - Guide: a plain “Yes”, “Sure!”, “Go ahead” or “Yes, take me there” after the guide offers a page now opens exactly that page, and “show me / let's go to / I want to go to <page>” count as requests; questions such as “Open files: what formats are supported?” or “open source models - which work best?” no longer switch the page. The Project models guide entry now describes the real row actions (Copy path, Open in inference) and how to reach the page.
+- Testing: stopping parallel API judging now lets only already-running judge calls finish; it no longer queues the rest of the answers, and the page says what it is waiting for.
 - Pairs export: “Start training with this dataset” now opens Training with the exact dataset that export registered (a re-exported older dataset no longer selects the newest one); if the dataset cannot be saved to the project, the export fails with the reason instead of claiming it was exported.
 - Heretic export: runs at a fixed batch size of 8 instead of the auto probe that crashed; a run with no trial inside the KL budget now fails (the model is moved to `heretic.over-budget/`) unless Overwrite existing is ticked; a failed run's leftover no longer blocks the next export; install/remove wait for a running Heretic export; Check no longer reports a permanent update for the pinned build or fails on an empty commit message; the Export page no longer blocks the server while it probes Heretic.
 - Model library: completed search counts and errors no longer disappear behind a typing hint; the local-file list is clearly labelled Downloaded files instead of promising a file picker.
@@ -34,88 +29,6 @@ turns that section into the release's notes.
 - Export: the trained-exports list now refreshes after the first export, replacing the initial empty state without requiring a page reload.
 - Compare: Stop now confirms it is stopping, then leaves a clear “stopped; saved work is kept” status after a run or judge cancellation.
 - Testing: stopping API judging now shows a persistent “judging stopped” state with the number of verdicts kept, including after a page reload.
-
-### Added
-- Guide: a **Project models** entry explains the project's trained exports (expand a row, read the producing run and settings, copy a path), and the page is now a guide-registry target like every other page.
-- Model library: downloaded Hugging Face models are listed with a confirmed Delete action; loaded, loading, or actively downloading models are protected. `fts models search`, `local`, `download`, `download-status`, `cancel-download`, and confirmed `delete` now cover the same library operations while bare `fts models` keeps its installed-model listing. See `docs/CLI.md`.
-- CLI: `fts versions` pins, lists and inspects project snapshots and lineage; deleting a snapshot leaves its datasets and model artifacts intact. See `docs/CLI.md`.
-- CLI: `fts files upload` adds one or more local files to the same project file library as the WebUI, with content deduplication, versioning, parsing and per-file reports. See `docs/CLI.md`.
-- CLI: `fts projects list`, `show` (by id or name) and `create` now manage the same project records as the WebUI; JSON output and duplicate-name checks are included. See `docs/CLI.md`.
-- CLI: `fts projects delete` removes a project's database record and stored data like the WebUI; terminal confirmation is required unless `--yes` is supplied. The running WebUI refreshes its model list after CLI deletion. See `docs/CLI.md`.
-- CLI: `fts mining` queues, lists, inspects, and cancels persistent per-file jobs; `fts qa` lists and reviews Q&A pairs with a last-coverage warning. `fts dataset build` remains the shared export path. See `docs/CLI.md`.
-- CLI: `fts files list`, `show`, and `parse` inspect the shared project file library; reparsing is an explicit option because it replaces hand-edited parsed text. See `docs/CLI.md`.
-- Smart Brain chat can answer with the AI assistant's API connection, so grounded chat works without loading a local model; it sends the question and retrieved passages to the selected connection and identifies the source in the UI.
-- Smart Brain chat: a **Follow-up search** switch under the message box (on by default). Measured on Quillmoor: follow-up search lifted the API model 88.4 % → 96.1 % and Qwen 3.5 4B 88.8 % → 91.1 %, but gave Llama 3.2 3B and Gemma 3 4B nothing (77.7 → 77.1, 76.3 → 76.1) and made Gemma abstain less; turn it off for small models that over-use it.
-- Smart Brain answers can make a **follow-up search**. A question that reaches its answer through another item ("who manages the site where pump X is installed?") finds the pump's row, never the site's profile; the answer model may now ask for one more search before answering. The Smart Brain chat shows it as *Also searched*, and an exported package's `/ask` and `rag_answer` do the same (`RAG_FOLLOW_UP`, 0 turns it off). On the Quillmoor benchmark (376 judged answers, API model) two-step questions went from 10 % to 68 % with the old default search (81.1 % → 90.3 % overall) and to 84 % with the new reranker (96.1 % overall).
-- **Heretic** (optional tool): remove a model's refusals properly. Heretic searches the abliteration parameters
-  (Optuna) instead of applying one fixed strength, so the result stays closer to the original model's behaviour. It
-  is a separate program with its own license (AGPL-3.0), installed on demand from Settings → **Heretic** (or
-  `fts heretic install`): it reuses this app's PyTorch, so it costs a few hundred MB rather than another copy of
-  CUDA. **Check upstream** compares it with Heretic's GitHub releases, and the Export page gains a **Heretic** format
-  beside the existing Abliterated/Merged/GGUF ones. Until it is installed the option is greyed out and says why.
-- CLI: `fts brain bundle` (encrypted `.ftsrag` copy of an index) and `fts brain import` (load one into a project).
-- Smart Brain standalone export: **each search layer is its own switch**. You can turn off **Meaning search**
-  (vectors), **Word search** (BM25), the **Reranker** and **Answer generation** separately. **Rank fusion** runs
-  automatically when both searches are on.
-  - The package only ships the files the layers you keep need: no vectors without meaning search, no keyword
-    index without word search.
-  - A **Pipeline** line shows how a question travels through the package.
-  - The server reports in `/health` which layers really run. It can switch a shipped layer off at run time
-    (`--no-semantic`, `--no-keyword`), but never on one the package does not contain.
-  - **Answer generation** (the "G" in RAG) adds `/ask` and the MCP tool `rag_answer`. They send the passages to any
-    OpenAI-compatible chat model with the same grounded prompt as the Smart Brain chat. The API key is never put
-    in the package.
-  - New CLI: `fts brain export` with the same switches.
-- Buttons for four things that only worked through the API:
-  - **My models → Rescan folders** finds a model you copied into a model folder by hand, without restarting the app.
-  - **Smart Brain → Re-embed only** swaps the embedder of an existing index and keeps its passages. It is quicker
-    than rebuilding from scratch.
-  - **Q&A pairs → Remove near-duplicates** rejects pending pairs that repeat a fact another pair already asks. It
-    shows the count and asks before rejecting anything.
-  - **Q&A pairs → Data audit** re-reads every file from its stored bytes. It reports files whose parse or passages
-    changed, and approved pairs that point at a missing passage. No model is involved.
-- Training page: **Start from a use case**. Pick extraction, classification, house style or distillation, upload
-  examples, and the app checks every row (unusable ones are listed by row number), keeps a held-out test, fills the
-  training form with settings sized to the data, and after training compares the run with its untrained base on that
-  test (paired McNemar, or the blind A/B judge for style). `?usecase=<id>` opens the page with the form filled.
-- Quick work, Step 6: saved versions are listed with what each one holds (datasets, training runs, Smart Brain
-  build). A new version **builds on** an earlier one (the latest by default), **Lineage** shows the chain
-  (v1 → v2 → v3), and **Delete** removes a version record without touching its datasets, runs or models.
-
-- Export page: **Importance matrix (imatrix)** for GGUF. Before quantizing, the app measures which weights the
-  run's own training data relies on (llama.cpp's `llama-imatrix`, sized to the free GPU memory) and quantizes with
-  that: better q4/q3/q2 quality at the same file size. The files go to the run's `gguf-imatrix/` folder beside the
-  plain ones; the option is disabled, with the reason, when the tool is missing.
-
-- Settings: **AI assistant** replaces the separate Helper model and Vision reader cards. One main assistant does every
-  helper job (Guide chat, mining, study sets, reworded quizzes, preference pairs, test judge, use-case teacher,
-  reading pictures). Add any number of API connections next to the local model, each with its own key (stored
-  encrypted, sent only to its own URL, never shown again); pick the main assistant; give any job its own connection
-  and extra instructions; the jobs table says what each job sends to an API. API connections no longer take the
-  one model slot, so asking the Guide something on an API assistant leaves the local model you loaded alone.
-
-- Training page, use cases: **draft examples with the AI assistant**. Upload raw texts (tickets, invoices, emails that
-  already sound right); the assistant drafts the label, the extracted JSON or the request each text answers; you fix,
-  approve or reject every draft, and only approved rows are built into the use case. Settings → AI assistant has a
-  new job for it (*Drafting use-case examples*), with its own connection and instructions like every other job.
-
-- The **Guide** (corner panel on every page) can now do the work, not only explain it: start mining, build the
-  dataset, build the Smart Brain, start training, build a reworded quiz, run a test and pin a version. Choose in the
-  Guide's header: **Ask before each action** (default: an action card with Run / Skip) or **Hands-free** (it runs the
-  actions itself and carries on with the next step, up to 4 in a row per message). Actions go through the same
-  endpoints as the page buttons; the Guide still never approves pairs, exports a model or deletes anything.
-
-- Activity drawer: a running model download has a **Cancel download** button (the API to stop one existed with no
-  way to reach it from the page), and a cancelled job shows *cancelled* instead of *error*.
-
-### Changed
-- The WebUI now uses a calmer, readable slate-and-teal visual system with clearer navigation, forms, tables, focus states and responsive spacing; project steps stay in one scrollable row with the next action kept visible.
-- README now distinguishes the built-in Abliterated export from the separately shipped, optional Heretic format and records the verified Heretic Export API path.
-- Training preset advisor: datasets larger than the ~500-example reference keep each tier's planned epochs instead of silently shrinking passes per fact; small datasets still scale up to reach useful optimizer-step counts. See the Quillmoor results for the measured recall/abstention trade-off.
-- New Smart Brain indexes on a machine with a GPU rerank with **bge-reranker-v2-m3** (run in half precision) instead of ms-marco-MiniLM: on the Quillmoor benchmark it found the right passage in the top 5 for 89 % of questions instead of 79 % (reverse look-ups such as "which asset has serial SN…": 40/40 instead of 24/40) at about 0.2 s per search, and the API model's judged answers rose from 81.1 % to 88.4 % (96.1 % with follow-up search). Machines without a GPU keep MiniLM, which stays fast on a CPU; existing indexes keep the reranker they have (Search settings switches it, no rebuild). The reranker is a ~2.2 GB download, and a standalone export with models grows to about 4.5 GB.
-- The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
-
-### Fixed
 - Files: after filtering to no matches, the empty-state count and pagination label now both show zero.
 - Guide and page copy: informational answers survive readiness checks, current-page help wins relevant searches, unrequested page switches are blocked, Compare explains its installed-model fallback, and Pairs/Testing/Benchmarks/Export labels match the flow (steps 1/3/3/4).
 - Guide: each request now includes the complete current-route KB entry ahead of stale chat history; Dashboard, Project Settings and Settings facts are corrected, and Training now identifies step 2 and says training loss is not held-out quality.
@@ -183,6 +96,92 @@ turns that section into the release's notes.
 - Testing / Compare: picking a folder no loader can open (a training run's own folder, with only `adapter/` and
   checkpoints) is refused at once with what to do (export the run first), instead of starting a run that failed
   inside the job with a tokenizer error.
+
+### Added
+- CLI: `fts export` start/list/status/cancel commands using the Export page's shared validation and supervised jobs.
+- CLI: `fts usecases` template/build/list/show/delete/evaluate/report/A-B commands using the Training page's shared dataset, suite, and evaluation services.
+- CLI: `fts assistant` connection and job-routing commands with encrypted key storage, hidden/file/stdin key input, and shared WebUI validation.
+- CLI: `fts compute-device show|set` for the same saved device choice and validation as Settings; report restart requirements and environment overrides.
+- CLI: `fts update check|apply|repair`, plus durable history/status commands; apply and repair require confirmation and share the WebUI update worker.
+- Guide: a **Project models** entry explains the project's trained exports (expand a row, read the producing run and settings, copy a path), and the page is now a guide-registry target like every other page.
+- Model library: downloaded Hugging Face models are listed with a confirmed Delete action; a model that is loaded, loading or still downloading cannot be deleted (and nothing is deleted while the inference worker cannot say what it holds). `fts models search`, `local`, `download`, `download-status`, `cancel-download`, and confirmed `delete` now cover the same library operations while bare `fts models` keeps its installed-model listing. See `docs/CLI.md`.
+- CLI: `fts versions` pins, lists and inspects project snapshots and lineage; deleting a snapshot leaves its datasets and model artifacts intact. See `docs/CLI.md`.
+- CLI: `fts files upload` adds one or more local files to the same project file library as the WebUI, with content deduplication, versioning, parsing and per-file reports. See `docs/CLI.md`.
+- CLI: `fts projects list`, `show` (by id or name) and `create` now manage the same project records as the WebUI; JSON output and duplicate-name checks are included. See `docs/CLI.md`.
+- CLI: `fts projects delete` removes a project's database record and stored data like the WebUI; terminal confirmation is required unless `--yes` is supplied. The running WebUI refreshes its model list after CLI deletion. See `docs/CLI.md`.
+- CLI: `fts mining` queues, lists, inspects, and cancels persistent per-file jobs; `fts qa` lists and reviews Q&A pairs with a last-coverage warning. `fts dataset build` remains the shared export path. See `docs/CLI.md`.
+- CLI: `fts files list`, `show`, and `parse` inspect the shared project file library; reparsing is an explicit option because it replaces hand-edited parsed text. See `docs/CLI.md`.
+- Smart Brain chat can answer with the AI assistant's API connection, so grounded chat works without loading a local model; it sends the question and retrieved passages to the selected connection and identifies the source in the UI.
+- Smart Brain chat: a **Follow-up search** switch under the message box (on by default). Measured on Quillmoor: follow-up search lifted the API model 88.4 % → 96.1 % and Qwen 3.5 4B 88.8 % → 91.1 %, but gave Llama 3.2 3B and Gemma 3 4B nothing (77.7 → 77.1, 76.3 → 76.1) and made Gemma abstain less; turn it off for small models that over-use it.
+- Smart Brain answers can make a **follow-up search**. A question that reaches its answer through another item ("who manages the site where pump X is installed?") finds the pump's row, never the site's profile; the answer model may now ask for one more search before answering. The Smart Brain chat shows it as *Also searched*, and an exported package's `/ask` and `rag_answer` do the same (`RAG_FOLLOW_UP`, 0 turns it off). On the Quillmoor benchmark (376 judged answers, API model) two-step questions went from 10 % to 68 % with the old default search (81.1 % → 90.3 % overall) and to 84 % with the new reranker (96.1 % overall).
+- **Heretic** (optional tool): remove a model's refusals with a parameter search. Heretic searches the abliteration
+  parameters (Optuna) instead of applying one fixed strength and keeps the trial with the fewest refusals that stays
+  within a KL budget of the original model. It counts refusals by keyword markers on its built-in evaluation prompts: a quick signal, not a safety evaluation. It
+  is a separate program with its own license (AGPL-3.0), installed on demand from Settings → **Heretic** (or
+  `fts heretic install`): it reuses this app's PyTorch, so it costs a few hundred MB rather than another copy of
+  CUDA. **Check upstream** compares it with Heretic's GitHub releases, and the Export page gains a **Heretic** format
+  beside the existing Abliterated/Merged/GGUF ones. Until it is installed the option is greyed out and says why.
+- CLI: `fts brain bundle` (encrypted `.ftsrag` copy of an index) and `fts brain import` (load one into a project).
+- Smart Brain standalone export: **each search layer is its own switch**. You can turn off **Meaning search**
+  (vectors), **Word search** (BM25), the **Reranker** and **Answer generation** separately. **Rank fusion** runs
+  automatically when both searches are on.
+  - The package only ships the files the layers you keep need: no vectors without meaning search, no keyword
+    index without word search.
+  - A **Pipeline** line shows how a question travels through the package.
+  - The server reports in `/health` which layers really run. It can switch a shipped layer off at run time
+    (`--no-semantic`, `--no-keyword`), but never on one the package does not contain.
+  - **Answer generation** (the "G" in RAG) adds `/ask` and the MCP tool `rag_answer`. They send the passages to any
+    OpenAI-compatible chat model with the same grounded prompt as the Smart Brain chat. The API key is never put
+    in the package.
+  - New CLI: `fts brain export` with the same switches.
+- Buttons for four things that only worked through the API:
+  - **My models → Rescan folders** finds a model you copied into a model folder by hand, without restarting the app.
+  - **Smart Brain → Re-embed only** swaps the embedder of an existing index and keeps its passages. It is quicker
+    than rebuilding from scratch.
+  - **Q&A pairs → Remove near-duplicates** rejects pending pairs that repeat a fact another pair already asks. It
+    shows the count and asks before rejecting anything.
+  - **Q&A pairs → Data audit** re-reads every file from its stored bytes. It reports files whose parse or passages
+    changed, and approved pairs that point at a missing passage. No model is involved.
+- Training page: **Start from a use case**. Pick extraction, classification, house style or distillation, upload
+  examples, and the app checks every row (unusable ones are listed by row number), keeps a held-out test, fills the
+  training form with settings sized to the data, and after training compares the run with its untrained base on that
+  test (paired McNemar, or the blind A/B judge for style). `?usecase=<id>` opens the page with the form filled.
+- Quick work, Step 6: saved versions are listed with what each one holds (datasets, training runs, Smart Brain
+  build). A new version **builds on** an earlier one (the latest by default), **Lineage** shows the chain
+  (v1 → v2 → v3), and **Delete** removes a version record without touching its datasets, runs or models.
+
+- Export page: **Importance matrix (imatrix)** for GGUF. Before quantizing, the app measures which weights the
+  run's own training data relies on (llama.cpp's `llama-imatrix`, sized to the free GPU memory) and quantizes with
+  that: better q4/q3/q2 quality at the same file size. The files go to the run's `gguf-imatrix/` folder beside the
+  plain ones; the option is disabled, with the reason, when the tool is missing.
+
+- Settings: **AI assistant** replaces the separate Helper model and Vision reader cards. One main assistant does every
+  helper job (Guide chat, mining, study sets, reworded quizzes, preference pairs, test judge, use-case teacher,
+  reading pictures). Add any number of API connections next to the local model, each with its own key (stored
+  encrypted, sent only to its own URL, never shown again); pick the main assistant; give any job its own connection
+  and extra instructions; the jobs table says what each job sends to an API. API connections no longer take the
+  one model slot, so asking the Guide something on an API assistant leaves the local model you loaded alone.
+
+- Training page, use cases: **draft examples with the AI assistant**. Upload raw texts (tickets, invoices, emails that
+  already sound right); the assistant drafts the label, the extracted JSON or the request each text answers; you fix,
+  approve or reject every draft, and only approved rows are built into the use case. Settings → AI assistant has a
+  new job for it (*Drafting use-case examples*), with its own connection and instructions like every other job.
+
+- The **Guide** (corner panel on every page) can now do the work, not only explain it: start mining, build the
+  dataset, build the Smart Brain, start training, build a reworded quiz, run a test and pin a version. Choose in the
+  Guide's header: **Ask before each action** (default: an action card with Run / Skip) or **Hands-free** (it runs the
+  actions itself and carries on with the next step, up to 4 in a row per message). Actions go through the same
+  endpoints as the page buttons; the Guide still never approves pairs, exports a model or deletes anything.
+
+- Activity drawer: a running model download has a **Cancel download** button (the API to stop one existed with no
+  way to reach it from the page), and a cancelled job shows *cancelled* instead of *error*.
+
+### Changed
+- The WebUI now uses a calmer, readable slate-and-teal visual system with clearer navigation, forms, tables, focus states and responsive spacing; project steps stay in one scrollable row with the next action kept visible.
+- README now distinguishes the built-in Abliterated export from the separately shipped, optional Heretic format and records the verified Heretic Export API path.
+- Training preset advisor: datasets larger than the ~500-example reference keep each tier's planned epochs instead of silently shrinking passes per fact; small datasets still scale up to reach useful optimizer-step counts. See the Quillmoor results for the measured recall/abstention trade-off.
+- New Smart Brain indexes on a machine with a GPU rerank with **bge-reranker-v2-m3** (run in half precision) instead of ms-marco-MiniLM: on the Quillmoor benchmark it found the right passage in the top 5 for 89 % of questions instead of 79 % (reverse look-ups such as "which asset has serial SN…": 40/40 instead of 24/40) at about 0.2 s per search, and the API model's judged answers rose from 81.1 % to 88.4 % (96.1 % with follow-up search). Machines without a GPU keep MiniLM, which stays fast on a CPU; existing indexes keep the reranker they have (Search settings switches it, no rebuild). The reranker is a ~2.2 GB download, and a standalone export with models grows to about 4.5 GB.
+- The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
 
 ### Removed
 - `GET/PUT /api/settings/helper`, `POST /api/settings/helper/models` and `GET/PUT /api/settings/vision`: replaced by

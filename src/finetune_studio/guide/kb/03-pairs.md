@@ -2,7 +2,7 @@
 id: pairs
 title: Question-answer pairs page (step 1)
 page: pairs
-keywords: pairs qa question answer mine mining helper checklist inventory data points gaps fill review approve reject pending exclude complete export dataset grounded retrieved context coverage chunk rounds files
+keywords: pairs qa question answer mine mining helper checklist inventory data points gaps fill review approve reject pending exclude complete export dataset grounded retrieved context coverage chunk rounds files study set reworded paraphrase preference dpo chosen rejected abstain
 ---
 ## Purpose
 A model learns from questions and answers, not raw documents. This page mines each parsed file into Q&A pairs with the **AI assistant**, checks them against a checklist of the file's data points, lets you review them, and exports the approved ones as the training dataset.
@@ -15,6 +15,8 @@ A model learns from questions and answers, not raw documents. This page mines ea
 5. Optionally tick **Include retrieved context** (default 40% of rows) if the trained model will answer with the Smart Brain's sources; build the Smart Brain first.
 6. **Export approved → Training**, then **Start training with this dataset**.
 7. Optionally open **Data audit** and **Run the audit**: it re-reads every file from its stored bytes and checks the parse, the passages and that each approved pair points at a real passage (no model involved).
+8. Optionally open **Study set (each fact several ways)** for an adapter that must recall facts: set **Re-worded questions** and **Re-said answers** per approved pair (and whether to add a **Passage**), then **Build study set**. The AI assistant writes the extra forms; one that drops or adds a number, date or code is discarded, and questions close to your quiz questions are dropped. The result is registered as a project dataset.
+9. Optionally open **Preference pairs (DPO)** after the normal fine-tune: tick the kinds (**Stick to the source**: your approved answer chosen over the model's guess without the source; **Admit it doesn't know**: an honest refusal chosen over a made-up answer for a question the documents do not answer), set **Up to … pairs** and **Build preference pairs**. The AI assistant writes the rejected answers; the file is checked with the same validator the Training page's Preference tuning route uses and registered as a dataset.
 
 ## Key controls
 - `#dp-mining` — the Mine pairs card.
@@ -29,6 +31,10 @@ A model learns from questions and answers, not raw documents. This page mines ea
 - `#dp-grounded-pct` — share of rows that carry retrieved context.
 - `#dp-export-approved` — export approved pairs as a registered dataset.
 - `#dp-open-training` — jump to Training with the exported dataset.
+- `#dp-study-card` — the Study set card; `#dp-study-reworded`, `#dp-study-restated`, `#dp-study-passage` set what is written per pair.
+- `#dp-study-build` — write the study set and register it for Training.
+- `#dp-pref-card` — the Preference pairs (DPO) card; `#dp-pref-kinds` picks the kinds, `#dp-pref-max` the number.
+- `#dp-pref-build` — write the preference pairs and register them for the Preference tuning route.
 
 ## What to check
 Every file reaches **complete**. Read the pairs, do not bulk-approve: questions self-contained and specific, answers faithful to the source (a number or name not in the file is a hallucination), one fact per pair (atomic pairs train far better than long multi-fact answers). Excluded points carry a reason. When a file keeps the same open points after Fill gaps, write those pairs yourself.

@@ -220,8 +220,8 @@ zero judge errors, and zero split overlap.
 
 | Run | Epochs / rank | Seen-fact pass | Held-out correct abstention | Overall pass / weighted score |
 |---|---:|---:|---:|---:|
-| Balanced, original | 6 / 32 | 5.80% | 0.00% | 2.90% / 3.13% |
-| Balanced, fixed | 6 / 32 | 69.84% | 0.00% | 34.92% / 35.38% |
+| Balanced, original (advisor cut to 2 epochs) | 2 / 64 | 5.80% | 0.00% | 2.90% / 3.13% |
+| Balanced, fixed | 6 / 64 | 69.84% | 0.00% | 34.92% / 35.38% |
 | Precision, earlier | 4 / 128 | 26.68% | 0.00% | 13.34% / 13.69% |
 | Precision, corrected | 12 / 128 | **100.00%** | **0.00%** | **50.00% / 50.00%** |
 

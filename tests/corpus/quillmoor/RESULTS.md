@@ -212,10 +212,14 @@ wall-clock in the run log), final loss 0.0004, and exported a 3.42 GB q8_0 GGUF.
 
 | Preset run | Epochs | Rank | Seen pass | Seen weighted | Held-out correct abstention | Overall pass / weighted |
 |---|---:|---:|---:|---:|---:|---:|
-| Balanced (original, tier-balanced) | 6 | 32 | 5.80% | 6.26% | 0.00% | 2.90% / 3.13% |
-| Balanced (fixed, tier-balanced-fixed) | 6 | 32 | 69.84% | 70.77% | 0.00% | 34.92% / 35.38% |
+| Balanced (original, tier-balanced) | 2 | 64 | 5.80% | 6.26% | 0.00% | 2.90% / 3.13% |
+| Balanced (fixed, tier-balanced-fixed) | 6 | 64 | 69.84% | 70.77% | 0.00% | 34.92% / 35.38% |
 | Precision (earlier, tier-precision) | 4 | 128 | 26.68% | 27.38% | 0.00% | 13.34% / 13.69% |
 | Precision (corrected, tier-precision-12) | 12 | 128 | **100.00%** | **100.00%** | **0.00%** | **50.00% / 50.00%** |
+
+The two Balanced rows differ only in epochs: before the advisor fix (#52) its dataset-size scaling cut the tier's
+6 epochs to 2 on this 4,306-row set (settings recorded in `finetune/*__tier-balanced{,-fixed}.json` and the run logs:
+2 vs 6 epochs, both rank 64 / α128, batch 2 × 4). The earlier Precision run was cut the same way (4 instead of 12).
 
 The 12-epoch Precision result is a strong seen-fact recall gain, not a model-quality win: it answers every held-out fact
 incorrectly instead of abstaining. Overall pass is exactly half because the evaluation is balanced between seen and
