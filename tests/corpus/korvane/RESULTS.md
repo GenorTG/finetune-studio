@@ -660,3 +660,33 @@ Easy, clean inputs: this shows the drafts are worth reviewing rather than writin
 (the one extraction miss is exactly the kind a reviewer fixes). Found on the way: with a local assistant the drafting call
 answered "no helper model loaded" and the use-case card had no way to load it; fixed by the "Load the assistant and retry"
 button on every helper-job page (browser-checked: one click, model loaded, 30/30 drafted).
+
+## 27. B7 live beta gate: Korvane, Qwen3.5-9B (2026-11-01, `agent-test-b7-20261101`, project `d488736e`, deleted after)
+
+Run of the live :7860 `dev` app at `dbea4fae`, using the RTX 3090. All 19 core Korvane files were uploaded and parsed;
+manifest fact recovery was 1,130/1,130. API mining took 858 s and 527 helper calls, producing 3,534 pending pairs.
+Those generated pairs were **not** mass-approved or used for training. Thirty-two reviewer-written additions were
+anchored to source chunks; the final pair set covered all 1,130 manifest facts (3,566 total pairs). Training used
+2,455 unique pairs from the previously reviewed 2026-10-08 golden set, not the unreviewed mining output.
+
+| Stage | Result |
+|---|---|
+| Train (Training page; QLoRA 4-bit, rank 64 / alpha 128, LR 1e-4, batch 2 × accumulation 8, seq 1024, 6 epochs, merge on save) | 2,455 rows; 834/834 updates in 56.3 min; final train loss **0.0309**; best eval loss **1.0735**, final eval loss **1.6856** |
+| Export (Export page) | q4_k_m 5.63 GB + q6_k 7.36 GB; both done in 8m37s; slowest `/api/projects` response during export 0.30 s |
+| Closed-book quiz, Q4_K_M (Testing page; DeepSeek v4.1 Flash judge) | **31/102 answerable pass**, 19 partial, 52 fail; **0/20 unknowns declined**; 122/122 answered and judged |
+| Smart Brain index | 19 documents, 164 chunks; retrieval@5 surfaced expected facts for **99/102** paraphrases; 96/102 expected values were in the actual quiz context |
+| Smart Brain quiz, Q4_K_M + retrieved context (same judge) | **98/102 answerable pass** (2 partial, 2 fail); only **2/20 unknowns declined**; 100/122 total pass; 122/122 answered and judged |
+| Direct Chat probe | Asked for the Oakhaven incident reference; returned **INC-29417** with “No source chunks retrieved”. The source/key is **INC-2024-0614**. The closed-book Testing run and Smart Brain quiz both answered that case correctly, so this is a real Chat-path inconsistency, not a key mismatch. |
+
+The run completes the live Files → mining → train → test/judge → GGUF → Smart Brain path, but it **does not pass the
+quality gate**. Falling train loss alongside final eval loss 1.6856 (best 1.0735) is consistent with overfitting;
+the SFT quiz transfers poorly to paraphrases and neither SFT nor Smart Brain reliably abstains. Manual case review
+confirmed a confident invented CFO salary in both modes (EUR 116,400 closed-book; EUR 96,400 with retrieval).
+The retrieval result is strong, but must not be presented as grounded-answer quality: Smart Brain's total score is
+82.0% only because it still answered every question, including 18/20 questions whose facts are absent.
+
+The project was deleted via the UI; project datasets, run, merged model, both GGUFs and Smart Brain index were checked
+absent. The shared Qwen3.5-9B base remained. The temporary API token was revoked, inference unloaded, service stayed
+on `dev`, and the saved compute device remained the RTX 3090 (`env_overrides: []`). Install `--check` and `--verify`
+both exited 0 with `issues: none`. Older `agent-test-*` projects were left untouched. Follow-up: fix the Chat-path
+answer inconsistency and improve abstention before treating this model configuration as beta-ready.
