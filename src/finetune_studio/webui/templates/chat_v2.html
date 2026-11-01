@@ -574,14 +574,21 @@ async function chatSend() {
       reply: b.response || b.reply || '',
       sources: b.sources || [],
       rounds: b.chunks_retrieved,
+      request: b.request || null,
     });
+    // What the model was actually asked under: which system prompt and sampling (Testing asks at temperature 0.3).
+    const _chatRequestNote = (q) => {
+      if (!q) return '';
+      const src = { trained_run: 'the trained run\'s prompt', edited: 'your edited prompt', project: 'the project prompt' }[q.system_prompt_source] || q.system_prompt_source;
+      return ' · system: ' + (q.system_prompt ? src : 'none (' + src + ')') + ' · temperature ' + q.temperature + ' · top-k ' + q.top_k;
+    };
 
     const raw = await api.post(url, body, { signal: requestAbort.signal });
     const parsed = parseFn(raw);
 
     if (parsed.reply) {
       _chatHistory.push({ role: 'assistant', content: parsed.reply });
-      _chatAppend('assistant', parsed.reply, (parsed.rounds || 0) + ' chunk(s) retrieved', parsed.sources);
+      _chatAppend('assistant', parsed.reply, (parsed.rounds || 0) + ' chunk(s) retrieved' + _chatRequestNote(parsed.request), parsed.sources);
     } else {
       _chatHistory.push({ role: 'assistant', content: '(no reply)' });
       _chatAppend('assistant', '(no reply)', '0 chunk(s) retrieved');

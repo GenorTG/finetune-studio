@@ -37,7 +37,28 @@ def _search_brain_index(
 
     hits = BrainIndex(store_path).load().search(query, top_k=top_k)
     return [{"text": str(h.get("text") or ""), "score": float(h.get("score") or 0.0),
-             "chunk_id": str(h.get("chunk_id") or "")} for h in hits]
+             "chunk_id": str(h.get("chunk_id") or ""), "filename": str(h.get("filename") or h.get("source") or "")}
+            for h in hits]
+
+
+def loaded_model_trained_prompt(pid: str, model_path: str) -> str | None:
+    """The system prompt the loaded model was trained with, when it is one of this project's finished runs.
+
+    ``None`` = the loaded model is not a run output of this project (base model, another project's model): the
+    project prompt applies. Testing asks a run's model under this prompt (``testing_jobs.trained_system_prompt``);
+    Chat must ask the same model the same way, or the two pages disagree about one model.
+    """
+    from finetune_studio import db
+
+    if not model_path:
+        return None
+    for run in db.list_runs(pid):
+        out = str(run.get("output_path") or "")
+        if run.get("status") == "done" and out and str(model_path).startswith(out):
+            if (run.get("system_prompt_mode") or "bake") == "none":
+                return ""
+            return str(run.get("system_prompt") or "")
+    return None
 
 
 @router.get("/projects")
@@ -153,6 +174,7 @@ async def chat(request: Request, pid: str):
     max_tokens = body.get("max_tokens", 512)
     temperature = body.get("temperature", 0.7)
     top_p = body.get("top_p", 0.9)
+    top_k = body.get("top_k", 40)   # the Top-k control; dropped here before 2026-11-01, so the worker always used 40
 
     if not messages:
         return JSONResponse({"detail": "No messages provided"}, status_code=400)
@@ -189,6 +211,7 @@ async def chat(request: Request, pid: str):
                         "index_id": index_id,
                         "index_name": brain["name"],
                         "chunk_id": r["chunk_id"],
+                        "filename": r.get("filename", ""),
                     })
             except Exception as e:  # any search failure is reported, never answered around
                 # The user asked for answers with sources: answering without them would look grounded and is not.
@@ -206,38 +229,44 @@ async def chat(request: Request, pid: str):
             unique.append(s)
     top_sources = unique[:8]
 
-    # Build augmented system prompt
-    base_prompt = system_prompt_override or project.get("system_prompt", "")
+    # System prompt: an edited box wins; left at the project prompt (or empty), a model trained in this project is
+    # asked under the prompt it was trained with, exactly as the Testing page asks it.
+    project_prompt = project.get("system_prompt", "") or ""
+    trained_prompt = loaded_model_trained_prompt(pid, str(inference_engine.model_path or ""))
+    override = (system_prompt_override or "").strip()
+    if override and override != project_prompt.strip():
+        base_prompt, prompt_source = override, "edited"
+    elif trained_prompt is not None:
+        base_prompt, prompt_source = trained_prompt, "trained_run"
+    else:
+        base_prompt, prompt_source = project_prompt, "project"
+
+    history = [{"role": m["role"], "content": m["content"]} for m in messages if m.get("role") != "system"]
     if top_sources:
-        context_block = "\n\n---\n\n".join(
-            f"[Source: {s['index_name']} (score {s['score']})]\n{s['text']}" for s in top_sources
-        )
-        rag_instruction = (
-            "Use the following reference documents to help answer the question. "
-            "Cite sources when relevant.\n\n"
-            f"{context_block}"
-        )
-        if base_prompt:
-            augmented_system = f"{base_prompt}\n\n{rag_instruction}"
-        else:
-            augmented_system = rag_instruction
+        # The grounded system turn is smart_brain.prompt's: the same layout and "answer only from the context, say so
+        # when it is not there" instructions as the Smart Brain chat and the context-grounded training rows.
+        from finetune_studio.smart_brain import prompt as brain_prompt
+
+        hits = [{"rank": i, "text": s["text"], "filename": s.get("filename") or s["index_name"], "rrf_score": s["score"]}
+                for i, s in enumerate(top_sources, start=1)]
+        history_chars = sum(len(str(m.get("content", ""))) for m in history) + len(base_prompt)
+        budget = brain_prompt.context_char_budget(getattr(inference_engine, "n_ctx", None), max_new_tokens=int(max_tokens),
+                                                  history_chars=history_chars)
+        grounded = brain_prompt.build_system_prompt(brain_prompt.format_context_blocks(hits, max_chars=budget))
+        augmented_system = f"{base_prompt}\n\n{grounded}" if base_prompt else grounded
     else:
         augmented_system = base_prompt
 
-    # Build messages with augmented system prompt
-    gen_messages = []
-    if augmented_system:
-        gen_messages.append({"role": "system", "content": augmented_system})
-    # Add all non-system messages (user handles system prompt separately)
-    for m in messages:
-        if m.get("role") != "system":
-            gen_messages.append(m)
+    gen_messages = ([{"role": "system", "content": augmented_system}] if augmented_system else []) + history
+    request_echo = {"system_prompt_source": prompt_source, "system_prompt": base_prompt, "grounded": bool(top_sources),
+                    "temperature": temperature, "top_p": top_p, "top_k": top_k, "max_tokens": max_tokens,
+                    "turns": len(history)}
 
     try:
         async with ENGINE_LOCK:
             response = await asyncio.to_thread(
                 inference_engine.generate,
-                gen_messages, max_tokens=max_tokens, temperature=temperature, top_p=top_p,
+                gen_messages, max_tokens=max_tokens, temperature=temperature, top_p=top_p, top_k=top_k,
             )
     except Exception as e:  # noqa: BLE001
         return JSONResponse({"detail": str(e)}, status_code=500)
@@ -253,4 +282,5 @@ async def chat(request: Request, pid: str):
             for s in top_sources
         ],
         "chunks_retrieved": len(top_sources),
+        "request": request_echo,
     }
