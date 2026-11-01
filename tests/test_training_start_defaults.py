@@ -170,3 +170,17 @@ def test_unsloth_explicit_true_preserved(
     })
     assert r.status_code == 200, r.text
     assert fake_engine.started["config"].unsloth is True
+
+
+def test_preset_start_honors_gguf_export_and_quant_fields(
+    client, fake_engine: _FakeEngine, tmp_path: Path,
+) -> None:
+    pid = _project(client, "")
+    r = client.post("/api/training/start", json={
+        "project_id": pid, "data_path": _jsonl(tmp_path), "model_path": "m", "preset_id": "qlora",
+        "export_gguf": True, "gguf_quants": ["q4_k_m"],
+    })
+    assert r.status_code == 200, r.text
+    config = fake_engine.started["config"]
+    assert config.export_gguf is True
+    assert config.gguf_quants == ["q4_k_m"]

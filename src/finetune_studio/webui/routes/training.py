@@ -501,6 +501,12 @@ async def start_training(request: Request):
                 abliterate=_coerce_bool(body.get("abliterate", False)),
                 abliteration_strength=float(body.get("abliteration_strength", 1.0)),
             )
+        export_gguf = _optional_body_bool(body, "export_gguf", overrides)
+        if export_gguf is not None:
+            config.export_gguf = export_gguf
+        gguf_quants = body.get("gguf_quants", overrides.get("gguf_quants"))
+        if gguf_quants is not None:
+            config.gguf_quants = gguf_quants
         _apply_checkpoint_fields(config, body)
     except (ValueError, TypeError, OverflowError) as e:
         return JSONResponse({"detail": f"invalid training parameter: {e}"}, status_code=400)
