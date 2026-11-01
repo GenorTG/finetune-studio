@@ -30,6 +30,17 @@ class InstallIn(BaseModel):
     ref: str = ""
 
 
+def _refuse_while_exporting(action: str) -> None:
+    """409 while a Heretic export runs from the environment this would replace."""
+    row = heretic_tool.active_export()
+    if row:
+        raise HTTPException(
+            status_code=409,
+            detail=f"A Heretic export is {row.get('status') or 'running'} (export {row.get('id')}); "
+                   f"wait for it to finish or cancel it before you {action} Heretic.",
+        )
+
+
 @router.get("/api/system/heretic")
 def heretic_status() -> dict[str, Any]:
     """Is the tool installed, can it run unattended, and what does GitHub have?"""
@@ -46,7 +57,8 @@ def heretic_upstream() -> dict[str, Any]:
         **upstream.as_dict(),
         "installed_version": status.version,
         "installed_ref": status.ref,
-        "update_available": heretic_tool.update_available(status, upstream),
+        "update_available": heretic_tool.update_available(status),
+        "upstream_ahead": heretic_tool.upstream_ahead(upstream),
         "pinned": heretic_tool.PINNED_LABEL,
     }
 
@@ -59,6 +71,7 @@ def heretic_install(body: InstallIn | None = None) -> dict[str, Any]:
     minute here) and the Export page waits for the answer either way. A failure
     returns 500 with Heretic's own reason, never a 200 that hides it.
     """
+    _refuse_while_exporting("re-install")
     ref = (body.ref if body else "") or heretic_tool.PINNED_REF
     try:
         status = heretic_tool.install(ref)
@@ -71,5 +84,6 @@ def heretic_install(body: InstallIn | None = None) -> dict[str, Any]:
 @router.delete("/api/system/heretic")
 def heretic_uninstall() -> dict[str, Any]:
     """Remove the checkout and its environment (never the app's own venv)."""
+    _refuse_while_exporting("remove")
     heretic_tool.uninstall()
     return {"ok": True, **heretic_tool.probe().as_dict()}

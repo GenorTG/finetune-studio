@@ -340,19 +340,26 @@ def check_upstream() -> UpstreamInfo:
         latest_release_url=str(release.get("html_url") or ""),
         head_commit=str(commit.get("sha") or ""),
         head_at=str((commit.get("commit", {}).get("committer", {}) or {}).get("date") or ""),
-        head_message=str(commit.get("commit", {}).get("message") or "").splitlines()[0][:120],
+        # An empty or missing message (or a failed commits call) has no first line.
+        head_message=(str(commit.get("commit", {}).get("message") or "").splitlines() or [""])[0][:120],
     )
 
 
-def update_available(status: HereticStatus | None = None, upstream: UpstreamInfo | None = None) -> bool:
-    """True when upstream has a commit this install does not have."""
+def update_available(status: HereticStatus | None = None) -> bool:
+    """True when ``install`` would change this install: it is absent or not at :data:`PINNED_REF`.
+
+    Compared with the pin, not upstream HEAD: install always installs the pinned
+    build, so a HEAD comparison reported "update available" forever after an update.
+    """
     status = status or probe()
-    upstream = upstream or check_upstream()
-    if upstream.error or not upstream.head_commit:
-        return False
     if not status.installed:
         return True
-    return status.ref != upstream.head_commit
+    return status.ref != PINNED_REF
+
+
+def upstream_ahead(upstream: UpstreamInfo) -> bool:
+    """True when Heretic's default branch has moved past the build this app is tested with."""
+    return bool(upstream.head_commit) and not upstream.error and upstream.head_commit != PINNED_REF
 
 
 # ── install / update ─────────────────────────────────────────────────────────
@@ -459,12 +466,34 @@ def install(ref: str = PINNED_REF, *, on_line: Any = None) -> HereticStatus:
     return status
 
 
+def active_export() -> dict[str, Any] | None:
+    """The queued/running Heretic export, if any (install/uninstall must wait for it).
+
+    Re-installing rebuilds the venv the running export is executing from, and
+    uninstalling deletes it, so either would kill the export halfway.
+    """
+    from finetune_studio import db
+
+    for row in db.list_active_exports():
+        if str(row.get("format") or "").lower() == "heretic":
+            return row
+    return None
+
+
 def uninstall() -> None:
     """Remove the checkout and the overlay venv (never touches the app's own env)."""
     shutil.rmtree(root(), ignore_errors=True)
 
 
 # ── running ──────────────────────────────────────────────────────────────────
+
+#: Fixed batch size the Export page runs Heretic with (never the auto probe, see
+#: :attr:`AbliterationRun.batch_size`).
+EXPORT_BATCH_SIZE = 8
+
+#: Hidden directories Heretic keeps inside its output (the Optuna study checkpoint).
+STUDY_DIRNAME = ".study"
+
 
 @dataclass(frozen=True)
 class AbliterationRun:
@@ -493,7 +522,7 @@ class AbliterationRun:
     #: Heretic's auto probe picked 128 for a 1.5B model, which is a large peak
     #: allocation next to the other GPU services on this host and is the likeliest
     #: trigger of the CUDA illegal-memory-access seen there; a modest fixed value
-    #: is slower but predictable.
+    #: is slower but predictable. The export passes :data:`EXPORT_BATCH_SIZE`.
     batch_size: int = 0
     max_batch_size: int = 128
 
@@ -790,10 +819,27 @@ def inspect_output(output_dir: str) -> dict[str, Any]:
         raise HereticError(
             f"Heretic wrote a model without tokenizer files into {out}; it would not load for chat or testing."
         )
-    size = sum(p.stat().st_size for p in out.rglob("*") if p.is_file())
+    # The study checkpoint (``.study``) lives here too; it is not part of the model.
+    size = sum(
+        p.stat().st_size for p in out.rglob("*")
+        if p.is_file() and not any(part.startswith(".") for part in p.relative_to(out).parts)
+    )
     return {
         "output_path": str(out),
         "size_bytes": size,
         "files": files,
         "formats": sorted({Path(f).suffix.lstrip(".") for f in files if "." in f}),
     }
+
+
+def output_complete(output_dir: str) -> bool:
+    """True when ``output_dir`` already holds a loadable Heretic model.
+
+    A failed or cancelled run leaves its ``.study`` checkpoint (and maybe partial
+    shards) there, which must not count as "a model already exists".
+    """
+    try:
+        inspect_output(output_dir)
+    except HereticError:
+        return False
+    return True

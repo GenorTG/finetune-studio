@@ -16,6 +16,7 @@ turns that section into the release's notes.
 - Add `fts update check|apply|repair`, plus durable history/status commands; apply and repair require confirmation and share the WebUI update worker.
 
 ### Fixed
+- Heretic export: runs at a fixed batch size of 8 instead of the auto probe that crashed; a run with no trial inside the KL budget now fails (the model is moved to `heretic.over-budget/`) unless Overwrite existing is ticked; a failed run's leftover no longer blocks the next export; install/remove wait for a running Heretic export; Check no longer reports a permanent update for the pinned build or fails on an empty commit message; the Export page no longer blocks the server while it probes Heretic.
 - Model library: completed search counts and errors no longer disappear behind a typing hint; the local-file list is clearly labelled Downloaded files instead of promising a file picker.
 - Project settings: Save now uses PATCH, matching the project update API, and reports a successful save instead of a 405.
 - Guide: an explicit “Yes, open that page” now accepts a navigation it just offered, instead of incorrectly blocking the page switch.
