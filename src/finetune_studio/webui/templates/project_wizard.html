@@ -926,6 +926,7 @@
         if (["done", "failed", "cancelled"].indexOf(runRow.status) >= 0) break;
       }
       if (runRow.status === "failed") throw new Error(runRow.error || "the test run failed");
+      if (runRow.status === "cancelled") throw new Error("the test run was stopped before it finished");
       line("The model answered " + (runRow.progress_done || 0) + " question(s); the raw answers are saved with the correct answers.");
       // Judging is a separate step. It only starts by itself when the user turned auto-judge on.
       var autoJudge = false;
@@ -946,9 +947,11 @@
         if (["done", "failed", "cancelled"].indexOf(runRow.judge_status) >= 0) break;
         if (!runRow.judge_status && runRow.status === "done" && !(runRow.active || []).length) break;
       }
-      if (runRow.judge_status === "failed") {
-        line("Judging failed: " + (runRow.judge_error || "unknown error") + ". The answers are saved; judge them from the Testing page: " + link);
-        set("wiz-test", "answers saved — judging failed");
+      if (runRow.judge_status === "failed" || runRow.judge_status === "cancelled") {
+        var stopped = runRow.judge_status === "cancelled";
+        line((stopped ? "Judging was stopped" : "Judging failed: " + (runRow.judge_error || "unknown error"))
+          + ". The answers are saved; judge them from the Testing page: " + link);
+        set("wiz-test", stopped ? "answers saved — judging stopped" : "answers saved — judging failed");
         pill("wiz-test", "unjudged", false);
         wizRefresh("test");
         return true;
