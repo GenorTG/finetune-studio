@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from finetune_studio import db
+from finetune_studio.app_paths import app_path
 from finetune_studio.jobs import launch, store
 
 log = logging.getLogger(__name__)
@@ -73,15 +74,17 @@ def _dir_size(path: Path) -> int:
 def run_dir_to_remove(rid: str, output_path: str) -> tuple[Path | None, str]:
     """The directory a delete may remove for run ``rid``, or ``(None, why it is kept)``.
 
-    Removable = an existing directory under the ``output`` root (cwd-relative, where training writes) whose last
-    segment is the run id. Anything else (a shared custom output dir, a path elsewhere) is kept.
+    Removable = an existing directory under the ``output`` root whose last segment is the run id. A relative
+    ``output_path`` (how training stores it) and the root resolve against the app's checkout (``app_paths``), not
+    the caller's working directory: ``fts`` run from elsewhere used to find nothing and keep the weights.
+    Anything else (a shared custom output dir, a path elsewhere) is kept.
     """
     raw = (output_path or "").strip()
     if not raw:
         return None, "the run has no output path"
     try:
-        target = Path(raw).resolve()
-        root = Path(OUTPUT_ROOT).resolve()
+        target = app_path(raw).resolve()
+        root = app_path(OUTPUT_ROOT).resolve()
     except (OSError, RuntimeError) as e:
         return None, f"the output path could not be resolved: {e}"
     if not target.is_dir():

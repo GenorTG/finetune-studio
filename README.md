@@ -256,9 +256,11 @@ The larger pieces, roughly in the order you meet them:
   runs → Smart Brain), knowledge search (facts + passages, edit in place),
   thumbnails, columns picker, 7-day
   trash (select and restore).
-- **Chunk-coverage fallback** — dataset export can fill chunks without an
-  approved generated pair with verbatim extractive pairs. The project data
-  audit reports coverage issues; this is a data-coverage check, not a
+- **Export completeness gate** — dataset export checks every file's data-point
+  checklist: each point must be stated by an approved pair or excluded with a
+  reason. An incomplete file blocks the export (409, with the files and open
+  points) unless you choose **export anyway**; nothing is filled in for you.
+  The project data audit re-checks the files and approved pairs; neither is a
   guarantee that a model learned every fact.
 - **Full-coverage test suites** — auto-suites test every dataset row
   (N rows → N questions); sampling is an explicit, labeled opt-in.
