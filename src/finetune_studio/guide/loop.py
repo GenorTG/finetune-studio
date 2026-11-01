@@ -14,10 +14,10 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from collections.abc import Callable, Iterator
 from typing import Any
 
+from finetune_studio.guide.navigation_consent import allowed_pages
 from finetune_studio.guide.prompt import build_system_prompt
 from finetune_studio.guide.toolcalls import (
     TRUNCATION_MSG,
@@ -34,18 +34,6 @@ FORCED_FINAL_PROMPT = (
     "results above. Do not call any tool. If something is still unknown, say so."
 )
 MAX_RESULT_CHARS = 12000
-_NAVIGATION_REQUEST = re.compile(
-    r"(?:^|[.!?]\s+)(?:(?:yes|yeah|yep|sure|okay|ok)[,;:]?\s+)?(?:please\s+)?"
-    r"(?:open|go to|navigate to|switch to|take me to|bring me to)\b"
-    r"|\b(?:can|could|would) you (?:please\s+)?(?:open|go to|navigate to|switch to|take me to|bring me to)\b",
-    re.IGNORECASE,
-)
-_NAVIGATION_NEGATION = re.compile(
-    r"\b(?:don't|do not|never|without)\s+(?:please\s+)?(?:open|navigate|go|switch|take|bring)\b",
-    re.IGNORECASE,
-)
-
-
 def authoritative_readiness_reply(tool_calls: list[dict], reply: str) -> str:
     """Keep the answer and append the exact server-computed readiness facts."""
     readiness_call = next(
@@ -63,11 +51,20 @@ def authoritative_readiness_reply(tool_calls: list[dict], reply: str) -> str:
     return f"{reply.rstrip()}\n\nCurrent project state: {summary}"
 
 
-def _user_explicitly_requested_navigation(messages: list[dict]) -> bool:
-    """Navigation changes the visible page, so require an explicit user request."""
-    last_user = next((str(item.get("content") or "") for item in reversed(messages)
-                      if item.get("role") == "user"), "")
-    return bool(_NAVIGATION_REQUEST.search(last_user) and not _NAVIGATION_NEGATION.search(last_user))
+def _navigation_refusal(messages: list[dict], page: str) -> str:
+    """Why ``navigate(page)`` may not run, or ``""`` when the user asked for that page.
+
+    Navigation changes the visible page, so it needs an explicit request naming the page, or a
+    yes to the page the guide itself offered (``navigation_consent``).
+    """
+    allowed = allowed_pages(messages)
+    if not allowed:
+        return ("The user asked for information, not a page switch. Answer the question in place; "
+                "navigate only when they explicitly ask to open or switch pages.")
+    if page in allowed:
+        return ""
+    names = ", ".join(sorted(allowed))
+    return f"The user asked to open {names}, not {page!r}. Navigate only to the page they asked for."
 
 
 def _fallback_reply(tool_calls: list[dict]) -> str:
@@ -123,11 +120,9 @@ def run_guide_loop(
             key = f"{name}:{json.dumps(args, sort_keys=True, default=str)}"
             if key in seen:
                 result: dict[str, Any] = {"error": "identical call already made this turn; use the earlier result"}
-            elif name == "navigate" and not _user_explicitly_requested_navigation(messages):
+            elif name == "navigate" and (refusal := _navigation_refusal(messages, str(args.get("page") or ""))):
                 seen.add(key)
-                result = {
-                    "error": "The user asked for information, not a page switch. Answer the question in place; navigate only when they explicitly ask to open or switch pages."
-                }
+                result = {"error": refusal}
             else:
                 seen.add(key)
                 result = run_tool(ctx, name, args)

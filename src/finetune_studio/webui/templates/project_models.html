@@ -82,11 +82,11 @@
         <td class="meta exports-col-source" title="{{ m.run_name or '' }}">{{ m.run_name or (m.run_id[:8] if m.run_id else '—') }}</td>
         <td class="meta exports-col-created">{{ m.created_at }}</td>
         <td class="exports-col-copy">
-          <button class="btn sm" type="button"
+          <button class="btn sm" type="button" name="export-copy-path"
                   data-copy-path="{{ m.path }}" onclick="ftsCopyText(this.dataset.copyPath)">Copy path</button>
         </td>
         <td class="exports-col-actions">
-          <button type="button" class="btn sm primary"
+          <button type="button" class="btn sm primary" name="export-open-inference"
                   onclick='flOpenInInference({{ m.path|tojson }})'>▶ Open in inference</button>
         </td>
       </tr>
