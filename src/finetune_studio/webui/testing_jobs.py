@@ -341,6 +341,12 @@ def run_in_job(ctx: Any) -> dict[str, Any]:
         extra.update(_execute_run(spec, bid, owner, ctx.stop))
         if ctx.stop.is_set():
             status = "cancelled"
+        else:
+            cases = db.list_cases(bid)
+            errors = [str(case.get("error") or "") for case in cases if case.get("error")]
+            if len(cases) == len(spec.cases) and errors and len(errors) == len(spec.cases):
+                status = "failed"
+                error = f"all {len(cases)} test cases failed during generation; first error: {errors[0]}"
     except Exception as exc:
         log.exception("test run %s failed", bid)
         status, error = "failed", str(exc)
