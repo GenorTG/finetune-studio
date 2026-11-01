@@ -16,6 +16,7 @@ turns that section into the release's notes.
 - Add `fts update check|apply|repair`, plus durable history/status commands; apply and repair require confirmation and share the WebUI update worker.
 
 ### Fixed
+- Smart Brain chat: answering with the AI assistant's API connection no longer waits for (or blocks) local inference, and a provider failure (bad key, network, provider error) now shows its reason (HTTP 502) instead of a generic server error. The chat's system message is built by the same code as context-grounded training rows, so the two cannot drift; the reranker's half precision now follows the chosen accelerator (bf16 where supported) on CUDA, ROCm, XPU and Apple GPUs.
 - CLI: `fts` run from another directory now uses the app's own database and deletes the project's real `output/` weights, instead of a stray `<cwd>/data` database and `<cwd>/output`.
 - CLI safety: `fts models delete` refuses when the inference worker cannot say what it holds and refuses cache-folder names (`org__name`); `fts update` refuses a second concurrent update (the WebUI answers 409), keeps update.sh out of the terminal's Ctrl-C and records an interrupted run as cancelled instead of leaving it running; `fts assistant main` unloads the previous local model from the inference worker; `fts export start --no-auto-merge` is honoured for multi-quant and default GGUF exports; `fts compute-device show` labels its device as this terminal's, not the service's.
 - Settings → Compute device no longer blocks the server while it probes the GPUs.

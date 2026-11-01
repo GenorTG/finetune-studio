@@ -57,9 +57,17 @@ def context_char_budget(n_ctx: int | None, *, max_new_tokens: int = 512, history
     return max(4000, tokens * CHARS_PER_TOKEN)
 
 
-def build_system_prompt(context: str, system_prompt: str = "") -> str:
-    """Instructions + ``CONTEXT:`` block exactly as ``rag_chat`` sends them."""
-    return f"{system_prompt or DEFAULT_SYSTEM_PROMPT}\n\n{CONTEXT_MARKER}{context}"
+def build_system_prompt(context: str, system_prompt: str = "", extra_instructions: str = "") -> str:
+    """Instructions + ``CONTEXT:`` block exactly as ``rag_chat`` sends them.
+
+    ``extra_instructions`` is the one declared addition the chat may make (the follow-up search offer of
+    ``standalone_server.FOLLOW_UP_INSTRUCTION``): it follows the instructions, before the context. Without it the
+    system turn is byte-identical to a context-grounded training row's.
+    """
+    instructions = system_prompt or DEFAULT_SYSTEM_PROMPT
+    if extra_instructions:
+        instructions = f"{instructions} {extra_instructions}"
+    return f"{instructions}\n\n{CONTEXT_MARKER}{context}"
 
 
 def build_messages(history: list[dict[str, Any]], context: str, system_prompt: str = "") -> list[dict[str, str]]:

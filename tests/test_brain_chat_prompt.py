@@ -141,3 +141,33 @@ def test_build_status_says_a_gpu_build_unloads_the_chat_model() -> None:
     page = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/brain.html").read_text()
     assert "function gpuNote(r)" in page and "r.gpu ?" in page
     assert page.count("+ note;") == 6          # Quick index, Build and Re-embed: running + done each
+
+
+def test_chat_system_turn_is_the_grounded_training_rows_layout(client) -> None:
+    """Training rows (data/prep/grounding.py) teach a model the chat's system turn; with the follow-up offer off
+    the chat must send exactly what a row carries (built by smart_brain.prompt, nowhere else)."""
+    from finetune_studio.smart_brain import prompt
+
+    _, sent = _chat(client, {"messages": [{"role": "user", "content": "How long is the warranty?"}], "follow_up": 0})
+    row_system = prompt.build_system_prompt(prompt.format_context_blocks(HITS))
+    assert sent[0] == {"role": "system", "content": row_system}
+
+
+def test_follow_up_offer_is_the_one_declared_extra_part(client) -> None:
+    from finetune_studio.smart_brain import prompt
+    from finetune_studio.smart_brain import standalone_server as srv
+
+    _, sent = _chat(client, {"messages": [{"role": "user", "content": "How long is the warranty?"}], "follow_up": 1})
+    expected = prompt.build_system_prompt(prompt.format_context_blocks(HITS), "", srv.FOLLOW_UP_INSTRUCTION)
+    assert sent[0]["content"] == expected
+    assert expected == prompt.build_system_prompt(prompt.format_context_blocks(HITS)).replace(
+        prompt.DEFAULT_SYSTEM_PROMPT, f"{prompt.DEFAULT_SYSTEM_PROMPT} {srv.FOLLOW_UP_INSTRUCTION}", 1)
+
+
+def test_chat_uses_the_studio_prompt_builder_not_the_package_copy(client) -> None:
+    """The chat's system turn comes from smart_brain.prompt even if the package's copy drifts."""
+    from finetune_studio.smart_brain import standalone_server as srv
+
+    with patch.object(srv, "build_system_prompt", side_effect=AssertionError("package copy used")):
+        _, sent = _chat(client, {"messages": [{"role": "user", "content": "How long is the warranty?"}]})
+    assert sent[0]["role"] == "system"
