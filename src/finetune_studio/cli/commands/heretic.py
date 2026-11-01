@@ -50,7 +50,8 @@ def cmd_heretic(args) -> None:
         payload = {
             **status.as_dict(),
             **upstream.as_dict(),
-            "update_available": heretic_tool.update_available(status, upstream),
+            "update_available": heretic_tool.update_available(status),
+            "upstream_ahead": heretic_tool.upstream_ahead(upstream),
         }
         if as_json:
             print(json.dumps(payload, indent=2))
@@ -62,11 +63,21 @@ def cmd_heretic(args) -> None:
                   f" {upstream.head_message}")
             if upstream.error:
                 print(f"Note       : {upstream.error}")
-            print("Update     : " + ("available — fts heretic install" if payload["update_available"]
-                                    else "already current"))
+            print(f"Pinned     : {heretic_tool.PINNED_LABEL}")
+            print("Update     : " + ("available — fts heretic install installs the pinned build"
+                                    if payload["update_available"] else "this install is the pinned build"))
+            if payload["upstream_ahead"]:
+                print("Upstream   : has newer commits; this app is tested with the pinned build only")
         if upstream.error:
             sys.exit(1)
         return
+
+    if action in ("install", "update", "uninstall"):
+        row = heretic_tool.active_export()
+        if row:
+            print(f"Error: a Heretic export is {row.get('status') or 'running'} (export {row.get('id')}); "
+                  "wait for it to finish or cancel it first.", file=sys.stderr)
+            sys.exit(1)
 
     if action in ("install", "update"):
         ref = (getattr(args, "ref", "") or "").strip() or heretic_tool.PINNED_REF

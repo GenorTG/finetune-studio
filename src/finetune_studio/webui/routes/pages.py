@@ -244,8 +244,12 @@ async def hf_models_alias(request: Request):
 
 
 @router.get("/projects/{pid}/export", response_class=HTMLResponse)
-async def export_page(pid: str, request: Request):
-    """Model export page — choose format, quant, and browse trained exports."""
+def export_page(pid: str, request: Request):
+    """Model export page — choose format, quant, and browse trained exports.
+
+    A plain ``def``: ``probe_export_capabilities`` runs Heretic's ``--help`` and
+    version subprocesses, which must not block the event loop.
+    """
     from finetune_studio import db
     from finetune_studio.training.export_capabilities import (
         probe_export_capabilities,

@@ -727,8 +727,10 @@ function wireHeretic() {
         const tag = d.latest_release ? 'Newest release ' + d.latest_release + ' (' + String(d.latest_release_at).slice(0, 10) + ')' : 'No releases yet';
         const code = d.head_commit ? 'newest code ' + d.head_commit.slice(0, 7) + ' (' + String(d.head_at).slice(0, 10) + ')' : '';
         const tail = d.update_available
-          ? 'A newer commit exists upstream. Install picks the pinned build this app is tested against, not any commit.'
-          : 'This install is current.';
+          ? 'Install updates it to the pinned build this app is tested against (' + (d.pinned || '') + ').'
+          : (d.upstream_ahead
+            ? 'This install is the pinned build. Upstream has newer commits this app is not tested with yet.'
+            : 'This install is current.');
         if (upEl) upEl.textContent = tag + (code ? ' · ' + code : '') + ' — ' + tail;
       }
       render(await api.get('/api/system/heretic'));

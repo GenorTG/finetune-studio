@@ -12,6 +12,7 @@ exist on disk and are non-empty — never on HTTP 200 / empty dirs alone.
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -361,7 +362,7 @@ def _export_heretic(
     )
 
     out_dir = os.path.join(output_path, "heretic")
-    if os.path.isdir(out_dir) and os.listdir(out_dir) and not force:
+    if heretic_tool.output_complete(out_dir) and not force:
         return {
             "ok": True,
             "status": "skipped",
@@ -391,7 +392,8 @@ def _export_heretic(
         model_path=merged_path,
         output_dir=out_dir,
         n_trials=int(n_trials or 40),
-        checkpoint_dir=os.path.join(out_dir, ".study"),
+        checkpoint_dir=os.path.join(out_dir, heretic_tool.STUDY_DIRNAME),
+        batch_size=heretic_tool.EXPORT_BATCH_SIZE,
     )
     try:
         written = heretic_tool.run_abliteration(
@@ -409,7 +411,31 @@ def _export_heretic(
     except heretic_tool.HereticError as e:
         return _export_failure(str(e), format="heretic")
 
-    return {
+    chosen = written.get("chosen") or {}
+    budget = {
+        "budget_met": bool(written.get("budget_met")),
+        "kl_budget": written.get("kl_budget"),
+        "chosen_kl": chosen.get("kl"),
+        "chosen_refusals": chosen.get("refusals"),
+        "chosen_trial": chosen.get("trial"),
+    }
+    if not budget["budget_met"] and not force:
+        # Outside the budget the model is measurably damaged (token soup, endless
+        # loops: see AbliterationRun.kl_budget). Never call that "exported"; move it
+        # aside so the next export starts clean and the files can still be inspected.
+        rejected = out_dir + ".over-budget"
+        shutil.rmtree(rejected, ignore_errors=True)
+        os.replace(out_dir, rejected)
+        return _export_failure(
+            f"Heretic found no trial within the KL budget {budget['kl_budget']}: the closest one "
+            f"(trial {budget['chosen_trial']}) drifted KL {budget['chosen_kl']} with "
+            f"{budget['chosen_refusals']} refusals, which damages the model. It was moved to "
+            f"{rejected}. Tick \"Overwrite existing\" to export such a result anyway.",
+            format="heretic",
+            output_path=rejected,
+            **budget,
+        )
+    result = {
         "ok": True,
         "status": "exported",
         "format": "heretic",
@@ -418,7 +444,14 @@ def _export_heretic(
         "version": status.version,
         "ref": status.ref,
         "files": written["files"],
+        **budget,
     }
+    if not budget["budget_met"]:
+        result["message"] = (
+            f"Exported outside the KL budget {budget['kl_budget']} (KL {budget['chosen_kl']}) because "
+            "Overwrite existing was ticked; check the model before using it."
+        )
+    return result
 
 
 def validate_export_request(
