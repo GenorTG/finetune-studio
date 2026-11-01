@@ -104,7 +104,7 @@ async function doSearch() {
 }
 
 // Live status feedback as the user types (so they know typing is being captured)
-let _hfTypingTimer = null;
+var _hfTypingTimer = null;
 function onHfQueryInput() {
   const status = document.getElementById('hf-status');
   if (!status) return;
@@ -116,7 +116,7 @@ function onHfQueryInput() {
 }
 
 // ── Model favorites ──────────────────────────────────────────────
-const _favCache = new Set();
+var _favCache = new Set();
 async function loadFavorites() {
   try {
     const d = await api.get('/api/favorites');
@@ -250,7 +250,7 @@ async function deleteLocalModel(repo) {
   }
 }
 
-let _hfModalPrevFocus = null;
+var _hfModalPrevFocus = null;
 function closeHfModal() {
   const m = document.getElementById('hf-modal');
   if (!m || m.hidden) return;

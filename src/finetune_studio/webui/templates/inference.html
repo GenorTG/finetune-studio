@@ -241,7 +241,7 @@
   .loader-params[open] > summary { font-weight: 600; }
 </style>
 <script>
-const $ = (id) => document.getElementById(id);
+var $ = (id) => document.getElementById(id);
 function esc(s){return String(s||'').replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 
 function readLoaderParams() {
@@ -270,7 +270,7 @@ function toggleAdv() {
   $('adv-toggle').textContent = p.hidden ? '▶ Advanced settings' : '▼ Advanced settings';
 }
 
-let modelMetaCache = {};
+var modelMetaCache = {};
 async function getModelMeta(path) {
   if (modelMetaCache[path]) return modelMetaCache[path];
   // Route is GET /api/models/info?path=… (POST returns 405).
@@ -311,7 +311,7 @@ function applyModelMeta(meta) {
     if (hint) hint.textContent = 'Layer count unknown for this model — placement is automatic (as many layers as fit on the GPU).';
   }
 }
-let memTimer = null;
+var memTimer = null;
 function updateMemEstimate() {
   clearTimeout(memTimer);
   memTimer = setTimeout(async () => {
