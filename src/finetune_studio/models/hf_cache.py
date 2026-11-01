@@ -24,6 +24,13 @@ def delete_cached_model(repo_id: str) -> Path:
 
     from finetune_studio import db
 
+    if "/" not in repo_id and "__" in repo_id:
+        # The on-disk folder name (``org__name``): the running-download check below
+        # compares Hub ids (``org/name``), so a folder name would slip past it.
+        raise HFCacheError(
+            f"{repo_id!r} is a cache folder name; use the Hugging Face id instead "
+            f"(e.g. {repo_id.replace('__', '/', 1)!r})", status_code=400,
+        )
     try:
         target = _local_dir(repo_id)
     except HTTPException as exc:
@@ -40,11 +47,20 @@ def delete_cached_model(repo_id: str) -> Path:
 
     # The inference worker is separate from the CLI and WebUI process. Read its
     # status through the same socket-backed engine abstraction before deleting.
-    from finetune_studio.inference.remote import RemoteEngine
+    # ``RemoteEngine._status`` never raises (it reports an empty status and sets
+    # ``last_error``), so ask the worker directly: only "no worker on the socket"
+    # means nothing is loaded; any other failure leaves usage unknown → refuse.
+    from finetune_studio.inference.remote import (
+        STATUS_TIMEOUT_S,
+        RemoteEngine,
+        WorkerUnavailable,
+    )
 
     engine = RemoteEngine()
     try:
-        status = engine._status(fresh=True)
+        status = engine._call("GET", "/v1/status", None, STATUS_TIMEOUT_S, "status")
+    except WorkerUnavailable:
+        status = {}
     except Exception as exc:  # fail closed: never delete if usage is unknowable
         raise HFCacheError(f"could not check whether a model is in use: {exc}") from exc
     for key, description in (("model_path", "loaded"), ("loading_path", "loading")):

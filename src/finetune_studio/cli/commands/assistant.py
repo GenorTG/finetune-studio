@@ -80,6 +80,35 @@ def _show(args: argparse.Namespace) -> None:
             print(f"    instructions: {row['instructions']}")
 
 
+def _unload_replaced_local_model(old_row: dict | None) -> None:
+    """Free the old main connection's local GGUF, which lives in the inference worker.
+
+    The WebUI asks its own ModelManager, but in this process that manager never
+    loaded anything (``active()`` is always None here), so the old model stayed
+    resident. Ask the one worker what it holds instead.
+    """
+    if not old_row or old_row.get("kind") != "local_gguf" or not old_row.get("model_id"):
+        return
+    from finetune_studio.inference.remote import RemoteEngine, WorkerUnavailable
+
+    engine = RemoteEngine()
+    try:
+        held = engine._call("GET", "/v1/status", None, 5.0, "status").get("model_path") or ""
+    except WorkerUnavailable:
+        return  # no worker: nothing is loaded
+    except Exception as exc:
+        raise AssistantCommandError(
+            f"main assistant changed, but the inference worker did not report what it holds ({exc}); "
+            "unload the previous local model from Inference if it is still loaded"
+        ) from exc
+    try:
+        same = Path(held).resolve() == Path(str(old_row["model_id"])).expanduser().resolve()
+    except OSError:
+        same = False
+    if held and same:
+        engine.unload()
+
+
 def _main(args: argparse.Namespace) -> None:
     mgr = get_manager()
     row = mgr.get_provider(args.connection)
@@ -89,10 +118,8 @@ def _main(args: argparse.Namespace) -> None:
         raise AssistantCommandError(f"{row.get('name') or args.connection} has no saved API key yet")
     old_id = assistant.assistant_provider_id()
     assistant.set_assistant_provider_id(args.connection)
-    if old_id != args.connection and (mgr.active() or {}).get("id") == old_id:
-        from finetune_studio.models.llama_loader import unload_all_models
-
-        unload_all_models()
+    if old_id != args.connection:
+        _unload_replaced_local_model(mgr.get_provider(old_id) if old_id else None)
     _emit({"ok": True, "main": {"id": args.connection, "label": assistant.connection_label(row)}}, args.json)
     if not args.json:
         print(f"Main assistant: {assistant.connection_label(row)} [{args.connection}]")

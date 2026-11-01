@@ -115,3 +115,15 @@ def test_save_error_is_user_facing(monkeypatch, capsys, fake_devices) -> None:
 
     assert code == 1 and not out
     assert "read-only device settings" in err and "Traceback" not in err
+
+
+def test_show_says_the_effective_device_is_this_terminals(monkeypatch, capsys) -> None:
+    """The CLI process's device is not necessarily the running service's."""
+    import argparse
+
+    from finetune_studio.cli.commands.compute_device import cmd_compute_device
+
+    cmd_compute_device(argparse.Namespace(compute_device_action="show", json=False))
+    out = capsys.readouterr().out
+    assert "Effective in this terminal" in out and "Effective now" not in out
+    assert "Settings → Compute device" in out

@@ -91,6 +91,12 @@ def _run(args: argparse.Namespace) -> None:
         "no_llama": args.no_llama,
         "no_restart": args.no_restart,
     }
+    running = updates.update_in_progress()
+    if running:
+        raise UpdateCommandError(
+            f"an update is already {running.get('status') or 'running'} ({running['id']}); "
+            f"wait for it to finish (fts update status {running['id']})"
+        )
     row = db.create_update(mode=mode, options=options, triggered_by="cli")
 
     if not args.json:
@@ -100,7 +106,10 @@ def _run(args: argparse.Namespace) -> None:
         if not args.json:
             print(line, end="" if line.endswith("\n") else "\n", flush=True)
 
-    updates.run_update_worker(row["id"], mode, options, on_log=on_log)
+    try:
+        updates.run_update_worker(row["id"], mode, options, on_log=on_log)
+    except KeyboardInterrupt:
+        raise UpdateCommandError(f"interrupted; update {row['id']} was stopped and recorded as cancelled") from None
     finished = db.get_update(row["id"])
     if finished is None:
         raise UpdateCommandError(f"update record {row['id']} disappeared while running")
