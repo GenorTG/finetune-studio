@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 
 from finetune_studio.data.fs.paths import file_dir
+from finetune_studio.data.prep.chunker import CHUNKER_VERSION
 
 
 def write_chunks(pid: str, sha256: str, chunks: list[str], chunk_meta: list[dict] | None = None) -> None:
@@ -28,3 +29,4 @@ def write_chunks(pid: str, sha256: str, chunks: list[str], chunk_meta: list[dict
             "chunk_path": str(chunk_path.relative_to(fd.parent)),
         })
     (chunks_dir / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
+    (chunks_dir / "chunker-version.json").write_text(f"{CHUNKER_VERSION}\n", encoding="utf-8")

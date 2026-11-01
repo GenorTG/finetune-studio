@@ -9,6 +9,9 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Structured XML rows, JSON objects, and YAML list records now stay together in Files & Knowledge chunks when they fit; the chunker version is stamped so old sources are explicitly marked for re-parse.
+
+
 ### Fixed
 - Look and feel: number fields are no longer 58 px tall and compact fields (the Files list search, verdict notes) keep their small size; a red button stays red on hover; light-theme secondary text, hovered primary buttons and the selected top-bar tab now meet AA contrast. Model library and Inference no longer break when you return to them after a full page load. Quick start no longer reports a stopped test run as finished, and a stopped judge is shown as stopped instead of a 0 % score.
 - Smart Brain chat: answering with the AI assistant's API connection no longer waits for (or blocks) local inference, and a provider failure (bad key, network, provider error) now shows its reason (HTTP 502) instead of a generic server error. The chat's system message is built by the same code as context-grounded training rows, so the two cannot drift; the reranker's half precision now follows the chosen accelerator (bf16 where supported) on CUDA, ROCm, XPU and Apple GPUs.
