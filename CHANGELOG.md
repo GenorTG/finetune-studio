@@ -13,6 +13,7 @@ turns that section into the release's notes.
 
 
 ### Fixed
+- Pairs: when some files still have open data points, Export approved no longer says "Exporting…" while it asks whether to export anyway; it says nothing was exported yet, then reports the export or the cancel.
 - Training: next to **Eval every N steps** and in a run's details the page now says that, for fact Q&A datasets, eval loss is not a recall signal (the held-out rows often hold facts no training row teaches) and that early stopping on the best eval loss can keep a worse model; judge recall with Testing. Not shown for the preference routes (DPO, KTO).
 - Smart Brain chat: **Answer with** now always starts on the local model. It no longer switches to the AI assistant's API connection on its own when no model is loaded (that sent your question and the retrieved passages to the provider without you choosing it); the page instead says to load a model in Inference or pick the AI assistant, which stays available as a deliberate choice.
 - Testing: a run whose every generation fails now ends as failed and skips auto-judging; partial runs still preserve and judge successful answers.
