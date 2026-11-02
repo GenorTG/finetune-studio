@@ -18,7 +18,7 @@ _TEMPLATES = Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/te
 
 def _helper_source() -> str:
     html = (_TEMPLATES / "base.html").read_text()
-    start = html.index("    window.ftsCopyText = async function (text) {")
+    start = html.index("    window.ftsCopyText = async function (text")
     end = html.index("\n    };\n", start) + len("\n    };\n")
     return html[start:end]
 
