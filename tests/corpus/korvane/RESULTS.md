@@ -759,3 +759,71 @@ the requested `model-q4_k_m.gguf` on both runs, verifying the #90 fix. Full Smar
 all cases were judged, so #92's all-errors status path was not exercised in this experiment. The temporary project, datasets,
 merged models, GGUFs, test runs and index were deleted; inference unloaded and the temporary API token revoked. Five older
 `agent-test-*` projects were left untouched. No beta release was cut.
+
+## 30. Overfitting check and training-option sweep (2026-11-02, `agent-test-sweep-20261102`, project `3527ad33`, deleted after)
+
+Question: "are we overfitting? tweak the training options." Live :7860 app on `dev` at `b9907797`, RTX 3090 only. All three
+runs: Qwen3.5-9B QLoRA 4-bit (`preset_id=qlora`), rank 64 / alpha 128, LR 1e-4, batch 2 × accumulation 8, seq 1024, empty
+system prompt, eval every 50 steps on the trainer's 10 % held-out split, merge on save, Q4_K_M export. Quiz = the 102
+paraphrased answerable + 20 unanswerable questions of `eval/`, Testing page closed-book and Smart Brain runs (top-k 5, temp
+0.3), every verdict by the app's judge (DeepSeek v4.1 Flash API). Smart Brain index: 19 documents, 165 chunks.
+
+**What the eval split measures (no GPU).** The SFT trainer holds out 10 % of rows (`training.data.split_data`, seed 42;
+rows sharing a `pair_id` stay on one side). Of the manifest facts whose values appear in a held-out answer, only part is
+taught by any training row:
+
+| Training file | Held-out rows | Manifest facts in held-out answers | ...also in a training answer | Quiz facts in training answers |
+|---|---|---|---|---|
+| Golden 2,455 rows (§27-§29, no `pair_id`) | 246 | 151 | 86 (57 %) | 97 / 102 |
+| R1 study set 7,040 rows (grouped by `pair_id`) | 707 | 156 | 91 (58 %) | 95 / 102 |
+
+So ~42 % of the facts in the eval rows are never trained. Their loss can only fall by guessing and rises as the model
+answers unseen questions more confidently with trained-looking values. Grouping by `pair_id` does not prevent the other
+58 % leaking: the golden set has ~2.2 pairs per fact, so sibling pairs of a held-out fact stay in training. **For knowledge
+injection the Training page's eval loss is not a recall signal**: in every run below it bottomed at step 300 (~0.75 epoch)
+and then rose, while closed-book recall kept improving.
+
+**Data.** The 2,455 golden pairs were added as approved reviewer pairs on the Pairs page endpoint, anchored to their source
+chunk. Study Set (Pairs → Study set, 1 reworded question + 1 restated answer per pair, no passage): 2,454 pairs, 0 failed
+calls, kept 2,422 reworded + 2,130 restated (dropped: 191 answer same as reviewed, 110 lost a value, 23 new value, 12 question
+lost a value, 9 duplicate, 7 leaked the answer, 4 lost a name) → 7,006 rows, ~2.9 phrasings per fact. Abstention rows, §29's
+way (Preference pairs → "Admit it doesn't know", 300 attempts, seed 42): **34** kept (226 no novel detail, 33 answerable by the
+model check, 6 duplicate, 1 off-subject; §29 kept 40), converted to user/refusal SFT rows. R1 file: 7,040 rows.
+Contamination (normalized token Jaccard against all 122 quiz questions): reworded questions max 0.778, p95 0.389; abstention
+questions max 0.538; **0 generated rows above 0.9, none dropped**. Two *original* golden questions are near quiz questions
+(e053 0.90, e067 0.81); they were in every run since §27, so they do not separate the runs.
+
+| Run | Rows | Epochs / steps | Final train loss | Best eval (step) | Final eval | Closed-book pass /102 (partial) | Closed-book declined /20 | Smart Brain /102 | Smart Brain declined /20 |
+|---|---|---|---|---|---|---|---|---|---|
+| §27 golden, 6 ep | 2,455 | 6 / 834 | 0.0309 | 1.0735 | 1.6856 | 31 (19) | 0 | 98 | 2 |
+| §29 golden + 40 abstain, 3 ep | 2,495 | 3 / 423 | 0.2483 | not measured | not measured | 15 | 0 | 99 | 20 |
+| §29 golden + 40 abstain, 6 ep | 2,495 | 6 / 846 | 0.0242 | not measured | not measured | 30 (19) | 2 | 96 | 20 |
+| **R1** study set + 34 abstain, 2 ep (run `7230a553`) | 7,040 | 2 / 792 | 0.2541 | 1.0946 (300) | 1.1871 | 30 (28) | 0 | 97 | 18 |
+| **R2** = R1 + early stopping, load best (run `d8f25075`) | 7,040 | stopped 450 / 792, kept step 300 | 0.848 at step 300 | 1.0896 (300) | 1.1575 at stop | **17** (21) | 0 | 99 | 13 |
+| **R3** = R1 data, 4 ep (run `7150fc91`) | 7,040 | 4 / 1,584 | 0.0456 | 1.0946 (300) | 1.5988 | **39** (20) | 0 | 96 | **20** |
+
+Paired closed-book pass (exact McNemar): R1 vs R2 15 / 2, **p = 0.0023**; R3 vs R2 28 / 6, **p = 0.0002**; R3 vs R1 14 / 5,
+p = 0.064. §29's per-case answers were not kept, so R1/R3 vs §29 is unpaired. Pass + partial: R1 58, R2 38, R3 59.
+
+Reading:
+- **Not overfitting in the sense that hurts.** Rising eval loss after ~0.75 epoch appeared in every run, and each time the
+  later, "more overfit" model recalled more: §29 3 → 6 ep 15 → 30, R2 (stopped at best eval) → R1 17 → 30, R1 → R3 30 → 39.
+  Early stopping on eval loss (R2) picked the worst model of the sweep, significantly. What eval loss tracks here is the
+  model's confidence on the ~42 % never-trained facts, not memorisation quality.
+- **Paraphrase augmentation alone, at equal steps, did not move closed-book.** R1 (~3 phrasings × 2 epochs) = §29 6 ep (1
+  phrasing × 6 epochs) at 30/102; both are ~6 exposures per fact. More exposures of the augmented set did help (R3 39/102,
+  12 exposures), with train loss 0.046. Most closed-book misses are confident value swaps inside the right fact (fuel-card
+  limit 300 vs 400, certificate number from a sibling document), so the remaining errors are interference between
+  similar facts, not generalisation failure.
+- **Abstention.** Without retrieval no run declines unknowns (0/20 everywhere; §29 6 ep 2/20). With Smart Brain the 34
+  refusal rows kept 18-20/20 except R2 (13/20): an undertrained model has not yet absorbed the refusal style.
+- **Decision: no recipe cleared the bar** (closed-book +10 over §29's 30/102 with Smart Brain ≥ 95/102 and ≥ 15/20). R3 is
+  +9 (39/102, Smart Brain 96/102 + 20/20), one point short with p = 0.064 against R1, so **no app behaviour was changed**
+  (no new preset, no `lora_dropout` option: the sweep never pointed at regularisation). Worth a later, separately approved
+  run: R3's data at 4 epochs vs §29's data at 12 epochs (equal exposures, the clean phrasing-diversity test), and whether the
+  Training page should say that eval loss is not a recall signal for fact datasets (R2 is the evidence).
+
+The project (`3527ad33`), its 5 datasets (study set, preference, 3 uploads), 3 runs (merged models, Q4_K_M GGUFs,
+checkpoints), 6 Testing runs, suite and Smart Brain index were deleted through `DELETE /api/projects/{pid}`; no DB row
+mentions the project or its runs and no file named after it remains (`find`); the run output alone was 76 GB. Inference unloaded, temporary API
+token revoked. The five older `agent-test-*` projects were left untouched. No release was cut.
