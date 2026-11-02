@@ -16,13 +16,14 @@ build) and every ML package again. Instead the overlay venv gets a
 torch, transformers, peft, datasets, accelerate, bitsandbytes and numpy resolve to
 *our* install and only Heretic's own missing packages are added on top.
 
-WHY THE PIN IS A COMMIT AND NOT THE PYPI RELEASE
-================================================
-1.4.0 (PyPI) cannot run unattended: its save step is a bare ``questionary`` prompt
-with no settings field behind it, so a headless drag abliteration would block on
-stdin forever. The headless flags (``--model-action``, ``--save-directory``,
-``--export-strategy``, ``--checkpoint-action``, ``--trial-index``) exist only in
-the 2.0 development line. :data:`PINNED_REF` is that line, and
+WHY THE PIN IS THE v2.0.0 RELEASE COMMIT
+========================================
+1.x cannot run unattended: its save step is a bare ``questionary`` prompt with no
+settings field behind it, so a headless abliteration would block on stdin forever.
+The headless flags (``--model-action``, ``--save-directory``, ``--export-strategy``,
+``--checkpoint-action``, ``--trial-index``) arrived with 2.0 (upstream #392).
+:data:`PINNED_REF` is the commit the ``v2.0.0`` release tag points at (a commit,
+not the tag name, so a moved tag cannot change what gets installed), and
 :func:`run_abliteration` passes every one of those flags explicitly — a missing
 flag is a hang, not a nuisance, which is why :func:`missing_headless_flags`
 refuses to start rather than hoping.
@@ -47,10 +48,10 @@ log = logging.getLogger(__name__)
 REPO_URL = "https://github.com/p-e-w/heretic"
 GITHUB_API = "https://api.github.com/repos/p-e-w/heretic"
 
-#: The 2.0 development line: the first line whose CLI can save without a TTY.
-PINNED_REF = "d34dd9192da06d203eb7e80d20229117bb4e981c"
+#: Heretic v2.0.0 (released 2026-11-01): the first release whose CLI can save without a TTY.
+PINNED_REF = "0db5c31e10ecc426440b6fb0ce4bf85352faf1a7"
 #: Human label for :data:`PINNED_REF` (shown in Settings).
-PINNED_LABEL = "2.0.0.dev0 @ d34dd91 (2026-10-26)"
+PINNED_LABEL = "v2.0.0 @ 0db5c31 (2026-11-01)"
 
 #: Distribution name in the overlay venv.
 PACKAGE = "heretic-llm"
@@ -276,7 +277,7 @@ def probe() -> HereticStatus:
         hint = (
             "This Heretic build cannot run unattended (it is missing "
             + ", ".join(missing)
-            + "). Re-install from the pinned 2.0 development line: fts heretic install"
+            + "). Re-install the pinned v2.0.0 release: fts heretic install"
         )
     return HereticStatus(
         installed=True, version=version, ref=installed_ref(), python=str(py),
@@ -705,6 +706,13 @@ def run_env() -> dict[str, str]:
         "PYTHONUNBUFFERED": "1",
         # Heretic is an external tool: never let it write into our package tree.
         "PYTHONDONTWRITEBYTECODE": "1",
+        # Heretic 2.0.0's ARA step (the default modifier; its LBFGS objective became a low-rank
+        # product in upstream #499) dies with "CUDA error: an illegal memory access" in the
+        # first trial on torch 2.14.1+cu130 / driver 580 (3 of 3 runs, Qwen2.5-1.5B, RTX 3090).
+        # The same run with the pre-#499 ara.py, or with synchronous kernel launches, completes;
+        # measured cost of synchronous launches here: about the same time per trial. Remove once
+        # upstream fixes the race.
+        "CUDA_LAUNCH_BLOCKING": "1",
     })
     try:
         env.update(accel.isolated_env(accel.get_accelerator(), env))
