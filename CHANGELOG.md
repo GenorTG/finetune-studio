@@ -13,6 +13,7 @@ turns that section into the release's notes.
 
 
 ### Fixed
+- Settings → API tokens: creating a token without a name now says to give it one (instead of a validator message), and Revoke asks first, saying that scripts using the token stop working.
 - Chat: Copy all and Export on an empty conversation now say there is nothing yet (Copy all reported "copied" with nothing copied; Export downloaded a file with only a title); Copy all now also works over plain HTTP from another machine.
 - Projects → Import: a file that is not a project archive, or an archive cut short, is refused in plain words (choose the .tar.gz a project's Export downloads / download it again) instead of Python's archive-reader messages.
 - Model lists: Smart Brain's reranker (bge-reranker-v2-m3) and other classifier, reward or tagging models are no longer offered as a base model to train, a model to test or compare, or a model to load for chat; they cannot write text.
