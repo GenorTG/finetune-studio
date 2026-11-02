@@ -314,7 +314,7 @@
   <script src="/static/js/service.js?v=5"></script>
   <script src="/static/js/guide.js?v=3"></script>
   <script>
-    window.ftsCopyText = async function (text) {
+    window.ftsCopyText = async function (text, okMessage) {
       // The Clipboard API is missing over plain HTTP from another machine (not a secure context) and can be
       // refused even where it exists; both fall back to a selected textarea + execCommand('copy').
       const legacyCopy = () => {
@@ -337,9 +337,9 @@
           try { await navigator.clipboard.writeText(text); copied = true; } catch (_e) { /* refused: try the fallback */ }
         }
         if (!copied) legacyCopy();
-        window.fts?.notify('Path copied', 'success');
+        window.fts?.notify(okMessage || 'Path copied', 'success');
       } catch (error) {
-        window.fts?.notify('Clipboard unavailable: select the path and copy it by hand', 'warn');
+        window.fts?.notify('Clipboard unavailable: select the text and copy it by hand', 'warn');
       }
     };
 
