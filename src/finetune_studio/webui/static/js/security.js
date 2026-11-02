@@ -34,10 +34,16 @@
       li.textContent = `${t.name} · created ${when(t.created_at)} · last used ${when(t.last_used_at)} `;
       const b = document.createElement('button');
       b.className = 'btn sm'; b.type = 'button'; b.textContent = 'Revoke';
-      b.addEventListener('click', () => run(async () => {
-        await call('DELETE', `/api/settings/security/tokens/${encodeURIComponent(t.id)}`);
-        return 'Token revoked.';
-      }));
+      b.addEventListener('click', async () => {
+        // A revoke cannot be undone: every script using the token stops working at once.
+        const ok = await window.fts.confirm(`Revoke the token "${t.name}"? Scripts and tools that use it stop working; `
+          + 'a new token has a new value.', { danger: true, okText: 'Revoke' });
+        if (!ok) return;
+        await run(async () => {
+          await call('DELETE', `/api/settings/security/tokens/${encodeURIComponent(t.id)}`);
+          return 'Token revoked.';
+        });
+      });
       li.append(b);
       return li;
     }));
@@ -155,7 +161,9 @@
   $('access-token-form').addEventListener('submit', (ev) => {
     ev.preventDefault();
     run(async () => {
-      const t = await call('POST', '/api/settings/security/tokens', { name: $('access-token-name').value });
+      const name = $('access-token-name').value.trim();
+      if (!name) throw new Error('Give the token a name first (what will use it, e.g. backup script).');
+      const t = await call('POST', '/api/settings/security/tokens', { name });
       $('access-token-name').value = '';
       const out = $('access-token-new');
       out.textContent = `New token "${t.name}" (shown once, copy it now): ${t.token}`;
