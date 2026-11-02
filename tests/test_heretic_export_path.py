@@ -227,3 +227,35 @@ def test_cli_check_reports_the_pinned_build_as_current(monkeypatch: pytest.Monke
     cmd_heretic(SimpleNamespace(heretic_action="check", json=True))
     out = json.loads(capsys.readouterr().out)
     assert out["update_available"] is False and out["upstream_ahead"] is True
+
+
+def test_a_kept_trial_is_described_on_the_finished_export(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A finished Heretic export said only "done": which trial, its refusal rate and its KL drift were dropped."""
+    _fake_heretic(monkeypatch, [{"pos": 0, "trial": 17, "refusals": 0.08, "kl": 0.04175}])
+    got = _export(tmp_path)
+    assert got["message"] == "Kept Heretic trial 17: 8% refusals on Heretic's test prompts, KL 0.042 (budget 0.1)."
+
+
+def test_the_finished_row_keeps_the_heretic_detail(client, tmp_path: Path) -> None:
+    from finetune_studio import db
+    from finetune_studio.training.export_response import ExportResult
+    from finetune_studio.webui.export_work import _register_artifacts
+
+    pid = client.post("/api/projects", json={"name": "heretic detail"}).json()["id"]
+    run = db.create_run(project_id=pid, name="r", base_model="/m")
+    art = _merged(tmp_path)
+    for fmt, expect in (("heretic", "Kept Heretic trial 17"), ("merged", "")):
+        eid = db.create_export(project_id=pid, run_id=run["id"], format=fmt, quant="safetensors")["id"]
+        payload = ExportResult.from_raw({"ok": True, "status": "exported", "output_path": str(art),
+                                         "message": "Kept Heretic trial 17: 8% refusals"})
+        _register_artifacts(eid, {**run, "project_id": pid}, fmt, payload)
+        row = db.get_export(eid)
+        assert row["status"] == "done" and row["phase_detail"].startswith(expect)
+        if not expect:
+            assert row["phase_detail"] == ""
+
+
+def test_export_page_shows_the_finished_rows_detail() -> None:
+    html = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/export_models.html").read_text()
+    done = html.split("$('export-job-detail').textContent = terminal && !failed && row.status === 'done'", 1)[1]
+    assert "(row.phase_detail ? ' — ' + row.phase_detail : '')" in done.split(":", 1)[0] + done.split("\n", 3)[2]

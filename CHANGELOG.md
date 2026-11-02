@@ -13,6 +13,7 @@ turns that section into the release's notes.
 
 
 ### Fixed
+- Heretic: the app now installs the Heretic v2.0.0 release (it pinned a 2.0 development commit; Settings → Heretic → Install updates it). v2.0.0 crashed on the GPU in its first trial ("illegal memory access"); the app runs it in a mode that avoids that. A finished Heretic export now shows which trial it kept, its refusal rate on Heretic's test prompts and its KL drift (Export page and `fts export status`), instead of only "done".
 - Settings → API tokens: creating a token without a name now says to give it one (instead of a validator message), and Revoke asks first, saying that scripts using the token stop working.
 - Chat: Copy all and Export on an empty conversation now say there is nothing yet (Copy all reported "copied" with nothing copied; Export downloaded a file with only a title); Copy all now also works over plain HTTP from another machine.
 - Projects → Import: a file that is not a project archive, or an archive cut short, is refused in plain words (choose the .tar.gz a project's Export downloads / download it again) instead of Python's archive-reader messages.

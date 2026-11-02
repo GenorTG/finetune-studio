@@ -437,7 +437,7 @@ Pick a run, pick a format, hit RUN. Supported formats today:
   **importance matrix** measured on the run's own training data (better
   q4/q3/q2 quality at the same file size)
 - **Abliterated** — the built-in refusal-direction edit of a merged checkpoint.
-- **Heretic** — a separate optional export format that uses the Heretic tool to search for a refusal-direction edit while keeping the model closer to its original behaviour. It is shipped alongside Abliterated, not a replacement for it; the real Export API path has been run end to end. Heretic is installed on demand from Settings and has its own AGPL-3.0 license.
+- **Heretic** — a separate optional export format that uses the Heretic tool to search for a refusal-direction edit while keeping the model closer to its original behaviour. It is shipped alongside Abliterated, not a replacement for it. The app pins Heretic v2.0.0; on Qwen2.5-1.5B-Instruct the real Export API path ran end to end (40 trials, ~80 min on an RTX 3090) and the AI judge counted 1 of 12 harmful test prompts refused afterwards, against 12 of 12 before. Heretic is installed on demand from Settings and has its own AGPL-3.0 license.
 
 The trained-exports table uses the same expand-row pattern as Models —
 click a row to inspect its contents, then ▶ Open in inference.
@@ -535,7 +535,7 @@ Python 3.12; the package also accepts 3.13, which is not tested.
   llama.cpp (via `llama-cpp-python`) for GGUF when available.
 - **Export:** merged safetensors, GGUF (plain or with an importance
   matrix) when the llama.cpp tools are on the host, plus separate built-in
-  Abliterated and optional Heretic formats. Heretic has completed an end-to-end
+  Abliterated and optional Heretic (v2.0.0) formats. Heretic has completed an end-to-end
   run through the real Export API; it is installed on demand. Missing tools
   return clear errors instead of fake success.
 - **Testing:** the Playwright route suite `tests/e2e_ui_qa.py` is non-mutating;

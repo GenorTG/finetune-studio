@@ -460,6 +460,7 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
     const detail = row.phase_detail ? ' — ' + row.phase_detail : '';
     $('export-job-detail').textContent = terminal && !failed && row.status === 'done'
       ? 'Finished' + (row.size_human ? ' · ' + row.size_human : '') + (row.output_path ? ' · ' + row.output_path : '')
+        + (row.phase_detail ? ' — ' + row.phase_detail : '')
       : (PHASE_LABEL[phase] || phase) + detail;
     const bar = $('export-job-bar');
     bar.className = 'fill' + (terminal ? (failed ? ' err' : ' ok') : ' indeterminate');
