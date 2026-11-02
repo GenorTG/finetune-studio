@@ -49,6 +49,10 @@ _SKIP_ARCHES = {
     "ClipVisionModel", "CLIPVisionModel",
     "SiglipVisionModel", "MultiModalProjector",
 }
+# Task heads that never generate text: a cross-encoder reranker (bge-reranker-v2-m3 is
+# XLMRobertaForSequenceClassification), a reward model or a tagger. Smart Brain downloads such a
+# reranker into the Hugging Face cache, where it was offered as a base model to train and a model to test.
+_SKIP_ARCH_SUFFIXES = ("ForSequenceClassification", "ForTokenClassification", "ForQuestionAnswering")
 # File patterns that indicate non-model files
 _SKIP_GGUF_PATTERNS = ("mmproj", "projector", "vision")
 
@@ -336,7 +340,8 @@ def scan_models(directories: list) -> list:
                 # Skip non-chat models (embeddings, vision encoders, projectors). Sentence-transformers packaging marks an
                 # embedder whose config still names a causal LM (Qwen3-Embedding: Qwen3ForCausalLM), which the
                 # architecture list misses: it was offered as a model to chat with and compare (beta audit 2026-10-22).
-                if arch in _SKIP_ARCHES or "config_sentence_transformers.json" in files \
+                if arch in _SKIP_ARCHES or arch.endswith(_SKIP_ARCH_SUFFIXES) \
+                        or "config_sentence_transformers.json" in files \
                         or any(sub.endswith("_Pooling") for sub in dirs):
                     dirs.clear()
                     continue

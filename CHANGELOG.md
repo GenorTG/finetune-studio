@@ -13,6 +13,7 @@ turns that section into the release's notes.
 
 
 ### Fixed
+- Model lists: Smart Brain's reranker (bge-reranker-v2-m3) and other classifier, reward or tagging models are no longer offered as a base model to train, a model to test or compare, or a model to load for chat; they cannot write text.
 - Copy path on the project overview now works when the app is opened over plain HTTP from another machine (the browser's clipboard API is missing there) and when the browser refuses the clipboard write; both fall back to a plain copy, and a copy that cannot work says to copy the path by hand.
 - Pairs: when some files still have open data points, Export approved no longer says "Exporting…" while it asks whether to export anyway; it says nothing was exported yet, then reports the export or the cancel.
 - Training: next to **Eval every N steps** and in a run's details the page now says that, for fact Q&A datasets, eval loss is not a recall signal (the held-out rows often hold facts no training row teaches) and that early stopping on the best eval loss can keep a worse model; judge recall with Testing. Not shown for the preference routes (DPO, KTO).
