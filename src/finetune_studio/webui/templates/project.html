@@ -324,12 +324,8 @@
     else console.log(msg);
   }
 
-  window.dashCopyPath = function (path) {
-    navigator.clipboard.writeText(path).then(
-      () => notify('Path copied', 'success'),
-      () => notify('Copy failed', 'error')
-    );
-  };
+  // The shared helper falls back when the Clipboard API is missing (plain HTTP from another machine) or refused.
+  window.dashCopyPath = function (path) { return window.ftsCopyText(path); };
 
   window.dashPromote = async function (runId) {
     try {
