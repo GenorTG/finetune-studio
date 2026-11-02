@@ -2001,9 +2001,12 @@ async function dpExportApproved() {
       var files = (gap.incomplete_files || []).map(function (f) {
         return f.filename + ' (' + f.status + (f.counts && f.counts.open ? ', ' + f.counts.open + ' open' : '') + ')';
       });
+      // Nothing is exported until the user answers; "Exporting…" here read as if it already ran.
+      dpBridgeStatus('Not exported yet: ' + files.length + ' file(s) not complete. Choose whether to export anyway.', 'info');
       var ok = await fts.confirm('Not every data point is approved yet in: ' + files.join(', ') +
         '. Export the approved pairs anyway?', { okText: 'Export anyway' });
       if (!ok) { dpBridgeStatus('Export cancelled: ' + files.length + ' file(s) not complete.', 'info'); return; }
+      dpBridgeStatus('Exporting ' + approved + ' approved pair(s) anyway…', 'info');
       r = await fetch(url + '&force=true', { cache: 'no-store' });
     }
     if (!r.ok) {
