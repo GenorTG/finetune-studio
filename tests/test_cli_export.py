@@ -171,3 +171,14 @@ def test_no_auto_merge_is_honoured_on_the_multi_quant_path(
                                    *quant_args, "--no-auto-merge")
     assert code == 0 and not stderr
     assert len(queued) == 1
+
+
+def test_status_of_a_finished_export_prints_its_result(project: dict[str, Any], monkeypatch: pytest.MonkeyPatch,
+                                                         capsys: pytest.CaptureFixture[str]) -> None:
+    """A done row printed "Progress : No progress message yet."; a Heretic export now says which trial it kept."""
+    run = create_run(str(project["id"]))
+    row = db.create_export(str(project["id"]), run["id"], format="heretic", quant="safetensors")
+    db.mark_export_done(row["id"], output_path="/o/heretic", detail="Kept Heretic trial 17: 8% refusals")
+    code, stdout, stderr = run_cli(monkeypatch, capsys, "export", "status", row["id"], "--project", project["id"])
+    assert code == 0 and not stderr
+    assert "Result   : Kept Heretic trial 17: 8% refusals" in stdout and "No progress message" not in stdout

@@ -101,7 +101,11 @@ def _status(args: argparse.Namespace) -> None:
     row = result.body
     print(f"Export   : {row['id']}")
     print(f"Status   : {row.get('status') or '?'} · {row.get('phase') or 'waiting'}")
-    print(f"Progress : {row.get('phase_detail') or 'No progress message yet.'}")
+    if row.get("status") == "done":
+        if row.get("phase_detail"):
+            print(f"Result   : {row['phase_detail']}")
+    else:
+        print(f"Progress : {row.get('phase_detail') or 'No progress message yet.'}")
     if row.get("output_path"):
         print(f"Output   : {row['output_path']}")
     if row.get("error"):

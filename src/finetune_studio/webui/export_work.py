@@ -130,6 +130,7 @@ def _register_artifacts(eid: str, run: dict, fmt: str, payload: ExportResult) ->
     db.update_export(eid, quant=str(quant_label))
     db.mark_export_done(
         eid, output_path=art, size_bytes=size, size_human=human_size(size),
+        detail=(payload.message or "") if fmt == "heretic" else "",
     )
 
 

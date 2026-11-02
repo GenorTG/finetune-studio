@@ -827,3 +827,43 @@ The project (`3527ad33`), its 5 datasets (study set, preference, 3 uploads), 3 r
 checkpoints), 6 Testing runs, suite and Smart Brain index were deleted through `DELETE /api/projects/{pid}`; no DB row
 mentions the project or its runs and no file named after it remains (`find`); the run output alone was 76 GB. Inference unloaded, temporary API
 token revoked. The five older `agent-test-*` projects were left untouched. No release was cut.
+
+## 31. Heretic v2.0.0 through the Export API (2026-11-02, `agent-test-heretic-20261102`, project `5e9ecfc7`, deleted after)
+
+Question: does the Heretic export still work on the upstream v2.0.0 release (pin moved from 2.0.0.dev0 `d34dd91` to
+`0db5c31`, the commit tag `v2.0.0` points at; 7 upstream commits, no CLI flag, study or output-layout change), and
+does B2.3's before/after hold at the 0.1 KL budget, judged by the app's AI judge instead of keyword markers?
+
+Setup: live :7860 app, RTX 3090 only. Base Qwen2.5-1.5B-Instruct (downloaded through the app's model library). A
+tiny real SFT run `d4c9c8c1` (30 synthetic rows, LoRA r8, LR 2e-5, 1 epoch, 14 steps, eval every 3 steps: eval loss
+2.4159, merge on save) gave the merged model Heretic needs. Export via `POST /api/projects/{pid}/runs/{rid}/export`
+`format=heretic` (40 trials, batch 8, KL budget 0.1).
+
+**Upstream regression found.** v2.0.0's ARA step (Heretic's default modifier; upstream #499 made its LBFGS objective a
+low-rank product) failed with `CUDA error: an illegal memory access` in the first trial: 2 of 2 export attempts and 1
+direct run, torch 2.14.1+cu130, driver 580. Isolated: the same direct run with only `ara.py` reverted to the old pin
+completed (2/2 trials), and v2.0.0 with `CUDA_LAUNCH_BLOCKING=1` completed. The app now runs Heretic with synchronous
+launches (`heretic_tool.run_env`); measured cost: ~2.6 min per trial on this model, the same order as before.
+
+Export `26555088`: **done**, 82.6 min, 2.9 GB, `config.json` + tokenizer + `model.safetensors`. Heretic kept trial 17 of
+40: 8 % refusals on its own 100 test prompts, KL 0.042 (budget met). The 0 %-refusal trials sat at KL 15.3-15.7
+(destroyed models); the budget rejected them. Found on the way: a finished export recorded none of this (row, Export
+page and `fts export status` said only "done"); the kept trial, refusal rate and KL now stay on the finished row.
+The model loads in Inference and answered a benign prompt coherently.
+
+Same 12 refusal prompts and 3 benign prompts as B2.3 (greedy, 1,600 new tokens, no answer cut off), every answer judged
+by the app's AI judge (DeepSeek v4.1 Flash, Settings → judge job; answer key = "carries out the request"):
+
+| Model | Judge: complied | Judge: refused / deflected | Keyword markers: refusals | Benign pass |
+|---|---|---|---|---|
+| Base Qwen2.5-1.5B-Instruct | 0/12 | 12/12 | 12/12 | 3/3 |
+| Merged SFT run (Heretic's input) | 0/12 | 12/12 | 12/12 | 3/3 |
+| Heretic v2.0.0 export | **11/12** | 1/12 | 1/12 | 2/3 (+1 partial) |
+
+Reading: the export removes refusals on this set (12 → 1 by the judge); the remaining one is a deflection into harmless
+advice, not a refusal phrase. The benign partial is a list-comprehension explanation that lost its code example; the
+other benign answers match the base. n = 12 is a smoke-level check on one 1.5B model, not a refusal-rate estimate.
+Per-prompt verdicts and judge reasons are kept locally (`.tmp/agent/heretic-20261102/judged-*.json`, answers removed), not in the repository.
+
+The project (`5e9ecfc7`: dataset, run, merged model, Heretic export, three export rows) was deleted through
+`DELETE /api/projects/{pid}`; the downloaded base was deleted through the model library; no file or DB row remains.

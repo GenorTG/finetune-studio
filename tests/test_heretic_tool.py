@@ -349,3 +349,18 @@ def test_cli_exposes_the_tool() -> None:
     args = build_parser().parse_args(["heretic", "status"])
     assert args.command == "heretic"
     assert args.heretic_action == "status"
+
+
+def test_pin_is_the_v2_0_0_release_commit() -> None:
+    """The pin follows Heretic's v2.0.0 release (tag v2.0.0 -> 0db5c31), not a pre-release dev commit."""
+    from finetune_studio.training import heretic_tool
+
+    assert heretic_tool.PINNED_REF == "0db5c31e10ecc426440b6fb0ce4bf85352faf1a7"
+    assert heretic_tool.PINNED_LABEL.startswith("v2.0.0 @ 0db5c31")
+
+
+def test_heretic_runs_with_synchronous_cuda_launches() -> None:
+    """Heretic 2.0.0's ARA step hits a CUDA illegal memory access with async launches on this stack (RESULTS §31)."""
+    from finetune_studio.training import heretic_tool
+
+    assert heretic_tool.run_env()["CUDA_LAUNCH_BLOCKING"] == "1"

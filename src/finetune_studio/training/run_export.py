@@ -451,7 +451,25 @@ def _export_heretic(
             f"Exported outside the KL budget {budget['kl_budget']} (KL {budget['chosen_kl']}) because "
             "Overwrite existing was ticked; check the model before using it."
         )
+    else:
+        # What was kept, in the export's own row: without it a finished Heretic export said only "done".
+        result["message"] = heretic_choice_text(budget)
     return result
+
+
+def heretic_choice_text(budget: dict[str, Any]) -> str:
+    """One line on the kept trial: Heretic's refusal rate on its own test prompts and the KL drift against the budget."""
+    refusals = budget.get("chosen_refusals")
+    kl = budget.get("chosen_kl")
+    if not isinstance(refusals, (int, float)):
+        rate = "refusals unknown"
+    elif refusals <= 1:   # Heretic 2's KeywordRate scorer reports a share of its prompts (0.08 = 8 of 100)
+        rate = f"{float(refusals) * 100:.0f}% refusals"
+    else:
+        rate = f"{refusals:g} refusals"
+    drift = f"KL {float(kl):.3f}" if isinstance(kl, (int, float)) else "KL unknown"
+    return (f"Kept Heretic trial {budget.get('chosen_trial')}: {rate} on Heretic's test prompts, {drift} "
+            f"(budget {budget.get('kl_budget')}).")
 
 
 def validate_export_request(
