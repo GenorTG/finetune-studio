@@ -13,6 +13,7 @@ turns that section into the release's notes.
 
 
 ### Fixed
+- Smart Brain chat: **Answer with** now always starts on the local model. It no longer switches to the AI assistant's API connection on its own when no model is loaded (that sent your question and the retrieved passages to the provider without you choosing it); the page instead says to load a model in Inference or pick the AI assistant, which stays available as a deliberate choice.
 - Testing: a run whose every generation fails now ends as failed and skips auto-judging; partial runs still preserve and judge successful answers.
 - Training API: GGUF export and selected quantizations now survive preset-based starts; previously the preset path silently dropped both options.
 - Smart Brain: an XML element, JSON object or YAML list item that fits one passage is no longer cut between two passages (the same record rule Files & Knowledge passages use); it applies from the next Smart Brain build.

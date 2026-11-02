@@ -161,9 +161,11 @@ keyword search, rank fusion, reranking — often called RAG) and the model quote
    you can judge retrieval alone.
 5. **Ask the model (grounded)** — chat over those passages. **Answer with**
    picks who writes the answer: the chat model loaded on this machine (the
-   top-bar pill says which; nothing leaves the machine), or the AI assistant's
-   API connection from *Settings → AI assistant* (needs no local model; the
-   question and the retrieved passages are sent to that provider).
+   default; the top-bar pill says which; nothing leaves the machine), or, as a
+   deliberate choice, the AI assistant's API connection from *Settings → AI
+   assistant* (needs no local model; the question and the retrieved passages
+   are sent to that provider). It is never picked for you: with no local model
+   loaded the page asks you to load one in Inference or choose the assistant.
 6. **Download / export** — the encrypted studio bundle (.ftsrag), or the **standalone
    Smart Brain**: one tarball with the index + a small Python server +
    `setup.sh`. On a machine with Python 3 (`python3` with the `venv` module; the tests run its server on 3.12):

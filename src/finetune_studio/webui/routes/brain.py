@@ -473,7 +473,8 @@ def _active_n_ctx() -> int:
 # A GPU job (an index build whose embedder runs on the GPU, training, an export) unloads the chat model first: say so,
 # a bare "no model loaded" right after a Quick index read like a broken chat.
 NO_CHAT_MODEL = ("No chat model is loaded. A GPU job (an index build on the GPU, training or an export) unloads it: "
-                 "load a model from the model pill in the top bar, then ask again.")
+                 "load a model in Inference or from the model pill in the top bar, then ask again. Or choose the AI "
+                 "assistant under Answer with: that sends the question and the retrieved passages to its provider.")
 
 
 class _NoChatModel(Exception):
