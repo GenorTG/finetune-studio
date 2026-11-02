@@ -65,6 +65,20 @@ def test_scan_skips_sentence_transformers_embedder_with_causal_lm_arch(tmp_path:
     assert found == [str(chat)]
 
 
+def test_scan_skips_rerankers_and_other_task_heads(tmp_path: Path) -> None:
+    """Smart Brain's bge-reranker-v2-m3 lands in the HF cache; it was listed as a base model to train and test."""
+    hub = tmp_path / "hub"
+    for name, arch in (("BAAI--bge-reranker-v2-m3", "XLMRobertaForSequenceClassification"),
+                       ("org--reward", "LlamaForSequenceClassification"),
+                       ("org--ner", "BertForTokenClassification"),
+                       ("org--qa", "RobertaForQuestionAnswering")):
+        _write_model(hub / f"models--{name}" / "snapshots" / ("e" * 40), {"model_type": "x", "architectures": [arch]},
+                     "model.safetensors", _HALF_GIB)
+    chat = hub / "models--Qwen--Qwen3-4B" / "snapshots" / ("d" * 40)
+    _write_model(chat, _QWEN_CFG, "model.safetensors", _HALF_GIB)
+    assert [m.path for m in scan_models([str(hub)])] == [str(chat)]
+
+
 def test_scan_skips_broken_symlink_weights_and_keeps_sibling(tmp_path: Path) -> None:
     broken = tmp_path / "hub" / "models--Qwen--Qwen3-0.6B" / "snapshots" / ("a" * 40)
     broken.mkdir(parents=True)
