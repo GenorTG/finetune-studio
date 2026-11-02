@@ -78,6 +78,10 @@
         {% with title='Metrics', rows=detail_run.metrics, table_class='run-settings' %}
           {% include "_kv_grid.html" %}
         {% endwith %}
+        {% if ('eval_loss' in detail_run.metrics or 'best_eval_loss' in detail_run.metrics)
+              and (detail_run.settings or {}).get('training_mode', 'sft') not in ('dpo', 'kto') %}
+        <p id="run-eval-loss-note" class="text-xs muted mt-1">For fact Q&amp;A datasets (pairs from your files), the held-out rows often hold facts no training row teaches, so a rising eval loss is not a sign that recall is getting worse, and early stopping on the best eval loss can keep a worse model. Judge recall with a Testing run instead.</p>
+        {% endif %}
       </div>
       {% endif %}
       {% if detail_run.notes %}
@@ -431,6 +435,7 @@
           <span class="block text-xs muted mb-1" for="eval-steps">Eval every N steps</span>
           <input type="number" name="eval_steps" id="eval-steps" value="50" min="0" class="input" title="Measure loss on the 10% held-out split every N steps. 0 = no evaluation during training. Small datasets need a small value, or no evaluation happens before training ends.">
         </label>
+        <p id="eval-loss-note" class="text-xs muted grid-full">For fact Q&amp;A datasets (pairs from your files), the held-out rows often hold facts no training row teaches, so a rising eval loss is not a sign that recall is getting worse, and early stopping on the best eval loss can keep a worse model. Judge recall with a Testing run instead.</p>
       </div>
     </details>
     <div class="flex gap-2 mt-4 grid-full">
@@ -611,6 +616,8 @@
       ktoHelp.hidden = input.value !== "kto";
       prefOptions.hidden = !PREF_MODES.includes(input.value);
       document.getElementById("preference-sft-weight-row").hidden = input.value !== "dpo";
+      // Eval loss as a recall signal misleads on fact Q&A data (SFT); preference routes report their own held-out metrics.
+      document.getElementById("eval-loss-note").hidden = PREF_MODES.includes(input.value);
       if (!prefOptions.hidden) loadStartPoints();
       advancedHelp.hidden = !["tool_sft", "continued_pretraining", "reasoning_distillation"].includes(input.value);
       advancedHelp.textContent = advancedHelp.hidden ? "" : "Evaluation and production promotion remain a separate human-reviewed step.";

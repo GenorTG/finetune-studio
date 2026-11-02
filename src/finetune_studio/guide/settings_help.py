@@ -73,13 +73,13 @@ SETTING_HELP: dict[str, dict[str, str]] = {
     "eval_steps": {
         "meaning": "Measure loss on the held-out split every N steps; 0 disables evaluation.",
         "guidance": "Small datasets need a small value or no evaluation happens before training ends. Required for early stopping.",
-        "pitfall": "Early stopping with eval every 0 steps never triggers.",
+        "pitfall": "Early stopping with eval every 0 steps never triggers. For fact Q&A datasets the held-out rows often hold facts no training row teaches, so a rising eval loss is not a recall signal: judge recall with Testing.",
         "kb": "training",
     },
     "early_stopping": {
         "meaning": "Stop when validation loss has not improved for 3 evaluations and keep the best checkpoint.",
         "guidance": "Useful on larger datasets. On tiny datasets make sure it did not end the run before the planned steps.",
-        "pitfall": "Needs 'Eval every N steps' above 0.",
+        "pitfall": "Needs 'Eval every N steps' above 0. For fact Q&A datasets stopping at the best eval loss can keep a worse model (the held-out rows often hold facts no training row teaches); judge with Testing instead.",
         "kb": "training",
     },
     "merge_on_save": {
