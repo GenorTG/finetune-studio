@@ -162,3 +162,18 @@ def test_import_moves_an_old_archive_off_qa_sources(client, roots, monkeypatch):
     assert moved is not None and moved.ready and moved.parser == "text_v1" and moved.chunk_count == 1
     assert not (proj / new / "qa" / "sources").exists()
     assert not (sources.source_dir(new, moved) / "metadata.json").exists()
+
+
+def test_import_of_a_non_archive_says_so_in_plain_words(client, roots):
+    r = _import(client, b"plain text, not an archive")
+    assert r.status_code == 400
+    detail = r.json()["detail"]
+    assert "not a readable project archive" in detail and "Settings" in detail
+    assert "ReadError" not in detail and "method gz" not in detail
+
+
+def test_import_of_a_cut_off_archive_says_so_in_plain_words(client, roots):
+    whole = _tar([_manifest(), ("projects/oldpid/a.txt", b"1" * 4096, tarfile.REGTYPE)])
+    r = _import(client, whole[: len(whole) // 2])
+    assert r.status_code == 400
+    assert "incomplete" in r.json()["detail"] and "end-of-stream" not in r.json()["detail"]

@@ -355,7 +355,14 @@ async def import_project(request: Request):
                 migrate_project(new_id)   # an archive from before 2026-10-14 still carries qa/sources/
                 return {"ok": True, "imported": [{"old_id": old_id, "new_id": new_id, "name": proj_name}],
                         "count": 1}
-        except (tarfile.TarError, EOFError) as e:
+        except tarfile.ReadError:
+            # tarfile's own text lists every decompressor it tried ("method gz: ReadError('not a gzip file') …").
+            return JSONResponse({"detail": "This file is not a readable project archive. Choose the .tar.gz that "
+                                           "Export (in a project's Settings) downloads."}, status_code=400)
+        except EOFError:
+            return JSONResponse({"detail": "This project archive is incomplete (the file ends early). Download the "
+                                           "export again and import the new file."}, status_code=400)
+        except tarfile.TarError as e:
             return bad(str(e))
 
     return await asyncio.to_thread(_restore)
