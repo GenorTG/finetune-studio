@@ -40,7 +40,7 @@ Step 2 of the project flow (alongside Smart Brain): teach a base model your data
 - `#past-runs-table` — all runs, with Details, Set production, Open in inference and Export.
 
 ## What to check
-Check that the run finished successfully and a merged model is present. Training loss measures fit to the training examples; it does not prove held-out quality. Test the model on held-out questions on the Testing page. With a tiny dataset make sure early stopping did not end the run before the planned steps. On out-of-memory the page shows "Out of GPU memory" with the knobs to lower (batch, max sequence).
+Check that the run finished successfully and a merged model is present. Training loss measures fit to the training examples; it does not prove held-out quality. Test the model on held-out questions on the Testing page. With a tiny dataset make sure early stopping did not end the run before the planned steps. Eval loss (`Eval every N steps`, early stopping, `best_eval_loss` in a run's metrics) is measured on the 10 % held-out rows. For fact Q&A datasets (pairs from your files) those rows often hold facts no training row teaches, so a rising eval loss is not a sign that recall is getting worse, and early stopping on the best eval loss can keep a worse model. Judge recall with a Testing run instead. Preference routes (DPO, KTO) report their own held-out accuracy and margin. On out-of-memory the page shows "Out of GPU memory" with the knobs to lower (batch, max sequence).
 
 ## Common mistakes
 Choosing Smoke and expecting recall (it only proves the plumbing); trusting epochs instead of optimizer steps (see training-settings); training while another heavy GPU job runs.
