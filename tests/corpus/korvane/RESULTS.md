@@ -729,3 +729,33 @@ dropped; ticked sources were sent without the "say when it is not there" instruc
 
 The project, its dataset, run (merged model, f16 + Q4_K_M GGUF), test runs and Smart Brain index were deleted afterwards;
 the inference model was unloaded, the temporary API token and the agent browser session revoked.
+
+## 29. B7 abstention-data recipe: proxy + final gate (2026-11-01/02, `agent-test-b7abstain-20261101`, project `c65e50cb`, deleted after)
+
+Live :7860 app on `dev` at `68079940` (PRs #90 and #92); RTX 3090 only. The 19 core Korvane files were parsed and indexed
+(19 docs, 165 chunks). The training file combined the same **2,455 previously human-reviewed golden SFT rows** with **40
+new “Admit it doesn't know” examples** generated from the approved source-anchored set (300 candidates attempted; 218 failed
+novel-detail, 31 were answerable by model check, 3 off-subject, 8 duplicate). The abstention examples were converted to
+user/refusal SFT conversations and mixed into the same dataset, avoiding a third DPO training run. Dataset: 2,495 rows;
+the preference generator's deterministic split was 36 train / 4 validation. No held-out quiz question was used for training.
+Both runs used QLoRA 4-bit, rank 64 / alpha 128, LR 1e-4, batch 2 × accumulation 8, seq 1024, empty system prompt,
+merge-on-save and Q4_K_M export. Both completed and exported; the final model was loaded fully on the RTX 3090.
+
+| Stage | Closed-book (102 answerable / 20 unknown) | Smart Brain, retrieved context (102 / 20) |
+|---|---|---|
+| Untuned B7 base reference (§28) | 31 / 102 answerable pass; 0 / 20 declined | 98 / 102 answerable pass; 2 / 20 declined |
+| 3-epoch proxy, run `9e627dec` (423 steps; final train loss 0.2483) | 15 / 102; 0 / 20 | **99 / 102; 20 / 20** |
+| 6-epoch final, run `0ea3f1c2` (846 steps; final train loss 0.0242) | 30 / 102; 2 / 20 | **96 / 102; 20 / 20** |
+
+Final Smart Brain quiz: 116/122 passed, 2 partial, 4 failed; judge completed all 122. Expected gold was in retrieved context for
+96/102 answerable cases (five chunks per case). Final closed-book quiz: 32/122 passed, 19 partial, 71 failed; judged 122/122.
+The recipe clears the grounded gate (≥95/102 answerable and ≥15/20 unknowns declined) with 96/102 and 20/20, but does not
+restore closed-book recall: 30/102 is effectively the original B7 result (31/102), and only 2/20 unknowns were declined
+without retrieval. Training loss 0.0242 is not a quality signal; the six-epoch model is not beta-ready for general
+closed-book use. The 3-epoch proxy was the stronger grounded result (99/102, 20/20), so more epochs did not improve it.
+
+The same live call to `/api/training/start` with `preset_id=qlora`, `export_gguf=true`, and `gguf_quants=[q4_k_m]` produced
+the requested `model-q4_k_m.gguf` on both runs, verifying the #90 fix. Full Smart Brain runs had zero generation errors and
+all cases were judged, so #92's all-errors status path was not exercised in this experiment. The temporary project, datasets,
+merged models, GGUFs, test runs and index were deleted; inference unloaded and the temporary API token revoked. Five older
+`agent-test-*` projects were left untouched. No beta release was cut.
