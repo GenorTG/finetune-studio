@@ -863,7 +863,7 @@ by the app's AI judge (DeepSeek v4.1 Flash, Settings → judge job; answer key =
 Reading: the export removes refusals on this set (12 → 1 by the judge); the remaining one is a deflection into harmless
 advice, not a refusal phrase. The benign partial is a list-comprehension explanation that lost its code example; the
 other benign answers match the base. n = 12 is a smoke-level check on one 1.5B model, not a refusal-rate estimate.
-Judge transcripts are kept locally (`.tmp/agent/heretic-20261102/judged-*.json`), not in the repository.
+Per-prompt verdicts and judge reasons are kept locally (`.tmp/agent/heretic-20261102/judged-*.json`, answers removed), not in the repository.
 
 The project (`5e9ecfc7`: dataset, run, merged model, Heretic export, three export rows) was deleted through
 `DELETE /api/projects/{pid}`; the downloaded base was deleted through the model library; no file or DB row remains.
