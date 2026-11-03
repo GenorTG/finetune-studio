@@ -11,6 +11,7 @@ job (SIGTERM); the job then exits without waiting for the hub call. Partial file
 """
 from __future__ import annotations
 
+import fnmatch
 import logging
 import sys
 import threading
@@ -173,23 +174,42 @@ def _refresh_registry() -> None:
 
 # ── job side ────────────────────────────────────────────────────────────
 
-def _hub_fetch(repo_id: str, filename: str, revision: str, dest: str) -> str:
-    """One file (``filename``) or the whole repo into ``dest``; returns the local path."""
+# Copies of the weights in formats the app never loads (it trains and runs safetensors, GGUF or PyTorch .bin). Hub repos
+# often carry them all: HuggingFaceTB/SmolLM2-135M-Instruct is 1.97 GB, of which the 269 MB safetensors is what is used.
+_UNUSED_FORMATS = ("onnx/*", "*.onnx", "*.onnx_data", "openvino/*", "*.msgpack", "*.h5", "*.tflite", "*.ot",
+                   "coreml/*", "*.mlmodel", "*.mlpackage/*", "runs/*")
+
+
+def skipped_files(names: list[str]) -> list[str]:
+    """The repo files a whole-repo download leaves out; none when the repo holds no weights the app can load."""
+    has_st = any(n.endswith(".safetensors") for n in names)
+    usable = has_st or any(n.endswith(".gguf") or fnmatch.fnmatch(n.rsplit("/", 1)[-1], "pytorch_model*.bin")
+                           for n in names)
+    if not usable:
+        return []                      # an ONNX-only repo: fetching just its config would be a useless download
+    skip = [n for n in names if any(fnmatch.fnmatch(n, pat) for pat in _UNUSED_FORMATS)]
+    if has_st:                         # the same weights twice: transformers loads the safetensors
+        skip += [n for n in names if fnmatch.fnmatch(n.rsplit("/", 1)[-1], "pytorch_model*.bin") and n not in skip]
+    return skip
+
+
+def _hub_fetch(repo_id: str, filename: str, revision: str, dest: str, skip: list[str] | None = None) -> str:
+    """One file (``filename``) or the whole repo (minus ``skip``) into ``dest``; returns the local path."""
     from huggingface_hub import hf_hub_download, snapshot_download
     if filename:
         return hf_hub_download(repo_id=repo_id, filename=filename, revision=revision, local_dir=dest)
-    return snapshot_download(repo_id=repo_id, revision=revision, local_dir=dest)
+    return snapshot_download(repo_id=repo_id, revision=revision, local_dir=dest, ignore_patterns=skip or None)
 
 
-def _remote_size(repo_id: str, filename: str, revision: str) -> int | None:
-    """Bytes the Hub reports for the file / every file of the repo; None when it does not say."""
+def _remote_files(repo_id: str, filename: str, revision: str) -> dict[str, int] | None:
+    """``{path: bytes}`` the Hub reports for the file / every file of the repo; None when it does not say."""
     try:
         from huggingface_hub import HfApi, get_hf_file_metadata, hf_hub_url
         if filename:
             size = get_hf_file_metadata(hf_hub_url(repo_id, filename, revision=revision)).size
-            return int(size) if size else None
+            return {filename: int(size)} if size else None
         info = HfApi().model_info(repo_id, revision=revision, files_metadata=True)
-        return sum(int(s.size or 0) for s in (info.siblings or [])) or None
+        return {s.rfilename: int(s.size or 0) for s in (info.siblings or [])} or None
     except Exception:                  # progress is a nicety; the download itself reports real failures
         log.debug("could not read the remote size of %s", repo_id, exc_info=True)
         return None
@@ -215,12 +235,16 @@ def run_in_job(params: dict[str, Any], stop: threading.Event) -> str:
     if not dl_db.start_if_queued(did):
         return "cancelled"                    # cancelled before the job got going
     dest.mkdir(parents=True, exist_ok=True)
-    total = _remote_size(repo_id, filename, revision)
+    files = _remote_files(repo_id, filename, revision)
+    skip = skipped_files(list(files)) if files and not filename else []
+    total = (sum(size for name, size in files.items() if name not in skip) or None) if files else None
+    if skip:
+        log.info("download %s of %s: skipping %d file(s) in formats the app does not load", did, repo_id, len(skip))
     outcome: dict[str, Any] = {}
 
     def fetch() -> None:
         try:
-            outcome["path"] = _hub_fetch(repo_id, filename, revision, str(dest))
+            outcome["path"] = _hub_fetch(repo_id, filename, revision, str(dest), skip)
         except BaseException as e:  # noqa: BLE001 - reported as the row's error below
             outcome["error"] = e
 

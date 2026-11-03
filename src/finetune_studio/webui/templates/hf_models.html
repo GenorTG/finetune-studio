@@ -196,7 +196,7 @@ function renderResults(results) {
         <div class="actions">
           <button class="btn sm primary" onclick="showInfo('${esc(repo)}', this)">View</button>
           <button class="btn sm" onclick="showFiles('${esc(repo)}', this)">Downloaded files</button>
-          <button class="btn sm" data-confirm="Download all files of ${esc(repo)}?" data-action="/api/hf/download" data-body='${JSON.stringify({repo_id: repo})}' data-method="POST" title="Download every file of this model to this machine">Download</button>
+          <button class="btn sm" data-confirm="Download ${esc(repo)}? Every file the app can use is fetched; copies in formats it never loads (ONNX, TensorFlow, Flax, a second PyTorch copy of safetensors weights) are skipped." data-action="/api/hf/download" data-body='${JSON.stringify({repo_id: repo})}' data-method="POST" title="Download this model to this machine (skips ONNX / TensorFlow / Flax copies it cannot use)">Download</button>
         </div>
       </div>`;
   }).join('');
@@ -304,7 +304,7 @@ async function showInfo(repo, btn) {
       <div class="text-xs dim">Last updated: ${esc(d.last_modified || 'unknown')}</div>
     `;
     document.getElementById('hf-modal-foot').innerHTML = `
-      <button class="btn primary" data-confirm="Download all files of ${esc(repo)}?" data-action="/api/hf/download" data-body='${JSON.stringify({repo_id: repo})}' data-method="POST">Download all files</button>
+      <button class="btn primary" data-confirm="Download ${esc(repo)}? Every file the app can use is fetched; copies in formats it never loads (ONNX, TensorFlow, Flax, a second PyTorch copy of safetensors weights) are skipped." data-action="/api/hf/download" data-body='${JSON.stringify({repo_id: repo})}' data-method="POST">Download the model</button>
       <button class="btn" onclick="showFiles('${esc(repo)}', null)">Downloaded files</button>
     `;
   } catch (e) {
