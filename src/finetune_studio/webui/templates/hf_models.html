@@ -339,5 +339,13 @@ async function showFiles(repo, btn) {
 // Initial load — results are never server-rendered; favorites first so stars render right.
 loadFavorites().then(doSearch);
 loadLocalModels();
+// A finished download appears in "Downloaded to this computer" without pressing Refresh. Registered once: SPA visits
+// re-run this script, and the listener only acts while this page's list is on screen.
+if (!window._hfDownloadListener) {
+  window._hfDownloadListener = true;
+  document.addEventListener('fts:task-finished', function (ev) {
+    if (ev.detail && ev.detail.kind === 'download' && document.getElementById('hf-local-refresh')) loadLocalModels();
+  });
+}
 </script>
 {% endblock %}

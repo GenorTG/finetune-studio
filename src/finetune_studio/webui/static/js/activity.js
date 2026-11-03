@@ -261,9 +261,21 @@
     return true;
   }
 
+  // A page that shows a task's result (Model Library's downloaded list) listens for "fts:task-finished" instead of
+  // polling: it fires once when a task seen running or queued reaches any other status.
+  const _wasActive = new Set();
+  function announceFinished(tasks) {
+    for (const t of tasks) {
+      const key = (t.kind || "") + ":" + (t.id || "");
+      if (t.status === "running" || t.status === "queued") { _wasActive.add(key); continue; }
+      if (_wasActive.delete(key)) document.dispatchEvent(new CustomEvent("fts:task-finished", { detail: t }));
+    }
+  }
+
   function applySnapshot(d) {
     if (!d || typeof d !== "object") return;
     lastTasks = d.tasks || [];
+    announceFinished(lastTasks);
     updateBadge(d.active_count || 0);
 
     // Keep the sub-label accurate even while the drawer is closed so the
