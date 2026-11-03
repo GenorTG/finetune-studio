@@ -361,6 +361,7 @@
   window.fts.subscribe("/api/activity/events", applySnapshot, {
     pollUrl: "/api/activity",
     fallbackMs: 5000,
+    persistent: true,   // the drawer lives for the whole document, across SPA navigation
   });
 
   // base.html filter <select onchange="activityApplyFilter()">

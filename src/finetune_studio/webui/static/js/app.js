@@ -177,7 +177,10 @@
    *
    * @param {string} url SSE endpoint
    * @param {(data: object) => void} onEvent called with parsed JSON payloads
-   * @param {{ pollUrl?: string, fallbackMs?: number, onError?: Function }} [opts]
+   * @param {{ pollUrl?: string, fallbackMs?: number, onError?: Function, persistent?: boolean }} [opts]
+   *   A stream belongs to the page that opened it and closes when the SPA leaves that page; ``persistent: true``
+   *   keeps it for the whole document (the activity drawer). A page's stream left open holds one of the browser's
+   *   six connections to the app: a few in-app visits to such a page used to stall every request of the tab.
    * @returns {() => void} unsubscribe / close
    */
   function subscribe(url, onEvent, opts) {
@@ -242,11 +245,13 @@
       startFallback();
     }
 
-    return function unsubscribe() {
+    function unsubscribe() {
       closed = true;
       closeEs();
       stopFallback();
-    };
+    }
+    if (!opts.persistent) document.addEventListener("fts:beforeNavigate", unsubscribe, { once: true });
+    return unsubscribe;
   }
 
   // ── Delegation: form data-api / button data-action / data-confirm ──
