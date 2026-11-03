@@ -20,7 +20,7 @@ The whole product from one page. Upload files, then either chain a trained model
 - `#wiz-quick` — the quick-start section.
 - `#wiz-step-train` — the training step card.
 - `#wiz-base-model` — base model for the quick run.
-- `#wiz-preset` — preset by model size (Nano, Standard, Large, QLoRA).
+- `#wiz-preset` — preset by model size (Nano, Standard, Large, QLoRA). It follows the base model you pick (Nano up to 2B, Standard up to 10B, Large above) until you choose a preset yourself.
 - `#wiz-epochs` — epochs override (empty = the preset's own).
 - `#wiz-run-all` — run every step in order.
 - `#wiz-version-parent` — the earlier version a new one builds on.

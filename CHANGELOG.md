@@ -13,6 +13,7 @@ turns that section into the release's notes.
 
 
 ### Fixed
+- Quick work: **Preset by model size** now follows the base model you pick (Nano up to 2B, Standard up to 10B, Large above) and says so in the log, until you choose a preset yourself. It stayed on Standard (3B–9B) when you picked a 0.6B model.
 - Model pickers (Inference, Quick work, Training): exports of different training runs that share a project, base and format no longer show the same label; a repeated name now ends with its run (for example `· run a8efac7e`), so you can tell which one you load or train on. Unique names stay as they were.
 - Benchmarks (and every other form that sends its request on Submit): the button now shows that the request is running ("Running the benchmark…") and cannot be pressed again until it answers. A benchmark answers every question before it returns, so the page used to look idle for the whole run, and a second click started the same run again.
 - Heretic: the app now installs the Heretic v2.0.0 release (it pinned a 2.0 development commit; Settings → Heretic → Install updates it). v2.0.0 crashed on the GPU in its first trial ("illegal memory access"); the app runs it in a mode that avoids that. A finished Heretic export now shows which trial it kept, its refusal rate on Heretic's test prompts and its KL drift (Export page and `fts export status`), instead of only "done".

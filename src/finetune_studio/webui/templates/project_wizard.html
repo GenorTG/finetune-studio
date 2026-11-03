@@ -106,7 +106,7 @@
         <select id="wiz-base-model" aria-label="Base model" class="select" {% if not models %}disabled{% endif %}>
           {% if models %}
             {% for model in models %}
-            <option value="{{ model.path }}" {% if model.path == project.base_model %}selected{% endif %}>{{ model.name }} ({{ model.format }}, {{ model.size_gb }} GB)</option>
+            <option value="{{ model.path }}" data-size-gb="{{ model.size_gb }}" {% if model.path == project.base_model %}selected{% endif %}>{{ model.name }} ({{ model.format }}, {{ model.size_gb }} GB)</option>
             {% endfor %}
           {% else %}
             <option value="" selected disabled>No trainable base models found — put one in the models folder</option>
@@ -1022,8 +1022,36 @@
       if (p.id === "standard") o.selected = true;
       sel.appendChild(o);
     });
+    wizMatchPreset(false);
     wizUpdateStepsHint();
   }).catch(function () { /* keep the static default */ });
+
+  // "Preset by model size": follow the base model until the user picks a preset themselves. The size comes from the
+  // name ("Qwen3-0.6B") or, failing that, the bf16 weights (about 2 GB per billion parameters).
+  var wizPresetPicked = false;
+  function wizModelBillions(opt) {
+    var m = /(\d+(?:\.\d+)?)\s*[bB](?![a-zA-Z])/.exec(opt.textContent || "");
+    if (m) return Number(m[1]);
+    var gb = Number(opt.getAttribute("data-size-gb"));
+    return gb > 0 ? gb / 2 : 0;
+  }
+  function wizMatchPreset(announce) {
+    var modelEl = document.getElementById("wiz-base-model"), sel = document.getElementById("wiz-preset");
+    if (wizPresetPicked || !modelEl || !sel) return;
+    var opt = modelEl.options[modelEl.selectedIndex];
+    var b = opt ? wizModelBillions(opt) : 0;
+    if (!b) return;
+    var want = b <= 2 ? "nano-fast" : (b <= 10 ? "standard" : "large");
+    if (!wizPresets[want] || sel.value === want) return;
+    sel.value = want;
+    wizUpdateStepsHint();
+    if (announce) line("Preset set to " + (wizPresets[want].name || want) + " for a " + b + "B model (pick another any time).");
+  }
+  (function wirePresetMatch() {
+    var modelEl = document.getElementById("wiz-base-model"), sel = document.getElementById("wiz-preset");
+    if (modelEl) modelEl.addEventListener("change", function () { wizMatchPreset(true); });
+    if (sel) sel.addEventListener("change", function () { wizPresetPicked = true; });
+  })();
 
   function pinVersion(formId, labelId, fallback) {
     var label = (document.getElementById(labelId) || {}).value || "";
