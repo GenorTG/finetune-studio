@@ -13,7 +13,6 @@ turns that section into the release's notes.
 
 
 ### Fixed
-- Quick work: **Preset by model size** now follows the base model you pick (Nano up to 2B, Standard up to 10B, Large above) and says so in the log, until you choose a preset yourself. It stayed on Standard (3B–9B) when you picked a 0.6B model.
 - Model pickers (Inference, Quick work, Training): exports of different training runs that share a project, base and format no longer show the same label; a repeated name now ends with its run (for example `· run a8efac7e`), so you can tell which one you load or train on. Unique names stay as they were.
 - Benchmarks (and every other form that sends its request on Submit): the button now shows that the request is running ("Running the benchmark…") and cannot be pressed again until it answers. A benchmark answers every question before it returns, so the page used to look idle for the whole run, and a second click started the same run again.
 - Heretic: the app now installs the Heretic v2.0.0 release (it pinned a 2.0 development commit; Settings → Heretic → Install updates it). v2.0.0 crashed on the GPU in its first trial ("illegal memory access"); the app runs it in a mode that avoids that. A finished Heretic export now shows which trial it kept, its refusal rate on Heretic's test prompts and its KL drift (Export page and `fts export status`), instead of only "done".
@@ -25,6 +24,7 @@ turns that section into the release's notes.
 - Pairs: when some files still have open data points, Export approved no longer says "Exporting…" while it asks whether to export anyway; it says nothing was exported yet, then reports the export or the cancel.
 - Training: next to **Eval every N steps** and in a run's details the page now says that, for fact Q&A datasets, eval loss is not a recall signal (the held-out rows often hold facts no training row teaches) and that early stopping on the best eval loss can keep a worse model; judge recall with Testing. Not shown for the preference routes (DPO, KTO).
 - Smart Brain chat: **Answer with** now always starts on the local model. It no longer switches to the AI assistant's API connection on its own when no model is loaded (that sent your question and the retrieved passages to the provider without you choosing it); the page instead says to load a model in Inference or pick the AI assistant, which stays available as a deliberate choice.
+- Quick work: **Preset by model size** now follows the base model you pick (Nano up to 2B, Standard up to 10B, Large above) and says so in the log, until you choose a preset yourself. It stayed on Standard (3B–9B) when you picked a 0.6B model.
 - Testing: a run whose every generation fails now ends as failed and skips auto-judging; partial runs still preserve and judge successful answers.
 - Training API: GGUF export and selected quantizations now survive preset-based starts; previously the preset path silently dropped both options.
 - Smart Brain: an XML element, JSON object or YAML list item that fits one passage is no longer cut between two passages (the same record rule Files & Knowledge passages use); it applies from the next Smart Brain build.
