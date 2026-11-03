@@ -902,3 +902,37 @@ a value of the open item no kept answer states), one Generate pairs pass on the 
 Cleanup: both Quick work projects deleted through the UI / CLI; the benchmark results and the two comparison test runs
 created on `agent-test-quillmoor-s` deleted through the UI; both SmolLM2 downloads deleted through the Model Library
 (and their empty global-cache stubs); no model left loaded.
+
+## 33. Core mine after the fix-round change, and the "slow" run delete (2026-11-03, `agent-test-mine-20261103`, project `2ead67e6`, deleted after)
+
+**Core-tier mine on `dev` (#110 included).** Same driver and scoring as §18/§19 (`.tmp/mine_core.py`, 19 core files, the
+configured API helper, concurrency as set; `scripts/corpus_coverage.py --tier core --status any`; open items by
+`item_states`, `.tmp/open_items2.py`). One run.
+
+| Run | Wall time | Helper calls | Data points | Pairs | Manifest recall | Open items | Pairs matching no fact |
+|---|---|---|---|---|---|---|---|
+| §18 v3 / v3b | 6.2 / 4.8 min | 534 / 516 | 3,302 / 3,191 | 3,592 / 3,189 | 96.4 / 96.3 % | 58 / 49 | 617 / 350 |
+| §19 v4a / v4b / v4c / v4d | — | 543 / 508 / 518 / 514 | — | 3,405 / 3,270 / 3,455 / 3,253 | 96.7 / 97.5 / 96.9 / 97.1 % | 48 / 38 / 48 / 64 | — |
+| **2026-11-03** | **3.3 min** | **529** | **3,492** | **3,756** | **1,107 / 1,130 = 98.0 %** | **30** | **677** |
+
+Open items by origin: 12 rule, 10 whole-file, 8 helper; 8 of the 30 are in the handbook extract. No job failed (6 files
+`done`, 13 `gaps`). Reading: the lowest open count and a strict recall above every earlier core run (v4b's 97.5 % used the old,
+up to ~0.2-point-high matching rule), but a single run against a 38-64 run-to-run swing, and two weeks of mining changes lie between §19 and this run, so the drop is not
+attributable to #110 alone. Pairs matching no fact went up (677): more pairs, not checked for noise here.
+
+**The ~30 s Testing delete (HANDOFF item from §32).** Not the database: the access log shows the DELETE answered in
+75 ms. The page's own requests had waited ~27 s in the browser for a free connection. `fts.subscribe` streams stayed
+open until their caller closed them and the Testing page never did, so each in-app (SPA) visit to Testing left one
+`/api/testing/events` connection open; with the activity stream, three visits took all six of Chrome's connections to the
+app and every request of the tab queued until a stream ended (reproduced live: the tab froze on the third
+Testing ↔ Compare round trip). Fixed in #118: page streams close on `fts:beforeNavigate`, only the activity drawer is
+`persistent`. Re-checked live: 13 round trips, each Testing stream closed ~1.2 s after leaving, the next request
+answered in 26 ms. Test: `tests/test_sse_subscribe_lifecycle.py` (runs the real `subscribe` in Node; red before).
+
+Also merged today: #116 (Compare: delete a saved comparison; live: Delete disabled while answering, API 409, confirm
+dialog, rows and verdicts gone, other groups kept) and #117 (Activity: "Start HF download · <repo>" instead of a
+second look-alike download row; a model delete is "Delete downloaded model <repo>"; Compare requests are testing work
+under their project; live: SmolLM2-135M download + delete, drawer checked).
+
+Cleanup: comparison `cd5f0159` deleted through the new UI; SmolLM2-135M downloaded and deleted again; mining project
+`2ead67e6` deleted; API token `agent-mine-20261103` revoked; no model left loaded.
