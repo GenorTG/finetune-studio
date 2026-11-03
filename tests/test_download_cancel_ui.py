@@ -22,7 +22,7 @@ def test_activity_js_offers_cancel_for_running_downloads_only() -> None:
 
 def test_base_template_loads_the_new_activity_js_and_filters_cancelled() -> None:
     base = (_WEB / "templates" / "base.html").read_text(encoding="utf-8")
-    assert "activity.js?v=19" in base
+    assert "activity.js?v=20" in base
     assert '<option value="cancelled">Cancelled</option>' in base
 
 
