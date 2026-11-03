@@ -414,7 +414,8 @@ class MiningJob:
                 messages = prompts.fix_messages(self.title, ch.prompt, [item_prompt_text(it) for it in todo],
                                                 rejected.get(ch.idx, []), ch.context)
                 skipped = self._pairs_round("fix", ch, messages, [it["id"] for it in todo], seen,
-                                            only_values=_values_of(todo, ch))
+                                            only_values=_values_of(todo, ch),
+                                            need_values=[v for it in todo for v in it.get("values") or []])
                 proposed.update(skipped)
 
             before = len(proposed)
@@ -431,11 +432,14 @@ class MiningJob:
     # ── helpers ─────────────────────────────────────────────────────────────────────────────────────────────────
 
     def _pairs_round(self, kind: str, ch: Chunk, messages: list[dict[str, str]], item_ids: list[str],
-                     seen: set[str], only_values: list[str] | None = None) -> list[str]:
+                     seen: set[str], only_values: list[str] | None = None,
+                     need_values: list[str] | None = None) -> list[str]:
         """Write the reply's valid pairs; in a fix round also record its skips as proposals. Returns the proposed item ids.
 
         ``only_values``: keep only pairs whose answer states one of them (a joined passage: the helper also wrote pairs for
-        every other fact it saw, ~10 per call, restating chunks that were mined already)."""
+        every other fact it saw, ~10 per call, restating chunks that were mined already).
+        ``need_values``: the values of the open items a fix round asks for; a pair stating one that no kept answer states
+        yet is never dropped as redundant."""
         from finetune_studio import db
         from finetune_studio.data.fs import qa as qa_fs
 
@@ -450,6 +454,18 @@ class MiningJob:
                         if only_values is None or any(loosely_contains(v, p.answer) for v in only_values)]
             keep = drop_redundant([{"q": p.question, "a": p.answer} for p in accepted], existing)
             wanted = {(k["q"], k["a"]) for k in keep}
+            if need_values:
+                # Redundancy compares distinctive tokens (names, numbers). "The lamp flashes green twice every twelve
+                # seconds" reduces to the document's subject alone, like every pair about it, so each fix round dropped
+                # the very pairs that state the open item and the file stayed in gaps for good.
+                stated = [e["a"] for e in existing] + [a for _q, a in wanted]
+                for pv in accepted:
+                    if (pv.question, pv.answer) in wanted:
+                        continue
+                    if any(loosely_contains(v, pv.answer) and not any(loosely_contains(v, a) for a in stated)
+                           for v in need_values):
+                        wanted.add((pv.question, pv.answer))
+                        stated.append(pv.answer)
             now = time.time()
             for pv in accepted:
                 if (pv.question, pv.answer) not in wanted:
