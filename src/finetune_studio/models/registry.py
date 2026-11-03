@@ -400,4 +400,19 @@ def scan_models(directories: list) -> list:
                     category=cat, project_id=proj_id, run_id=run_id,
                 ))
                 dirs.clear()
+    return _disambiguate_run_names(models)
+
+
+def _disambiguate_run_names(models: list) -> list:
+    """Tag exports whose readable name repeats with their run id, so a picker never offers two identical labels.
+
+    Two unpinned runs of one project on one base both read ``<project> · <base> · merged``; only the run tells them
+    apart. Unique names stay clean (the loaded-model label never shows a hash).
+    """
+    counts: dict[str, int] = {}
+    for m in models:
+        counts[m.name] = counts.get(m.name, 0) + 1
+    for m in models:
+        if counts[m.name] > 1 and m.run_id:
+            m.name = f"{m.name} · run {m.run_id[:8]}"
     return models
