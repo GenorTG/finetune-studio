@@ -867,3 +867,38 @@ Per-prompt verdicts and judge reasons are kept locally (`.tmp/agent/heretic-2026
 
 The project (`5e9ecfc7`: dataset, run, merged model, Heretic export, three export rows) was deleted through
 `DELETE /api/projects/{pid}`; the downloaded base was deleted through the model library; no file or DB row remains.
+
+## 32. B3 GPU controls through the UI (2026-11-03, `agent-test-quillmoor-s` + `agent-test-quickwork-*`, the latter deleted after)
+
+Question: do the GPU-using controls the beta work order still listed as unclicked (Inference load / chat / unload,
+Benchmarks run, Compare run + judge, Model Library download + delete, Quick work Run all) work and give feedback when
+driven in a real browser on the live :7860 app (RTX 3090 only)?
+
+| Control | Result |
+|---|---|
+| Inference: Load `Qwen/Qwen3-0.6B`, Send, Unload (in-app confirm) | Loaded, answered "Paris" in 0.3 s, unloaded; RTX 3090 back to its 1.5 GB baseline. |
+| Benchmarks: RUN, MMLU smoke (6 cases) on run `a8efac7e` (Llama-3.2-3B merged) | 2/6 strict letter match (8 s); per-case table, verdict override, Delete this result all worked. |
+| Compare: base Qwen3.5-0.8B vs Qwen3-0.6B, local 5-case suite, then Judge all (DeepSeek v4.1 Flash) | 5/5 and 4/5 (Qwen3-0.6B answered "2" to 2 + 2); live queued → answering → done, judge reasons per answer. |
+| Model Library: search, Download `unsloth/SmolLM2-135M-Instruct`, Delete | Downloaded 262 MB, listed after Refresh, deleted; app folder gone. |
+| Quick work: Run steps 2-5 on one synthetic 12-fact file, Qwen3-0.6B, Nano — Fast | Mining 10 pairs, then stopped at the export gate (2 points open); forced export → 11 rows → 6-step train (loss 1.333, 30 s) → test answered 11/11, saved unjudged (auto-judge off). |
+
+Bugs found and fixed (PRs into `dev`): identical labels for different runs' exports in the model pickers (#106); a
+form-submitted request (Benchmarks RUN) showed no progress and could be started twice (#107); a typed Model Library
+search was replaced by the slower page-load search, the status always said "0ms", and the Hub calls ran on the web
+event loop (#108); Quick start never filled open data points before the export gate (#109); **the miner dropped every
+fix-round pair for a data point whose answer holds no number or new name** (#110, below); a whole-repo download pulled
+ONNX/TF/Flax copies — SmolLM2-135M-Instruct 1.97 GB → 261 MB after the fix (#111); the size preset ignored the chosen
+model (#112); native `confirm()` on three actions (#113); the downloaded list needed Refresh after a download (#114).
+
+**Mining fix-round redundancy (#110).** File: 12 facts about a fictional lighthouse. The point "The lamp flashes green
+twice every twelve seconds … 'the Tidewell double'" stayed open through every fill. The helper's fix reply held four
+correct pairs (round `dd1c5ffd7355cd4b`: parsed 4, accepted 0): `drop_redundant` keeps at most two pairs per set of
+distinctive tokens, and each answer reduced to `{tidewell, lighthouse}` — a subset of ten existing pairs — because
+colour words, "twice" and "twelve seconds" are not distinctive tokens. With the fix (a fix round keeps a pair that states
+a value of the open item no kept answer states), one Generate pairs pass on the same project closed it: file `done`,
+17/17 pairs approved, 3 lamp pairs added. Regression test: `tests/test_mining.py::test_a_fix_round_keeps_the_pair_for_an_open_item_whose_tokens_repeat_the_subject`
+(red before, green after).
+
+Cleanup: both Quick work projects deleted through the UI / CLI; the benchmark results and the two comparison test runs
+created on `agent-test-quillmoor-s` deleted through the UI; both SmolLM2 downloads deleted through the Model Library
+(and their empty global-cache stubs); no model left loaded.
