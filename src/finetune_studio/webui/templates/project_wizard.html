@@ -75,11 +75,11 @@
     <div class="card-head"><div>
       <div class="card-title">Step 3 · Build the dataset</div>
       <div class="card-sub text-dim">
-        Turns the approved pairs into one training-ready dataset file.
-        Uncovered passages are filled with extractive pairs first, so the
-        dataset covers every source. Extractive pairs are text fragments from
-        your files, not written Q&amp;A — generate pairs with the AI assistant
-        (step 2) for a better dataset, and for a quiz that makes sense.
+        Turns the approved pairs into one training-ready dataset file. Every
+        data point of every file has to be stated by an approved pair (or
+        excluded) first. Quick start asks the assistant to fill points that are
+        still open; if some stay open it stops here and offers to export the
+        approved pairs anyway or to finish them on the pairs page.
       </div>
     </div><span class="pill outline" id="wiz-dataset-pill">…</span></div>
     <div class="text-sm" id="wiz-dataset-sub">checking…</div>
@@ -980,10 +980,29 @@
     } finally { setBusy(false); }
   };
 
+  var MAX_FILL_PASSES = 2;
+  // Open data points of the files mining left with gaps (the dataset export refuses those files).
+  async function wizOpenPoints() {
+    var srcs = await api("/api/projects/" + PID + "/data-prep/sources");
+    var gaps = (srcs.sources || []).filter(function (s) { return s.mining && s.mining.status === "gaps"; });
+    var points = gaps.reduce(function (n, s) { return n + (Number((s.mining.counts || {}).open) || 0); }, 0);
+    return {files: gaps.length, points: points};
+  }
+
   window.wizRunAll = async function () {
     if (busy) return;
     line("Quick start: running steps 2-5 in order…");
     if (!await wizGenerate()) return;
+    // Mining can leave data points open, which blocks the dataset export. Each gap-filling pass asks the assistant
+    // to write pairs for what is still open: repeat while a pass closes something, at most MAX_FILL_PASSES times.
+    var lastOpen = Infinity;
+    for (var pass = 1; pass <= MAX_FILL_PASSES; pass++) {
+      var open = await wizOpenPoints();
+      if (!open.points || open.points >= lastOpen) break;
+      lastOpen = open.points;
+      line("Quick start: " + open.points + " data point(s) still open in " + open.files + " file(s) — asking the assistant to fill them (pass " + pass + " of " + MAX_FILL_PASSES + ")…");
+      if (!await wizGenerate()) return;
+    }
     if (!await wizExport()) return;
 
     var epochsEl = document.getElementById("wiz-epochs");
