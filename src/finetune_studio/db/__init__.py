@@ -38,6 +38,7 @@ from finetune_studio.db.activity_events import record as record_activity_event
 from finetune_studio.db.benchmarks import (
     create_benchmark,
     create_case,
+    delete_benchmark,
     get_benchmark,
     get_case,
     list_benchmarks,
@@ -253,6 +254,7 @@ __all__ = [
     "create_version",
     "cursor",
     "datasets_dir",
+    "delete_benchmark",
     "delete_brain_index",
     "delete_dataset",
     "delete_project",

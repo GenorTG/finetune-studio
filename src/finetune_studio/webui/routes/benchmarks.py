@@ -560,9 +560,8 @@ async def delete_benchmark(pid: str, bid: str) -> dict[str, bool] | JSONResponse
     benchmark = _benchmark_for_project(bid, pid)
     if isinstance(benchmark, JSONResponse):
         return benchmark
-    with db.cursor() as c:
-        c.execute("DELETE FROM benchmark_cases WHERE benchmark_id = ?", (bid,))
-        c.execute("DELETE FROM benchmark_runs WHERE id = ?", (bid,))
+    # Off the event loop: a write waits up to BUSY_TIMEOUT_S for another writer (a running judge job).
+    await asyncio.to_thread(db.delete_benchmark, bid)
     return {"ok": True}
 
 

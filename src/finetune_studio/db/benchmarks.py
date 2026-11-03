@@ -83,6 +83,14 @@ def get_benchmark(bid: str) -> dict | None:
     return _get(bid)
 
 
+def delete_benchmark(bid: str) -> bool:
+    """Delete one test run with its cases and judgements in one transaction. False when the row did not exist."""
+    with cursor() as c:
+        c.execute("DELETE FROM case_judgements WHERE benchmark_id = ?", (bid,))
+        c.execute("DELETE FROM benchmark_cases WHERE benchmark_id = ?", (bid,))
+        return c.execute("DELETE FROM benchmark_runs WHERE id = ?", (bid,)).rowcount > 0
+
+
 def update_benchmark(bid: str, **fields: Any) -> None:
     """Partial update of a run row (status, progress, judge job state ...). Unknown columns are an error."""
     if not fields:

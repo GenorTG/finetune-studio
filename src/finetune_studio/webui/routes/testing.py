@@ -386,14 +386,7 @@ async def delete_test_run(pid: str, bid: str):
     _run_for_project(pid, bid)
     if testing_jobs.is_active(bid):
         return JSONResponse({"detail": "stop the running job first"}, status_code=409)
-
-    def drop() -> None:
-        with db.cursor() as c:
-            c.execute("DELETE FROM case_judgements WHERE benchmark_id = ?", (bid,))
-            c.execute("DELETE FROM benchmark_cases WHERE benchmark_id = ?", (bid,))
-            c.execute("DELETE FROM benchmark_runs WHERE id = ?", (bid,))
-
-    await asyncio.to_thread(drop)
+    await asyncio.to_thread(db.delete_benchmark, bid)
     return {"ok": True}
 
 

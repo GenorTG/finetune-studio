@@ -123,6 +123,7 @@ turns that section into the release's notes.
   inside the job with a tokenizer error.
 
 ### Added
+- Compare: a saved comparison can now be deleted from its row under **Saved comparisons** (it asks first; every model's answers and verdicts in it go). Before, each model's run had to be deleted one by one on the Testing page.
 - CLI: `fts export` start/list/status/cancel commands using the Export page's shared validation and supervised jobs.
 - CLI: `fts usecases` template/build/list/show/delete/evaluate/report/A-B commands using the Training page's shared dataset, suite, and evaluation services.
 - CLI: `fts assistant` connection and job-routing commands with encrypted key storage, hidden/file/stdin key input, and shared WebUI validation.
