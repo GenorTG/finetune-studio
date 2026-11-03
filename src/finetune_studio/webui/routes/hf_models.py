@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -225,20 +226,22 @@ async def hf_search(q: str = "", task: str = "text-generation",
                    library: str | None = None,
                    sort: str = "downloads", limit: int = Query(24, ge=1, le=100)):
     req = SearchRequest(query=q, task=task, library=library, sort=sort, limit=limit)
+    t0 = time.monotonic()
     try:
-        results = _search_hf(req)
+        # The Hub call is a network round trip (seconds): on the event loop it stalled every other request meanwhile.
+        results = await asyncio.to_thread(_search_hf, req)
     except HFUnavailableError as e:
         return JSONResponse(
             {"detail": f"Hugging Face Hub is unreachable right now: check your connection and retry ({str(e)[:200]})",
              "code": "hub_unreachable", "results": [], "task": task, "query": q},
             status_code=502,
         )
-    return {"results": results, "task": task, "query": q}
+    return {"results": results, "task": task, "query": q, "took_ms": round((time.monotonic() - t0) * 1000)}
 
 
 @router.get("/hf/info/{repo_id:path}")
 async def hf_info(repo_id: str):
-    info = _model_info(repo_id)
+    info = await asyncio.to_thread(_model_info, repo_id)
     if info is None:
         return JSONResponse({"detail": "model not found or fetch failed"}, status_code=404)
     return info
@@ -302,7 +305,7 @@ def restore_in_progress_downloads() -> int:
 @router.get("/hf/local")
 async def hf_local():
     """List models already downloaded into our local cache."""
-    return {"models": _local_models()}
+    return {"models": await asyncio.to_thread(_local_models)}
 
 
 @router.delete("/hf/local/{repo_id:path}")

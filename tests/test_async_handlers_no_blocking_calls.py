@@ -22,6 +22,7 @@ BLOCKING = {
     "convert_merged_to_gguf", "compute_imatrix", "run_group_subprocess",
     "unload_all_models", "release_brain_models", "snapshot_download", "hf_hub_download",
     "probe_export_capabilities", "heretic_tool.probe", "list_devices", "cd.list_devices", "cd.report",
+    "_search_hf", "_model_info", "_local_models",  # Hugging Face Hub round trips / a walk of every downloaded model
 }
 
 # Known offenders in files owned by another lane (provider routes); fix there, then drop the entry.
