@@ -78,10 +78,14 @@
 
 {% block scripts %}
 <script>
+// Only the newest search may draw: the page-load search (all models) can answer after the one the user typed and
+// replaced its results with the unfiltered list.
+var _hfSearchSeq = 0;
 async function doSearch() {
   // A pending typing hint must not replace the search result or failure.
   if (_hfTypingTimer) clearTimeout(_hfTypingTimer);
   _hfTypingTimer = null;
+  const seq = ++_hfSearchSeq;
   const q = document.getElementById('hf-q').value.trim();
   const task = document.getElementById('hf-task').value;
   const sort = document.getElementById('hf-sort').value;
@@ -93,11 +97,13 @@ async function doSearch() {
   try {
     const url = `/api/hf/search?q=${encodeURIComponent(q)}&task=${encodeURIComponent(task)}&sort=${encodeURIComponent(sort)}&limit=24`;
     const data = await fts.api.get(url);
+    if (seq !== _hfSearchSeq) return;
     renderResults(data.results || []);
     const n = data.results?.length || 0;
     const took = (data.took_ms || 0).toFixed(0);
     status.textContent = `${n} result${n === 1 ? '' : 's'} · ${took}ms`;
   } catch (e) {
+    if (seq !== _hfSearchSeq) return;
     status.textContent = '⚠ Search failed: ' + (e.message || e);
     console.error('HF search error:', e);
   }
