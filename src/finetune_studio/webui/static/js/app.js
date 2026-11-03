@@ -267,6 +267,22 @@
       form.dataset.ftsBound = "1";
       form.addEventListener("submit", (ev) => {
         ev.preventDefault();
+        // A request can run for minutes (a benchmark answers every question before it returns): show it is working and
+        // refuse a second submit, which would start the same job twice.
+        if (form.dataset.ftsBusy === "1") return;
+        const btn = ev.submitter || form.querySelector('[type="submit"]');
+        const btnHtml = btn ? btn.innerHTML : "";
+        form.dataset.ftsBusy = "1";
+        if (btn) {
+          btn.disabled = true;
+          const spin = document.createElement("span");
+          spin.className = "spinner";
+          btn.replaceChildren(spin, document.createTextNode(" " + (form.dataset.busy || "Working…")));
+        }
+        const done = () => {
+          delete form.dataset.ftsBusy;
+          if (btn && document.contains(btn)) { btn.disabled = false; btn.innerHTML = btnHtml; }
+        };
         const url = form.getAttribute("data-api");
         // If the form has file inputs, submit as multipart; otherwise JSON
         const hasFiles = form.querySelector('input[type="file"]');
@@ -282,7 +298,7 @@
             }
             else notify("Upload done", "success");
             if (form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
-          }).catch((err) => notify(err.message || "Upload failed", "error"));
+          }).catch((err) => notify(err.message || "Upload failed", "error")).finally(done);
         } else {
           const data = Object.fromEntries(new FormData(form));
           api.request(url, form.dataset.method || "POST", data).then((d) => {
@@ -290,7 +306,8 @@
             else notify("Done", "success");
             if (form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
           })
-          .catch((err) => notify(err.message || "Request failed", "error"));
+          .catch((err) => notify(err.message || "Request failed", "error"))
+          .finally(done);
         }
       });
     });
