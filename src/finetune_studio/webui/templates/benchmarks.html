@@ -103,7 +103,7 @@
         </td>
         <td class="bench-actions-cell">
           <form data-api="/api/benchmarks/projects/{{ pid }}/runs/{{ run.id }}/run"
-                data-reload="true" class="bench-run-form">
+                data-reload="true" class="bench-run-form" data-busy="Running the benchmark…">
             <input type="hidden" name="suite_name" value="{{ suites[0].name if suites else 'default' }}">
             <select name="suite_path" aria-label="Question suite" class="select bench-suite-select"
                     onchange="var o=this.options[this.selectedIndex]; this.form.elements.suite_name.value=o.getAttribute('data-name')||o.text; var r=this.form.querySelector('[name=num_samples]'); if(r){ r.style.display=(o.getAttribute('data-type')==='real')?'inline-block':'none'; }">
@@ -126,7 +126,7 @@
                     {% if not can_bench %}disabled title="Only completed runs with a trained model can be benchmarked"{% endif %}>RUN</button>
           </form>
           <form data-api="/api/benchmarks/projects/{{ pid }}/runs/{{ run.id }}/evaluate-training"
-                data-reload="true" class="bench-run-form"
+                data-reload="true" class="bench-run-form" data-busy="Evaluating…"
                 title="Evaluate on the project's approved training dataset (leakage / memorization check)">
             <button type="submit" class="btn sm"
                     {% if not can_bench %}disabled{% endif %}>Train-set eval</button>
@@ -141,7 +141,7 @@
         <td><span class="pill outline">base</span></td>
         <td class="bench-actions-cell">
           <form data-api="/api/benchmarks/projects/{{ pid }}/base/run"
-                data-reload="true" class="bench-run-form" id="bench-base-form">
+                data-reload="true" class="bench-run-form" id="bench-base-form" data-busy="Running the benchmark…">
             <input type="hidden" name="suite_name" value="{{ suites[0].name if suites else 'default' }}">
             <select name="suite_path" aria-label="Question suite" class="select bench-suite-select"
                     onchange="var o=this.options[this.selectedIndex]; this.form.elements.suite_name.value=o.getAttribute('data-name')||o.text; var r=this.form.querySelector('[name=num_samples]'); if(r){ r.style.display=(o.getAttribute('data-type')==='real')?'inline-block':'none'; }">
