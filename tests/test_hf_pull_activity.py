@@ -81,6 +81,18 @@ def test_hf_download_returns_job_id_and_appears_in_activity(client_db, monkeypat
     match = next(t for t in downloads if t.get("id") == job_id)
     assert match["status"] in ("done", "running", "queued")
     assert "TinyTest" in (match.get("project_name") or "")
+    # The request that started it is its own row, named as the request (not a second "HF download").
+    request_rows = [t for t in downloads if t.get("url") == "/api/hf/download"]
+    assert [t["message"] for t in request_rows] == ["Start HF download · Org/TinyTest"], downloads
+    assert [t for t in downloads if t.get("message") == "HF download"] == []
+
+
+def test_deleting_a_downloaded_model_is_logged_as_a_delete_not_a_download(client_db, monkeypatch):
+    client, _local = client_db
+    monkeypatch.setattr("finetune_studio.models.hf_cache.delete_cached_model", lambda repo_id: None)
+    assert client.delete("/api/hf/local/Org/Gone").status_code == 200
+    row = next(e for e in db.list_activity_events_recent(10) if e["path"] == "/api/hf/local/Org/Gone")
+    assert (row["kind"], row["message"]) == ("operation", "Delete downloaded model Org/Gone")
 
 
 def test_hf_download_completion_refreshes_registry(client_db, monkeypatch):
