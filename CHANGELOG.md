@@ -13,6 +13,7 @@ turns that section into the release's notes.
 
 
 ### Fixed
+- Activity: a model download no longer shows a second, look-alike "HF download" row; the request row now reads "Start HF download · <model>". Deleting a downloaded model is listed as "Delete downloaded model <model>" instead of as a download, and Compare's run, judge, stop and delete requests show under their project as testing work instead of untitled operations.
 - Model pickers (Inference, Quick work, Training): exports of different training runs that share a project, base and format no longer show the same label; a repeated name now ends with its run (for example `· run a8efac7e`), so you can tell which one you load or train on. Unique names stay as they were.
 - Benchmarks (and every other form that sends its request on Submit): the button now shows that the request is running ("Running the benchmark…") and cannot be pressed again until it answers. A benchmark answers every question before it returns, so the page used to look idle for the whole run, and a second click started the same run again.
 - Heretic: the app now installs the Heretic v2.0.0 release (it pinned a 2.0 development commit; Settings → Heretic → Install updates it). v2.0.0 crashed on the GPU in its first trial ("illegal memory access"); the app runs it in a mode that avoids that. A finished Heretic export now shows which trial it kept, its refusal rate on Heretic's test prompts and its KL drift (Export page and `fts export status`), instead of only "done".

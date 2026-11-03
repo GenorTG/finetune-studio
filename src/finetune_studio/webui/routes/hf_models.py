@@ -254,13 +254,14 @@ class DownloadRequest(BaseModel):
 
 
 @router.post("/hf/download")
-async def hf_download(req: DownloadRequest):
+async def hf_download(req: DownloadRequest, request: Request):
     """Start a download as its own job process (``webui.download_jobs``); return at once with its job_id.
     Track progress via /hf/download/progress?job_id=... A web restart does not end the download."""
     from finetune_studio.jobs import launch
     from finetune_studio.webui import download_jobs
     from finetune_studio.webui.errors import ApiError
 
+    request.state.activity_subject = req.repo_id + (f" ({req.filename})" if req.filename else "")
     dest = _local_dir(req.repo_id)  # reject traversal before queueing
     try:
         row = await asyncio.to_thread(download_jobs.start, repo_id=req.repo_id, filename=req.filename,

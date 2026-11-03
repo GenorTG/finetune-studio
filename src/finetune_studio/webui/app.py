@@ -217,7 +217,7 @@ def _activity_kind(path: str) -> str:
         return "brain_query"
     if "/upload" in p or "/promote" in p or p.endswith("/sources"):
         return "upload"
-    if "/testing/" in p or p.endswith("/testing"):
+    if "/testing/" in p or p.endswith("/testing") or p.startswith("/api/compare/"):
         return "testing"
     if "/benchmark" in p or "/run-suite" in p:
         return "benchmark"
@@ -225,7 +225,8 @@ def _activity_kind(path: str) -> str:
         return "export"
     if p.endswith("/start") and ("/runs" in p or "/training/" in p):
         return "training"
-    if p.startswith("/api/hf/"):
+    # Deleting a downloaded model is not a download: it falls through to "operation".
+    if p.startswith("/api/hf/") and not p.startswith("/api/hf/local/"):
         return "download"
     if "/chat" in p and "/data-prep" in p:
         return "data_prep"
@@ -338,8 +339,22 @@ def _activity_summary(path: str, method: str, http_status: int = 200, error_deta
             return "Load model"
         if "/unload" in path:
             return "Unload model"
-        if "/download/start" in path or path.startswith("/api/hf/"):
-            return "HF download"
+        if path.startswith("/api/compare/"):
+            if path.endswith("/runs"):
+                return "Run comparison"
+            if path.endswith("/judge"):
+                return "Judge comparison"
+            if path.endswith("/cancel"):
+                return "Stop comparison"
+            if method.upper() == "DELETE":
+                return "Delete comparison"
+        # The download itself has its own Activity row (hf_downloads); this one is the request that started it.
+        if path == "/api/hf/download/cancel":
+            return "Cancel HF download"
+        if path in ("/api/hf/download", "/api/hf/download/start"):
+            return "Start HF download"
+        if path.startswith("/api/hf/local/") and method.upper() == "DELETE":
+            return "Delete downloaded model " + path.removeprefix("/api/hf/local/")
         if method.upper() == "POST" and path.rstrip("/") == "/api/projects":
             return "Create project"
         verb = {
@@ -356,7 +371,19 @@ def _record_activity_event(request: Request, started: float, http_status: int, e
     try:
         parts = request.url.path.strip("/").split("/")
         project_id = parts[2] if len(parts) > 2 and parts[:2] == ["api", "projects"] else ""
+        if not project_id and len(parts) > 3 and parts[:2] == ["api", "compare"] and parts[2] == "projects":
+            project_id = parts[3]
         status = "done" if http_status < 400 else "error"
+        message = _activity_summary(
+            request.url.path,
+            request.method,
+            http_status,
+            error_detail or getattr(request.state, "activity_error", ""),
+        )
+        # A route may name what the request acted on when the path does not say it (the repo of a download).
+        subject = str(getattr(request.state, "activity_subject", "") or "")
+        if subject and http_status < 400:
+            message = f"{message} · {subject}"
         db.record_activity_event(
             kind=_activity_kind(request.url.path),
             operation=request.url.path,
@@ -365,12 +392,7 @@ def _record_activity_event(request: Request, started: float, http_status: int, e
             project_id=project_id,
             status=status,
             http_status=http_status,
-            message=_activity_summary(
-                request.url.path,
-                request.method,
-                http_status,
-                error_detail or getattr(request.state, "activity_error", ""),
-            ),
+            message=message,
             started_at=started,
             finished_at=time.time(),
         )
