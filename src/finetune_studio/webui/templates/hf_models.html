@@ -237,7 +237,8 @@ async function loadLocalModels() {
 }
 
 async function deleteLocalModel(repo) {
-  if (!confirm(`Delete downloaded model ${repo} and all its local files? This cannot be undone.`)) return;
+  if (!await fts.confirm(`Delete downloaded model ${repo} and all its local files? This cannot be undone.`,
+                         {title: 'Delete model', danger: true, okText: 'Delete'})) return;
   const status = document.getElementById('hf-local-status');
   status.textContent = `Deleting ${repo}…`;
   try {

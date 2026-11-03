@@ -794,8 +794,9 @@
   $('t-auto-judge').addEventListener('change', saveJudgeDefaults);
   $('t-judge-provider').addEventListener('change', saveJudgeDefaults);
   $('rv-judge-new').addEventListener('click', function() { startJudge(true); });
-  $('rv-judge-all').addEventListener('click', function() {
-    if (confirm('Ask this judge about every answer again? Your own verdicts stay in force; earlier AI opinions are kept for comparison.')) startJudge(false);
+  $('rv-judge-all').addEventListener('click', async function() {
+    if (await fts.confirm('Ask this judge about every answer again? Your own verdicts stay in force; earlier AI opinions are kept for comparison.',
+                          {title: 'Judge every answer again', okText: 'Judge again'})) startJudge(false);
   });
   $('rv-provider').addEventListener('change', function() { renderControls(S.run || {}); });
   $('rv-stop').addEventListener('click', async function() {
@@ -808,7 +809,8 @@
     catch (e) { notify(e.message, 'error'); }
   });
   $('rv-delete').addEventListener('click', async function() {
-    if (!confirm('Delete this run with all its saved answers and judgements?')) return;
+    if (!await fts.confirm('Delete this run with all its saved answers and judgements? This cannot be undone.',
+                           {title: 'Delete run', danger: true, okText: 'Delete'})) return;
     try { await jreq('DELETE', BASE + '/runs/' + S.cur); S.cur = ''; $('t-run-detail').hidden = true; refresh(true); }
     catch (e) { notify(e.message, 'error'); }
   });
