@@ -180,6 +180,7 @@ def _controls() -> dict[str, Control]:
         ("compare.run", "compare", "#cp-run-btn", "Run comparison"),
         ("compare.judge", "compare", "#cp-judge-btn", "Judge all answers"),
         ("compare.cases", "compare", "#cp-cases", "Answers side by side"),
+        ("compare.groups", "compare", "#cp-groups", "Saved comparisons"),
         # benchmarks
         ("benchmarks.run_latest", "benchmarks", "#bench-run-latest", "Run a new benchmark"),
         ("benchmarks.base_row", "benchmarks", "#bench-base-row", "Base-model benchmark row"),

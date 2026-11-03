@@ -271,6 +271,48 @@ def test_group_cancel_route_and_busy_gpu(
     assert len(session.list_groups(pid)) == 1  # the refused request left no rows behind
 
 
+def test_deleting_a_group_drops_every_models_run_with_its_answers_and_verdicts_only(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, _isolated: dict[str, object],
+) -> None:
+    pid = _project(client)
+    _engine(monkeypatch, _isolated)
+    install_judge(monkeypatch)
+    gone = _start(client, pid, _suite(tmp_path, 2))["group_id"]
+    _finished(client, pid, gone)
+    assert client.post(f"{API}/{pid}/groups/{gone}/judge", json={}).status_code == 202
+    view = _finished(client, pid, gone, judge=True)
+    bids = [m["benchmark_id"] for m in view["models"]]
+    assert all(jdb.list_judgements(benchmark_id=b) for b in bids)  # there is something to delete
+    kept = _start(client, pid, _suite(tmp_path, 1))["group_id"]
+    _finished(client, pid, kept)
+
+    with monkeypatch.context() as mp:
+        mp.setattr(testing_jobs, "is_active", lambda bid: bid == bids[1])  # one model of it still running
+        r = client.delete(f"{API}/{pid}/groups/{gone}")
+        assert r.status_code == 409 and "stop" in r.json()["detail"]
+    assert all(db.get_benchmark(b) for b in bids)  # a refused delete deletes nothing
+
+    r = client.delete(f"{API}/{pid}/groups/{gone}")
+    assert r.status_code == 200, r.text
+    assert r.json() == {"ok": True, "deleted": 2}
+    for b in bids:
+        assert db.get_benchmark(b) is None and db.list_cases(b) == [] and jdb.list_judgements(benchmark_id=b) == []
+    assert [g["group_id"] for g in session.list_groups(pid)] == [kept]  # the other comparison is untouched
+    assert client.get(f"{API}/{pid}/groups/{gone}").status_code == 404
+    assert client.delete(f"{API}/{pid}/groups/{gone}").status_code == 404
+    assert client.delete(f"{API}/nope/groups/{kept}").status_code == 404
+
+
+def test_saved_comparisons_rows_offer_a_confirmed_delete_that_calls_the_group_route() -> None:
+    html = (Path(__file__).resolve().parent.parent / "src" / "finetune_studio" / "webui" / "templates"
+            / "project_compare.html").read_text(encoding="utf-8")
+    assert 'data-delete="' in html and "removeGroup(b)" in html
+    assert "jreq('DELETE', API + '/groups/' + encodeURIComponent(gid))" in html
+    assert "window.fts.confirm(" in html and "confirm('" not in html.replace("fts.confirm('", "")
+    assert "(busy ? ' disabled" in html  # a running comparison cannot be deleted from the page either
+    assert "$('cp-view-card').hidden = true" in html  # deleting the open comparison closes its view
+
+
 def test_stopping_group_judging_keeps_in_flight_verdicts_and_marks_group_cancelled(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, _isolated: dict[str, object],
 ) -> None:

@@ -8,6 +8,7 @@
 
 Each model's answers are an ordinary test run (kind ``compare``), so the Testing page lists, judges and exports them too.
 Stopping any of them (``POST /api/testing/projects/{pid}/runs/{bid}/cancel``) stops the whole group.
+``DELETE .../groups/{gid}`` deletes the whole comparison (every model's run) once nothing in it is running.
 """
 from __future__ import annotations
 
@@ -157,6 +158,22 @@ async def cancel_group(pid: str, gid: str):
     if not any(testing_jobs.cancel(r["id"]) for r in rows):
         return JSONResponse({"detail": "nothing is running for this comparison"}, status_code=409)
     return {"ok": True}
+
+
+@router.delete("/projects/{pid}/groups/{gid}")
+async def delete_group(pid: str, gid: str):
+    """Delete a saved comparison: every model's test run with its answers and verdicts. 409 while any of them runs."""
+    _project_or_404(pid)
+    rows = await asyncio.to_thread(session.group_rows, pid, gid)
+    if not rows:
+        raise HTTPException(status_code=404, detail="comparison not found")
+    if any(testing_jobs.is_active(r["id"]) for r in rows):
+        return JSONResponse({"detail": "stop the comparison first"}, status_code=409)
+
+    def drop() -> int:
+        return sum(db.delete_benchmark(r["id"]) for r in rows)
+
+    return {"ok": True, "deleted": await asyncio.to_thread(drop)}
 
 
 def library_models_for_compare(exclude: set[str], base_model: str) -> list[dict[str, Any]]:
