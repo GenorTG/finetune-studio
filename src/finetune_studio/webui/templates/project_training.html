@@ -220,7 +220,7 @@
     <div class="step"><span class="num">4</span> Evaluate</div>
   </div>
 
-  <form id="train-form" class="grid grid-2 gap-4 mt-4" data-api="/api/training/start">
+  <form id="train-form" class="grid grid-2 gap-4 mt-4" data-api="/api/training/start" data-busy="Starting…">
     <input type="hidden" name="project_id" value="{{ pid }}">
     <input type="hidden" name="dataset_id" id="dataset-id-input" value="">
     <input type="hidden" name="data_path" id="data-path-input" value="">
@@ -647,11 +647,13 @@
     }
   }
 
+  let runActive = false;  // live status: a run is going, a second start could only be refused
   function syncStartEnabled() {
     const hasData = !!(dataPathInput && dataPathInput.value);
     if (!startBtn) return;
-    startBtn.disabled = !hasData;
-    startBtn.title = hasData ? "Start training" : "Pick or upload a dataset first";
+    startBtn.disabled = !hasData || runActive;
+    startBtn.title = runActive ? "A training run is in progress: stop it or wait for it to finish"
+      : hasData ? "Start training" : "Pick or upload a dataset first";
   }
   syncStartEnabled();
 
@@ -899,16 +901,12 @@
     });
   }
 
-  // Form submission: validate a dataset/data_path is selected AND wrap the
-  // submit so the Start button always resets on failure. The global
-  // data-api handler in app.js doesn't reset the button when the POST
-  // rejects, which used to leave it stuck on "Starting…" forever.
+  // Form submission: refuse a start with no dataset. Busy feedback is the global data-api handler's (app.js, with
+  // this form's data-busy label): it remembers the button's label before the request and restores it after, so this
+  // page must not change that label itself (it was then restored as "Starting…" and stayed that way).
   const form = document.getElementById("train-form");
   if (form) {
     form.addEventListener("submit", (ev) => {
-      const btn = document.getElementById("start-btn");
-      const originalText = btn ? btn.textContent : "Start training";
-
       if (!dataPathInput.value) {
         ev.preventDefault();
         ev.stopImmediatePropagation();
@@ -920,40 +918,8 @@
         const projectPanel = document.querySelector('.data-panel[data-panel="project"]');
         projectTab && projectTab.classList.add("active");
         projectPanel && projectPanel.classList.add("active");
-        if (btn) { btn.disabled = true; btn.textContent = originalText; }
         syncStartEnabled();
         return;
-      }
-
-      // Otherwise wrap the submit: show "Starting…" while the global handler
-      // does its api.post(). Use a flag to detect failure so we can reset.
-      if (startBtn) {
-        startBtn.disabled = true;
-        startBtn.textContent = "Starting…";
-      }
-      // Listen for the next notify/error to re-enable. fts.notify() appends
-      // a .toast to #toasts — observe that.
-      const toasts = document.getElementById("toasts");
-      let resetTimer = setTimeout(() => {
-        // After 5s with no response, assume training started and reset is OK
-        // to leave up to the live-status polling.
-        if (startBtn) { startBtn.disabled = false; startBtn.textContent = originalText; }
-      }, 5000);
-      if (toasts) {
-        const obs = new MutationObserver((muts) => {
-          muts.forEach((m) => {
-            m.addedNodes.forEach((n) => {
-              if (n.classList && n.classList.contains("toast")) {
-                clearTimeout(resetTimer);
-                if (startBtn) { startBtn.disabled = false; startBtn.textContent = originalText; }
-                setTimeout(() => obs.disconnect(), 100);
-              }
-            });
-          });
-        });
-        obs.observe(toasts, { childList: true });
-        // Safety: always reset after 30s no matter what
-        setTimeout(() => obs.disconnect(), 30000);
       }
     }, true); // capture phase: run BEFORE the global app.js handler
   }
@@ -1299,6 +1265,8 @@
         stopBtn.disabled = !running;
         stopBtn.title = running ? "Stop the current training run" : "No active training run";
       }
+      runActive = !!ACTIVE[st];
+      syncStartEnabled();
 
       if (badge) {
         badge.textContent = st;
