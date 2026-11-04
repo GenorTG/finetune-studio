@@ -13,7 +13,7 @@ turns that section into the release's notes.
 
 
 ### Fixed
-- Activity: rows now say what was done ("Edit a Q&A pair", "Chat with the loaded model", "Smart Brain search", "Judge a test run", "Save helper settings" …) instead of only "Create", "Update" or "Delete".
+- Activity: rows now say what was done ("Edit a Q&A pair", "Chat with the loaded model", "Smart Brain search", "Judge a test run", "Save helper settings" …) instead of only "Create", "Update" or "Delete", and testing, benchmark and chat requests are listed under their project instead of "system".
 - Pairs → Preference pairs and Study set: leaving the page while a build runs no longer keeps asking the server for its progress every second until the build ends (the build itself still finishes). Compare stops refreshing a running comparison once you leave the page.
 - The whole app could stop responding in a tab after moving between pages (most often after opening Testing two or three times): every visit to a page with live updates left its update connection open, and once the browser's six connections to the app were taken every click waited until one of them ended (a test-run delete took 30 seconds). A page's live updates now stop when you leave it.
 - Activity: a model download no longer shows a second, look-alike "HF download" row; the request row now reads "Start HF download · <model>". Deleting a downloaded model is listed as "Delete downloaded model <model>" instead of as a download, and Compare's run, judge, stop and delete requests show under their project as testing work instead of untitled operations.

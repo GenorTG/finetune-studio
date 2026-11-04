@@ -67,3 +67,18 @@ def test_no_named_route_is_shadowed_by_the_older_labels() -> None:
         if got != name:  # an older, more specific label won: it must still name the thing
             assert got in {"Upload + parse files", "Load model", "Unload model", "Export model", "Run test suite"}, \
                 (method, route, got)
+
+
+@pytest.mark.parametrize(("path", "pid"), [
+    ("/api/projects/959fc605/data-prep/qa/3f2a9c1b7d4e", "959fc605"),
+    ("/api/testing/projects/959fc605/runs/248bddcc/cases/c3fb8380/verdict", "959fc605"),
+    ("/api/compare/projects/959fc605/groups/g1", "959fc605"),
+    ("/api/benchmarks/projects/959fc605/suites/import", "959fc605"),
+    ("/api/chat-v2/projects/959fc605/chat", "959fc605"),
+    ("/api/projects", ""),
+    ("/api/inference/chat", ""),
+])
+def test_activity_rows_sit_under_the_project_the_request_acts_on(path: str, pid: str) -> None:
+    from finetune_studio.webui.app import _activity_project_id
+
+    assert _activity_project_id(path) == pid
