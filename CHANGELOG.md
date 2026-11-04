@@ -13,6 +13,7 @@ turns that section into the release's notes.
 
 
 ### Fixed
+- Training with "merge on save": the training model is now freed before the merge, so a 9B model merges on the GPU in seconds instead of falling back to the computer's RAM (where it could run the computer out of memory and get other programs killed). If the merge truly cannot fit on the GPU and there is not enough free RAM either, it now stops with a clear message; the trained adapter is kept and can be merged again from the Export page.
 - Activity: rows now say what was done ("Edit a Q&A pair", "Chat with the loaded model", "Smart Brain search", "Judge a test run", "Save helper settings" …) instead of only "Create", "Update" or "Delete", and testing, benchmark and chat requests are listed under their project instead of "system".
 - Pairs → Preference pairs and Study set: leaving the page while a build runs no longer keeps asking the server for its progress every second until the build ends (the build itself still finishes). Compare stops refreshing a running comparison once you leave the page.
 - The whole app could stop responding in a tab after moving between pages (most often after opening Testing two or three times): every visit to a page with live updates left its update connection open, and once the browser's six connections to the app were taken every click waited until one of them ended (a test-run delete took 30 seconds). A page's live updates now stop when you leave it.

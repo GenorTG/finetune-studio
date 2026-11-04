@@ -132,4 +132,41 @@ def load_merge_base(base_path: str, *, acc: accel.Accelerator | None = None) -> 
                 raise
             log.warning("merge base does not fit on %s (%s); merging in CPU RAM", acc.torch_device, exc)
             accel.empty_cache()
+    _check_cpu_ram_for_merge(base_path)
     return _load("cpu")
+
+
+#: A 16-bit merge in CPU RAM holds the base, the merged copy being written and allocator slack: weights x this.
+MERGE_RAM_FACTOR = 1.25
+MERGE_RAM_SLACK_BYTES = 2 * 1024**3
+
+
+class MergeMemoryError(MemoryError):
+    """The merge base fits neither on the GPU nor in the RAM that is free right now."""
+
+
+def _weights_bytes(base_path: str) -> int:
+    from pathlib import Path
+
+    root = Path(base_path)
+    if not root.is_dir():
+        return 0
+    return sum(p.stat().st_size for p in root.glob("*.safetensors")) or sum(p.stat().st_size for p in root.glob("*.bin"))
+
+
+def _check_cpu_ram_for_merge(base_path: str) -> None:
+    """Refuse a CPU-RAM merge that would not fit in the RAM free right now.
+
+    Loading anyway pushed the host into the kernel's OOM killer, which killed another program (2026-11-04: a 19 GB
+    base with 15 GB free). The run keeps its adapter; the merge can be retried from Export once memory is free.
+    """
+    import psutil
+
+    need = int(_weights_bytes(base_path) * MERGE_RAM_FACTOR) + MERGE_RAM_SLACK_BYTES
+    free = psutil.virtual_memory().available
+    if need > MERGE_RAM_SLACK_BYTES and free < need:
+        gib = 1024**3
+        raise MergeMemoryError(
+            f"not enough memory to merge: the base model does not fit on the GPU and needs about {need / gib:.0f} GB "
+            f"of RAM, but only {free / gib:.0f} GB is free. The adapter is saved; close other programs and merge "
+            "again from the Export page.")
