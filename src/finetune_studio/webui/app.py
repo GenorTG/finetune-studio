@@ -357,11 +357,9 @@ def _activity_summary(path: str, method: str, http_status: int = 200, error_deta
             return "Delete downloaded model " + path.removeprefix("/api/hf/local/")
         if method.upper() == "POST" and path.rstrip("/") == "/api/projects":
             return "Create project"
-        verb = {
-            "POST": "Create", "PUT": "Update", "PATCH": "Update",
-            "DELETE": "Delete",
-        }.get(method.upper(), "Operation")
-        return verb
+        from finetune_studio.webui.activity_names import describe
+
+        return describe(path, method)
     except Exception:  # noqa: BLE001 — summary must never break recording
         return "Operation"
 
