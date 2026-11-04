@@ -115,8 +115,9 @@
               title="Build the Smart Brain index: chunk your sources, embed each chunk, index for fast retrieval. First build downloads the embedder (~2.2 GB) which takes a few minutes.">Build</button>
       <button onclick="buildIndex(true)" id="rebuild-btn" class="btn"
               title="Wipe the existing index and rebuild from scratch: parse, chunk and embed every file again.">⟲ Rebuild from scratch</button>
-      <button onclick="reembedIndex()" id="reembed-btn" class="btn"
-              title="Keep the documents and passages, replace only their vectors with the embedder picked above. Use it after changing the embedder: quicker than rebuilding from scratch. Needs an existing index.">⇄ Re-embed only</button>
+      <button onclick="reembedIndex()" id="reembed-btn" class="btn"{% if not indexed_doc_count %} disabled{% endif %}
+              data-title-ready="Keep the documents and passages, replace only their vectors with the embedder picked above. Use it after changing the embedder: quicker than rebuilding from scratch."
+              title="{% if indexed_doc_count %}Keep the documents and passages, replace only their vectors with the embedder picked above. Use it after changing the embedder: quicker than rebuilding from scratch.{% else %}No index yet: build it first (Build or Quick index), then Re-embed only swaps its vectors.{% endif %}">⇄ Re-embed only</button>
     </div>
   </div>
   <label class="text-xs flex items-center gap-2 mt-3 cursor-pointer"
@@ -508,6 +509,8 @@
     if (n) n(msg, type); else console.log(msg);
   };
   const PID = {{ pid | tojson }};
+  // Re-embed only needs an index to re-embed: off until one exists (the API answers 404 without it).
+  let hasIndex = {{ 'true' if indexed_doc_count else 'false' }};
   // 'shared:embedder:intfloat__multilingual-e5-large@b97ef8b3…' -> 'intfloat/multilingual-e5-large' (full id in the tooltip).
   function embedderLabel(raw) {
     if (!raw) return '—';
@@ -1153,8 +1156,15 @@
   function setBuildBusy(on) {
     ['quick-index-btn', 'build-btn', 'rebuild-btn', 'reembed-btn'].forEach(function (id) {
       const b = document.getElementById(id);
-      if (b) b.disabled = !!on;
+      if (b) b.disabled = !!on || (id === 'reembed-btn' && !hasIndex);
     });
+  }
+
+  // A finished build leaves an index behind: Re-embed only is usable from then on.
+  function markIndexed() {
+    hasIndex = true;
+    const b = document.getElementById('reembed-btn');
+    if (b && b.dataset.titleReady) b.title = b.dataset.titleReady;
   }
 
   // A build runs as its own job process (the POST answers 202 + build_id), so it outlives a web restart and this
@@ -1308,6 +1318,7 @@
       status.textContent = (pending ? 'Converting ' + pending + ' unparsed file(s) to text, then ' : '') +
         'building the index (it runs on its own: you can leave this page)…' + note;
       const b = await followBuild((r.build || {}).build_id || r.build_id);
+      markIndexed();
       const failed = (b.failed || []).length;
       const converted = (b.promoted ? '⚡ Converted ' + b.promoted + ' new file(s)' : '⚡ Every file was already parsed') +
         (failed ? ' (' + failed + ' failed to parse)' : '');
@@ -1339,6 +1350,7 @@
         '… (it runs on its own: you can leave this page)' + note;
       notify('Index build started: ' + q + ' files', 'info');
       const b = await followBuild(r.build_id);
+      markIndexed();
       const done = buildDone(b);
       status.textContent = 'Done — ' + done + ' indexed.' + note;
       notify('Index built: ' + done, 'success');
@@ -1382,6 +1394,7 @@
     status.textContent = 'An index build is running…';
     try {
       const b = await followBuild(p.build_id);
+      markIndexed();
       status.textContent = 'Done — ' + buildDone(b) + ' indexed.';
     } catch (e) {
       buildEnded(status, 'Build failed', e, true);

@@ -10,6 +10,7 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Fixed
+- Smart Brain: "Re-embed only" stays off with "No index yet: build it first" until the project has an index (it was clickable and always failed with "not found"); it turns on as soon as a build finishes.
 - Settings → Signed-in browsers: "Sign out other browsers" now asks before signing every other computer and phone out (it acted on one click).
 - Files & Knowledge: XML rows, JSON objects and YAML list records now stay together in one chunk when they fit; the chunker version is stamped, so older sources are marked for re-parse.
 - Pairs → Export approved: the "Next step: configure a run" row (Download JSONL, Start training with this dataset) no longer disappears a moment after the export when the review list refreshes.
