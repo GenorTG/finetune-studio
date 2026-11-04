@@ -326,10 +326,13 @@ async def hf_delete_local(repo_id: str):
 
 @router.get("/hf/local/{repo_id:path}/files")
 async def hf_local_files(repo_id: str):
-    """List files in a local model dir with sizes."""
+    """List files in a local model dir with sizes; a model that is not downloaded has none (``downloaded: false``).
+
+    The Model Library offers "Downloaded files" on every search result, so "nothing downloaded yet" is an answer,
+    not a missing resource."""
     target = _local_dir(repo_id)
-    if not target.exists():
-        return JSONResponse({"detail": "not found"}, status_code=404)
+    if not target.is_dir():
+        return {"repo_id": repo_id, "path": str(target), "files": [], "count": 0, "downloaded": False}
     def _list() -> list[dict]:
         out = []
         for p in sorted(target.rglob("*")):
@@ -343,7 +346,7 @@ async def hf_local_files(repo_id: str):
         return out
 
     files = await asyncio.to_thread(_list)
-    return {"repo_id": repo_id, "path": str(target), "files": files, "count": len(files)}
+    return {"repo_id": repo_id, "path": str(target), "files": files, "count": len(files), "downloaded": True}
 
 
 # Shared model library (also serves as the model-pool for RAG embedders)
