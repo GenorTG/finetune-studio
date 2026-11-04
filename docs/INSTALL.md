@@ -221,7 +221,7 @@ Then start the WebUI (`fts webui`) and open http://localhost:7860. The default l
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| `ERROR: No matching distribution found for torch` | Wrong Python version | Use Python 3.12 (`./install.sh --python python3.12`) |
+| `ERROR: No matching distribution found for torch` | Wrong Python version | Use Python 3.12 (`PYTHON_VERSION=3.12 ./install.sh`) |
 | `nvcc: command not found` when building llama-cpp | CUDA toolkit not installed | Install CUDA toolkit 12.x |
 | Training runs on the CPU on a GPU machine | A CPU build of torch got installed | `./install.sh --repair` (it reinstalls the build the plan picks) |
 | `libstdc++.so.6: version not found` | Old base image | `conda install -c conda-forge libstdcxx-ng` or use newer Ubuntu |
@@ -255,8 +255,9 @@ updates.
 rm -rf finetune-studio
 
 # Optionally remove all data:
-rm -rf ~/.finetune-studio
-rm -rf ~/.cache/huggingface      # downloaded models
+rm -rf ~/.finetune-studio          # project files, Smart Brain, settings, Model Library downloads
+# The Hugging Face cache is shared with other tools: remove it only if nothing else uses it.
+# rm -rf ~/.cache/huggingface
 ```
 
 ---
@@ -265,9 +266,13 @@ rm -rf ~/.cache/huggingface      # downloaded models
 
 | What | Where |
 |---|---|
-| Project data | `~/.finetune-studio/projects.db` |
-| Shared model weights | `~/.finetune-studio/shared_models/` |
-| HuggingFace cache | `~/.cache/huggingface/` |
+| Project database | `data/finetune_studio.db` in the checkout |
+| Project files | `~/.finetune-studio/projects/<pid>/` |
+| Training runs and exports | `output/projects/<pid>/runs/` in the checkout |
+| Assistant connections and keys | `~/.finetune-studio/fts.db` (`$FTS_DB` moves it) |
+| Model Library downloads | `~/.finetune-studio/hf_models/` |
+| Shared search models (embedder, reranker) | `~/.finetune-studio/shared_models/` |
+| Hugging Face cache (models there are listed too) | `~/.cache/huggingface/` (or `$HF_HOME`) |
 | Smart Brain indexes | `~/.finetune-studio/brain/` |
 | VRAM profile dumps | `~/.cache/fts-vram-profile/` |
 

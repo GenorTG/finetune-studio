@@ -128,7 +128,8 @@ handles:
   search works offline out of the box; point it at any OpenAI-compatible
   embeddings endpoint for semantic search — or tick "Include models" and the
   embedding model + reranker ship **inside** the package: full offline
-  semantic search with no external service at all (~2.3 GB archive)
+  semantic search with no external service at all (about 0.2 GB with the small MiniLM models, about 4.5 GB with
+  e5-large and bge-reranker-v2-m3)
 
 ### Use case 2 — Train an adapter (LoRA) on your pairs
 
@@ -297,7 +298,7 @@ The larger pieces, roughly in the order you meet them:
 
 | What you'd do manually | What Finetune Studio does |
 |---|---|
-| Write a Python script to download weights from HF | Browse HF Explorer in-app, click download |
+| Write a Python script to download weights from HF | Browse the Model Library in-app, click download |
 | Configure transformers + accelerator + trl + peft + bitsandbytes | Pick base model + LoRA rank + batch size in a form |
 | Write your own chunking + embedding loop | Click "Build" — chunking, embedding, indexing all wired |
 | Open 4 terminal windows to monitor training | Watch the live progress bar in one panel |
@@ -377,8 +378,8 @@ model will learn it (see the measurements above).
 Build an index, search it, tune retrieval parameters, and take it with you.
 Sections are numbered in workflow order: **1. Index status**, **2. Build the
 index** (⚡ Quick index parses anything not parsed yet and builds, in one click), **3. Search
-settings**, **4. Documents in the index**, **5. Search test**, **6. Ask the
-model (grounded)**, **7. Download / export the index**, **8. Shared search
+settings**, **4. Documents in the index**, **5. Search test**, **6. Ask about
+your documents**, **7. Download / export the index**, **8. Shared search
 models**. The export card offers the encrypted studio bundle (`.ftsrag`) and the
 **standalone Smart Brain** (`POST /api/projects/{pid}/brain/standalone`) — a
 self-installing tarball with the index, a single-file Python server,
@@ -516,7 +517,7 @@ Python 3.12; the package also accepts 3.13, which is not tested.
 │               ── benchmarks (offline smoke + local suites)     │
 │                                                                │
 │   Storage: SQLite for project metadata                         │
-│            + ~/.cache/huggingface for model weights             │
+│            + ~/.finetune-studio/hf_models for model weights     │
 │            + ~/.finetune-studio/brain/{pid}/  (parquet)         │
 └────────────────────────────────────────────────────────────────┘
 ```
@@ -566,12 +567,12 @@ Full list with versions and licenses → **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTI
 - **[docs/TUTORIAL.md](docs/TUTORIAL.md)** — end-to-end first-model tutorial (users start here)
 - **[docs/DESIGN.md](docs/DESIGN.md)** — layout, rules and checks for contributors
 - **[docs/INSTALL.md](docs/INSTALL.md)** — install on Linux, prerequisites, troubleshooting
-- **[docs/CLI.md](docs/CLI.md)** — command-line reference (currently includes project list, show and create)
+- **[docs/CLI.md](docs/CLI.md)** — command-line reference
 - **[docs/DEPENDENCIES.md](docs/DEPENDENCIES.md)** — every dependency mapped to its consumers
 - **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** — service, update pipeline, generic ops notes
 - **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTIONS.md)** — every package, version, license
 - **[⚡ Presentation page](https://genortg.github.io/finetune-studio/)** — the gallery version of this README
-- **/settings** — live debug info on your running instance (version, GPU, packages, paths) **+ WebUI log tail card**
+- **/settings** — live debug info on your running instance (version, GPU, packages, paths); the WebUI log tail is on each project's **Settings** page
 - **Settings → Replay** — replay the built-in onboarding tour
 
 ---

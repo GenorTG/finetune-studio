@@ -63,9 +63,9 @@ commit secrets or HF tokens into this doc; use the host login /
 | Linux service | `systemctl --user {status,restart} finetune-studio` |
 | Linux service logs | `journalctl --user -u finetune-studio -n 50` |
 | App state (`$FTS_ROOT`) | `~/.finetune-studio/` (projects' files under `projects/<pid>/`, Smart Brain under `brain/<pid>/`, settings) |
-| SQLite | `data/finetune_studio.db` in the checkout (WAL; `$FTS_DB` overrides) |
+| SQLite | `data/finetune_studio.db` in the checkout (WAL). Assistant connections and keys: `~/.finetune-studio/fts.db` (`$FTS_DB` moves this one) |
 | Training runs and exports | `output/projects/<pid>/runs/` in the checkout |
-| Models | `models/gguf/`, HF cache `~/.cache/huggingface` |
+| Models | `models/gguf/`, Model Library downloads `~/.finetune-studio/hf_models/`; the HF cache `~/.cache/huggingface` is listed too |
 | URL | `http://localhost:7860/` (or your host) |
 
 ## 3. The update pipeline
@@ -78,7 +78,7 @@ Six steps, each logged with `[HH:MM:SS]` prefixes (the API streams these lines):
    warns + continues on divergence)
 2. **venv health**: `scripts/install_diagnose.py` deep check → `--repair` autofix →
    last-resort venv recreate via `install.sh`
-3. `pip install -e .` (dep sync)
+3. `uv pip install -e .[parsers]` (dep sync, constrained by `.venv/torch-constraints.txt`)
 4. llama.cpp CLI: build only if missing (`--no-llama` skips)
 5. `init_db()` — idempotent schema migrations
 6. `systemctl --user restart finetune-studio` (`--no-restart` skips)
@@ -96,7 +96,8 @@ the environment; no pull, no package install, no migration, no restart) ·
 |---|---|
 | `POST /api/system/update` | Queue a run. Body: `{mode: update|check|repair, no_pull, no_llama, no_restart, triggered_by}` → `{ok, update_id, status:"queued"}` |
 | `GET /api/system/update/{uid}` | One attempt + `log_tail` (last 4 KB) |
-| `GET /api/system/update/latest` | Current queued/running row — what the UI polls |
+| `GET /api/system/update/events` | SSE stream of the current run — what the UI follows |
+| `GET /api/system/update/latest` | Current queued/running row (the UI's polling fallback) |
 | `GET /api/system/updates?limit=50` | History |
 
 Mechanics: FastAPI BackgroundTask spawns `update.sh` (`REPO_ROOT/update.sh`,
@@ -114,8 +115,8 @@ used by smoke tests to assert the full lifecycle cheaply.
 ### 3.3 Web UI — Settings → Updates card
 
 `Check` (dry run) · `Apply update` (full, confirm-gated, ~10 s downtime) ·
-`Repair` (venv recreate, confirm-gated). Live log tail polls
-`/api/system/update/latest` every 2 s, survives the restart (poll retries,
+`Repair` (venv recreate, confirm-gated). Live log streams from
+`/api/system/update/events` (SSE; falls back to polling `/api/system/update/latest`), survives the restart (retries,
 startup reconcile finalizes the row), shows the finished run's status + log
 even when it completes between polls, and lists the last 5 attempts.
 Code: `templates/settings.html` (card) + `static/js/settings.js` (logic).

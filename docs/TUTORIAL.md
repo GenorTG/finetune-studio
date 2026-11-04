@@ -32,7 +32,7 @@ Quick work when you just want the model.
 ### 0. Bootstrap (once)
 
 1. Open `http://localhost:7860`. The first visit starts a short, task-oriented onboarding tour; replay it any time from **Settings → Replay**.
-2. Click `+ New Project`, give it a name. Projects own everything: files,
+2. Click `＋ New project`, give it a name. Projects own everything: files,
    datasets, corpora, runs, exports, versions, suites.
 
 ### 1. Get raw documents in (step **1 · files**)
@@ -50,7 +50,7 @@ Quick work when you just want the model.
    text** — the correction feeds Q&A mining and the next Smart Brain build, while
    the original upload stays byte-identical.
 5. Every readable upload is parsed **once, on arrival** — that parse is the text layer every later stage
-   reads (training pairs and the Smart Brain alike). Tick **in knowledge** next to the search box to search
+   reads (training pairs and the Smart Brain alike). Tick **search inside files** next to the search box to search
    the mined facts and the parsed text, and fix a fact right there.
 
 ### 2. Turn sources into training pairs (step **1 · pairs**)
@@ -102,7 +102,7 @@ handoff; it opens Training with the dataset preselected.
    epochs at 4× gradient accumulation is not memorization (see the badges
    on the run: they report actual steps, never fake progress).
 4. **Start training.** Live loss/step/LR stream over SSE; the activity feed
-   logs every REST call. VRAM is profiled before the run and an actionable
+   logs every change you make. VRAM is profiled before the run and an actionable
    error tells you what's holding memory if it can't fit.
 5. Runs can be stopped; interrupted runs are reconciled at next startup.
    Past-run rows carry Details / ⭐ Set production / ▶ Open in inference / ⬇ Export.
@@ -115,8 +115,8 @@ Auto-generated project suites test **every row of the training dataset**
 labeled opt-in). A test is two steps: **Run** saves the model's raw answers next
 to the correct answers; **Judge** lets an AI judge (any connected model; by default the AI assistant's
 *Test judge* job) or you decide pass / partial / fail for each saved answer
-(*Settings → Test judge* can start judging automatically after every run; it is
-off by default). Rule of thumb: spot-check 10–20 answers with your own eyes — the
+(*Settings → Test judge* or the Testing page's *judge automatically after each run* switch can start judging
+automatically after every run; it is off by default). Rule of thumb: spot-check 10–20 answers with your own eyes — the
 judge is a model, not truth — and press 1/2/3 in the review pane to override a
 verdict case by case.
 
@@ -159,7 +159,7 @@ keyword search, rank fusion, reranking — often called RAG) and the model quote
    wasn't parsed.
 4. **Search test** — a real query with per-passage scores, no AI answer, so
    you can judge retrieval alone.
-5. **Ask the model (grounded)** — chat over those passages. **Answer with**
+5. **Ask about your documents** — chat over those passages. **Answer with**
    picks who writes the answer: the chat model loaded on this machine (the
    default; the top-bar pill says which; nothing leaves the machine), or, as a
    deliberate choice, the AI assistant's API connection from *Settings → AI
@@ -172,7 +172,8 @@ keyword search, rank fusion, reranking — often called RAG) and the model quote
    `bash setup.sh` installs a venv, picks a port, starts the server, can install it as a persistent
    service, and prints a copy-paste MCP entry. It speaks **MCP** (Claude
    Desktop / OpenClaw / Cursor) and plain **HTTP** (`GET /search?q=…`).
-   Tick "Include models" (~2.3 GB) and the embedder + reranker ship inside
+   Tick "Include models" (about 0.2 GB with the small MiniLM models, about 4.5 GB with
+   e5-large and bge-reranker-v2-m3) and the embedder + reranker ship inside
    the package: full offline semantic search with no external service.
 
 **Use the Smart Brain for facts that change; use fine-tuning for style/response shape.**
