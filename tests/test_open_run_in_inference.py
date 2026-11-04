@@ -83,3 +83,29 @@ def test_gguf_export_row_lists_its_file(client, tmp_path: Path) -> None:
 def test_run_detail_uses_the_same_load_button() -> None:
     assert "adapter_path" not in _PAGE            # the Inference page never read it: the link loaded nothing
     assert 'class="btn sm primary js-open-inf"' in _PAGE
+
+
+def test_export_row_shows_what_the_job_concluded(client, tmp_path: Path) -> None:
+    from finetune_studio import db
+
+    pid = _project(client)
+    run, merged = _run_with_export(pid, tmp_path)
+    out = Path(merged).parent / "heretic"
+    out.mkdir()
+    (out / "config.json").write_text("{}")
+    row = db.create_export(pid, run["id"], format="heretic", quant="safetensors")
+    db.mark_export_done(row["id"], output_path=str(out), detail="Kept Heretic trial 17: 8% refusals")
+    rel = str(out).lstrip("/")
+    assert client.get(f"/api/projects/{pid}/models/{rel}/contents").json()["note"] == "Kept Heretic trial 17: 8% refusals"
+    assert client.get(f"/api/projects/{pid}/models/{str(merged).lstrip('/')}/contents").json()["note"] == ""
+
+
+def test_a_heretic_export_is_listed_and_a_cancelled_search_is_not(client, tmp_path: Path) -> None:
+    from finetune_studio.webui.routes.pages import _scan_run_models
+
+    run_dir = tmp_path / "r"
+    (run_dir / "heretic" / ".study").mkdir(parents=True)   # what a cancelled search leaves
+    assert _scan_run_models([{"id": "r1", "output_path": str(run_dir)}]) == []
+    (run_dir / "heretic" / "config.json").write_text("{}")
+    rows = _scan_run_models([{"id": "r1", "output_path": str(run_dir)}])
+    assert [(m["subdir"], m["format"]) for m in rows] == [("heretic", "safetensors")]

@@ -211,6 +211,12 @@
           list.innerHTML += '<li class="dim">…truncated</li>';
         }
       }
+      if (data.note) {   // what the export concluded (Heretic: the kept trial, its refusals and KL)
+        const li = document.createElement("li");
+        li.className = "dim";
+        li.textContent = data.note;
+        list.prepend(li);
+      }
       list.dataset.loaded = "1";
     } catch (e) {
       list.innerHTML = '<li class="dim"></li>';

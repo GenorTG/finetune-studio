@@ -10,6 +10,7 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Fixed
+- Heretic exports now appear on Export, Project models and the Testing model picker (only Inference listed them), and opening the row shows the result ("Kept Heretic trial 19: 1% refusals …, KL 0.083"), which was gone after a reload.
 - Export → Heretic: the job now says "trial 13 of 40 done" while it searches (it showed one unchanged line for up to an hour or more).
 - Training → "Open in inference" works: it always failed with a tokenizer error, because it asked to load the run's folder instead of the model inside it. It now loads the run's merged model, or its adapter when there is no merged copy, and the run detail's button does the same (it used to open Inference with nothing selected).
 - Export and Project models: opening a GGUF row now lists the file instead of "not found".

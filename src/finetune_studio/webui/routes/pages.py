@@ -53,6 +53,7 @@ def _require_project(pid: str):
 _EXPORT_FORMATS = {
     "merged": "safetensors",
     "abliterated": "safetensors",
+    "heretic": "safetensors",
     "gguf": "gguf",
 }
 
@@ -74,7 +75,7 @@ def _scan_run_models(runs: list[dict]) -> list[dict]:
     """Find exported models on disk for a project's training runs.
 
     Each run writes its exports into subdirectories of its output_path
-    (merged/, gguf/, abliterated/). Only non-empty directories that
+    (merged/, gguf/, abliterated/, heretic/). Only non-empty directories that
     exist are reported.
     """
     import os
@@ -91,6 +92,9 @@ def _scan_run_models(runs: list[dict]) -> list[dict]:
                 continue
             try:
                 if not os.listdir(path):
+                    continue
+                # A cancelled Heretic search leaves its study checkpoint (.study) and no model.
+                if subdir == "heretic" and not os.path.isfile(os.path.join(path, "config.json")):
                     continue
                 created = os.path.getmtime(path)
             except OSError:

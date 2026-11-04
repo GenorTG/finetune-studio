@@ -195,7 +195,7 @@ def _safe_model_name(root: str, cfg: dict, project_name: str = "") -> str:
                 dirname = f"{org}/{repo}"
     # If dirname is a generic export dir, use project name + dirname for context
     generic_dirs = {
-        "merged", "abliterated", "gguf", "gptq", "adapter",
+        "merged", "abliterated", "heretic", "gguf", "gptq", "adapter",
         "checkpoint-0", "checkpoint-1",
     }
     if dirname.lower() in generic_dirs:
@@ -384,7 +384,7 @@ def scan_models(directories: list) -> list:
                         # Non-standard layout: fall back to the DB walk-up.
                         proj_id, proj_name = _lookup_project_name(root)
                         if proj_name and (
-                            name.lower() in ("merged", "abliterated", "gguf", "adapter", "gptq")
+                            name.lower() in ("merged", "abliterated", "heretic", "gguf", "adapter", "gptq")
                             or "/" in name
                         ):
                             name = f"{proj_name} ({name})"
