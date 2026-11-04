@@ -842,6 +842,8 @@ fts brain rebuild-vectors --corpus /path/to/corpus [--embedder NEW_MODEL]
             raise FileNotFoundError(self.dir)
         pd = try_import_pandas()
         manifest = Manifest.from_json(read_json(self.manifest_path))
+        if not manifest.chunks:
+            raise ValueError("the index is empty, nothing to re-embed: build it first")
         requested = embedder or manifest.rag_settings.embedder or manifest.embedding_model.name
         new_name = resolve_model_ref(requested, "embedder")
         encode, new_info = get_embedder(name=new_name, device=device)

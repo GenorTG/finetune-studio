@@ -117,6 +117,7 @@
               title="Wipe the existing index and rebuild from scratch: parse, chunk and embed every file again.">⟲ Rebuild from scratch</button>
       <button onclick="reembedIndex()" id="reembed-btn" class="btn"{% if not indexed_doc_count %} disabled{% endif %}
               data-title-ready="Keep the documents and passages, replace only their vectors with the embedder picked above. Use it after changing the embedder: quicker than rebuilding from scratch."
+              data-title-none="No index yet: build it first (Build or Quick index), then Re-embed only swaps its vectors."
               title="{% if indexed_doc_count %}Keep the documents and passages, replace only their vectors with the embedder picked above. Use it after changing the embedder: quicker than rebuilding from scratch.{% else %}No index yet: build it first (Build or Quick index), then Re-embed only swaps its vectors.{% endif %}">⇄ Re-embed only</button>
     </div>
   </div>
@@ -663,6 +664,7 @@
       const note = document.getElementById('brain-needs-index-note');
       if (note) note.hidden = !!d.exists;
       window.BRAIN_HAS_INDEX = !!d.exists;
+      setHasIndex(d.exists && d.chunks > 0);   // Clear the index keeps the folder: exists alone is not enough
       if (!d.exists) {
         el.innerHTML = '<p class="text-sm muted">No index yet. Use Quick index above, or choose an embedder below and click Build.</p>'
           + '<div class="text-xs dim mono mt-1">' + esc(d.corpus_dir || '') + '</div>';
@@ -1160,11 +1162,13 @@
     });
   }
 
-  // A finished build leaves an index behind: Re-embed only is usable from then on.
-  function markIndexed() {
-    hasIndex = true;
+  // Re-embed only follows the index status (a build creates the index, Clear the index removes it).
+  function setHasIndex(exists) {
+    hasIndex = !!exists;
     const b = document.getElementById('reembed-btn');
-    if (b && b.dataset.titleReady) b.title = b.dataset.titleReady;
+    if (!b) return;
+    b.disabled = !hasIndex || ['build-btn'].some((id) => { const o = document.getElementById(id); return o && o.disabled; });
+    b.title = hasIndex ? b.dataset.titleReady : b.dataset.titleNone;
   }
 
   // A build runs as its own job process (the POST answers 202 + build_id), so it outlives a web restart and this
@@ -1318,7 +1322,6 @@
       status.textContent = (pending ? 'Converting ' + pending + ' unparsed file(s) to text, then ' : '') +
         'building the index (it runs on its own: you can leave this page)…' + note;
       const b = await followBuild((r.build || {}).build_id || r.build_id);
-      markIndexed();
       const failed = (b.failed || []).length;
       const converted = (b.promoted ? '⚡ Converted ' + b.promoted + ' new file(s)' : '⚡ Every file was already parsed') +
         (failed ? ' (' + failed + ' failed to parse)' : '');
@@ -1350,7 +1353,6 @@
         '… (it runs on its own: you can leave this page)' + note;
       notify('Index build started: ' + q + ' files', 'info');
       const b = await followBuild(r.build_id);
-      markIndexed();
       const done = buildDone(b);
       status.textContent = 'Done — ' + done + ' indexed.' + note;
       notify('Index built: ' + done, 'success');
@@ -1394,7 +1396,6 @@
     status.textContent = 'An index build is running…';
     try {
       const b = await followBuild(p.build_id);
-      markIndexed();
       status.textContent = 'Done — ' + buildDone(b) + ' indexed.';
     } catch (e) {
       buildEnded(status, 'Build failed', e, true);
