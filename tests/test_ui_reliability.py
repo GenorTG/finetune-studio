@@ -211,6 +211,7 @@ def test_load_success_requires_model_object(
     engine.load = MagicMock()
     monkeypatch.setattr("finetune_studio.webui.app.inference_engine", engine)
 
+    (tmp_path / "config.json").write_text("{}", encoding="utf-8")
     r = client.post("/api/models/load", json={"path": str(tmp_path)})
     assert r.status_code == 500, r.text
     data = r.json()
@@ -228,6 +229,7 @@ def test_load_success_payload_when_model_held(
     engine.load = MagicMock()
     monkeypatch.setattr("finetune_studio.webui.app.inference_engine", engine)
 
+    (tmp_path / "config.json").write_text("{}", encoding="utf-8")
     r = client.post("/api/models/load", json={"path": str(tmp_path)})
     assert r.status_code == 200, r.text
     data = r.json()
