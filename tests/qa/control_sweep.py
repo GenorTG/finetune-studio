@@ -222,6 +222,11 @@ def main() -> int:
             if a.json:   # written after every page, so a crash keeps what was swept
                 with open(a.json, "w", encoding="utf-8") as f:
                     json.dump(all_rows, f, indent=1)
+        if a.gpu:   # a Load / Run click loads a model and the load finishes after the click: say what is left behind
+            st = page.request.get(a.base + "/api/inference/status")
+            if st.ok and st.json().get("loaded"):
+                print(f"NOTE  a model is loaded after the sweep: {st.json().get('model')} (unload it if the sweep "
+                      "loaded it: POST /api/models/unload)", flush=True)
         browser.close()
     return 1 if any(r["result"] == "ERROR" for r in all_rows) else 0
 
