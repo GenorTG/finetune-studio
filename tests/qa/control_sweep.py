@@ -1,7 +1,7 @@
 """Click every visible, enabled control on every registered page and report what each one did (B3).
 
     FTS_SESSION=<session token> .venv/bin/python tests/qa/control_sweep.py <project id> [--pages files,pairs]
-        [--base http://127.0.0.1:7860] [--gpu] [--json out.json]
+        [--base http://127.0.0.1:7860] [--gpu] [--per-label N] [--json out.json]
 
 Per page, per control (the n-th visible enabled button / summary / checkbox / select / tab link inside the page
 content, re-found after a fresh load): reload the page, click it, answer any in-app confirm with Cancel and any native
@@ -32,7 +32,7 @@ from playwright.sync_api import sync_playwright
 from finetune_studio.guide.registry import PAGES
 
 GPU_WORDS = re.compile(
-    r"\b(train|training|build|rebuild|index|run|re-?run|export|merge|load|download|install|update|repair|restart|"
+    r"\b(train|training|build|rebuild|index|re-?embed|embed|run|re-?run|export|merge|load|download|install|update|repair|restart|"
     r"apply|mine|mining|generate|judge|study set|preference|send|ask|test connection|test local|test reading|"
     r"benchmark|evaluate|quantize|abliterat|heretic|start|quick)\b", re.IGNORECASE)
 NEVER = re.compile(r"^(sign out|change password|set password|turn password off)\b", re.IGNORECASE)
@@ -129,11 +129,28 @@ def load(page, url: str) -> None:
             page.wait_for_timeout(1000)
 
 
-def sweep_page(page, name: str, url: str, gpu: bool, base: str) -> list[dict]:
+def _row_key(text: str) -> str:
+    """A row control's label without its row-specific numbers (``Approve #12`` and ``Approve #13`` are one control)."""
+    return re.sub(r"\d+", "#", text).strip()
+
+
+def sweep_page(page, name: str, url: str, gpu: bool, base: str, per_label: int = 0) -> list[dict]:
     load(page, url)
-    total = len(candidates(page))
+    first = candidates(page)
+    total = len(first)
+    keep = set(range(total))
+    if per_label:   # list pages repeat one control per row: sample the first N of each kind
+        seen: dict[str, int] = {}
+        keep = set()
+        for i, el in enumerate(first):
+            k = _row_key(label(el))
+            seen[k] = seen.get(k, 0) + 1
+            if seen[k] <= per_label:
+                keep.add(i)
     results = []
     for i in range(total):
+        if i not in keep:
+            continue
         load(page, url)
         page.wait_for_timeout(300)
         els = candidates(page)
@@ -191,6 +208,8 @@ def main() -> int:
     ap.add_argument("--pages", default="")
     ap.add_argument("--gpu", action="store_true")
     ap.add_argument("--json", default="")
+    ap.add_argument("--per-label", type=int, default=0,
+                    help="click only the first N controls of each label (row lists repeat one control per row)")
     a = ap.parse_args()
     token = os.environ.get("FTS_SESSION", "")
     if not token:
@@ -207,7 +226,7 @@ def main() -> int:
         for name, reg in PAGES.items():
             if only and name not in only:
                 continue
-            rows = sweep_page(page, name, a.base + reg.url.replace("{pid}", a.pid), a.gpu, a.base)
+            rows = sweep_page(page, name, a.base + reg.url.replace("{pid}", a.pid), a.gpu, a.base, a.per_label)
             all_rows += rows
             bad = [r for r in rows if r["result"] in ("ERROR", "SILENT", "REFUSED")]
             print(f"{name:18s} controls {len(rows):3d}  ok {sum(r['result'] == 'ok' for r in rows):3d}  "
