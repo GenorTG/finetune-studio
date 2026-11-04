@@ -26,6 +26,18 @@ os.environ["FTS_JOBS_INPROCESS"] = "1"
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
+# ``import finetune_studio.db`` runs init_db() at import, against settings.db_path — by default the repo's
+# ``data/finetune_studio.db``, i.e. the live app's database on the dev host. Every pytest run used to apply the
+# checked-out branch's migrations to it before any fixture redirected the path (2026-11-04: a branch's cleanup
+# migration deleted live rows on its first test run). Point the session at a throwaway database before anything
+# imports the db package; the per-test ``temp_db`` fixture still gives each test its own.
+# Must run before finetune_studio.db is imported.
+from finetune_studio.config import settings as _settings
+
+assert "finetune_studio.db" not in sys.modules, "finetune_studio.db was imported before tests/conftest.py"
+SESSION_DB = os.path.join(tempfile.mkdtemp(prefix="fts-test-session-"), "finetune_studio.db")
+_settings.db_path = SESSION_DB
+
 
 @pytest.fixture(scope="session", autouse=True)
 def _ensure_ocr_tessdata() -> None:
