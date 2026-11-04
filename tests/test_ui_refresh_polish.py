@@ -107,7 +107,7 @@ def test_light_theme_text_meets_aa_contrast() -> None:
 
 def test_token_and_app_css_cache_busts_were_bumped() -> None:
     base = _r("templates/base.html")
-    assert "tokens.css?v=2" in base and "app.css?v=130" in base
+    assert "tokens.css?v=2" in base and "app.css?v=131" in base
 
 
 # ── page scripts can run twice (full load, then an SPA visit) ─────────

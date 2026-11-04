@@ -5403,3 +5403,8 @@ label, .field-label { color: var(--text-muted); font-size: 13px; font-weight: 55
   .sb-active-bar { height: 28px; padding-inline: 12px; }
   .workspace-subnav { padding-inline: 10px; }
 }
+
+/* Keyboard focus, #anchor jumps and scrollIntoView stop below the sticky session bar instead of under it
+   (WCAG 2.4.11 focus not obscured). nav_overflow.js keeps --session-bar-h at the bar's real height (0 when it
+   does not stick). */
+html { scroll-padding-top: calc(var(--session-bar-h, 104px) + 8px); }

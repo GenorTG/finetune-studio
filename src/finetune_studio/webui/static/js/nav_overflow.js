@@ -180,10 +180,30 @@
     refresh();
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", wire);
-  } else {
+  // The session bar sticks to the top of the page: tell the page its height so focus, #anchor jumps and
+  // scrollIntoView land below it (html { scroll-padding-top } in app.css), never hidden under it.
+  function trackBarHeight() {
+    const bar = $("session-bar");
+    if (!bar) return;
+    const apply = function () {
+      const pos = getComputedStyle(bar).position;
+      const h = pos === "sticky" || pos === "fixed" ? Math.ceil(bar.getBoundingClientRect().height) : 0;
+      document.documentElement.style.setProperty("--session-bar-h", h + "px");
+    };
+    apply();
+    if (typeof ResizeObserver !== "undefined") new ResizeObserver(apply).observe(bar);
+    else window.addEventListener("resize", apply);
+  }
+
+  function start() {
+    trackBarHeight();
     wire();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start);
+  } else {
+    start();
   }
 
   window.ftsNavOverflow = {
