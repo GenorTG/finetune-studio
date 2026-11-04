@@ -9,10 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
-- Structured XML rows, JSON objects, and YAML list records now stay together in Files & Knowledge chunks when they fit; the chunker version is stamped so old sources are explicitly marked for re-parse.
-
-
 ### Fixed
+- Files & Knowledge: XML rows, JSON objects and YAML list records now stay together in one chunk when they fit; the chunker version is stamped, so older sources are marked for re-parse.
 - Pairs → Export approved: the "Next step: configure a run" row (Download JSONL, Start training with this dataset) no longer disappears a moment after the export when the review list refreshes.
 - Activity: deleting a project now shows as "Delete project · <name>" (it was filed under the deleted project and never shown), and the deleted project's other Activity rows are removed instead of kept hidden forever; rows left by earlier deletes are cleared at start-up.
 - Training with "merge on save": the training model is now freed before the merge, so a 9B model merges on the GPU in seconds instead of falling back to the computer's RAM (where it could run the computer out of memory and get other programs killed). If the merge truly cannot fit on the GPU and there is not enough free RAM either, it now stops with a clear message; the trained adapter is kept and can be merged again from the Export page.
@@ -81,7 +79,7 @@ turns that section into the release's notes.
   end-to-end run kept a trial at KL 0.287 and the exported model repeated "(Please, choose a few questions…" forever,
   while another trial of the same study at KL 0.0028 answered normally. KL is not comparable across models, so the
   budget has to suit the worst case; 0.1 still admits trials around KL 0.07 at 7% refusals on a 1.5B model.
-- Heretic export can pin the batch size (`--batch-size`). Heretic's auto probe picked 128 sequences per pass for a
+- Heretic export now runs Heretic with a fixed batch size of 8. Heretic's auto probe picked 128 sequences per pass for a
   1.5B model, and the run died mid-search with `CUDA error: an illegal memory access` inside the L-BFGS step. It is
   reported as a failed export rather than a fake success, but an export that cannot finish is still a gap; with
   `batch_size=8` the same 24-trial run completed in 48 min at a steady ~8 GB.

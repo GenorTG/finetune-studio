@@ -17,7 +17,7 @@ from finetune_studio.guide.search import search_kb
 
 ROOT = Path(__file__).resolve().parents[1]
 PUBLIC = {name: (ROOT / name).read_text(encoding="utf-8")
-          for name in ("README.md", "docs/TUTORIAL.md", "docs/index.html", "docs/DEPLOYMENT.md")}
+          for name in ("README.md", "docs/TUTORIAL.md", "docs/index.html", "docs/DEPLOYMENT.md", "docs/INSTALL.md")}
 KB = ROOT / "src/finetune_studio/guide/kb"
 
 
@@ -49,7 +49,7 @@ def test_pages_captions_use_the_nav_step_numbers() -> None:
 def test_tutorial_explains_both_smart_brain_answer_sources() -> None:
     text = PUBLIC["docs/TUTORIAL.md"]
     assert "needs a chat\n   model loaded" not in text
-    section = text[text.index("**Ask the model (grounded)**"):][:600]
+    section = text[text.index("**Ask about your documents**"):][:600]
     assert "Answer with" in section and "API connection" in section and "sent to that provider" in section
 
 
@@ -83,3 +83,22 @@ def test_guide_documents_and_can_point_at_study_set_and_preference_builders() ->
 def test_app_help_routes_builder_questions_to_the_pairs_page(question: str) -> None:
     hits = search_kb(question)
     assert hits and "pairs" in [h["entry"] for h in hits[:2]], [h["entry"] for h in hits]
+
+
+def test_install_and_storage_docs_match_the_code() -> None:
+    install, dep = PUBLIC["docs/INSTALL.md"], PUBLIC["docs/DEPLOYMENT.md"]
+    assert "install.sh --python" not in install and "PYTHON_VERSION=3.12 ./install.sh" in install
+    assert "projects.db" not in install and "`data/finetune_studio.db` in the checkout" in install
+    assert "~/.finetune-studio/hf_models/" in install and "~/.finetune-studio/hf_models/" in dep
+    assert "rm -rf ~/.cache/huggingface      # downloaded models" not in install
+    assert "`$FTS_DB` overrides" not in dep and "`$FTS_DB` moves this one" in dep
+    assert "/api/system/update/events" in dep and "every 2 s" not in dep
+
+
+def test_docs_use_the_ui_labels_and_export_sizes() -> None:
+    tutorial, readme = PUBLIC["docs/TUTORIAL.md"], PUBLIC["README.md"]
+    assert "**search inside files**" in tutorial and "**in knowledge**" not in tutorial
+    assert "Ask the model (grounded)" not in tutorial + readme
+    for text in (tutorial, readme):
+        assert "2.3 GB" not in text and "4.5 GB" in text
+    assert "not the\n      full HuggingFace dataset downloads" not in PUBLIC["docs/index.html"]
