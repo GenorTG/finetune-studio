@@ -991,3 +991,38 @@ model (~8 GB), so the 16.6 GiB base did not fit. The job log holds 27 such warni
 is released (model, optimizer, accelerate copies, `gc`) before merge/export, and a CPU merge that cannot fit in free RAM is
 refused with a reason (`hf_loader.MergeMemoryError`). GPU check: Qwen3.5-9B QLoRA, 48 rows, 3 steps, merge on save, with
 17 GB RAM available: no fallback warning, `merged/` 17 GB written in ~20 s. Tests: `tests/test_merge_frees_training_model.py`.
+
+## 36. R5: R1 study set at 8 epochs vs R3 at 4 (2026-11-04, `agent-test-r5-20261104`, deleted after)
+
+Question left by §34: with the phrasing-diverse study set (R1/R3 data, 7,040 rows, ~3 phrasings per fact), does closed-book
+recall keep rising with exposures? R5 trains R3's data for 8 epochs instead of 4 (~24 exposures per fact). Everything else
+as in §30/§34: Qwen3.5-9B QLoRA 4-bit, r64 / a128, LR 1e-4, batch 2 × 8, seq 1024, eval every 50 steps on the 10 % split,
+trained prompt baked, merge + Q4_K_M. Same 19 core files, same 122-question quiz, same judge, same Smart Brain settings
+(19 documents, 165 chunks). `dev` at `8c7195b1`. Training 15:06-18:30 (3 h 24 min, 3,168 steps); the merge ran on the
+GPU and wrote 16.7 GB in about a minute (§35's fix held: no CPU-RAM fallback); merge + export done at 18:35.
+
+| Run | Rows | Epochs / steps | Final train loss | Best eval (step) | Final eval | Closed-book pass /102 (partial) | Closed-book declined /20 | Smart Brain /102 (partial) | Smart Brain declined /20 |
+|---|---|---|---|---|---|---|---|---|---|
+| §29 golden + 40 abstain, 6 ep | 2,495 | 6 / 846 | 0.0242 | not measured | not measured | 30 (19) | 2 | 96 | 20 |
+| **R3** = R1 data, 4 ep (run `7150fc91`) | 7,040 | 4 / 1,584 | 0.0456 | 1.0946 (300) | 1.5988 | 39 (20) | 0 | 96 | 20 |
+| **R5** = R1 data, 8 ep (run `bc2dcf69`) | 7,040 | 8 / 3,168 | 0.0205 | 1.1099 (350) | 1.8509 | **43** (23) | 1 | **99** (1) | **18** |
+
+Paired pass, exact McNemar over the 102 answerable questions: closed-book R5 vs R3 12 / 8, p = 0.50; R5 vs R1 19 / 6,
+p = 0.015. Smart Brain R5 vs R3 4 / 1, p = 0.38; R5 vs R1 3 / 1, p = 0.63. Closed-book pass + partial: R5 66, R3 59.
+The judge gave a verdict on every case (0 errors, 0 unjudged).
+
+Reading:
+- **Closed-book: best score so far, but not proven better than R3.** 43/102 is +13 over §29 (30) and +4 over R3 (39). The
+  gain over R1 (same data, 3 epochs, 30) is significant (p = 0.015); the gain over R3 is not (12 / 8, p = 0.50). Eval loss
+  again bottomed early (1.11 at step 350, ~0.9 epochs) and rose to 1.85 while train loss fell to 0.02: the held-out split
+  stops improving long before recall does, so eval loss is not a stopping signal for this kind of fact recall.
+- **More epochs cost grounded abstention.** Smart Brain declined 18/20 (every §30/§34 run: 20/20). The two misses state a
+  made-up value with sources retrieved: registered capital "EUR 48,300" (u02) and KC-Tag 3 battery "2,100 mAh" (u09).
+  Answerable Smart Brain rose to 99/102 (best so far; not significant). Closed-book declines stay near zero (1/20).
+- **Bar (§34): closed-book ≥ 40/102 with Smart Brain ≥ 95/102 and ≥ 15/20.** R5 meets it (43, 99, 18). One run, and the
+  margin over R3 is inside noise; the abstention drop is the price. No app behaviour or preset was changed: whether 8
+  epochs on a phrasing-diverse set becomes the recommended recipe, and whether 1/20 closed-book declines is acceptable
+  for beta (the grounded path declines 18/20), is Genor's call.
+
+Cleanup: project `agent-test-r5-20261104` (dataset, run `bc2dcf69` with merged model, Q4_K_M GGUF and checkpoints, 2
+Testing runs, Smart Brain index) deleted through `DELETE /api/projects/{pid}`. Inference unloaded. No release was cut.
