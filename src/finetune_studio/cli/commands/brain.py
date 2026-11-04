@@ -142,7 +142,10 @@ def _eval(args: argparse.Namespace) -> None:
 def _rebuild_vectors(args: argparse.Namespace) -> None:
     from finetune_studio.smart_brain import BrainIndex
 
-    print(json.dumps(BrainIndex(_corpus(args)).rebuild_vectors(embedder=args.embedder), indent=2))
+    try:
+        print(json.dumps(BrainIndex(_corpus(args)).rebuild_vectors(embedder=args.embedder), indent=2))
+    except ValueError as e:
+        _die(str(e))
 
 
 def _info(args: argparse.Namespace) -> None:

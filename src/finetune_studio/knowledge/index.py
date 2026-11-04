@@ -331,6 +331,8 @@ def prepare_rebuild_vectors(pid: str) -> dict[str, Any]:
     if not store.exists():
         raise IndexBuildError("no index to re-embed yet: build it first", 404)
     manifest = Manifest.from_json(read_json(store.manifest_path))
+    if not manifest.chunks:   # Clear the index keeps the folder: nothing to embed (the job died on an empty matrix)
+        raise IndexBuildError("the index is empty, nothing to re-embed: build it first", 404)
     run_row = db.create_brain_build(pid, _index_row_id(pid, project["name"]))
     return {"build_id": run_row["id"], "queued_files": int(manifest.documents or 0), "pending_parses": 0,
             "fact_cards": bool((manifest.extra or {}).get("fact_cards"))}
