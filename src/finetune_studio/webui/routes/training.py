@@ -446,6 +446,7 @@ async def start_training(request: Request):
     data_path = body.get("data_path", "")
     dataset_id = body.get("dataset_id", "")
     project_id = body.get("project_id", "")
+    request.state.activity_project_id = str(project_id or "")   # the Activity row's project (not in the path)
     if dataset_id and not data_path:
         ds = db.get_dataset(dataset_id)
         if not ds or ds.get("project_id") != project_id:
