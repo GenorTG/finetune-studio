@@ -183,21 +183,10 @@ def _run_is_benchmarkable(run: dict[str, Any]) -> bool:
 
 
 def _resolve_trained_target(run: dict[str, Any]) -> str:
-    """Prefer merged/ under output_path, then the LoRA adapter/, else output_path.
+    """Prefer merged/ under output_path, then the LoRA adapter/, else output_path."""
+    from finetune_studio.models.run_paths import resolve_run_model_dir
 
-    An unmerged run's output dir has no config.json, so loading it directly
-    fails with an opaque transformers "Unrecognized model" error.
-    """
-    target_model = str(run.get("output_path") or "").strip()
-    merged_candidate = os.path.join(target_model, "merged")
-    if os.path.isdir(merged_candidate) and os.path.isfile(
-        os.path.join(merged_candidate, "config.json")
-    ):
-        return merged_candidate
-    adapter_candidate = os.path.join(target_model, "adapter")
-    if os.path.isfile(os.path.join(adapter_candidate, "adapter_config.json")):
-        return adapter_candidate
-    return target_model
+    return resolve_run_model_dir(str(run.get("output_path") or "").strip())
 
 
 def _unload_global_inference() -> None:

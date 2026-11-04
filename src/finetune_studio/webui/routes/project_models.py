@@ -45,7 +45,7 @@ def _normalize_export_path(raw: str) -> str:
         absolute = "/" + p
         # Run output paths are often stored relative to the server cwd
         # (``output/projects/...``); prefer the absolute reading only when it exists.
-        if not os.path.isdir(absolute) and os.path.isdir(p):
+        if not os.path.exists(absolute) and os.path.exists(p):
             return os.path.normpath(os.path.abspath(p))
         p = absolute
     return os.path.normpath(p)
@@ -76,17 +76,20 @@ def export_belongs_to_project(pid: str, export_path: str) -> bool:
 
 @router.get("/projects/{pid}/models/{export_path:path}/contents")
 async def model_export_contents(pid: str, export_path: str) -> dict:
-    """List top-level files in a trained export directory (max 20)."""
+    """List top-level files in a trained export directory (max 20); a GGUF export is one file, listed as itself."""
     from finetune_studio import db
 
     if not db.get_project(pid):
         raise HTTPException(status_code=404, detail="project not found")
 
     path = _normalize_export_path(export_path)
-    if not path or not os.path.isdir(path):
+    if not path or not os.path.exists(path):
         raise HTTPException(status_code=404, detail="export path not found")
     if not export_belongs_to_project(pid, path):
         raise HTTPException(status_code=403, detail="path not in project")
 
+    if os.path.isfile(path):
+        one = {"name": os.path.basename(path), "size_bytes": os.path.getsize(path), "is_dir": False}
+        return {"path": path, "files": [one], "truncated": False}
     files = list_dir_contents(path)
     return {"path": path, "files": files, "truncated": len(files) >= _MAX_CONTENTS}

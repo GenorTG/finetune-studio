@@ -10,6 +10,8 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Fixed
+- Training → "Open in inference" works: it always failed with a tokenizer error, because it asked to load the run's folder instead of the model inside it. It now loads the run's merged model, or its adapter when there is no merged copy, and the run detail's button does the same (it used to open Inference with nothing selected).
+- Export and Project models: opening a GGUF row now lists the file instead of "not found".
 - Training: after a run started, the Start button kept saying "Starting…" until the page was reloaded. It now shows that only while the request is on its way, stays off with the reason while a run is going, and is back to "Start training" when it ends.
 - Smart Brain: "Re-embed only" stays off with "No index yet: build it first" until the project has an index (it was clickable and always failed with "not found"); it turns on as soon as a build finishes.
 - Keyboard use: moving focus with Tab / Shift+Tab, links to a section and "jump to" buttons no longer leave the control hidden under the top bar; the page stops just below it at every window width.
