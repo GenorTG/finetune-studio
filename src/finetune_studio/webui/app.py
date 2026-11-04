@@ -357,22 +357,27 @@ def _activity_summary(path: str, method: str, http_status: int = 200, error_deta
             return "Delete downloaded model " + path.removeprefix("/api/hf/local/")
         if method.upper() == "POST" and path.rstrip("/") == "/api/projects":
             return "Create project"
-        verb = {
-            "POST": "Create", "PUT": "Update", "PATCH": "Update",
-            "DELETE": "Delete",
-        }.get(method.upper(), "Operation")
-        return verb
+        from finetune_studio.webui.activity_names import describe
+
+        return describe(path, method)
     except Exception:  # noqa: BLE001 — summary must never break recording
         return "Operation"
+
+
+def _activity_project_id(path: str) -> str:
+    """The project a request acts on: ``/api/projects/{pid}/...`` or ``/api/<area>/projects/{pid}/...`` (testing,
+    compare, benchmarks, chat, data editor), so the Activity row sits under its project instead of "system"."""
+    parts = path.strip("/").split("/")
+    for i in (1, 2):
+        if len(parts) > i + 1 and parts[0] == "api" and parts[i] == "projects":
+            return parts[i + 1]
+    return ""
 
 
 def _record_activity_event(request: Request, started: float, http_status: int, error_detail: str = "") -> None:
     """Best-effort event write; logging must never break the API response."""
     try:
-        parts = request.url.path.strip("/").split("/")
-        project_id = parts[2] if len(parts) > 2 and parts[:2] == ["api", "projects"] else ""
-        if not project_id and len(parts) > 3 and parts[:2] == ["api", "compare"] and parts[2] == "projects":
-            project_id = parts[3]
+        project_id = _activity_project_id(request.url.path)
         status = "done" if http_status < 400 else "error"
         message = _activity_summary(
             request.url.path,
