@@ -1,7 +1,8 @@
 """Settings → API tokens: a blank name is refused in plain words, and Revoke asks before cutting scripts off.
 
 A blank name came back as the validator's "name: String should have at least 1 character", and Revoke deleted the
-token on one click although every script using it stops working (found live 2026-11-02, B3).
+token on one click although every script using it stops working (found live 2026-11-02, B3). "Sign out other
+browsers" also acted on one click and signed every other device out (found by the control sweep 2026-11-04).
 """
 from __future__ import annotations
 
@@ -85,5 +86,15 @@ def test_revoke_asks_first(confirm: bool, deletes: int) -> None:
     start = js.index("      b.addEventListener('click', async () => {")
     end = js.index("      li.append(b);", start)
     block = js[start:end]
+    out = _node(f"const CONFIRM = {json.dumps(confirm)}; const BLOCK = {json.dumps(block)};\n{_REVOKE}")
+    assert out["deletes"] == deletes
+
+
+@pytest.mark.parametrize(("confirm", "deletes"), [(False, 0), (True, 1)])
+def test_sign_out_other_browsers_asks_first(confirm: bool, deletes: int) -> None:
+    js = _JS.read_text()
+    start = js.index("  $('access-signout-others').addEventListener('click', async () => {")
+    end = js.index("  $('access-signout').addEventListener", start)
+    block = js[start:end].replace("$('access-signout-others')", "b", 1)
     out = _node(f"const CONFIRM = {json.dumps(confirm)}; const BLOCK = {json.dumps(block)};\n{_REVOKE}")
     assert out["deletes"] == deletes
