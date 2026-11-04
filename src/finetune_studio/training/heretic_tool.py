@@ -629,6 +629,29 @@ print(json.dumps({"front": [{"pos": i, "trial": t.number,
 '''
 
 
+def finished_trials(study_dir: str) -> int:
+    """How many trials the running search has finished, from the study journal Heretic keeps in ``study_dir``.
+
+    Read while Heretic appends to it: a half-written last line just does not count yet. 0 when there is no journal.
+    """
+    finished = 0
+    for path in Path(study_dir).glob("*.jsonl"):
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            if '"op_code":6' not in line:   # Optuna's journal: 6 = a trial's state changed
+                continue
+            try:
+                state = json.loads(line).get("state")
+            except ValueError:
+                continue
+            if state not in (None, 0):      # 0 = still running; complete, pruned and failed all finished
+                finished += 1
+    return finished
+
+
 def _study(study_dir: str, action: str = "read", pos: int = 0) -> dict[str, Any]:
     """Run the study helper under the overlay interpreter and return its JSON."""
     import tempfile
