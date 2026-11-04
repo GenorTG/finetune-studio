@@ -3,15 +3,18 @@
 Use a project that holds synthetic demo data only. A signed-in app needs a session cookie:
     FTS_SESSION=<session token> FTS_DEMO_PID=<project id> .venv/bin/python scripts/capture_shots.py
 FTS_SHOTS=04_files,06_brain limits the run to those names (the dashboard and Settings show every project name and
-the host's addresses: retake them only from an instance that holds nothing else). Pages render in the light theme;
+the host's addresses: retake them only from an instance that holds nothing else; this machine's addresses are scrubbed,
+and FTS_SHOT_HOME names that instance's HOME). Pages render in the light theme;
 the browser runs without a GPU so it never touches a card another process owns.
 Writes docs/screenshots/NN_*.png (1440px wide, full-page) and hero_NN_*.png (one 1440x1000 viewport).
 """
 from __future__ import annotations
 
+import json
 import os
 import pathlib
 import socket
+import subprocess
 import sys
 
 from playwright.sync_api import Error as PlaywrightError
@@ -24,8 +27,38 @@ ONLY = {n.strip() for n in os.environ.get("FTS_SHOTS", "").split(",") if n.strip
 OUT = pathlib.Path("docs/screenshots")
 # Full-page shots of a big project (hundreds of files) run to ~10,000 px and megabytes; the top tells the story.
 MAX_HEIGHT = int(os.environ.get("FTS_SHOT_MAX_HEIGHT", "3200"))
-# What must not reach a public image: this machine's home directory and hostname, and a dev build's branch label.
-SCRUB = [(str(pathlib.Path.home()), "~"), (socket.gethostname(), "host")]
+
+
+def _machine_addresses() -> list[tuple[str, str]]:
+    """This machine's LAN and Tailscale addresses and Tailscale name -> documentation placeholders (RFC 5737 /
+    CGNAT example / example tailnet). Settings → Hosting lists them; a public image must not."""
+    out: list[tuple[str, str]] = []
+    try:
+        ip = subprocess.run(["ip", "-o", "-4", "addr", "show"], capture_output=True, text=True, timeout=5,
+                            check=False).stdout
+        for n, addr in enumerate(sorted({line.split()[3].split("/")[0] for line in ip.splitlines()} - {"127.0.0.1"})):
+            if not addr.startswith("100."):
+                out.append((addr, f"192.0.2.{10 + n}"))
+    except (OSError, subprocess.SubprocessError, IndexError):
+        pass
+    try:
+        ts = json.loads(subprocess.run(["tailscale", "status", "--json"], capture_output=True, text=True,
+                                       timeout=5, check=False).stdout or "{}").get("Self") or {}
+        dns = str(ts.get("DNSName") or "").rstrip(".")
+        if dns:
+            out.append((dns, "host.example-tailnet.ts.net"))
+        for n, addr in enumerate(a for a in ts.get("TailscaleIPs") or [] if "." in a):
+            out.append((addr, f"100.64.0.{10 + n}"))
+    except (OSError, subprocess.SubprocessError, ValueError):
+        pass
+    return out
+
+
+# What must not reach a public image: the app's and this machine's home directory, the machine's addresses and
+# hostname, and a dev build's branch label. FTS_SHOT_HOME = the HOME the app instance runs with (a demo instance
+# keeps its own), so its paths read "~/.finetune-studio/..." instead of the demo folder.
+SCRUB = [(h, "~") for h in dict.fromkeys(filter(None, [os.environ.get("FTS_SHOT_HOME", ""), str(pathlib.Path.home())]))]
+SCRUB += sorted(_machine_addresses(), key=lambda kv: -len(kv[0])) + [(socket.gethostname(), "host")]
 VERSION = pathlib.Path("VERSION").read_text().strip() if pathlib.Path("VERSION").exists() else ""
 
 PAGES: list[tuple[str, str]] = [
@@ -92,6 +125,14 @@ def main() -> int:
                     for (const [from, to] of scrub) if (from) t = t.split(from).join(to);
                     if (version) t = t.replace(/v\d+\.\d+\.\d+\+[\w.\/-]+/g, 'v' + version);
                     if (t !== n.nodeValue) n.nodeValue = t;
+                }
+                // Form fields hold paths and addresses too (Settings): scrub their values and placeholders.
+                for (const el of document.querySelectorAll('input, textarea')) {
+                    for (const prop of ['value', 'placeholder']) {
+                        let t = el[prop] || '';
+                        for (const [from, to] of scrub) if (from) t = t.split(from).join(to);
+                        if (t !== (el[prop] || '')) el[prop] = t;
+                    }
                 } }""", [SCRUB, VERSION])
             height = min(page.evaluate("document.documentElement.scrollHeight"), MAX_HEIGHT)
             page.screenshot(path=str(OUT / f"{name}.png"), full_page=True,
