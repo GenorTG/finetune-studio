@@ -2143,6 +2143,8 @@ async function dpPrefBuild() {
   dpPrefRenderProgress({});
   var base = '/api/projects/' + encodeURIComponent(_prepPid) + '/data-prep/preference';
   var timer = setInterval(async function () {
+    // Left the page (SPA): the build keeps running on the server; stop asking for its progress.
+    if (!progress.isConnected) { clearInterval(timer); return; }
     try {
       var pr = await fetch(base + '/progress', { cache: 'no-store' });
       if (pr.ok) { var p = await pr.json(); if (p.running) dpPrefRenderProgress(p); }
@@ -2253,6 +2255,8 @@ async function dpStudyBuild() {
   dpStudyRenderProgress({});
   var base = '/api/projects/' + encodeURIComponent(_prepPid) + '/data-prep/study';
   var timer = setInterval(async function () {
+    // Left the page (SPA): the build keeps running on the server; stop asking for its progress.
+    if (!progress.isConnected) { clearInterval(timer); return; }
     try {
       var pr = await fetch(base + '/progress', { cache: 'no-store' });
       if (pr.ok) { var p = await pr.json(); if (p.running) dpStudyRenderProgress(p); }

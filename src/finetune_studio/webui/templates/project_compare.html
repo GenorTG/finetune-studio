@@ -238,7 +238,7 @@
     $('cp-view-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
   async function refresh() {
-    if (!S.gid) return;
+    if (!S.gid || !$('cp-view-card')) return;   // left the page (SPA): stop following the comparison
     clearTimeout(S.timer);
     try { S.view = await jreq('GET', API + '/groups/' + encodeURIComponent(S.gid)); }
     catch (e) { window.fts.notify('Could not load the comparison: ' + e.message, 'error'); return; }
@@ -338,6 +338,7 @@
     catch (e) { window.fts.notify('Could not stop: ' + e.message, 'error'); }
   });
 
+  document.addEventListener('fts:beforeNavigate', function() { clearTimeout(S.timer); S.gid = ''; }, { once: true });
   syncRunBtn();
   loadGroups();
   if (S.gid) refresh();

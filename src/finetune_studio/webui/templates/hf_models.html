@@ -276,13 +276,17 @@ function openHfModal() {
   const closeBtn = document.getElementById('hf-modal-close');
   if (closeBtn) closeBtn.focus();
 }
-document.addEventListener('keydown', function (ev) {
-  if (ev.key !== 'Escape') return;
-  const m = document.getElementById('hf-modal');
-  if (!m || m.hidden) return;
-  ev.preventDefault();
-  closeHfModal();
-});
+// SPA visits re-run this script: register the Escape handler once (it acts only while this page's modal is open).
+if (!window._hfModalEscListener) {
+  window._hfModalEscListener = true;
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key !== 'Escape') return;
+    const m = document.getElementById('hf-modal');
+    if (!m || m.hidden) return;
+    ev.preventDefault();
+    closeHfModal();
+  });
+}
 
 async function showInfo(repo, btn) {
   const m = document.getElementById('hf-modal');
