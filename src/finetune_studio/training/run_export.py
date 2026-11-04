@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import os
 import shutil
+import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -157,6 +159,31 @@ def ensure_merged_for_export(
         "size_bytes": result.get("size_bytes", 0),
         "size_human": result.get("size_human", "0 B"),
     }
+
+
+HERETIC_PROGRESS_EVERY_S = 10.0
+
+
+def _heretic_progress(ctx: Any, run: Any) -> Callable[[], None]:
+    """The job's heartbeat plus a "trial N of M" line: a search can take over an hour on one unchanged message."""
+    from finetune_studio.training import heretic_tool
+
+    state = {"shown": 0, "next_read": 0.0}
+
+    def tick() -> None:
+        ctx.tick()
+        now = time.monotonic()
+        if now < state["next_read"]:
+            return
+        state["next_read"] = now + HERETIC_PROGRESS_EVERY_S
+        done = min(heretic_tool.finished_trials(run.checkpoint_dir), run.n_trials)
+        if done != state["shown"]:
+            state["shown"] = done
+            export_job.report(export_job.PHASE_ABLITERATING,
+                              f"Heretic: trial {done} of {run.n_trials} done" if done < run.n_trials
+                              else f"Heretic: all {run.n_trials} trials done, saving the best one")
+
+    return tick
 
 
 def _export_failure(
@@ -399,7 +426,7 @@ def _export_heretic(
         written = heretic_tool.run_abliteration(
             run,
             cancelled=ctx.cancelled if ctx else None,
-            on_tick=ctx.tick if ctx else None,
+            on_tick=_heretic_progress(ctx, run) if ctx else None,
             on_start=ctx.register_proc if ctx else None,
         )
     except SubprocessCancelled as e:

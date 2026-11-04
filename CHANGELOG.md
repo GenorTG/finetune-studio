@@ -10,6 +10,7 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Fixed
+- Export → Heretic: the job now says "trial 13 of 40 done" while it searches (it showed one unchanged line for up to an hour or more).
 - Training → "Open in inference" works: it always failed with a tokenizer error, because it asked to load the run's folder instead of the model inside it. It now loads the run's merged model, or its adapter when there is no merged copy, and the run detail's button does the same (it used to open Inference with nothing selected).
 - Export and Project models: opening a GGUF row now lists the file instead of "not found".
 - Smart Brain: "Re-embed only" after Clear the index no longer starts a job that dies with "tuple index out of range": the button goes off as soon as the index is cleared, and the API and `fts brain rebuild-vectors` say the index is empty.
