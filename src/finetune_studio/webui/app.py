@@ -378,6 +378,8 @@ def _record_activity_event(request: Request, started: float, http_status: int, e
     """Best-effort event write; logging must never break the API response."""
     try:
         project_id = _activity_project_id(request.url.path)
+        if project_id and db.get_project(project_id) is None:
+            project_id = ""   # the request deleted it (or it never existed): a row under a missing project is hidden
         status = "done" if http_status < 400 else "error"
         message = _activity_summary(
             request.url.path,

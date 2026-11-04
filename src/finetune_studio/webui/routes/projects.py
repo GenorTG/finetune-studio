@@ -120,7 +120,7 @@ async def update_project(pid: str, request: Request):
 
 
 @router.delete("/{pid}")
-async def delete_project(pid: str):
+async def delete_project(pid: str, request: Request):
     """Delete a project's DB rows and every on-disk tree that stores its data.
 
     Audit fix (2026-10-01): this previously only called ``db.delete_project``
@@ -138,6 +138,8 @@ async def delete_project(pid: str):
     missing = _project_404(pid)
     if missing is not None:
         return missing
+    # The Activity row of this delete outlives the project: name it, and file it under "system" (see app.py).
+    request.state.activity_subject = str((db.get_project(pid) or {}).get("name") or pid)
     deleted = await asyncio.to_thread(delete_project_data, pid)
     if not deleted:
         return _project_404(pid)

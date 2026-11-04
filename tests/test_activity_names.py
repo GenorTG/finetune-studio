@@ -82,3 +82,15 @@ def test_activity_rows_sit_under_the_project_the_request_acts_on(path: str, pid:
     from finetune_studio.webui.app import _activity_project_id
 
     assert _activity_project_id(path) == pid
+
+
+def test_the_delete_project_row_is_visible_and_names_the_project(client) -> None:
+    """The row of a project delete used to sit under the deleted project, so the feed (which hides rows of missing
+    projects) never showed it, and the project's other rows stayed in the table forever."""
+    from finetune_studio import db
+
+    pid = client.post("/api/projects", json={"name": "Short-lived", "base_model": "x/test"}).json()["id"]
+    assert client.post(f"/api/projects/{pid}/versions", json={}).status_code < 500   # leaves a row under it
+    assert client.delete(f"/api/projects/{pid}").status_code == 200
+    rows = [e for e in db.list_activity_events_recent(50) if pid in (e["path"] or "")]
+    assert [(e["project_id"], e["message"]) for e in rows] == [("", "Delete project · Short-lived")]
