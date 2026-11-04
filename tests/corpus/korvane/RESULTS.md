@@ -981,3 +981,13 @@ Reading:
 Cleanup: project `agent-test-r4-20261104` (its datasets, run `deb0db81` with merged model, Q4_K_M GGUF and checkpoints,
 2 Testing runs, Smart Brain index) deleted through `DELETE /api/projects/{pid}`; `find` shows no file named after it.
 Inference unloaded, API token `agent-mine-20261104` revoked. No release was cut.
+
+## 35. Merge after training no longer falls back to CPU RAM (2026-11-04, `agent-test-mergefix-20261104`, deleted after)
+
+R4 (§34) left `merge base does not fit on cuda:0 … merging in CPU RAM` in the job log, and the kernel OOM-killed a foreign
+process (11:42:10) while the CPU merge ran with 15 GB free for a 19 GB base; the inference worker went unhealthy and was
+restarted. Cause: `_do_merge`'s `del model` freed nothing, the training function and `trainer.model` still held the 4-bit
+model (~8 GB), so the 16.6 GiB base did not fit. The job log holds 27 such warnings from earlier 9B runs. Fix: the trainer
+is released (model, optimizer, accelerate copies, `gc`) before merge/export, and a CPU merge that cannot fit in free RAM is
+refused with a reason (`hf_loader.MergeMemoryError`). GPU check: Qwen3.5-9B QLoRA, 48 rows, 3 steps, merge on save, with
+17 GB RAM available: no fallback warning, `merged/` 17 GB written in ~20 s. Tests: `tests/test_merge_frees_training_model.py`.

@@ -156,6 +156,32 @@ def _free_cuda() -> None:
     accel.empty_cache()
 
 
+def _release_trainer(trainer: object) -> None:
+    """Let go of everything a finished trainer holds on the accelerator (model, optimizer state, accelerate's
+    prepared copies), so the merge that follows can load a 16-bit base on the GPU.
+
+    ``del model`` in the merge freed nothing: the caller's ``model`` and ``trainer.model`` still pointed at the
+    4-bit training model (~8 GB for a 9B), the base no longer fitted, and the merge fell back to CPU RAM on a host
+    that had none to spare (the kernel killed another program; 2026-11-04). The caller deletes its own names too.
+    """
+    import gc
+
+    for attr in ("model", "model_wrapped", "optimizer", "lr_scheduler", "ref_model"):
+        if getattr(trainer, attr, None) is not None:
+            try:
+                setattr(trainer, attr, None)
+            except Exception:  # noqa: BLE001, S110 — a read-only attribute on some trainer subclass
+                pass
+    accelerator = getattr(trainer, "accelerator", None)
+    if accelerator is not None and hasattr(accelerator, "free_memory"):
+        try:
+            accelerator.free_memory()
+        except Exception:
+            log.debug("accelerator.free_memory failed", exc_info=True)
+    gc.collect()
+    _free_cuda()
+
+
 def _dir_size(path: str) -> int:
     """Sum of file sizes under `path`, in bytes. Missing dir → 0."""
     if not os.path.isdir(path):
@@ -858,10 +884,13 @@ class TrainingEngine:
         self.state.message = "Saving preference-tuned model..."
         self._notify()
         self._save_adapter(model, tokenizer, with_chat_template=True)
+        # Merge and export reload from disk: free the training model first (see _release_trainer).
+        _release_trainer(trainer)
+        del trainer, model
         if cfg.merge_on_save:
-            self._maybe_merge(model, tokenizer, cfg.output_dir)
+            self._maybe_merge(None, tokenizer, cfg.output_dir)
         if cfg.export_gguf:
-            self._export_gguf_after_train(model, tokenizer)
+            self._export_gguf_after_train(None, tokenizer)
         self._auto_suite_non_fatal()
         self.state.status = "done"
         self.state.message = self._completion_message()
@@ -1211,10 +1240,13 @@ class TrainingEngine:
         if self._stop_requested():
             self._mark_stopped()
             return
+        # Merge and export reload from disk: free the training model first (see _release_trainer).
+        _release_trainer(trainer)
+        del trainer, model
         if cfg.merge_on_save:
-            self._maybe_merge(model, tokenizer, cfg.output_dir)
+            self._maybe_merge(None, tokenizer, cfg.output_dir)
         if cfg.export_gguf:
-            self._export_gguf_after_train(model, tokenizer)
+            self._export_gguf_after_train(None, tokenizer)
         self._auto_suite_non_fatal()
         # Optional: Abliteration (de-censor)
         if getattr(cfg, 'abliterate', False):
@@ -1307,10 +1339,13 @@ class TrainingEngine:
         if self._stop_requested():
             self._mark_stopped()
             return
+        # Merge and export reload from disk: free the training model first (see _release_trainer).
+        _release_trainer(trainer)
+        del trainer, model
         if cfg.merge_on_save:
-            self._maybe_merge(model, tokenizer, cfg.output_dir)
+            self._maybe_merge(None, tokenizer, cfg.output_dir)
         if cfg.export_gguf:
-            self._export_gguf_after_train(model, tokenizer)
+            self._export_gguf_after_train(None, tokenizer)
         # The quiz used to be generated only by the Unsloth path, which FTS_UNSLOTH=auto skips on current
         # torch: every default run finished without a project quiz and the Testing page had nothing to run.
         if getattr(cfg, "training_mode", "sft") != "continued_pretraining":
@@ -1360,11 +1395,8 @@ class TrainingEngine:
         self.state.message = "Merging adapter into full model..."
         self._notify()
 
-        # Free the in-memory QLoRA training model before loading a 16-bit base.
-        try:
-            del model
-        except Exception:  # noqa: BLE001, S110
-            pass
+        # The training model is already released by the caller (_release_trainer); drop this name too.
+        del model
         _free_cuda()
 
         from finetune_studio.models.hf_loader import load_merge_base, load_peft_adapter
