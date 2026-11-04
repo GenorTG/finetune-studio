@@ -1298,6 +1298,19 @@ function dpDataEditorHref(dataPath) {
   return '/projects/' + encodeURIComponent(_prepPid) + '/data/' + encodeURIComponent(String(dataPath || ''));
 }
 
+// The dataset the last "Export approved" on this page registered: its next-step row is drawn by the panel renderer,
+// so the review queue's refresh (which redraws this panel) no longer wipes it.
+var _dpPostExportDataset = '';
+
+function dpPostExportCta(shown) {
+  if (!_dpPostExportDataset || !shown.some(function (d) { return d.id === _dpPostExportDataset; })) return '';
+  return '<div class="dp-ds-row mt-2" id="dp-post-export-cta"><span class="text-xs dim">Next step: configure a run</span>' +
+    (_dpExportBlobUrl ? '<a class="btn sm" id="dp-export-download" href="' + _dpExportBlobUrl + '" download="' +
+      escapeHtml(_prepPid + '-sharegpt-approved.jsonl') + '">Download JSONL</a>' : '') +
+    '<a class="btn sm primary" href="/projects/' + encodeURIComponent(_prepPid) + '/training?dataset=' +
+    encodeURIComponent(_dpPostExportDataset) + '" data-link>Start training with this dataset →</a></div>';
+}
+
 async function dpRefreshExportedDatasets() {
   var panel = document.getElementById('dp-exported-datasets');
   if (!panel) return;
@@ -1327,7 +1340,8 @@ async function dpRefreshExportedDatasets() {
         '<a class="btn sm primary" href="/projects/' + encodeURIComponent(_prepPid) + '/training?dataset=' + encodeURIComponent(d.id) + '" data-link>Select in Training</a>' +
         '</div>';
     }).join('');
-    panel.innerHTML = '<div class="text-xs muted mb-1">Project datasets ready for Training</div>' + rows;
+    panel.innerHTML = '<div class="text-xs muted mb-1">Project datasets ready for Training</div>' + rows +
+      dpPostExportCta(show);
     panel.hidden = false;
   } catch (e) {
     panel.hidden = true;
@@ -2023,6 +2037,7 @@ async function dpExportApproved() {
     var blob = await r.blob();
     if (_dpExportBlobUrl) URL.revokeObjectURL(_dpExportBlobUrl);
     _dpExportBlobUrl = URL.createObjectURL(blob);
+    _dpPostExportDataset = datasetId;   // the panel draws the "Next step" row for it on every refresh
     await dpRefreshExportedDatasets();
     if (window.fts && fts.refreshFlowNext) fts.refreshFlowNext();   // the bar said "Export the approved pairs"
     dpBridgeStatus(
@@ -2032,22 +2047,6 @@ async function dpExportApproved() {
       ' into project datasets. Select it in Training → “From this project”, or review the JSONL in Data Editor.',
       'success'
     );
-    // Make the next step un-missable: CTA row attached to the exported-datasets panel.
-    // Only for the dataset this export registered (by id: "newest" picked another one after a re-export).
-    var panel = document.getElementById('dp-exported-datasets');
-    if (panel && !panel.hidden && datasetId) {
-      var cta = document.getElementById('dp-post-export-cta');
-      if (!cta) {
-        cta = document.createElement('div');
-        cta.id = 'dp-post-export-cta';
-        cta.className = 'dp-ds-row mt-2';
-        panel.appendChild(cta);
-      }
-      cta.innerHTML = '<span class="text-xs dim">Next step: configure a run</span>' +
-        '<a class="btn sm" id="dp-export-download" href="' + _dpExportBlobUrl + '" download="' +
-        escapeHtml(_prepPid + '-sharegpt-approved.jsonl') + '">Download JSONL</a>' +
-        '<a class="btn sm primary" href="/projects/' + encodeURIComponent(_prepPid) + '/training?dataset=' + encodeURIComponent(datasetId) + '" data-link>Start training with this dataset →</a>';
-    }
   } catch (e) {
     dpBridgeStatus('Export failed: ' + ((e && e.message) || e), 'error');
   }

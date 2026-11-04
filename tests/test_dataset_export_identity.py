@@ -73,13 +73,15 @@ _HARNESS = r"""
 const assert = require('node:assert/strict');
 const vm = require('node:vm');
 let statusMsg = null;
-const panel = {hidden: false, children: [], appendChild(el) { this.children.push(el); }};
+const panel = {hidden: false, innerHTML: ''};
 const els = {'dp-exported-datasets': panel};
+// The panel renderer's redraw: the registered datasets' rows, then the next-step row the page remembers.
+const redraw = async () => { panel.innerHTML = 'rows' + context.dpPostExportCta([{id: 'ds42'}, {id: 'other'}]); };
 const context = {
   _rq: {counts: {approved: 3}}, _prepPid: 'p1', _dpExportBlobUrl: null,
   dpGroundedShare: () => '0',
   dpBridgeStatus: (msg, state) => { statusMsg = {msg, state}; },
-  dpRefreshExportedDatasets: async () => {},
+  dpRefreshExportedDatasets: redraw,
   escapeHtml: s => s, encodeURIComponent,
   URL: {createObjectURL: () => 'blob:x', revokeObjectURL: () => {}},
   fts: {confirm: async () => true},
@@ -103,8 +105,11 @@ vm.createContext(context);
 vm.runInContext(SOURCE, context);
 (async () => {
   await context.dpExportApproved();
-  const cta = panel.children.find(c => c.id === 'dp-post-export-cta');
-  process.stdout.write(JSON.stringify({status: statusMsg, cta: cta ? cta.innerHTML : null}));
+  const cta = panel.innerHTML.includes('id="dp-post-export-cta"') ? panel.innerHTML : null;
+  panel.innerHTML = '';
+  await redraw();   // the review queue's refresh redraws the panel: the row must come back with it
+  const afterRefresh = panel.innerHTML.includes('id="dp-post-export-cta"');
+  process.stdout.write(JSON.stringify({status: statusMsg, cta, afterRefresh}));
 })().catch(e => { console.error(e); process.exit(1); });
 """
 
@@ -114,8 +119,10 @@ def _run_export_js(resp: dict) -> dict:
     if node is None:
         pytest.skip("Node.js is needed to execute the template's export handler")
     html = _TEMPLATE.read_text(encoding="utf-8")
+    cta_start = html.index("var _dpPostExportDataset = '';")
     start = html.index("async function dpExportApproved()")
-    source = html[start:html.index("\n}\n", start) + 3]
+    source = (html[cta_start:html.index("\n}\n", cta_start) + 3]
+              + html[start:html.index("\n}\n", start) + 3])
     script = (f"const SOURCE = {json.dumps(source)};\nconst RESP = {json.dumps(resp)};\n" + _HARNESS)
     out = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=30, check=True)
     return json.loads(out.stdout)
@@ -126,11 +133,12 @@ def test_cta_deep_links_the_registered_dataset_id() -> None:
     assert got["status"]["state"] == "success"
     assert "/projects/p1/training?dataset=ds42" in got["cta"]
     assert "dataset=latest" not in got["cta"]
+    assert got["afterRefresh"] is True  # the queue refresh used to wipe the row (2026-11-02)
 
 
 def test_no_training_cta_without_a_registered_dataset() -> None:
     got = _run_export_js({"status": 200, "headers": {"X-Rows": "3"}})
-    assert got["cta"] is None
+    assert got["cta"] is None and got["afterRefresh"] is False
 
 
 def test_a_failed_registration_shows_the_server_reason() -> None:
