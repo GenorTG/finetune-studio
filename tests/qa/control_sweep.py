@@ -7,7 +7,8 @@ Per page, per control (the n-th visible enabled button / summary / checkbox / se
 content, re-found after a fresh load): reload the page, click it, answer any in-app confirm with Cancel and any native
 dialog with dismiss, wait, then record
   - JS errors (uncaught exceptions, console errors) the click caused,
-  - server errors (5xx) and client errors (4xx, honest refusals are fine but listed),
+  - server errors (5xx) and client errors (4xx: listed as REFUSED, to review: an honest refusal the page explains is
+    fine, a control that can only be refused should be disabled with its reason),
   - feedback: a DOM change outside the session bar (page content, toast, overlay, panel), a scroll, a changed
     form value, a request, a dialog, or a navigation. Radios and checkboxes are clicked through their label.
 A control with no feedback and no error is listed as SILENT (a dead button, or one that needs a state the page is not
@@ -90,7 +91,10 @@ class _Recorder:
         self.errors.append(str(e)[:160])
 
     def on_console(self, m) -> None:
-        if m.type == "error":
+        # The browser logs every 4xx as "Failed to load resource"; the response itself is recorded (and reviewed
+        # as REFUSED), so only a 5xx one, or a real script error, is an error here.
+        if m.type == "error" and not re.match(r"Failed to load resource: the server responded with a status of 4",
+                                              m.text):
             self.errors.append("console: " + m.text[:160])
 
     def on_response(self, r) -> None:
@@ -174,7 +178,7 @@ def sweep_page(page, name: str, url: str, gpu: bool, base: str) -> list[dict]:
         bad4 = [r for r in api if r[:1] == "4"]
         navigated = page.url != before_url
         feedback = changed or bool(api) or bool(dialogs) or navigated
-        result = ("ERROR" if errors or bad5 else "ok" if feedback else "SILENT")
+        result = ("ERROR" if errors or bad5 else "REFUSED" if bad4 else "ok" if feedback else "SILENT")
         results.append({**row, "result": result, "errors": errors, "5xx": bad5, "4xx": bad4,
                         "requests": len(api), "dialogs": dialogs, "navigated": navigated})
     return results
@@ -205,10 +209,11 @@ def main() -> int:
                 continue
             rows = sweep_page(page, name, a.base + reg.url.replace("{pid}", a.pid), a.gpu, a.base)
             all_rows += rows
-            bad = [r for r in rows if r["result"] in ("ERROR", "SILENT")]
+            bad = [r for r in rows if r["result"] in ("ERROR", "SILENT", "REFUSED")]
             print(f"{name:18s} controls {len(rows):3d}  ok {sum(r['result'] == 'ok' for r in rows):3d}  "
                   f"skipped {sum(r['result'].startswith('skipped') for r in rows):3d}  silent "
-                  f"{sum(r['result'] == 'SILENT' for r in rows):3d}  error {sum(r['result'] == 'ERROR' for r in rows):3d}",
+                  f"{sum(r['result'] == 'SILENT' for r in rows):3d}  refused {sum(r['result'] == 'REFUSED' for r in rows):3d}  "
+                  f"error {sum(r['result'] == 'ERROR' for r in rows):3d}",
                   flush=True)
             for r in bad:
                 print(f"    {r['result']:6s} #{r['i']} {r['label']!r} {r.get('errors') or ''} {r.get('5xx') or ''} "
