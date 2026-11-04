@@ -10,10 +10,6 @@ from finetune_studio.accel import saved_choice
 from finetune_studio.webui import compute_device as device_settings
 
 
-class ComputeDeviceCommandError(Exception):
-    """A user-facing compute-device CLI failure."""
-
-
 def _print_report(report: dict[str, Any]) -> None:
     saved = report["saved"]
     selected = saved["name"] if saved["mode"] == "gpu" else saved["mode"].upper()

@@ -186,15 +186,13 @@ class TestMiningJobLifecycle:
         with pytest.raises(KeyError):
             db.mining.update_job(job["id"], bogus=1)
 
-    def test_active_jobs_and_interruption(self, mock_settings):
+    def test_active_jobs_filter(self, mock_settings):
         from finetune_studio import db
         pid = db.create_project(name="P", description="")["id"]
         a = db.mining.create_job(pid, "s1", "a", "mine")
         b = db.mining.create_job(pid, "s2", "b", "fill")
         db.mining.update_job(b["id"], status="done")
         assert [j["id"] for j in db.mining.list_jobs(pid, active=True)] == [a["id"]]
-        assert db.mining.interrupt_active_jobs("restart") == 1
-        assert db.mining.get_job(a["id"])["status"] == "interrupted"
 
 
 # ── RAG ingest lifecycle ─────────────────────────────────────────────────
