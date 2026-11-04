@@ -172,10 +172,16 @@
     });
   });
 
-  $('access-signout-others').addEventListener('click', () => run(async () => {
-    const r = await call('DELETE', '/api/settings/security/sessions');
-    return `Signed out ${r.signed_out_elsewhere} other browser(s).`;
-  }));
+  $('access-signout-others').addEventListener('click', async () => {
+    // Every other browser (another computer, a phone, another tab profile) has to sign in again with the password.
+    const ok = await window.fts.confirm('Sign out every other browser? They have to sign in again with the password; '
+      + 'this browser stays signed in.', { danger: true, okText: 'Sign out others' });
+    if (!ok) return;
+    await run(async () => {
+      const r = await call('DELETE', '/api/settings/security/sessions');
+      return `Signed out ${r.signed_out_elsewhere} other browser(s).`;
+    });
+  });
   $('access-signout').addEventListener('click', async () => {
     await call('POST', '/api/auth/logout').catch(() => null);
     window.location.assign('/login');

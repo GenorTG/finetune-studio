@@ -10,6 +10,7 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Fixed
+- Settings → Signed-in browsers: "Sign out other browsers" now asks before signing every other computer and phone out (it acted on one click).
 - Files & Knowledge: XML rows, JSON objects and YAML list records now stay together in one chunk when they fit; the chunker version is stamped, so older sources are marked for re-parse.
 - Pairs → Export approved: the "Next step: configure a run" row (Download JSONL, Start training with this dataset) no longer disappears a moment after the export when the review list refreshes.
 - Activity: deleting a project now shows as "Delete project · <name>" (it was filed under the deleted project and never shown), and the deleted project's other Activity rows are removed instead of kept hidden forever; rows left by earlier deletes are cleared at start-up.
