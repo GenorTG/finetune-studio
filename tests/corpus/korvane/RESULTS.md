@@ -936,3 +936,48 @@ under their project; live: SmolLM2-135M download + delete, drawer checked).
 
 Cleanup: comparison `cd5f0159` deleted through the new UI; SmolLM2-135M downloaded and deleted again; mining project
 `2ead67e6` deleted; API token `agent-mine-20261103` revoked; no model left loaded.
+
+## 34. Second core mine, and R4: §29-style data at 12 epochs vs R3 (2026-11-04, `agent-test-mine-20261104` / `agent-test-r4-20261104`, deleted after)
+
+**Core mine, run 2 (same setup as §33, `dev` at `9cb9ae41`).** 1,107 / 1,130 = **98.0 %** strict recall again (§33: 98.0 %),
+**36** open items (§33: 30; 16 whole-file, 12 rule, 8 helper), 3,404 data points, 3,543 pairs, 475 pairs matching no fact,
+501 helper calls, 6.8 min wall (§33: 3.3 min; the helper answered slower, no failed call). No job failed (5 files `done`,
+14 `gaps`). Two runs now agree on recall to the fact; the open count varies by 6, inside the 38-64 swing of §18/§19 and
+below all of it. The recall gain over §18/§19 (96.3-97.5 %) is real on current `dev`, not one lucky run.
+
+**R4: equal exposures, one phrasing (run `deb0db81`, project `agent-test-r4-20261104`).** This is the test §30 left open:
+§29's data (2,454 golden rows, one phrasing per fact, plus the same 34 abstention rows as R1/R3 = 2,488 rows) at 12 epochs.
+That gives the same ~12 exposures per fact as R3 (~3 phrasings × 4 epochs). Everything else as in §30: Qwen3.5-9B QLoRA
+4-bit, r64 / a128, LR 1e-4, batch 2 × 8, seq 1024, eval every 50 steps on the 10 % split, merge + Q4_K_M. Same 122-question
+quiz, same judge, same Smart Brain settings (19 documents, 165 chunks). Training ran 10:00-11:42 (1 h 42 min, 1,680 steps);
+merge + export finished at 11:50.
+
+| Run | Rows | Epochs / steps | Final train loss | Best eval (step) | Final eval | Closed-book pass /102 (partial) | Closed-book declined /20 | Smart Brain /102 | Smart Brain declined /20 |
+|---|---|---|---|---|---|---|---|---|---|
+| §29 golden + 40 abstain, 6 ep | 2,495 | 6 / 846 | 0.0242 | not measured | not measured | 30 (19) | 2 | 96 | 20 |
+| **R3** = R1 data, 4 ep (run `7150fc91`) | 7,040 | 4 / 1,584 | 0.0456 | 1.0946 (300) | 1.5988 | 39 (20) | 0 | 96 | 20 |
+| **R4** golden + 34 abstain, 12 ep (run `deb0db81`) | 2,488 | 12 / 1,680 | 0.0069 | 0.993 (250) | 1.8028 | **29** (23) | 2 | 97 (2) | 20 |
+
+Paired pass, exact McNemar over the 102 answerable questions: closed-book R4 vs R3 9 / 19, p = 0.087; R4 vs R1 8 / 9,
+p = 1.0. Smart Brain R4 vs R3 2 / 1 and R4 vs R1 2 / 2, both p = 1.0. Closed-book pass + partial: R4 52, R3 59. The
+judge gave a verdict on every case (0 errors, 0 unjudged).
+
+Reading:
+- **Equal exposures did not make one phrasing equal three.** At ~12 exposures per fact, R4 recalled 29/102 closed-book.
+  That is the same as §29 at 6 epochs (30) and R1 (30, paired p = 1.0), and 10 below R3 (39). The gap to R3 leans the way
+  §30 suggested (R3 ahead 19 to 9), but it is not significant at n = 102 (p = 0.087). Doubling the epochs of the
+  single-phrasing set gave no measurable gain over 6 epochs.
+- **The errors that differ are value swaps, not refusals.** On the 19 questions R3 passed and R4 did not, the judge marked
+  a wrong value in 17 and only missing values in 2 (for example incident KC-INC-2407 instead of INC-2024-0614, or a
+  fuel-card limit of 300 instead of 400). On the 9 questions R4 won, R3 had a wrong value in 6 and only missing values in 3.
+  No answer in either set is a refusal. Eval loss again bottomed early (0.993 at step 250, ~1.8 epochs) and rose to 1.80,
+  while train loss fell to 0.007.
+- **Abstention and retrieval unchanged.** Closed-book declined 2/20 (same as §29 6 ep). Smart Brain scored 97/102 and
+  20/20, inside the 96-99 range of every §30 run.
+- **Decision: the bar is not cleared** (closed-book +10 over §29's 30/102 with Smart Brain ≥ 95/102 and ≥ 15/20). R4 is −1
+  (29/102). No app behaviour was changed. With equal exposures, the phrasing-diverse study set (R3) is the stronger
+  closed-book recipe on this corpus. Its lead over R4 is suggestive (p = 0.087), not proven.
+
+Cleanup: project `agent-test-r4-20261104` (its datasets, run `deb0db81` with merged model, Q4_K_M GGUF and checkpoints,
+2 Testing runs, Smart Brain index) deleted through `DELETE /api/projects/{pid}`; `find` shows no file named after it.
+Inference unloaded, API token `agent-mine-20261104` revoked. No release was cut.
