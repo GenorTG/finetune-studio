@@ -15,7 +15,9 @@ A control with no feedback and no error is listed as SILENT (a dead button, or o
 in). Controls whose label starts GPU / helper work (train, build, run, export, load, mine, judge, ...) are skipped unless
 --gpu: run that pass only when no GPU job is running. Use a disposable project: Cancel keeps deletes from happening, but
 a control without a confirm acts for real. Controls that end sessions or change the password (Sign out, Sign out other
-browsers, Change / Turn password off) are never clicked: they sign the sweep and the owner's other browsers out.
+browsers, Change / Turn password off) are never clicked: they sign the sweep and the owner's other browsers out. Neither
+are toggles that save on the spot (Judge automatically, favourite stars); the owner's settings are compared before and
+after the sweep and any change is printed as CHANGED.
 Exit code 1 when any control raised a JS error or a 5xx.
 """
 from __future__ import annotations
@@ -35,7 +37,12 @@ GPU_WORDS = re.compile(
     r"\b(train|training|build|rebuild|index|re-?embed|embed|run|re-?run|export|merge|load|download|install|update|repair|restart|"
     r"apply|mine|mining|generate|judge|study set|preference|send|ask|test connection|test local|test reading|"
     r"benchmark|evaluate|quantize|abliterat|heretic|start|quick)\b", re.IGNORECASE)
-NEVER = re.compile(r"^(sign out|change password|set password|turn password off)\b", re.IGNORECASE)
+# Session, password, and toggles that save the owner's choice the moment they flip (nothing to cancel).
+NEVER = re.compile(r"^(sign out|change password|set password|turn password off|judge automatically)\b|"
+                   r"(add to|remove from) favorites$", re.IGNORECASE)
+# Owner settings a sweep must leave as it found them: compared before and after, any difference is printed.
+WATCH = ("/api/settings/testing", "/api/settings/guide", "/api/settings/security/server", "/api/system/compute-device",
+         "/api/favorites")
 CONTROLS = ("#content button, #content summary, #content input[type=checkbox], #content input[type=radio], "
             "#content [role=tab], #content a.btn")
 FEEDBACK_JS = """() => new Promise(resolve => {
@@ -118,15 +125,21 @@ class _Recorder:
 
 
 def load(page, url: str) -> None:
-    """Open ``url``; a page script that re-navigates during the load (SPA redirect) gets one retry."""
-    for attempt in range(3):
+    """Open ``url``; a page script that re-navigates during the load (SPA redirect) gets a retry, and a web server that
+    is restarting (Settings → Restart web server) gets up to a minute to come back."""
+    for attempt in range(30):
         try:
             page.goto(url, wait_until="networkidle", timeout=60000)
+            if page.title().startswith("502") or "restarting" in (page.title() or "").lower():
+                raise PlaywrightError("server restarting")
             return
         except PlaywrightError as e:
-            if "interrupted by another navigation" not in str(e) or attempt == 2:
+            msg = str(e)
+            again = ("interrupted by another navigation" in msg or "ERR_CONNECTION_REFUSED" in msg
+                     or "ERR_CONNECTION_RESET" in msg or "ERR_EMPTY_RESPONSE" in msg or "server restarting" in msg)
+            if not again or attempt == 29:
                 raise
-            page.wait_for_timeout(1000)
+            page.wait_for_timeout(2000)
 
 
 def _row_key(text: str) -> str:
@@ -160,7 +173,7 @@ def sweep_page(page, name: str, url: str, gpu: bool, base: str, per_label: int =
         text = label(el)
         row = {"page": name, "i": i, "label": text}
         if NEVER.search(text):
-            results.append({**row, "result": "skipped (session/password)"})
+            results.append({**row, "result": "skipped (never)"})
             continue
         if not gpu and GPU_WORDS.search(text):
             results.append({**row, "result": "skipped (gpu/helper)"})
@@ -223,6 +236,11 @@ def main() -> int:
         ctx.add_cookies([{"name": "fts_session", "value": token, "url": a.base}])
         ctx.add_init_script("try { localStorage.setItem('fts.tutorial.seen', '1'); } catch (e) {}")
         page = ctx.new_page()
+
+        def snapshot() -> dict[str, str]:
+            return {u: page.request.get(a.base + u).text() for u in WATCH}
+
+        before = snapshot()
         for name, reg in PAGES.items():
             if only and name not in only:
                 continue
@@ -241,6 +259,10 @@ def main() -> int:
             if a.json:   # written after every page, so a crash keeps what was swept
                 with open(a.json, "w", encoding="utf-8") as f:
                     json.dump(all_rows, f, indent=1)
+        after = snapshot()
+        for u in WATCH:
+            if before[u] != after[u]:
+                print(f"CHANGED {u}: restore it\n  before {before[u][:400]}\n  after  {after[u][:400]}", flush=True)
         if a.gpu:   # a Load / Run click loads a model and the load finishes after the click: say what is left behind
             st = page.request.get(a.base + "/api/inference/status")
             if st.ok and st.json().get("loaded"):
