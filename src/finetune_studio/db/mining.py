@@ -74,18 +74,6 @@ def list_jobs(project_id: str | None = None, *, source_id: str | None = None, ac
     return [row_to_dict(r) for r in rows]  # type: ignore[misc]
 
 
-def interrupt_active_jobs(reason: str) -> int:
-    """After a process restart nothing is running any more: say so on every job that claimed to be."""
-    now = time.time()
-    with cursor() as c:
-        n = c.execute(
-            f"UPDATE mining_jobs SET status = 'interrupted', error = ?, finished_at = ? "
-            f"WHERE status IN ({', '.join('?' for _ in ACTIVE_STATUSES)})",
-            (reason, now, *ACTIVE_STATUSES),
-        ).rowcount
-    return int(n or 0)
-
-
 def claim_queued(runner: str, limit: int) -> list[dict]:
     """Oldest queued jobs, each taken by ``runner`` (a mining worker job id) in one conditional UPDATE: a job is never
     taken twice, even by two workers at once. Claimed jobs are ``running`` from here on."""

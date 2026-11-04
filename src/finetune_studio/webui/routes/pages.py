@@ -296,7 +296,7 @@ async def projects_page(request: Request):
 
 @router.get("/projects/{pid}/overview", response_class=HTMLResponse)
 async def project_overview_alias(request: Request, pid: str):
-    """Alias used by the sticky breadcrumb (QABUG-009)."""
+    """Bookmark alias for the project overview (nothing in the app links here any more)."""
     return RedirectResponse(url=f"/projects/{pid}", status_code=302)
 
 

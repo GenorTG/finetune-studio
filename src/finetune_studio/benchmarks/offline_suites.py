@@ -67,11 +67,6 @@ _OFFLINE_WRITERS: tuple[dict[str, Any], ...] = (
 )
 
 
-def fixtures_dir() -> Path:
-    """Directory containing versioned suite JSON fixtures."""
-    return _FIXTURES_DIR
-
-
 def offline_suite_metas() -> list[dict[str, Any]]:
     """Metadata for discoverable offline suites (without builder callables)."""
     out: list[dict[str, Any]] = []
