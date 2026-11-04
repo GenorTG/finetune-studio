@@ -279,6 +279,14 @@ async def load_model_endpoint(request: Request):
         return await asyncio.to_thread(
             _load_failure, 404, f"model path does not exist: {_mp}", _mp,
         )
+    # A training run's output folder (what Training's "Open in inference" sends): open the model inside it.
+    from finetune_studio.models.run_paths import has_model_files, resolve_run_model_dir
+    model_path = resolve_run_model_dir(_mp)
+    if not has_model_files(model_path):
+        return await asyncio.to_thread(
+            _load_failure, 400, f"no model in this folder (no config.json, adapter or weight files): {model_path}",
+            model_path,
+        )
     try:
         # Run the blocking load off the event loop. Loading a multi-GB model
         # can take seconds-to-minutes; doing it inline froze the entire WebUI

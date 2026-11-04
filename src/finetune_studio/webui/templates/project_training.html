@@ -97,9 +97,8 @@
 
   <div class="flex gap-2 mt-4 wrap">
     <a class="btn sm" href="/projects/{{ pid }}/training?run={{ detail_run.id }}" data-link>Refresh</a>
-    <a class="btn sm primary"
-       href="/inference{% if detail_run.output_path %}?adapter_path={{ detail_run.output_path }}{% endif %}"
-       data-link>Use adapter in inference</a>
+    <button type="button" class="btn sm primary js-open-inf" data-path="{{ detail_run.output_path or '' }}"
+            {% if not (detail_run.status == 'done' and detail_run.output_path) %}disabled title="No finished output path"{% else %}title="Load this run's model (its merged copy, else the adapter) and open Inference"{% endif %}>▶ Open in inference</button>
     <button class="btn sm danger"
             data-action="/api/projects/{{ pid }}/runs/{{ detail_run.id }}"
             data-method="DELETE"
@@ -528,7 +527,7 @@
                   {% if not can_act %}disabled title="Only finished runs with an output path can be production"{% else %}title="Set as production run"{% endif %}>⭐ Set production</button>
           <button type="button" class="btn sm js-open-inf"
                   data-path="{{ run.output_path or '' }}"
-                  {% if not can_act %}disabled title="No finished output path"{% else %}title="Load adapter in inference"{% endif %}>▶ Open in inference</button>
+                  {% if not can_act %}disabled title="No finished output path"{% else %}title="Load this run's model (its merged copy, else the adapter) and open Inference"{% endif %}>▶ Open in inference</button>
           {% if can_act %}
           <a class="btn sm" href="/projects/{{ pid }}/export?run={{ run.id }}" data-link title="Export this run">⬇ Export</a>
           {% else %}
@@ -1064,7 +1063,7 @@
         '" data-run-name="' + esc(name) + '"' + setProdDisabled +
         (canAct ? ' title="Set as production run"' : "") + ">⭐ Set production</button>" +
         '<button type="button" class="btn sm js-open-inf" data-path="' + esc(out) + '"' +
-        infDisabled + (canAct ? ' title="Load adapter in inference"' : "") + ">▶ Open in inference</button>" +
+        infDisabled + (canAct ? ' title="Load this run\'s model (its merged copy, else the adapter) and open Inference"' : "") + ">▶ Open in inference</button>" +
         exportBtn +
         "</div></td></tr>"
       );
