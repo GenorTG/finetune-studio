@@ -94,3 +94,17 @@ def test_the_delete_project_row_is_visible_and_names_the_project(client) -> None
     assert client.delete(f"/api/projects/{pid}").status_code == 200
     rows = [e for e in db.list_activity_events_recent(50) if pid in (e["path"] or "")]
     assert [(e["project_id"], e["message"]) for e in rows] == [("", "Delete project · Short-lived")]
+
+
+def test_requests_naming_their_project_in_the_body_sit_under_it(client) -> None:
+    """Create project, Start training run and the testing starts carry the project in the body (or create it):
+    their Activity rows used to say "system"."""
+    from finetune_studio import db
+
+    pid = client.post("/api/projects", json={"name": "Body-named", "base_model": "x/test"}).json()["id"]
+    client.post("/api/training/start", json={"project_id": pid})            # refused (no data): still its row
+    client.post("/api/testing/run-suite", json={"project_id": pid})         # refused (no suite): still its row
+    rows = {e["path"]: e["project_id"] for e in db.list_activity_events_recent(20)}
+    assert rows["/api/projects"] == pid
+    assert rows["/api/training/start"] == pid
+    assert rows["/api/testing/run-suite"] == pid

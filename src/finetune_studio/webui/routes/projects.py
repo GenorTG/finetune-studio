@@ -76,6 +76,7 @@ async def create_project(request: Request):
         base_model=body.get("base_model", ""),
         system_prompt=body.get("system_prompt", ""),
     )
+    request.state.activity_project_id = str(p.get("id") or "")
     return p
 
 

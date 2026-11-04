@@ -138,6 +138,7 @@ async def run_test_suite(request: Request):
     body = await _json_object(request)
     suite_path = str(body.get("suite_path") or "").strip()
     project_id = str(body.get("project_id") or body.get("pid") or "").strip()
+    request.state.activity_project_id = project_id   # the Activity row's project (not in the path)
     if not suite_path:
         return JSONResponse({"detail": "suite_path required"}, status_code=400)
     if not project_id:
@@ -176,6 +177,7 @@ async def run_brain_test_suite(request: Request):
     body = await _json_object(request)
     suite_path = str(body.get("suite_path") or "").strip()
     project_id = str(body.get("project_id") or body.get("pid") or "").strip()
+    request.state.activity_project_id = project_id   # the Activity row's project (not in the path)
     if not suite_path:
         return JSONResponse({"detail": "suite_path required"}, status_code=400)
     if not project_id:
@@ -223,6 +225,7 @@ async def evaluate_training_dataset(request: Request):
     """
     body = await _json_object(request)
     project_id = str(body.get("project_id") or body.get("pid") or "").strip()
+    request.state.activity_project_id = str(project_id or "")
     if not project_id:
         return JSONResponse({"detail": "project_id required"}, status_code=400)
     _project_or_404(project_id)

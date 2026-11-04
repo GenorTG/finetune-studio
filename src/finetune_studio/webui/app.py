@@ -377,7 +377,9 @@ def _activity_project_id(path: str) -> str:
 def _record_activity_event(request: Request, started: float, http_status: int, error_detail: str = "") -> None:
     """Best-effort event write; logging must never break the API response."""
     try:
-        project_id = _activity_project_id(request.url.path)
+        # The path names the project, or the route does (``request.state.activity_project_id``: body or new id).
+        project_id = _activity_project_id(request.url.path) or str(
+            getattr(request.state, "activity_project_id", "") or "")
         if project_id and db.get_project(project_id) is None:
             project_id = ""   # the request deleted it (or it never existed): a row under a missing project is hidden
         status = "done" if http_status < 400 else "error"
