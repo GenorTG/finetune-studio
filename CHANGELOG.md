@@ -10,6 +10,7 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Fixed
+- Training: after a run started, the Start button kept saying "Starting…" until the page was reloaded. It now shows that only while the request is on its way, stays off with the reason while a run is going, and is back to "Start training" when it ends.
 - Smart Brain: "Re-embed only" stays off with "No index yet: build it first" until the project has an index (it was clickable and always failed with "not found"); it turns on as soon as a build finishes.
 - Keyboard use: moving focus with Tab / Shift+Tab, links to a section and "jump to" buttons no longer leave the control hidden under the top bar; the page stops just below it at every window width.
 - Settings → Signed-in browsers: "Sign out other browsers" now asks before signing every other computer and phone out (it acted on one click).
