@@ -13,6 +13,7 @@ turns that section into the release's notes.
 
 
 ### Fixed
+- Activity: deleting a project now shows as "Delete project · <name>" (it was filed under the deleted project and never shown), and the deleted project's other Activity rows are removed instead of kept hidden forever; rows left by earlier deletes are cleared at start-up.
 - Training with "merge on save": the training model is now freed before the merge, so a 9B model merges on the GPU in seconds instead of falling back to the computer's RAM (where it could run the computer out of memory and get other programs killed). If the merge truly cannot fit on the GPU and there is not enough free RAM either, it now stops with a clear message; the trained adapter is kept and can be merged again from the Export page.
 - Activity: rows now say what was done ("Edit a Q&A pair", "Chat with the loaded model", "Smart Brain search", "Judge a test run", "Save helper settings" …) instead of only "Create", "Update" or "Delete", and testing, benchmark and chat requests are listed under their project instead of "system".
 - Pairs → Preference pairs and Study set: leaving the page while a build runs no longer keeps asking the server for its progress every second until the build ends (the build itself still finishes). Compare stops refreshing a running comparison once you leave the page.

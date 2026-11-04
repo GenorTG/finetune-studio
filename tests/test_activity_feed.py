@@ -297,3 +297,26 @@ def test_failed_mutating_request_records_the_actionable_error(client):
     assert event["status"] == "error"
     assert event["message"] == f"Failed ({response.status_code}): {detail}"
     assert event["message"] != "Create"
+
+
+def test_deleting_a_project_removes_its_activity_rows_and_init_db_drops_old_orphans(iso_db, _stub_live):
+    """Deleted projects' Activity rows were hidden by the feed but kept forever (22,104 of 26,879 on one install)."""
+    from finetune_studio import db
+    from finetune_studio.db.connection import cursor, init_db
+
+    keep, doomed = db.create_project("Keep")["id"], db.create_project("Doomed")["id"]
+    for pid in (keep, doomed, "gone1234"):          # "gone1234": a project deleted before this fix
+        db.record_activity_event(kind="operation", operation="/x", method="POST", path="/x", project_id=pid,
+                                 status="done", http_status=200, message="Create")
+    db.record_activity_event(kind="operation", operation="/y", method="POST", path="/y", project_id="",
+                             status="done", http_status=200, message="Sign in")
+    db.delete_project(doomed)
+
+    def pids() -> list[str]:
+        with cursor() as c:
+            return sorted(r[0] for r in c.execute("SELECT project_id FROM activity_events"))
+
+    assert pids() == sorted(["", keep, "gone1234"])
+    init_db()
+    assert pids() == sorted(["", keep])           # the system row and the live project's row stay
+
