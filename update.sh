@@ -155,9 +155,33 @@ run_diagnose() {
     "$py" "$DIAGNOSE_PY" --venv "$VENV_DIR" --llama-cpp "$LLAMA_CPP_DIR" "$@"
 }
 
+# Rebuild the venv from scratch, keeping the old one until the new one passes the health check: a rebuild that loses the
+# GPU (or anything else) puts the working environment back instead of leaving the app broken.
+rebuild_venv() {
+    local backup="$VENV_DIR.before-rebuild" rc=0
+    rm -rf "$backup"
+    [ -d "$VENV_DIR" ] && mv "$VENV_DIR" "$backup"
+    bash install.sh 2>&1 | tail -8 || rc=$?
+    VENV_PY="$PWD/$VENV_DIR/bin/python"
+    if [ "$rc" = "0" ] && [ -x "$VENV_PY" ] && run_diagnose --no-service-check > /tmp/fts-update-diag.txt 2>&1; then
+        log "✓ the rebuilt environment passed the health check."
+        rm -rf "$backup"
+        return 0
+    fi
+    warn "the rebuilt environment did not pass the health check:"
+    sed 's/^/  /' /tmp/fts-update-diag.txt 2>/dev/null | tail -20 || true
+    if [ -d "$backup" ]; then
+        rm -rf "$VENV_DIR"
+        mv "$backup" "$VENV_DIR"
+        VENV_PY="$PWD/$VENV_DIR/bin/python"
+        die "Repair failed; the previous environment was put back unchanged."
+    fi
+    die "the environment could not be rebuilt (install.sh exit $rc)."
+}
+
 if [ "$REPAIR_MODE" = "1" ]; then
-    log "REPAIR: removing $VENV_DIR and recreating..."
-    rm -rf "$VENV_DIR"
+    log "REPAIR: rebuilding $VENV_DIR from scratch (the old one is kept until the new one passes)..."
+    rebuild_venv
 fi
 
 if [ "$CHECK_MODE" = "1" ] && { [ ! -x "$VENV_PY" ] || ! "$VENV_PY" -c "import sys" >/dev/null 2>&1; }; then
@@ -184,10 +208,7 @@ else
                 log "✓ repair ok, continuing with update."
             else
                 warn "Repair couldn't fully resolve. Recreating venv..."
-                rm -rf "$VENV_DIR"
-                bash install.sh 2>&1 | tail -8 || die "install.sh failed"
-                VENV_PY="$PWD/$VENV_DIR/bin/python"
-                [ -x "$VENV_PY" ] || die "venv still broken after install.sh"
+                rebuild_venv
             fi
         else
             log "✓ venv health OK."

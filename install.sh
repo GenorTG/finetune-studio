@@ -175,16 +175,16 @@ load_plan() {
     fi
 }
 
-# ── Find Python 3.12+ ──
+# ── Find a supported Python (pyproject: >=3.12,<3.14), only for when uv cannot provide one ──
 pick_python() {
     local cmds=()
     [ -n "$PYTHON_VERSION" ] && cmds+=("python${PYTHON_VERSION}")
-    cmds+=(python3.13 python3.12 python3 python)
+    cmds+=(python3.12 python3.13 python3 python)
     for cmd in "${cmds[@]}"; do
         command -v "$cmd" >/dev/null 2>&1 || continue
         local v
         v="$("$cmd" -c 'import sys;print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "")"
-        case "$v" in 3.1[2-9]) echo "$cmd"; return 0 ;; esac
+        case "$v" in 3.12|3.13) echo "$cmd"; return 0 ;; esac
     done
     return 1
 }
@@ -259,14 +259,6 @@ case "$MODE" in
 esac
 
 load_plan
-[ -z "$PYTHON_CMD" ] && die "Python 3.12+ not found. Install:
-  Debian/Ubuntu:  sudo apt-get install -y python3.12 python3.12-venv python3.12-dev
-  Fedora:         sudo dnf install -y python3.12 python3.12-devel
-  Arch/Garuda:    sudo pacman -S python312
-  macOS:          brew install python@3.12"
-PYTHON_VER="$("$PYTHON_CMD" -c 'import sys;print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
-log "Python: $PYTHON_CMD ($PYTHON_VER)"
-
 # ── Bootstrap uv ──
 if ! command -v uv >/dev/null 2>&1; then
     log "Installing uv..."
@@ -279,8 +271,17 @@ log "uv: $(uv --version)"
 
 # ── Create venv ──
 if [ ! -d "$VENV_DIR" ]; then
-    log "Creating venv at $VENV_DIR..."
-    "$PYTHON_CMD" -m venv "$VENV_DIR" || uv venv "$VENV_DIR" --python "$PYTHON_CMD"
+    # uv's own CPython first, whatever else is on PATH: a Homebrew/Linuxbrew Python links Homebrew's glibc, cannot load
+    # the system's libcuda ("Found no NVIDIA driver") and no prebuilt wheel exists for a too-new one.
+    log "Creating venv at $VENV_DIR (Python ${PYTHON_VERSION:-3.12} from uv)..."
+    if ! uv venv "$VENV_DIR" --python "${PYTHON_VERSION:-3.12}" --python-preference only-managed; then
+        [ -n "$PYTHON_CMD" ] || die "Python 3.12 or 3.13 not found and uv could not download one. Install:
+  Debian/Ubuntu:  sudo apt-get install -y python3.12 python3.12-venv python3.12-dev
+  Fedora:         sudo dnf install -y python3.12 python3.12-devel
+  Arch/Garuda:    sudo pacman -S python312"
+        warn "uv could not provide Python; using $PYTHON_CMD."
+        uv venv "$VENV_DIR" --python "$PYTHON_CMD" || die "could not create the venv with $PYTHON_CMD"
+    fi
 fi
 PYTHON_CMD="$PWD/$VENV_DIR/bin/python"
 [ -x "$PYTHON_CMD" ] || die "venv broken: $PYTHON_CMD not executable"
