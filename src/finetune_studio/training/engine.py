@@ -1400,7 +1400,10 @@ class TrainingEngine:
         _free_cuda()
 
         from finetune_studio.models.hf_loader import load_merge_base, load_peft_adapter
-        from finetune_studio.training.merge_base import resolve_merge_base
+        from finetune_studio.training.merge_base import (
+            copy_processor_files,
+            resolve_merge_base,
+        )
 
         adapter_dir = os.path.join(output_dir, "adapter")
         base_path = resolve_merge_base(self.config.model_path)
@@ -1419,6 +1422,7 @@ class TrainingEngine:
                 gen_cfg.eos_token_id = chat_stop_token_ids(tokenizer, gen_cfg) or gen_cfg.eos_token_id
             merged.save_pretrained(merged_dir)
             tokenizer.save_pretrained(merged_dir)
+            copy_processor_files(base_path, merged_dir)
             src = os.path.join(adapter_dir, "chat_template.jinja")
             if os.path.exists(src):
                 shutil.copy(src, os.path.join(merged_dir, "chat_template.jinja"))
@@ -1595,7 +1599,10 @@ def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
     os.makedirs(merged_dir, exist_ok=True)
     from finetune_studio.hf_env import load_tokenizer
     from finetune_studio.models.hf_loader import load_merge_base, load_peft_adapter
-    from finetune_studio.training.merge_base import resolve_merge_base
+    from finetune_studio.training.merge_base import (
+        copy_processor_files,
+        resolve_merge_base,
+    )
     tokenizer = load_tokenizer(adapter_dir)
     base_path = resolve_merge_base(base_model)
     from finetune_studio.smart_brain.model_cache import release_brain_models
@@ -1613,6 +1620,7 @@ def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
             merged.config.quantization_config = None
         merged.save_pretrained(merged_dir)
         tokenizer.save_pretrained(merged_dir)
+        copy_processor_files(base_path, merged_dir)
         src = os.path.join(adapter_dir, "chat_template.jinja")
         if os.path.exists(src):
             shutil.copy(src, os.path.join(merged_dir, "chat_template.jinja"))

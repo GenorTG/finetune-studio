@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from finetune_studio import accel
+from finetune_studio.hf_env import trust_remote_code_for
 from finetune_studio.training.accel_plan import bnb_4bit_config, bnb_usable
 
 log = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ def load_causal_lm(
     dmap = accel.device_map(acc)
 
     def _load(**kw: Any) -> Any:
-        return AutoModelForCausalLM.from_pretrained(model_path, trust_remote_code=True, **kw)
+        return AutoModelForCausalLM.from_pretrained(model_path, trust_remote_code=trust_remote_code_for(model_path), **kw)
 
     if force_4bit and bnb_usable(acc):
         say(f"Loading model in 4-bit on {acc.name}...")
@@ -122,7 +123,7 @@ def load_merge_base(base_path: str, *, acc: accel.Accelerator | None = None) -> 
 
     def _load(dmap: Any) -> Any:
         return AutoModelForCausalLM.from_pretrained(
-            base_path, torch_dtype=dtype, device_map=dmap, trust_remote_code=True)
+            base_path, torch_dtype=dtype, device_map=dmap, trust_remote_code=trust_remote_code_for(base_path))
 
     if acc.is_gpu:
         try:

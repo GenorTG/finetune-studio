@@ -10,6 +10,8 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Fixed
+- Training: Phi-4-mini and Gemma 4 can be trained now. Phi-4's repo ships its own code that no longer works with this transformers ("cannot import name 'LossKwargs'"), so a model type transformers implements itself now always uses that; Gemma 4 stopped at "Target module Gemma4ClippableLinear is not supported" because the adapter also matched its vision tower.
+- Merged models that keep a vision tower (Gemma 3) now include the base's image and video processor settings; without them Heretic and anything else building the processor could not open them.
 - Export → Heretic no longer loses the search when the GPU gets in the way. It refuses to start with too little free VRAM, naming what holds the card (it used to run part of the model on the CPU and take hours); if another program takes the VRAM mid-search it pauses, says so, and resumes from the finished trials; a cancelled or failed search continues from them at the next export. A failure now shows the real error instead of an unrelated warning, and VRAM messages only name programs on the card in use. Exports are also about a third faster: the synchronous GPU mode added as a workaround is now only used for the rest of an export that actually hit a GPU fault. A cancelled export no longer keeps saying "stopping…".
 - Heretic exports now appear on Export, Project models and the Testing model picker (only Inference listed them), and opening the row shows the result ("Kept Heretic trial 19: 1% refusals …, KL 0.083"), which was gone after a reload.
 - Export → Heretic: the job now says "trial 13 of 40 done" while it searches (it showed one unchanged line for up to an hour or more).
