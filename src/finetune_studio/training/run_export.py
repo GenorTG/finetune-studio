@@ -413,6 +413,10 @@ def _export_heretic(
             install_command="fts heretic install",
         )
 
+    shortfall = heretic_tool.vram_shortfall(merged_path)
+    if shortfall:
+        return _export_failure(shortfall, format="heretic")
+
     export_job.report(export_job.PHASE_ABLITERATING, "Heretic: searching abliteration parameters")
     ctx = export_job.current()
     run = heretic_tool.AbliterationRun(
@@ -428,13 +432,14 @@ def _export_heretic(
             cancelled=ctx.cancelled if ctx else None,
             on_tick=_heretic_progress(ctx, run) if ctx else None,
             on_start=ctx.register_proc if ctx else None,
+            on_status=lambda text: export_job.report(export_job.PHASE_ABLITERATING, text),
         )
     except SubprocessCancelled as e:
         raise export_job.ExportCancelled(str(e)) from e
     except SubprocessTimeout as e:
         return _export_failure(f"Heretic did not finish in time: {e}", format="heretic")
     except SubprocessFailed as e:
-        return _export_failure(f"Heretic failed: {e.tail or e}", format="heretic")
+        return _export_failure(f"Heretic failed: {heretic_tool.failure_text(e.output) or e}", format="heretic")
     except heretic_tool.HereticError as e:
         return _export_failure(str(e), format="heretic")
 

@@ -242,7 +242,7 @@ def test_gpu_snapshot_is_vendor_neutral(monkeypatch: pytest.MonkeyPatch, fake_ac
     fake_acc(_acc("rocm"))
     monkeypatch.setattr(gpu_probe, "vram_devices", lambda: [
         {"index": 0, "name": "AMD", "used_gb": 4.0, "total_gb": 24.0, "pct": 16.7, "source": "rocm-smi"}])
-    monkeypatch.setattr(gpu_probe, "_consumers", lambda: [{"pid": 1, "vram_mib": 4096}])
+    monkeypatch.setattr(gpu_probe, "_consumers", lambda _index=None: [{"pid": 1, "vram_mib": 4096}])
     free, top = gpu_probe.free_and_consumers()
     assert free == 20 * 1024 and top == [{"pid": 1, "vram_mib": 4096}]
 

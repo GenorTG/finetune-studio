@@ -203,12 +203,54 @@ def free_and_consumers() -> tuple[int | None, list[dict[str, Any]]]:
     except Exception as e:  # noqa: BLE001 — the panel still shows the first card
         log.warning("could not match the active accelerator to a probed GPU: %s", e)
     free_mib = int((pick["total_gb"] - pick["used_gb"]) * 1024)
-    return free_mib, _consumers()[:5]
+    return free_mib, _consumers(pick["index"])[:5]
 
 
-def _consumers() -> list[dict[str, Any]]:
+def _identify_process(args_line: str, pid: int) -> str:
+    """Human-identifiable name for a GPU consumer. `ps comm` truncates
+    everything to 'python3.12' — useless. Prefer a recognizable project
+    marker from the full cmdline, then the script basename."""
+    low = args_line.lower()
+    for marker in ("comfyui", "comfy", "ollama", "vllm", "lmstudio", "lm studio",
+                   "stable-diffusion", "sd-webui", "fooocus", "kohaku",
+                   "text-generation-webui", "jupyter", "tensorboard"):
+        if marker in low:
+            return marker
+    try:
+        import shlex
+        parts = shlex.split(args_line)
+    except ValueError:
+        parts = args_line.split()
+    for p in parts:
+        if p.endswith((".py", ".js", ".sh", ".ts", ".jar")):
+            return os.path.basename(p)
+    if parts:
+        return os.path.basename(parts[0])
+    return f"pid-{pid}"
+
+
+def name_consumers(top: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Add a readable ``name`` to each consumer from its command line."""
+    for t in top:
+        try:
+            cmd = subprocess.run(["ps", "-o", "args=", "-p", str(t["pid"])], capture_output=True, text=True,
+                                 timeout=3, check=False).stdout.strip()
+            t["name"] = _identify_process(cmd, t["pid"]) if cmd else f"pid-{t['pid']}"
+        except Exception:  # noqa: BLE001
+            t["name"] = f"pid-{t['pid']}"
+    return top
+
+
+def describe_consumers(top: list[dict[str, Any]], *, min_mib: int = 512) -> str:
+    """"llama-server 4.3 GB, ComfyUI 1.2 GB": who holds the card, in words. Empty when nobody holds much."""
+    return ", ".join(f"{t['name']} {t['vram_mib'] / 1024:.1f} GB" for t in name_consumers(top) if t["vram_mib"] >= min_mib)
+
+
+def _consumers(index: int | None = None) -> list[dict[str, Any]]:
+    """Compute processes on GPU ``index`` (every GPU without one): a program on another card frees nothing here."""
     top: list[dict[str, Any]] = []
-    txt = _run(["nvidia-smi", "--query-compute-apps=pid,used_memory", "--format=csv,noheader,nounits"], 5)
+    only = ["-i", str(index)] if index is not None else []
+    txt = _run(["nvidia-smi", *only, "--query-compute-apps=pid,used_memory", "--format=csv,noheader,nounits"], 5)
     for line in (txt or "").splitlines():
         try:
             pid_s, mem_s = line.split(",")
