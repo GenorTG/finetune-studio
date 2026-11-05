@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import os
-import subprocess
 import threading
 
 from fastapi import APIRouter, HTTPException, Request
@@ -30,46 +29,14 @@ async def _json_body(request: Request) -> dict:
     return body
 
 
-def _identify_process(args_line: str, pid: int) -> str:
-    """Human-identifiable name for a GPU consumer. `ps comm` truncates
-    everything to 'python3.12' — useless. Prefer a recognizable project
-    marker from the full cmdline, then the script basename."""
-    low = args_line.lower()
-    for marker in ("comfyui", "comfy", "ollama", "vllm", "lmstudio", "lm studio",
-                   "stable-diffusion", "sd-webui", "fooocus", "kohaku",
-                   "text-generation-webui", "jupyter", "tensorboard"):
-        if marker in low:
-            return marker
-    try:
-        import shlex
-        parts = shlex.split(args_line)
-    except ValueError:
-        parts = args_line.split()
-    for p in parts:
-        if p.endswith((".py", ".js", ".sh", ".ts", ".jar")):
-            return os.path.basename(p)
-    if parts:
-        return os.path.basename(parts[0])
-    return f"pid-{pid}"
-
-
 def _gpu_snapshot():
     """Return (free_mib, top consumers) for the active GPU of any vendor, or (None, [])."""
-    from finetune_studio.webui.gpu_probe import free_and_consumers
+    from finetune_studio.webui.gpu_probe import free_and_consumers, name_consumers
     try:
         free, top = free_and_consumers()
     except Exception:  # noqa: BLE001
         return None, []
-    for t in top:
-        try:
-            cmd = subprocess.run(
-                ["ps", "-o", "args=", "-p", str(t["pid"])],
-                capture_output=True, text=True, timeout=3, check=False,
-            ).stdout.strip()
-            t["name"] = _identify_process(cmd, t["pid"]) if cmd else f"pid-{t['pid']}"
-        except Exception:  # noqa: BLE001
-            t["name"] = f"pid-{t['pid']}"
-    return free, top
+    return free, name_consumers(top)
 
 
 def _vram_hint(model_path: str) -> str:

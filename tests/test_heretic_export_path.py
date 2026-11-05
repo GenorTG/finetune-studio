@@ -50,6 +50,7 @@ def _fake_heretic(monkeypatch: pytest.MonkeyPatch, front: list[dict[str, Any]]) 
         return {"front": front} if action == "read" else {"ok": True, "pos": pos}
 
     monkeypatch.setattr(heretic_tool, "probe", lambda: USABLE)
+    monkeypatch.setattr(heretic_tool, "_vram_state", lambda: (None, ""))   # never the real card
     monkeypatch.setattr(heretic_tool, "_study", study)
     monkeypatch.setattr("finetune_studio.training.proc_runner.run_group_subprocess", run_group)
     return calls

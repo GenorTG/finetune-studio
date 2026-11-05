@@ -34,11 +34,14 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -629,27 +632,127 @@ print(json.dumps({"front": [{"pos": i, "trial": t.number,
 '''
 
 
-def finished_trials(study_dir: str) -> int:
-    """How many trials the running search has finished, from the study journal Heretic keeps in ``study_dir``.
+def _study_journal(study_dir: str) -> tuple[int, bool]:
+    """``(finished trials, the whole search finished)`` from the journal Heretic keeps in ``study_dir``.
 
-    Read while Heretic appends to it: a half-written last line just does not count yet. 0 when there is no journal.
+    Read while Heretic appends to it: a half-written last line just does not count yet. (0, False) with no journal.
     """
-    finished = 0
+    trials, search_done = 0, False
     for path in Path(study_dir).glob("*.jsonl"):
         try:
             lines = path.read_text(encoding="utf-8").splitlines()
         except OSError:
             continue
         for line in lines:
-            if '"op_code":6' not in line:   # Optuna's journal: 6 = a trial's state changed
+            if '"op_code":6' not in line and '"finished"' not in line:
                 continue
             try:
-                state = json.loads(line).get("state")
+                entry = json.loads(line)
             except ValueError:
                 continue
-            if state not in (None, 0):      # 0 = still running; complete, pruned and failed all finished
-                finished += 1
-    return finished
+            if entry.get("op_code") == 6 and entry.get("state") not in (None, 0):
+                trials += 1      # Optuna: a trial's state changed; 0 = running, complete/pruned/failed all finished
+            elif entry.get("op_code") == 2 and "finished" in (entry.get("user_attr") or {}):
+                search_done = bool(entry["user_attr"]["finished"])
+    return trials, search_done
+
+
+def finished_trials(study_dir: str) -> int:
+    """How many trials the search in ``study_dir`` has finished."""
+    return _study_journal(study_dir)[0]
+
+
+# ── When the card gets in the way ──
+
+#: Beyond the weights a search holds the LoRA adapters, one module's prompts and a batch of generation. Measured peak on
+#: an RTX 3090 for 10 families, 2.9 GiB of weights (3.7 used) to 18 GiB (18.6) with Llama 8B at 15.0 (17.1), all below
+#: this formula (RESULTS §37). With less free, Accelerate (``device_map=auto``) quietly puts part of the model on the CPU:
+#: a step of seconds takes many minutes, and the search still ends in an out-of-memory.
+VRAM_MARGIN_FACTOR = 1.1
+VRAM_MARGIN_GIB = 1.0
+#: A search that lost the GPU: resume this many times, each after waiting up to this long for the VRAM to come back.
+MAX_GPU_RESUMES = 3
+VRAM_WAIT_S = 1800.0
+VRAM_POLL_S = 15.0
+
+_GPU_FAILURES = ("out of memory", "illegal memory access", "cuda error", "cublas", "cudnn")
+
+
+def vram_needed_gib(model_path: str) -> float:
+    """VRAM (GiB) a search on this model needs free. 0 when its size cannot be read."""
+    try:
+        weights = sum(f.stat().st_size for f in Path(model_path).iterdir() if f.suffix == ".safetensors")
+    except OSError:
+        return 0.0
+    if not weights:
+        return 0.0
+    return round(weights / 1024 ** 3 * VRAM_MARGIN_FACTOR + VRAM_MARGIN_GIB, 1)
+
+
+def _vram_state() -> tuple[float | None, str]:
+    """``(free GiB on the active GPU or None without one, who holds it in words)``."""
+    from finetune_studio.webui.gpu_probe import describe_consumers, free_and_consumers
+
+    try:
+        free_mib, top = free_and_consumers()
+    except Exception:  # probing must not stop an export
+        log.debug("heretic: could not read the free VRAM", exc_info=True)
+        return None, ""
+    return (None, "") if free_mib is None else (free_mib / 1024, describe_consumers(top))
+
+
+def vram_shortfall(model_path: str) -> str:
+    """Why a search should not start now (too little free VRAM, in words), or ''."""
+    need = vram_needed_gib(model_path)
+    free, holders = _vram_state()
+    if not need or free is None or free >= need:
+        return ""
+    return (f"not enough free VRAM for Heretic: this model needs about {need:.1f} GB, {free:.1f} GB is free"
+            + (f" ({holders})" if holders else "")
+            + ". Close what you can spare and export again. It would otherwise run partly on the CPU and take hours.")
+
+
+def failure_text(output: str) -> str:
+    """The error itself from Heretic's output: the lines after its traceback box, on one line."""
+    tail = output[output.rfind("╯") + 1:] if "╯" in output else output
+    return re.sub(r"\s+", " ", tail).strip()[-600:]
+
+
+def is_gpu_failure(output: str) -> bool:
+    """The card failed, not the model: it wrapped its message at 80 columns, so spaces are normalised first."""
+    text = re.sub(r"\s+", " ", output).lower()
+    return any(marker in text for marker in _GPU_FAILURES)
+
+
+def is_out_of_memory(output: str) -> bool:
+    return "out of memory" in re.sub(r"\s+", " ", output).lower()
+
+
+def _wait_for_vram(model_path: str, *, cancelled: Callable[[], bool] | None, on_tick: Callable[[], None] | None,
+                   on_status: Callable[[str], None] | None, wait_s: float, poll_s: float) -> None:
+    """Block until the search fits again. Raises HereticError after ``wait_s``; a cancel raises through on_status."""
+    from finetune_studio.training.proc_runner import SubprocessCancelled
+
+    need = vram_needed_gib(model_path)
+    started = time.monotonic()
+    while True:
+        free, holders = _vram_state()
+        if not need or free is None or free >= need:
+            return
+        if on_status is not None:
+            on_status(f"Heretic: paused, {need:.1f} GB of free VRAM needed, {free:.1f} GB free"
+                      + (f" ({holders})" if holders else "") + ". Finished trials are kept; it resumes by itself")
+        if time.monotonic() - started >= wait_s:
+            raise HereticError(f"the GPU stayed too full to continue: {need:.1f} GB needed, {free:.1f} GB free"
+                               + (f" ({holders})" if holders else "")
+                               + ". The finished trials are kept: export again to continue from them.")
+        deadline = time.monotonic() + poll_s
+        while time.monotonic() < deadline:
+            if cancelled is not None and cancelled():
+                raise SubprocessCancelled("heretic cancelled")
+            if on_tick is not None:
+                on_tick()
+            time.sleep(min(1.0, poll_s))
 
 
 def _study(study_dir: str, action: str = "read", pos: int = 0) -> dict[str, Any]:
@@ -711,7 +814,7 @@ def choose_trial(study_dir: str, kl_budget: float) -> dict[str, Any]:
     return picked
 
 
-def run_env() -> dict[str, str]:
+def run_env(*, synchronous: bool = False) -> dict[str, str]:
     """Child environment: the parent's, plus this app's GPU pin and no pager.
 
     Built ON TOP of ``os.environ`` on purpose: ``proc_runner`` hands this dict
@@ -719,6 +822,10 @@ def run_env() -> dict[str, str]:
     partial dict therefore dropped the parent's ``CUDA_VISIBLE_DEVICES`` mask, and
     Heretic saw both cards (including the GTX 1070, which this PyTorch has no
     kernels for) and died with ``no kernel image is available``.
+
+    ``synchronous`` turns on ``CUDA_LAUNCH_BLOCKING``, for a resume after a CUDA fault only: it costs 53 % (Qwen2.5-1.5B,
+    439 s vs 286 s for two trials). A first-trial "illegal memory access" seen 3 of 3 times on 2026-11-02 went away with
+    it, but did not come back without it in 11 runs across 9 model families on 2026-11-05 (RESULTS §37).
     """
     from finetune_studio import accel
 
@@ -729,14 +836,10 @@ def run_env() -> dict[str, str]:
         "PYTHONUNBUFFERED": "1",
         # Heretic is an external tool: never let it write into our package tree.
         "PYTHONDONTWRITEBYTECODE": "1",
-        # Heretic 2.0.0's ARA step (the default modifier; its LBFGS objective became a low-rank
-        # product in upstream #499) dies with "CUDA error: an illegal memory access" in the
-        # first trial on torch 2.14.1+cu130 / driver 580 (3 of 3 runs, Qwen2.5-1.5B, RTX 3090).
-        # The same run with the pre-#499 ara.py, or with synchronous kernel launches, completes;
-        # measured cost of synchronous launches here: about the same time per trial. Remove once
-        # upstream fixes the race.
-        "CUDA_LAUNCH_BLOCKING": "1",
     })
+    env.pop("CUDA_LAUNCH_BLOCKING", None)
+    if synchronous:
+        env["CUDA_LAUNCH_BLOCKING"] = "1"
     try:
         env.update(accel.isolated_env(accel.get_accelerator(), env))
     except Exception:  # accelerator probing must not block an export
@@ -750,14 +853,47 @@ def run_abliteration(
     cancelled: Any = None,
     on_tick: Any = None,
     on_start: Any = None,
+    on_status: Callable[[str], None] | None = None,
     timeout: float = DEFAULT_TIMEOUT_S,
+    vram_wait_s: float = VRAM_WAIT_S,
+    vram_poll_s: float = VRAM_POLL_S,
 ) -> dict[str, Any]:
     """Run Heretic once and return what it wrote.
+
+    When the card fails mid-way (another program took the VRAM, a CUDA error) the run is not lost: it waits for the
+    VRAM to come back and resumes from the study's finished trials, up to :data:`MAX_GPU_RESUMES` times. A later export
+    of the same run continues an unfinished study the same way, so a cancel or a failure never costs finished trials.
 
     Raises :class:`HereticError` when the tool is unusable, and the runner's own
     exceptions on failure/cancel/timeout (their whole process group is killed).
     """
-    from finetune_studio.training.proc_runner import run_group_subprocess
+    from finetune_studio.training.proc_runner import (
+        SubprocessFailed,
+        run_group_subprocess,
+    )
+
+    synchronous = [False]   # after a CUDA fault (not an out-of-memory) the rest of this export launches synchronously
+
+    def attempt(make_cmd: Callable[[str], list[str]], action: str) -> None:
+        """One pass, resumed after a GPU failure."""
+        resumes = 0
+        while True:
+            try:
+                run_group_subprocess(make_cmd(action), timeout=timeout, cancelled=cancelled, on_tick=on_tick,
+                                     on_start=on_start, env=run_env(synchronous=synchronous[0]))
+                return
+            except SubprocessFailed as e:
+                if resumes >= MAX_GPU_RESUMES or not is_gpu_failure(e.output):
+                    raise
+                resumes += 1
+                synchronous[0] = synchronous[0] or not is_out_of_memory(e.output)
+                log.warning("heretic lost the GPU (resume %d of %d): %s", resumes, MAX_GPU_RESUMES,
+                            failure_text(e.output))
+                _wait_for_vram(run.model_path, cancelled=cancelled, on_tick=on_tick, on_status=on_status,
+                               wait_s=vram_wait_s, poll_s=vram_poll_s)
+                if on_status is not None:
+                    on_status("Heretic: the GPU failed mid-way, resuming from the finished trials")
+                action = "continue"
 
     status = probe()
     if not status.installed:
@@ -780,21 +916,17 @@ def run_abliteration(
     # model is merged in pass 2, once the trial is chosen.
     scratch = out.parent / (out.name + ".search")
     shutil.rmtree(scratch, ignore_errors=True)
-    cmd = build_command(run, save_dir=str(scratch), export_strategy="adapter",
-                        checkpoint_action="restart", trial_index=0)
-    log.info("heretic search: %s", " ".join(cmd))
+    study_dir = run.checkpoint_dir or str(out)
+    done, search_done = _study_journal(study_dir)
+    first_action = "continue" if done and not search_done else "restart"
+    if first_action == "continue" and on_status is not None:
+        on_status(f"Heretic: continuing from the {done} finished trials of the last attempt")
+    log.info("heretic search (%s, %d trials already finished)", first_action, done)
     try:
-        run_group_subprocess(
-            cmd,
-            timeout=timeout,
-            cancelled=cancelled,
-            on_tick=on_tick,
-            on_start=on_start,
-            env=run_env(),
-        )
+        attempt(lambda action: build_command(run, save_dir=str(scratch), export_strategy="adapter",
+                                             checkpoint_action=action, trial_index=0), first_action)
 
         # Choose the trial here, not with a fixed index: see choose_trial.
-        study_dir = run.checkpoint_dir or str(out)
         picked = choose_trial(study_dir, run.kl_budget)
         log.info("heretic chose trial %s of the front (refusals=%s, kl=%s, budget_met=%s)",
                  picked["chosen"]["trial"], picked["chosen"]["refusals"],
@@ -802,17 +934,9 @@ def run_abliteration(
 
         # Pass 2 — merge the chosen trial. ``continue`` restores the study (with the
         # trial index choose_trial just wrote) and runs no new trials.
-        cmd = build_command(run, save_dir=str(out), export_strategy="merge",
-                            checkpoint_action="continue", trial_index=picked["chosen"]["pos"])
-        log.info("heretic save: %s", " ".join(cmd))
-        run_group_subprocess(
-            cmd,
-            timeout=timeout,
-            cancelled=cancelled,
-            on_tick=on_tick,
-            on_start=on_start,
-            env=run_env(),
-        )
+        attempt(lambda action: build_command(run, save_dir=str(out), export_strategy="merge",
+                                             checkpoint_action=action, trial_index=picked["chosen"]["pos"]),
+                "continue")
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
 

@@ -39,10 +39,13 @@ class SubprocessCancelled(RuntimeError):
 class SubprocessFailed(RuntimeError):
     """Non-zero exit. ``tail`` is the end of stderr (stdout when stderr is empty)."""
 
-    def __init__(self, cmd: str, returncode: int, tail: str) -> None:
+    def __init__(self, cmd: str, returncode: int, tail: str, output: str = "") -> None:
         super().__init__(f"{cmd} failed (rc={returncode}): {tail}")
         self.returncode = returncode
         self.tail = tail
+        #: stderr then stdout. A tool may print warnings on stderr and its error on stdout (Heretic does), so ``tail``
+        #: alone can miss the reason.
+        self.output = output or tail
 
 
 @dataclass(frozen=True)
@@ -189,7 +192,7 @@ def run_group_subprocess(
     )
     if proc.returncode != 0:
         tail = (result.stderr_tail or result.stdout_tail)[-1000:]
-        raise SubprocessFailed(name, proc.returncode, tail)
+        raise SubprocessFailed(name, proc.returncode, tail, f"{result.stderr_tail}\n{result.stdout_tail}".strip())
     return result
 
 
