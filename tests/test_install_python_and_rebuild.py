@@ -10,6 +10,8 @@ import re
 import subprocess
 from pathlib import Path
 
+import pytest
+
 _ROOT = Path(__file__).resolve().parents[1]
 _INSTALL = (_ROOT / "install.sh").read_text(encoding="utf-8")
 _UPDATE = (_ROOT / "update.sh").read_text(encoding="utf-8")
@@ -69,3 +71,42 @@ def test_install_builds_on_uvs_python_and_only_accepts_supported_ones() -> None:
 def test_repair_no_longer_deletes_first() -> None:
     assert 'rm -rf "$VENV_DIR"\n    bash install.sh' not in _UPDATE
     assert "rebuild_venv\nfi" in _UPDATE
+
+
+def test_heretic_is_healed_after_the_environment_changes(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from finetune_studio.training import heretic_tool as h
+
+    assert 'import heal; print(heal())' in _UPDATE
+    py = tmp_path / "python"
+    monkeypatch.setattr(h, "python_path", lambda: py)
+    installs: list[int] = []
+    monkeypatch.setattr(h, "install", lambda **_kw: installs.append(1))
+    assert h.heal() == "" and not installs   # never installed: stays that way
+
+    py.write_text("", encoding="utf-8")
+    monkeypatch.setattr(h, "probe", lambda: h.HereticStatus(installed=True, version="2.0.0"))
+    assert h.heal() == "" and not installs   # works: left alone
+
+    monkeypatch.setattr(h, "probe", lambda: h.HereticStatus(installed=True, version="2.0.0", missing_flags=("--x",)))
+    assert h.heal() == "re-installed" and installs == [1]
+
+
+def test_a_heretic_that_cannot_start_says_why(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    from finetune_studio.training import heretic_tool as h
+
+    py = tmp_path / "python"
+    py.write_text("", encoding="utf-8")
+    monkeypatch.setattr(h, "python_path", lambda: py)
+    monkeypatch.setattr(h, "installed_version", lambda _p=None: "2.0.0")
+    monkeypatch.setattr(h, "installed_ref", lambda: "x")
+    monkeypatch.setattr(h, "_help_output", lambda _p: "Traceback (most recent call last):\nModuleNotFoundError: No module named 'pydantic_settings'\n")
+    status = h.probe()
+    assert not status.usable
+    assert "No module named 'pydantic_settings'" in status.hint and "Re-install" in status.hint
+
+
+def test_heretics_light_requirements_do_not_depend_on_the_app() -> None:
+    from finetune_studio.training import heretic_tool as h
+
+    names = {d.split(">")[0] for d in h.EXTRA_DEPS}
+    assert {"pydantic-settings", "psutil", "rich", "tqdm", "optuna", "questionary"} <= names

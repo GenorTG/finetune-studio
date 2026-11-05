@@ -262,6 +262,13 @@ else
         || die "init_db failed"
 fi
 
+# Heretic's overlay reads this venv's packages: a rebuild or a dependency change can stop it from starting.
+if [ "$CHECK_MODE" = "0" ]; then
+    healed="$("$VENV_PY" -c "from finetune_studio.training.heretic_tool import heal; print(heal())" 2>/dev/null | tail -1)" \
+        || warn "Heretic no longer starts and could not be re-installed: fts heretic install"
+    [ -n "$healed" ] && log "Heretic: $healed for the new environment."
+fi
+
 # ── Step 6: restart ─────────────────────────────────────────────────────
 # The user unit is restarted only when it serves THIS checkout: an update of a second clone (a test install, a
 # sandbox) must not bounce the instance another checkout runs.
