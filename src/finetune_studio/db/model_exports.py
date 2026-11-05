@@ -95,7 +95,7 @@ def mark_failed(eid: str, error: str) -> dict | None:
 
 
 def mark_cancelled(eid: str, note: str = "cancelled by user") -> dict | None:
-    return update_export(eid, status="cancelled", phase="cancelled",
+    return update_export(eid, status="cancelled", phase="cancelled", phase_detail="",   # not "stopping…" forever
                          finished_at=time.time(), error=note[:1000])
 
 

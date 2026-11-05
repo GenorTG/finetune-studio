@@ -91,6 +91,27 @@ def test_a_gpu_failure_resumes_from_the_study(tmp_path: Path, monkeypatch: pytes
     assert _actions(calls) == ["restart", "continue", "continue"]   # search, resumed search, merge
 
 
+def test_a_cuda_fault_resumes_synchronously_and_out_of_memory_does_not(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    envs: list[str | None] = []
+    calls = _fake(monkeypatch, [OOM, "RuntimeError: CUDA error: an illegal memory access was encountered"])
+    fake_run = __import__("finetune_studio.training.proc_runner", fromlist=["x"]).run_group_subprocess
+
+    def spy(cmd: list[str], **kw: Any) -> None:
+        envs.append(kw["env"].get("CUDA_LAUNCH_BLOCKING"))
+        fake_run(cmd, **kw)
+
+    monkeypatch.setattr("finetune_studio.training.proc_runner.run_group_subprocess", spy)
+    monkeypatch.setattr(heretic_tool, "VRAM_MARGIN_GIB", 0.0)
+    assert _export(tmp_path)["ok"] is True
+    assert envs == [None, None, "1", "1"], calls   # search, after the OOM, after the fault, merge
+
+
+def test_a_normal_run_never_pays_for_synchronous_launches(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CUDA_LAUNCH_BLOCKING", "1")
+    assert "CUDA_LAUNCH_BLOCKING" not in heretic_tool.run_env()
+    assert heretic_tool.run_env(synchronous=True)["CUDA_LAUNCH_BLOCKING"] == "1"
+
+
 def test_it_waits_for_the_vram_and_says_so(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     calls = _fake(monkeypatch, [OOM])
     monkeypatch.setattr(heretic_tool, "vram_needed_gib", lambda _p: 4.0)
@@ -171,3 +192,13 @@ def test_tail_is_kept_separately_from_the_full_output() -> None:
     e = SubprocessFailed("x", 1, "warn", "warn\nthe error")
     assert e.tail == "warn" and "the error" in e.output
     assert SimpleNamespace(output=SubprocessFailed("x", 1, "only").output).output == "only"
+
+
+def test_a_cancelled_row_stops_saying_stopping(client) -> None:
+    from finetune_studio import db
+
+    pid = client.post("/api/projects", json={"name": "cancel row"}).json()["id"]
+    run = db.create_run(project_id=pid, name="r", base_model="m", data_path="d")
+    row = db.create_export(pid, run["id"], format="heretic", quant="safetensors")
+    db.update_export(row["id"], phase="cancelling", phase_detail="stopping…")
+    assert db.mark_export_cancelled(row["id"])["phase_detail"] == ""

@@ -664,9 +664,10 @@ def finished_trials(study_dir: str) -> int:
 
 # ── When the card gets in the way ──
 
-#: Measured peak of a search beyond the weights' size on an RTX 3090 (Qwen2.5-1.5B 2.9 → 3.7 GiB, Qwen3-1.7B
-#: 3.8 → 4.5 GiB): the LoRA adapters, one module's prompts and a batch of generation. Below this much free, Accelerate
-#: (``device_map=auto``) quietly puts part of the model on the CPU and a step of seconds takes many minutes.
+#: Beyond the weights a search holds the LoRA adapters, one module's prompts and a batch of generation. Measured peak on
+#: an RTX 3090 for 10 families, 2.9 GiB of weights (3.7 used) to 18 GiB (18.6) with Llama 8B at 15.0 (17.1), all below
+#: this formula (RESULTS §37). With less free, Accelerate (``device_map=auto``) quietly puts part of the model on the CPU:
+#: a step of seconds takes many minutes, and the search still ends in an out-of-memory.
 VRAM_MARGIN_FACTOR = 1.1
 VRAM_MARGIN_GIB = 1.0
 #: A search that lost the GPU: resume this many times, each after waiting up to this long for the VRAM to come back.
@@ -721,6 +722,10 @@ def is_gpu_failure(output: str) -> bool:
     """The card failed, not the model: it wrapped its message at 80 columns, so spaces are normalised first."""
     text = re.sub(r"\s+", " ", output).lower()
     return any(marker in text for marker in _GPU_FAILURES)
+
+
+def is_out_of_memory(output: str) -> bool:
+    return "out of memory" in re.sub(r"\s+", " ", output).lower()
 
 
 def _wait_for_vram(model_path: str, *, cancelled: Callable[[], bool] | None, on_tick: Callable[[], None] | None,
@@ -809,7 +814,7 @@ def choose_trial(study_dir: str, kl_budget: float) -> dict[str, Any]:
     return picked
 
 
-def run_env() -> dict[str, str]:
+def run_env(*, synchronous: bool = False) -> dict[str, str]:
     """Child environment: the parent's, plus this app's GPU pin and no pager.
 
     Built ON TOP of ``os.environ`` on purpose: ``proc_runner`` hands this dict
@@ -817,6 +822,10 @@ def run_env() -> dict[str, str]:
     partial dict therefore dropped the parent's ``CUDA_VISIBLE_DEVICES`` mask, and
     Heretic saw both cards (including the GTX 1070, which this PyTorch has no
     kernels for) and died with ``no kernel image is available``.
+
+    ``synchronous`` turns on ``CUDA_LAUNCH_BLOCKING``, for a resume after a CUDA fault only: it costs 53 % (Qwen2.5-1.5B,
+    439 s vs 286 s for two trials). A first-trial "illegal memory access" seen 3 of 3 times on 2026-11-02 went away with
+    it, but did not come back without it in 11 runs across 9 model families on 2026-11-05 (RESULTS §37).
     """
     from finetune_studio import accel
 
@@ -827,14 +836,10 @@ def run_env() -> dict[str, str]:
         "PYTHONUNBUFFERED": "1",
         # Heretic is an external tool: never let it write into our package tree.
         "PYTHONDONTWRITEBYTECODE": "1",
-        # Heretic 2.0.0's ARA step (the default modifier; its LBFGS objective became a low-rank
-        # product in upstream #499) dies with "CUDA error: an illegal memory access" in the
-        # first trial on torch 2.14.1+cu130 / driver 580 (3 of 3 runs, Qwen2.5-1.5B, RTX 3090).
-        # The same run with the pre-#499 ara.py, or with synchronous kernel launches, completes;
-        # measured cost of synchronous launches here: about the same time per trial. Remove once
-        # upstream fixes the race.
-        "CUDA_LAUNCH_BLOCKING": "1",
     })
+    env.pop("CUDA_LAUNCH_BLOCKING", None)
+    if synchronous:
+        env["CUDA_LAUNCH_BLOCKING"] = "1"
     try:
         env.update(accel.isolated_env(accel.get_accelerator(), env))
     except Exception:  # accelerator probing must not block an export
@@ -867,18 +872,21 @@ def run_abliteration(
         run_group_subprocess,
     )
 
+    synchronous = [False]   # after a CUDA fault (not an out-of-memory) the rest of this export launches synchronously
+
     def attempt(make_cmd: Callable[[str], list[str]], action: str) -> None:
         """One pass, resumed after a GPU failure."""
         resumes = 0
         while True:
             try:
                 run_group_subprocess(make_cmd(action), timeout=timeout, cancelled=cancelled, on_tick=on_tick,
-                                     on_start=on_start, env=run_env())
+                                     on_start=on_start, env=run_env(synchronous=synchronous[0]))
                 return
             except SubprocessFailed as e:
                 if resumes >= MAX_GPU_RESUMES or not is_gpu_failure(e.output):
                     raise
                 resumes += 1
+                synchronous[0] = synchronous[0] or not is_out_of_memory(e.output)
                 log.warning("heretic lost the GPU (resume %d of %d): %s", resumes, MAX_GPU_RESUMES,
                             failure_text(e.output))
                 _wait_for_vram(run.model_path, cancelled=cancelled, on_tick=on_tick, on_status=on_status,
