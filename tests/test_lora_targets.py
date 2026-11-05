@@ -134,3 +134,31 @@ def test_moe_expert_adapter_survives_save_reload_and_merge(tmp_path) -> None:
     with torch.no_grad():
         assert torch.allclose(reloaded(input_ids=ids).logits, trained, atol=1e-5)
         assert torch.allclose(reloaded.merge_and_unload()(input_ids=ids).logits, trained, atol=1e-4)
+
+
+class _ClippableLinear(torch.nn.Module):
+    """Like Gemma 4's vision ``q_proj``: a wrapper holding a Linear, not a Linear itself."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.linear = torch.nn.Linear(16, 16)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.linear(x)
+
+
+class _WrappedVisionVLM(torch.nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.language_model = torch.nn.ModuleDict({"q_proj": torch.nn.Linear(16, 16)})
+        self.vision_tower = torch.nn.ModuleDict({"q_proj": _ClippableLinear()})
+
+
+def test_a_wrapper_sharing_a_leaf_name_forces_full_paths() -> None:
+    """Short names would also match the vision wrapper, and PEFT refuses it ("Target module ... is not supported")."""
+    from peft import LoraConfig, get_peft_model
+
+    model = _WrappedVisionVLM()
+    targets = discover_lora_targets(model, rank=4)
+    assert targets.modules == ["language_model.q_proj"]
+    get_peft_model(model, LoraConfig(r=4, target_modules=targets.modules))

@@ -46,6 +46,24 @@ def hf_cache_source() -> str:
     return "default (~/.cache/huggingface)"
 
 
+def trust_remote_code_for(path: str) -> bool:
+    """Whether to run the model repo's own Python code: only when transformers has no implementation of its type.
+
+    Some repos ship code alongside a type transformers implements itself. That code is pinned to the transformers of
+    its day and breaks on a newer one: Phi-4-mini's ``modeling_phi3.py`` fails with "cannot import name 'LossKwargs'".
+    """
+    import json
+    from pathlib import Path
+
+    from transformers.models.auto.configuration_auto import CONFIG_MAPPING
+
+    try:
+        model_type = json.loads((Path(path) / "config.json").read_text(encoding="utf-8")).get("model_type")
+    except (OSError, ValueError):
+        return True   # a repo id or an unreadable config: the loader decides from what it downloads
+    return model_type not in CONFIG_MAPPING
+
+
 def load_tokenizer(path: str, **kwargs: Any):
     """``AutoTokenizer.from_pretrained`` with the Mistral-regex fix applied.
 
@@ -55,7 +73,7 @@ def load_tokenizer(path: str, **kwargs: Any):
     """
     from transformers import AutoTokenizer
 
-    kwargs.setdefault("trust_remote_code", True)
+    kwargs.setdefault("trust_remote_code", trust_remote_code_for(path))
     try:
         return AutoTokenizer.from_pretrained(path, fix_mistral_regex=True, **kwargs)
     except TypeError:
