@@ -5,6 +5,7 @@ rag_data/
 *.pyc
 __pycache__/
 .venv/
+.venv.before-rebuild/
 .env
 # User data directories at the repo ROOT only (not source code under src/).
 # The previous `data/` matched src/finetune_studio/data/ and silently ignored
