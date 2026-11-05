@@ -16,7 +16,7 @@ _UPDATE = (_ROOT / "update.sh").read_text(encoding="utf-8")
 
 
 def _rebuild_function() -> str:
-    m = re.search(r"^rebuild_venv\(\) \{.*?^\}", _UPDATE, re.S | re.M)
+    m = re.search(r"^rebuild_venv\(\) \{.*?^\}", _UPDATE, re.DOTALL | re.MULTILINE)
     assert m, "rebuild_venv missing from update.sh"
     return m.group(0)
 
