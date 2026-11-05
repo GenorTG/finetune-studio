@@ -842,7 +842,7 @@ tiny real SFT run `d4c9c8c1` (30 synthetic rows, LoRA r8, LR 2e-5, 1 epoch, 14 s
 **Upstream regression found.** v2.0.0's ARA step (Heretic's default modifier; upstream #499 made its LBFGS objective a
 low-rank product) failed with `CUDA error: an illegal memory access` in the first trial: 2 of 2 export attempts and 1
 direct run, torch 2.14.1+cu130, driver 580. Isolated: the same direct run with only `ara.py` reverted to the old pin
-completed (2/2 trials), and v2.0.0 with `CUDA_LAUNCH_BLOCKING=1` completed. The app now runs Heretic with synchronous
+completed (2/2 trials), and v2.0.0 with `CUDA_LAUNCH_BLOCKING=1` completed. (**Revised in §37:** not reproducible in 25 later runs; cause unknown, not shown to be upstream's.) The app now runs Heretic with synchronous
 launches (`heretic_tool.run_env`); measured cost: ~2.6 min per trial on this model, the same order as before.
 
 Export `26555088`: **done**, 82.6 min, 2.9 GB, `config.json` + tokenizer + `model.safetensors`. Heretic kept trial 17 of
@@ -1026,3 +1026,58 @@ Reading:
 
 Cleanup: project `agent-test-r5-20261104` (dataset, run `bc2dcf69` with merged model, Q4_K_M GGUF and checkpoints, 2
 Testing runs, Smart Brain index) deleted through `DELETE /api/projects/{pid}`. Inference unloaded. No release was cut.
+
+## 37. Heretic and the GPU; every model family through training, merge and Heretic (2026-11-05, RTX 3090, `agent-test-heretic-fix-20261105`, deleted after)
+
+Question (Genor): a Heretic crash is our fault until shown otherwise. RESULTS §31 blamed an upstream regression for
+`CUDA error: an illegal memory access` and shipped `CUDA_LAUNCH_BLOCKING=1`. Find the real cause.
+
+**The illegal memory access does not reproduce.** Same driver (580.178.04), torch 2.14.1+cu130, kernel, Heretic `0db5c31`
+as on 11-02, workaround off. Clean, each at least one full ARA trial, no Xid in the kernel log: Qwen3-1.7B (2 trials), base
+Qwen2.5-1.5B (2), the exact §31 input, a merged SFT run on the same 30 rows, r8, LR 2e-5 (3), then one merged SFT run each
+of OLMo 2 1B, Granite 3.3 2B, Llama 3.2 3B, SmolLM3 3B, Qwen3.5-4B, Mistral 7B, Llama 3.1 8B, Qwen3.5-9B. 11 runs, 0 GPU
+faults. The 11-02 logs and kernel journal are gone, so its cause stays unknown; what was on the card that day is not
+recorded. Not claimed as fixed: it is handled (below).
+
+**The workaround was costly.** Qwen2.5-1.5B, 2 trials: 286 s without, 439 s with (+53 %; about 30 min on a 40-trial
+export). Off by default now; a CUDA fault that is not an out-of-memory resumes with synchronous launches for that export.
+
+**What a tight card really does (reproduced with a second process holding VRAM).**
+
+| Free VRAM for Qwen2.5-1.5B (needs 3.7 GiB) | Result |
+|---|---|
+| 2 GB, 3 GB at start | part of the model silently on the CPU (`device_map=auto`): a ~20 s step past 9 min, stopped |
+| 3.6 GB at start | spilled, 7 min, then `CUDA out of memory` in trial 1, rc=1 |
+| 0.3 GB taken mid-search (after trial 1) | `CUDA out of memory`, rc=1: the app called the whole export failed |
+
+Nothing resumed, and the message could show a Hub warning from stderr: Heretic prints its error on stdout.
+
+**Fixed (#144).** Needed VRAM = 1.1 × weights + 1 GiB (above the measured peak of all 10 families sized, weights → used
+GiB: 2.8 → 3.6, 2.9 → 3.7, 3.8 → 4.5, 4.7 → 5.7, 5.7 → 6.8, 6.0 → 7.1, 8.7 → 9.2, 13.5 → 15.6, 15.0 → 17.1, 18.0 → 18.6).
+Below it the export refuses at once and names who holds the card (only programs on this card). After a GPU failure it
+pauses, waits up to 30 min for VRAM, resumes from the study (3 times at most); a cancelled or failed search continues at the
+next export. Trial counter from #142 stays honest. Live through the Export API on the merged 1.5B run: with 1.5 GB free it failed in 3 s, "needs about 4.2 GB, 1.5 GB is free (ballast.py 20.8 GB)"; a card filled after trial 1 did not hurt it (10 more trials: its peak was already reserved); a card filled during a reload after a cancel at trial 11 gave "paused, 4.2 GB of free VRAM needed, 3.5 GB free (ballast.py 18.8 GB)" on the Export page, it resumed 3 s after the ballast went and finished all 40: 30.6 min for the last 29 trials, kept trial 23, 4 % refusals, KL 0.036, budget met, 2.9 GB.
+
+**Every family (#145).** Training one run per library model found: Phi-4-mini could not train (its repo's own
+`modeling_phi3.py` breaks on this transformers, while transformers implements `phi3` itself); Gemma 4 E2B could not train
+(LoRA short names matched its vision `Gemma4ClippableLinear`); a merged Gemma 3 lacked the processor files. All three fixed in #145 and re-run. 
+One-trial Heretic numbers are plumbing, not quality.
+
+**Repair run for real (B2.2, #146).** Settings → Repair built the venv on Linuxbrew's Python 3.15 (first on the service's
+PATH; `pick_python` accepted up to 3.19 while pyproject says `<3.14`). Linuxbrew's glibc cannot load the system libcuda:
+torch "Found no NVIDIA driver", llama.cpp a CPU build, kernels removed, Heretic's overlay broken, and Repair said
+"Finished ✓". The working venv was restored by hand. Now: uv's own 3.12 always, a rebuild keeps the old venv until
+`install_diagnose` passes and restores it if not (restore path tested with stubs, not by breaking the box again), an
+existing Heretic re-installs itself when it no longer starts (it read `pydantic-settings` from the app, where it only happened
+to be). Repair again: 1,775 s (29.6 min, llama.cpp compiled), `issues: none`.
+
+There is no lockfile, so a rebuild moves to the newest releases: torch 2.14.1+cu130 → 2.15.0+cu132, transformers 5.18.0 →
+5.22.1, trl 1.14.1 → 1.17.1, fastapi 0.142.2 → 0.162.0, torchvision absent → 0.29.2 (52 packages changed). cu132 runs on the
+580 / CUDA 13.0 driver here.
+
+On that stack, one real SFT run + merge + one Heretic trial each, workaround off, 0 GPU faults, 11/11 rc=0: OLMo 2 1B, Granite
+3.3 2B, Llama 3.2 3B, SmolLM3 3B, Phi-4-mini, Gemma 4 E2B, Gemma 3 4B, Qwen3.5-4B, Mistral 7B, Llama 3.1 8B, Qwen3.5-9B (peak
+20.3 GB of 24, need 20.8). Gemma 4 needed the torchvision that the old venv lacked. Core flow on the same stack: upload → SFT 9B →
+quiz test with auto-judge → GGUF q4_k_m → load merged, adapter and GGUF in Inference and chat ("42") → unload back to the 1.3 GB
+baseline → Smart Brain quick index 3 files, search finds the passage, grounded chat cites it. Settings Check "1 update(s)
+available" and Apply (49.7 s) live too. Control sweep on this stack: all 19 pages with `--per-label 2`, 0 errors, 0 silent, 0 refused, owner settings unchanged.
