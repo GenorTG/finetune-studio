@@ -55,11 +55,11 @@ def trust_remote_code_for(path: str) -> bool:
     import json
     from pathlib import Path
 
-    from transformers.models.auto.configuration_auto import CONFIG_MAPPING
-
     try:
+        from transformers import CONFIG_MAPPING
+
         model_type = json.loads((Path(path) / "config.json").read_text(encoding="utf-8")).get("model_type")
-    except (OSError, ValueError):
+    except (ImportError, OSError, ValueError):
         return True   # a repo id or an unreadable config: the loader decides from what it downloads
     return model_type not in CONFIG_MAPPING
 
