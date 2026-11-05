@@ -128,4 +128,4 @@ def test_settings_card_summarises_the_run_in_words() -> None:
     assert "Pulls main" not in js and "the new version starts at the next restart" in js
     html = (ROOT / "src/finetune_studio/webui/templates/settings.html").read_text(encoding="utf-8")
     assert "report drift" not in html and "Pull main" not in html
-    assert "10–20 minutes" in html                       # Repair says what it costs before anyone presses it
+    assert "about 30 minutes on a GPU machine" in html                       # Repair says what it costs before anyone presses it
