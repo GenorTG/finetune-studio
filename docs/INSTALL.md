@@ -26,7 +26,7 @@ If something fails, read the relevant section below.
 
 | Prerequisite | Why | Install |
 |---|---|---|
-| **Python 3.12 or 3.13** | Supported runtime range (`>=3.12,<3.14`) | https://www.python.org/downloads/ |
+| **Python 3.12** | Downloaded by the installer (uv's own copy, whatever else is on the system). A system 3.12 or 3.13 is only used when that download fails | https://www.python.org/downloads/ |
 | **Git** | Clones the repo, pulls updates | https://git-scm.com/downloads |
 | **NVIDIA GPU + current driver** (recommended) | Fast training & inference; the installer selects a compatible PyTorch wheel | https://www.nvidia.com/drivers |
 | **CUDA Toolkit** (optional) | Needed only when a GPU-enabled llama.cpp component must be built from source; not required for PyTorch prebuilt CUDA wheels | https://developer.nvidia.com/cuda-toolkit |
@@ -36,7 +36,7 @@ If something fails, read the relevant section below.
 ### How to install each prerequisite from the official source
 
 **Python**
-- `sudo apt install python3 python3-venv python3-dev` (Debian/Ubuntu), `sudo dnf install python3 python3-devel` (Fedora) or `sudo pacman -S python` (Arch)
+- Nothing to do: `install.sh` downloads its own Python 3.12 with uv. Only if that download fails it needs a system one: `sudo apt install python3.12 python3.12-venv python3.12-dev` (Debian/Ubuntu), `sudo dnf install python3.12 python3.12-devel` (Fedora) or `sudo pacman -S python312` (Arch).
 
 **Git**
 - `apt install git` / `dnf install git` / `pacman -S git` (or https://git-scm.com/downloads)

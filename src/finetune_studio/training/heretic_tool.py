@@ -79,6 +79,12 @@ EXTRA_DEPS: tuple[str, ...] = (
     "langdetect>=1.0,<2",
     "tomli-w>=1.2,<2",
     "py-cpuinfo>=9.0,<10",
+    # Light, and Heretic's own requirements even if the app happens to carry them today: the app's venv dropping one
+    # (a rebuild after chromadb left took pydantic-settings along) stopped Heretic from starting at all.
+    "pydantic-settings>=2.15,<3",
+    "psutil>=7.2,<8",
+    "rich>=15,<16",
+    "tqdm>=4.70,<5",
 )
 
 #: Packages that must come from the app venv, never be installed into the overlay:
@@ -247,17 +253,30 @@ def missing_headless_flags(py: Path | None = None) -> tuple[str, ...]:
     py = py or python_path()
     if not py.exists():
         return ()
-    entry = entry_point()
-    cmd = [str(entry), "--help"] if entry.exists() else [str(py), "-c", _BORING_MAIN, "--help"]
-    try:
-        out = _run(cmd, timeout=120)
-    except (OSError, subprocess.SubprocessError):
-        return _REQUIRED_FLAGS
-    text = out.stdout + out.stderr
+    text = _help_output(py)
     if "--model-action" not in text:
         # Help can fail before parsing on a broken build: report all, be explicit.
         return _REQUIRED_FLAGS
     return tuple(f for f in _REQUIRED_FLAGS if f not in text)
+
+
+def _help_output(py: Path) -> str:
+    entry = entry_point()
+    cmd = [str(entry), "--help"] if entry.exists() else [str(py), "-c", _BORING_MAIN, "--help"]
+    try:
+        out = _run(cmd, timeout=120)
+    except (OSError, subprocess.SubprocessError) as e:
+        return str(e)
+    return out.stdout + out.stderr
+
+
+def start_failure(py: Path | None = None) -> str:
+    """The error that stops Heretic from starting at all (its last line), or ''."""
+    py = py or python_path()
+    text = _help_output(py) if py.exists() else ""
+    if "--model-action" in text or "Traceback" not in text:
+        return ""
+    return text.strip().splitlines()[-1][:300]
 
 
 def probe() -> HereticStatus:
@@ -277,7 +296,10 @@ def probe() -> HereticStatus:
     missing = missing_headless_flags(py)
     hint = ""
     if missing:
+        broken = start_failure(py)
         hint = (
+            f"Heretic does not start ({broken}). Re-install it from Settings → Heretic, or run: fts heretic install"
+            if broken else
             "This Heretic build cannot run unattended (it is missing "
             + ", ".join(missing)
             + "). Re-install the pinned v2.0.0 release: fts heretic install"
@@ -430,6 +452,17 @@ def _make_venv(on_line: Any = None) -> None:
                      timeout=60).stdout.strip())
     site.mkdir(parents=True, exist_ok=True)
     (site / "fts-shared.pth").write_text(str(app_site_packages()) + "\n", encoding="utf-8")
+
+
+def heal(*, on_line: Any = None) -> str:
+    """After the app's environment changed: re-install an existing Heretic that no longer works. '' when nothing to do.
+
+    The overlay reads this app's packages, so a venv rebuild or a dependency change can break it.
+    """
+    if not python_path().exists() or probe().usable:
+        return ""
+    install(on_line=on_line)
+    return "re-installed"
 
 
 def install(ref: str = PINNED_REF, *, on_line: Any = None) -> HereticStatus:

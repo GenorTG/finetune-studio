@@ -19,7 +19,7 @@
       <div class="flex gap-2 wrap mb-3">
         <button class="btn sm" id="btn-update-check" title="Asks GitHub whether a newer version of this install's branch exists (and lists what changed), then checks the Python environment, GPU driver and llama.cpp tools. Changes nothing.">Check</button>
         <button class="btn sm primary" id="btn-update-apply" title="Downloads the newest code of this install's branch, updates the Python packages, migrates the database and restarts the app (under a minute). A running training or export is never cut off: the restart is skipped then, and the new version starts at the next restart.">Apply update</button>
-        <button class="btn sm" id="btn-update-repair" title="Rebuilds the Python environment from scratch (deletes .venv and reinstalls PyTorch and every package: 10–20 minutes and a few GB of downloads), then restarts. Only when Check reports a broken environment.">Repair</button>
+        <button class="btn sm" id="btn-update-repair" title="Rebuilds the Python environment from scratch (PyTorch, llama.cpp and every package: about 30 minutes on a GPU machine). The current one stays until the new one passes its health check and is put back if it does not. For a broken install, not for updates.">Repair</button>
       </div>
       <div id="update-status" class="text-xs dim mb-2">Idle.</div>
       <pre id="update-log" class="text-xs" hidden></pre>
@@ -381,6 +381,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/settings.js?v=23"></script>
+<script src="/static/js/settings.js?v=24"></script>
 <script src="/static/js/security.js?v=5"></script>
 {% endblock %}
