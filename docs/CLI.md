@@ -314,6 +314,8 @@ fts update status <update-id> --full
   the Settings page. Script output streams to the terminal; `history` and
   `status` read those durable records. `--json` emits one final record with the
   saved log tail and status, not progress lines. A failed update exits nonzero.
-- Avoid running `repair` casually: it rebuilds the Python environment and can
-  take several minutes. Do not interrupt an update while dependencies or the
+- Avoid running `repair` casually: it rebuilds the Python environment, about 30
+  minutes on a GPU machine (it compiles llama.cpp). The old environment stays in
+  use until the new one passes its health check, and is put back if it does not.
+  Do not interrupt an update while dependencies or the
   service are being changed.

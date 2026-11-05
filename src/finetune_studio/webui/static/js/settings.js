@@ -216,7 +216,7 @@ function keyStateText(a) {
     updStatus().textContent = mode === 'check'
       ? 'Checking (dry run)…'
       : mode === 'repair'
-        ? 'Repairing — recreates the venv, several minutes…'
+        ? 'Repairing — rebuilds the environment, about 30 minutes (it compiles llama.cpp). The app keeps running until the end…'
         : 'Updating — the service will restart shortly…';
     try {
       await api.post('/api/system/update', { mode, triggered_by: 'settings-ui' });
@@ -237,7 +237,7 @@ function keyStateText(a) {
         + 'skipped and the new version starts at the next restart.', {danger: true, okText: 'Apply update'})) updTrigger('update');
   });
   if (bRepair) bRepair.addEventListener('click', async () => {
-    if (await window.fts.confirm('Repair recreates the Python venv from scratch — several minutes, then restarts the service. Continue?', {danger: true, okText: 'Repair'})) updTrigger('repair');
+    if (await window.fts.confirm('Repair rebuilds the Python environment from scratch: about 30 minutes on a GPU machine, then the service restarts. The current environment stays in use until then, and it is put back if the new one fails its health check. Continue?', {danger: true, okText: 'Repair'})) updTrigger('repair');
   });
   updHistory();
   updTickSilent();  // resume the live view if an update is already running
