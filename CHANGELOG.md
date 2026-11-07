@@ -222,6 +222,7 @@ turns that section into the release's notes.
   way to reach it from the page), and a cancelled job shows *cancelled* instead of *error*.
 
 ### Changed
+- A fresh install, Repair and updates now install the exact versions that were tested (`pins/`: Python packages, PyTorch, llama.cpp, Heretic's packages) instead of whatever is newest that day. A PyTorch index for older GPUs that does not carry the tested version falls back to its newest.
 - The WebUI now uses a calmer, readable slate-and-teal visual system with clearer navigation, forms, tables, focus states and responsive spacing; project steps stay in one scrollable row with the next action kept visible.
 - README now distinguishes the built-in Abliterated export from the separately shipped, optional Heretic format and records the verified Heretic Export API path.
 - Training preset advisor: datasets larger than the ~500-example reference keep each tier's planned epochs instead of silently shrinking passes per fact; small datasets still scale up to reach useful optimizer-step counts. See the Quillmoor results for the measured recall/abstention trade-off.

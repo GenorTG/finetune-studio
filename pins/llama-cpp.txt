@@ -1,0 +1,3 @@
+# Tested stack, written by scripts/pin_versions.py (make pins): do not edit by hand.
+# recorded 2026-11-07
+fcc891545b0f06de346d8f67d1e6c61f9bf0e777

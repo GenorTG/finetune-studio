@@ -911,7 +911,26 @@ def best_llama_backend(plan: Plan) -> tuple[LlamaBackend, list[str]]:
     return plan.llama_backends[-1], msgs
 
 
-# ── Constraints file (keeps torch on its GPU build across later resolves) ──
+# ── Tested versions (pins/, written by scripts/pin_versions.py) ──
+
+PINS_DIR = Path(__file__).resolve().parents[1] / "pins"
+
+
+def pins_enabled() -> bool:
+    """Off to try the newest releases (FTS_UNPINNED=1, on a dev branch) and for the unsloth profile, which needs its own."""
+    off = ("1", "on", "yes", "true", "force")
+    return _env("FTS_UNPINNED").lower() not in off and _env("FTS_UNSLOTH").lower() not in off
+
+
+def pinned_lines(name: str) -> list[str]:
+    """Requirement lines of ``pins/<name>.txt``; [] when pins are off or the file is absent."""
+    path = PINS_DIR / f"{name}.txt"
+    if not pins_enabled() or not path.is_file():
+        return []
+    return [ln.strip() for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip() and not ln.startswith("#")]
+
+
+# ── Constraints file (keeps torch on its GPU build across later resolves, everything else on the tested version) ──
 
 def constraint_lines(versions: dict[str, str]) -> list[str]:
     lines = [f"{n}=={versions[n]}" for n in ("torch", "torchvision", "torchaudio") if versions.get(n)]
@@ -939,6 +958,7 @@ def write_constraints(venv: Path) -> Path | None:
         lines = constraint_lines(json.loads(out.strip().splitlines()[-1]))
     except (ValueError, IndexError):
         return None
+    lines += pinned_lines("app")
     if not lines:
         return None
     path = venv / "torch-constraints.txt"
@@ -973,7 +993,14 @@ def torch_commands(plan: Plan, py: str, *, unsloth_profile: bool = False) -> lis
         return [("pypi", uv_pip(py, *base, *specs))]
     tags = [plan.torch_tag] + plan.torch_fallback_tags
     prefix = f"{PYTORCH_WHL}/"
-    return [(t, uv_pip(py, *base, "--index-url", prefix + t, *specs)) for t in tags]
+    # The tested PyTorch first. An index for older GPUs may not carry it: then that index's newest, as before.
+    tested = [] if plan.torch_pin or unsloth_profile else pinned_lines("torch")
+    attempts: list[tuple[str, list[str]]] = []
+    for t in tags:
+        if tested:
+            attempts.append((t, uv_pip(py, *base, "--index-url", prefix + t, *tested)))
+        attempts.append((t, uv_pip(py, *base, "--index-url", prefix + t, *specs)))
+    return attempts
 
 
 def torch_probe_code(backend: str) -> str:
@@ -1204,6 +1231,18 @@ def install_linear_attn(plan: Plan, venv: Path, *, runner=_exec) -> bool:
     return True
 
 
+def llama_clone_commands(root: Path) -> list[list[str]]:
+    """Fetch only the tested llama.cpp commit (the converter and quantizer differ a lot between commits); its newest
+    commit with pins off."""
+    pinned = pinned_lines("llama-cpp")
+    if not pinned:
+        return [["git", "clone", "--depth", "1", LLAMA_CPP_GIT, str(root)]]
+    git = ["git", "-C", str(root)]
+    return [["git", "init", "--quiet", str(root)],
+            [*git, "fetch", "--quiet", "--depth", "1", LLAMA_CPP_GIT, pinned[0]],
+            [*git, "checkout", "--quiet", "--detach", "FETCH_HEAD"]]
+
+
 def build_llama_cli(plan: Plan, root: Path, venv: Path, *, rebuild: bool = False,
                     only: bool = False, runner=_exec) -> bool:
     """Clone + build llama.cpp (convert_hf_to_gguf.py, llama-quantize, llama-cli) with the
@@ -1221,8 +1260,9 @@ def build_llama_cli(plan: Plan, root: Path, venv: Path, *, rebuild: bool = False
     if not shutil.which("cmake") or not shutil.which("git"):
         _say("ERROR: cmake and git are required to build the llama.cpp CLI.")
         return False
-    if not root.exists() and runner(["git", "clone", "--depth", "1", LLAMA_CPP_GIT, str(root)]) != 0:
+    if not root.exists() and not all(runner(c) == 0 for c in llama_clone_commands(root)):
         _say("ERROR: git clone llama.cpp failed")
+        shutil.rmtree(root, ignore_errors=True)   # a half-made checkout would look finished next time
         return False
     if not only:  # the convert script's pinned torch must not displace our GPU build
         req = root / "requirements" / "requirements-convert_hf_to_gguf.txt"

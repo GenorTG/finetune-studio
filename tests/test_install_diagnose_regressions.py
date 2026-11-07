@@ -15,6 +15,12 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import install_diagnose as d
 
 
+@pytest.fixture(autouse=True)
+def _repair_logic_without_pins(monkeypatch: pytest.MonkeyPatch) -> None:
+    """One attempt per wheel index; the pinned attempt in front of each is tests/test_version_pins.py."""
+    monkeypatch.setenv("FTS_UNPINNED", "1")
+
+
 def _cp(stdout: str = "", stderr: str = "", returncode: int = 0) -> subprocess.CompletedProcess:
     return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr=stderr)
 

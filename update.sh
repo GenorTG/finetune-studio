@@ -84,7 +84,8 @@ ACCEL_FLAGS=()
 # installed (working) torch family so sync can't drift.
 torch_constraint_args() {
     local f="$VENV_DIR/torch-constraints.txt"
-    [ -s "$f" ] || accel constraints --venv "$VENV_DIR" >/dev/null 2>&1 || true
+    # Written every time: an update can bring new pins (pins/app.txt goes into this file).
+    accel constraints --venv "$VENV_DIR" >/dev/null 2>&1 || true
     [ -s "$f" ] && printf -- '-c\n%s\n' "$f"
 }
 
@@ -239,6 +240,9 @@ if [ "$CHECK_MODE" = "0" ]; then
     # Qwen3.5 linear-attention kernels: re-probed on every update (a torch change can break a built extension)
     accel install linear-attn --venv "$VENV_DIR" 2>&1 | tail -4 \
         || warn "Qwen3.5 kernel sync failed"
+    # PyTorch and llama-cpp-python are only moved by a rebuild (they depend on the GPU, and the second one compiles).
+    "$VENV_PY" scripts/pin_versions.py check --venv "$VENV_DIR" 2>&1 | sed 's/^/  /' \
+        || warn "this install differs from the tested versions above. Settings → Repair moves PyTorch and llama-cpp-python."
 else
     log "check mode: skipping pip install"
 fi
