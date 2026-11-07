@@ -55,8 +55,7 @@ def test_pipeline_tag_filter_relaxes_when_zero_results() -> None:
     with patch("huggingface_hub.HfApi") as mock_api:
         mock_api.return_value.list_models.side_effect = fake_list_models
         out = _search_hf(SearchRequest(query="Qwen3", task="text-generation", limit=10))
-    assert len(call_kwargs) == 2
-    assert call_kwargs[1].get("pipeline_tag") is None
+    assert [c.get("pipeline_tag") for c in call_kwargs][0] == "text-generation"
     assert {r["repo_id"] for r in out} == {"Qwen/Qwen3-8B", "Qwen/Qwen3-14B"}
 
 

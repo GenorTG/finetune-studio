@@ -388,6 +388,10 @@ function wireAssistant() {
     $('vision-local-list').innerHTML = (d.vision_candidates || []).map((c) => `<option value="${esc(c.path)}" label="${esc(c.label)}">`).join('');
     if (!$('vision-local-model').value) $('vision-local-model').value = vision.local_model || '';
     $('vision-local-fields').hidden = vision.setting !== 'local-file';
+    const visionOff = vision.setting === 'off';
+    $('btn-vision-test').disabled = visionOff;
+    $('btn-vision-test').title = visionOff ? 'Reading pictures is off: choose a model for it above, Save, then test it'
+      : 'Reads a generated picture with a random code: checks the picture reader really sees, and shows the delay';
   }
 
   // ── connection form ──

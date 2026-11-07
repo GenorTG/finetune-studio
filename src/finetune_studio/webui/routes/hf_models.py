@@ -179,6 +179,15 @@ def _search_hf(req: SearchRequest) -> list[dict]:
             raise HFUnavailableError(str(e)) from e
         return out
     out = _list_models(req.task or None)
+    if req.task == "text-generation" and query_tokens:
+        # Chat models with a vision tower (Qwen3.5, Gemma 3/4) are tagged image-text-to-text and train like any other:
+        # the official Qwen/Qwen3.5-0.8B was missing from a search for "Qwen3.5-0.8B" while its GGUF re-uploads were listed.
+        seen = {m["repo_id"] for m in out}
+        out += [m for m in _list_models("image-text-to-text") if m["repo_id"] not in seen]
+        key = {"downloads": "downloads", "likes": "likes"}.get(req.sort)
+        if key:
+            out.sort(key=lambda m: m.get(key) or 0, reverse=True)
+        out = out[:req.limit]
     if not out and req.task:
         # Pipeline-tag was too strict — retry without it.
         out = _list_models(None)

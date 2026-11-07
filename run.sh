@@ -16,5 +16,9 @@ source .venv/bin/activate
 
 # Address: $FTS_ROOT/server.json (Settings -> Access & network; default 127.0.0.1:7860, this computer only).
 # HOST=... / PORT=... override it for this run.
-echo "[run] Finetune Studio, address: $(python -m finetune_studio.cli server show)"
+if [ -n "${HOST:-}${PORT:-}" ]; then
+    echo "[run] Finetune Studio, address for this run: ${HOST:-saved host}:${PORT:-saved port}"
+else
+    echo "[run] Finetune Studio, address: $(python -m finetune_studio.cli server show)"
+fi
 exec python -m finetune_studio.cli webui ${HOST:+--host "$HOST"} ${PORT:+--port "$PORT"} "$@"

@@ -190,13 +190,14 @@ def register(model_name: str, kind: str, src_dir: Path | None = None,
         try:
             # Loaded only to be saved: on the CPU, so registering never takes VRAM next to the live
             # embedder (a RAG build used to hold a second copy of both models on the card).
+            cache = _download_cache(model_name, stage_parent, stage.name)
             if kind == "embedder":
                 from sentence_transformers import SentenceTransformer
-                model = SentenceTransformer(model_name, cache_folder=str(hf_cache_dir()), device="cpu")
+                model = SentenceTransformer(model_name, cache_folder=str(cache), device="cpu")
                 model.save(str(stage))
             else:  # reranker
                 from sentence_transformers import CrossEncoder
-                model = CrossEncoder(model_name, max_length=512, device="cpu")
+                model = CrossEncoder(model_name, max_length=512, device="cpu", cache_folder=str(cache))
                 model.save(str(stage))
             del model
             h = content_hash(stage)
@@ -209,6 +210,7 @@ def register(model_name: str, kind: str, src_dir: Path | None = None,
             size = sum(p.stat().st_size for p in target.rglob("*") if p.is_file())
         finally:
             shutil.rmtree(stage, ignore_errors=True)
+            shutil.rmtree(stage_parent / f"{stage.name}-download", ignore_errors=True)
 
     # Write META.json
     meta = ModelMeta(name=model_name, kind=kind, short_id=target.name,
@@ -217,6 +219,18 @@ def register(model_name: str, kind: str, src_dir: Path | None = None,
                                      encoding="utf-8")
     return ModelRef(name=model_name, kind=kind,
                    short_id=target.name, path=str(target))
+
+
+def _download_cache(model_name: str, stage_parent: Path, stage_name: str) -> Path:
+    """Where the Hub files go while a model is copied into the store: the user's cache when it already holds them, else a
+    folder removed afterwards. They stayed in the cache for good: a first Smart Brain build left 4.4 GB of second copies.
+    """
+    from huggingface_hub import try_to_load_from_cache
+
+    for root in (hf_cache_dir(), hf_cache_dir() / "hub"):
+        if isinstance(try_to_load_from_cache(model_name, "config.json", cache_dir=str(root)), str):
+            return root
+    return stage_parent / f"{stage_name}-download"
 
 
 def _touch_use(path: Path) -> None:

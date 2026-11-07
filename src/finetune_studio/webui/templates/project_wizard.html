@@ -109,9 +109,10 @@
             <option value="{{ model.path }}" data-size-gb="{{ model.size_gb }}" {% if model.path == project.base_model %}selected{% endif %}>{{ model.name }} ({{ model.format }}, {{ model.size_gb }} GB)</option>
             {% endfor %}
           {% else %}
-            <option value="" selected disabled>No trainable base models found — put one in the models folder</option>
+            <option value="" selected disabled>No base model yet: download one first</option>
           {% endif %}
         </select>
+        {% if not models %}<div class="text-xs dim mt-1">Training needs a base model. <a href="/models/explore" data-link>Open the Model library →</a></div>{% endif %}
       </div>
       <div class="col-span-3">
         <label class="block text-xs muted mb-1" title="Presets here are grouped by model size (Nano, Standard, Large, QLoRA). The Training page offers effort-based presets (Smoke test, Baseline, Precision, Overkill) that fill the same fields.">Preset by model size</label>
@@ -810,7 +811,7 @@
   window.wizTrain = async function () {
     if (busy) { line("Already running — wait for the current step."); return false; }
     var model = (document.getElementById("wiz-base-model") || {}).value || "";
-    if (!model) { line("Step 4: pick a base model first (or add one to the models folder)."); return false; }
+    if (!model) { line("Step 4: pick a base model first (download one in the Model library)."); return false; }
     var preset = (document.getElementById("wiz-preset") || {}).value || "standard";
     setBusy(true);
     try {
@@ -841,7 +842,7 @@
       }
       var r = await post("/api/training/start", startBody);
       wizLastRunId = r.run_id || "";
-      line("Training started (" + (r.steps || "?") + " steps). This page will keep polling — long step, go do something else and come back.");
+      line("Training started" + (r.steps ? " (" + r.steps + " steps)" : "") + ". This page will keep polling — long step, go do something else and come back.");
       for (;;) {
         await sleep(6000);
         var st = await api("/api/training/status");

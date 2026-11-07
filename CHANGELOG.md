@@ -10,6 +10,8 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Fixed
+- First run: a first Smart Brain build no longer leaves 4.4 GB of second copies of the embedder and reranker in the Hugging Face cache. Model library searches now find chat models with a vision tower (the official Qwen3.5 and Gemma models were missing while their GGUF re-uploads were listed). Quick work with no model points to the Model library instead of "the models folder". The install banner shows one clean address.
+- A long model load no longer flashes "Server not reachable" while the server is fine.
 - Install and Settings → Repair: the environment could be built on any newer Python found on PATH. With Linuxbrew's 3.15 the app lost the GPU ("Found no NVIDIA driver"), llama.cpp fell back to a CPU build and Heretic stopped working, and Repair still said "Finished". The installer now uses uv's own Python 3.12 and only accepts 3.12 or 3.13; Repair keeps the old environment until the new one passes the health check and puts it back if it does not. Heretic no longer depends on packages the app happens to carry, is re-installed by itself when an update or Repair stops it from starting, and its status now gives the real error.
 - Training: Phi-4-mini and Gemma 4 can be trained now. Phi-4's repo ships its own code that no longer works with this transformers ("cannot import name 'LossKwargs'"), so a model type transformers implements itself now always uses that; Gemma 4 stopped at "Target module Gemma4ClippableLinear is not supported" because the adapter also matched its vision tower.
 - Merged models that keep a vision tower (Gemma 3) now include the base's image and video processor settings; without them Heretic and anything else building the processor could not open them.
