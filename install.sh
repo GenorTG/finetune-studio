@@ -399,6 +399,7 @@ fi
 "$PYTHON_CMD" -c "import bitsandbytes as b; print(f'  bitsandbytes {b.__version__}')" 2>/dev/null | sed 's/^/[install]   /' || true
 [ -x "$LLAMA_CPP_DIR/build/bin/llama-quantize" ] && log "  llama.cpp CLI: $LLAMA_CPP_DIR (backend: $(cat "$LLAMA_CPP_DIR/build/.fts-backend" 2>/dev/null || echo unknown))" || true
 uv pip check --python "$PYTHON_CMD" 2>&1 | sed 's/^/[install]   check: /' | head -8 || true
+"$PYTHON_CMD" scripts/pin_versions.py check --venv "$VENV_DIR" 2>&1 | sed 's/^/[install]   pins: /' | head -12 || true
 
 # ── Post-install health check (autodetect broken installs) ──
 # The deep diagnostic catches issues the surface checks miss

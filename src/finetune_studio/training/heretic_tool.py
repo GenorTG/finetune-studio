@@ -454,6 +454,13 @@ def _make_venv(on_line: Any = None) -> None:
     (site / "fts-shared.pth").write_text(str(app_site_packages()) + "\n", encoding="utf-8")
 
 
+def _pin_args() -> list[str]:
+    """``-c pins/heretic.txt``: the versions Heretic was tested with. FTS_UNPINNED=1 tries the newest (dev only)."""
+    pins = Path(__file__).resolve().parents[3] / "pins" / "heretic.txt"
+    unpinned = os.environ.get("FTS_UNPINNED", "").lower() in ("1", "on", "yes", "true", "force")
+    return ["-c", str(pins)] if pins.is_file() and not unpinned else []
+
+
 def heal(*, on_line: Any = None) -> str:
     """After the app's environment changed: re-install an existing Heretic that no longer works. '' when nothing to do.
 
@@ -482,7 +489,7 @@ def install(ref: str = PINNED_REF, *, on_line: Any = None) -> HereticStatus:
     _run_logged([uv, "pip", "install", "--python", str(python_path()), "--no-deps",
                  "-e", str(checkout_dir())], on_line=on_line)
     on_line("installing Heretic's own packages (" + ", ".join(d.split(">")[0] for d in EXTRA_DEPS) + ")")
-    _run_logged([uv, "pip", "install", "--python", str(python_path()), *EXTRA_DEPS], on_line=on_line)
+    _run_logged([uv, "pip", "install", "--python", str(python_path()), *_pin_args(), *EXTRA_DEPS], on_line=on_line)
     status = probe()
     if not status.installed:
         raise HereticError(f"Heretic did not install correctly: {status.hint}")

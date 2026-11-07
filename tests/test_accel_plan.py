@@ -24,6 +24,12 @@ NVCC13 = "nvcc: NVIDIA (R) Cuda compiler driver\nCuda compilation tools, release
 NVCC118 = "Cuda compilation tools, release 11.8, V11.8.89\n"
 
 
+@pytest.fixture(autouse=True)
+def _plan_logic_without_pins(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These pin the plan's own choices; pinned installs are tests/test_version_pins.py."""
+    monkeypatch.setenv("FTS_UNPINNED", "1")
+
+
 def banner(cuda: str, label: str = "CUDA UMD Version") -> str:
     return f"| NVIDIA-SMI 580.1  Driver Version: x   {label}: {cuda} |\n"
 

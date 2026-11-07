@@ -70,9 +70,9 @@ chmod +x install.sh
 
 This will:
 1. Detect the GPU (NVIDIA; AMD / Intel are best effort; CPU only when there is none) and create a Python venv in `.venv/` (with `uv`)
-2. Install the newest PyTorch build your driver supports and pin it (`.venv/torch-constraints.txt`)
-3. Install `llama-cpp-python` with GPU offload, the app dependencies and the `parsers` extra used for document ingestion
-4. Build the llama.cpp CLI (`.llama.cpp/`, used for GGUF export) for the same GPU backend
+2. Install the tested PyTorch for your GPU (`pins/torch.txt`; a wheel index for older GPUs that does not carry it gives its newest) and keep it there (`.venv/torch-constraints.txt`)
+3. Install `llama-cpp-python` with GPU offload, the app dependencies and the `parsers` extra used for document ingestion, each at the version it was tested with (`pins/app.txt`)
+4. Build the llama.cpp CLI (`.llama.cpp/`, used for GGUF export, at the tested commit in `pins/llama-cpp.txt`) for the same GPU backend
 5. Run the install-time health check and print next steps
 
 Useful flags (`./install.sh --help` lists all):

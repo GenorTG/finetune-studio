@@ -1,0 +1,4 @@
+# Tested stack, written by scripts/pin_versions.py (make pins): do not edit by hand.
+# recorded 2026-11-07 on Python 3.12, torch 2.15.0+cu132
+torch==2.15.0
+torchvision==0.29.2
