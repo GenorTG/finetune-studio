@@ -451,7 +451,7 @@ if [ -n "$INSTALL_CONFIG" ]; then
 elif [ -t 0 ] && [ -t 1 ] && [ ! -f "$STATE_ROOT/server.json" ] && [ ! -f "$STATE_ROOT/auth/auth.json" ]; then
     "${FTS_CLI[@]}" auth setup || warn "access setup skipped; change it later in Settings -> Security or with fts auth"
 fi
-WEB_ADDR="$("${FTS_CLI[@]}" server show 2>/dev/null | cut -d' ' -f1 || echo 127.0.0.1:7860)"
+WEB_ADDR="$("${FTS_CLI[@]}" server show 2>/dev/null | head -1 | cut -d' ' -f1 || echo 127.0.0.1:7860)"
 case "$WEB_ADDR" in 0.0.0.0:*|"[::]":*|:::*) WEB_URL="http://<this machine's address>:${WEB_ADDR##*:}" ;;
                     127.*|localhost:*) WEB_URL="http://localhost:${WEB_ADDR##*:}" ;;
                     *) WEB_URL="http://$WEB_ADDR" ;; esac

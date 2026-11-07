@@ -48,6 +48,8 @@
     el.hidden = false;
   }
 
+  let failures = 0;
+
   async function tick() {
     clearTimeout(timer);
     let next = POLL_MS;
@@ -58,9 +60,15 @@
       last = body;
       renderBanner(body.problems);
       renderCard(body);
+      failures = 0;
     } catch (e) {
-      unreachable = true;
-      renderUnreachable('The server may be restarting.');
+      // One slow answer is not an outage: the browser queues this poll behind long requests (a model load holds several
+      // of its 6 connections), and a load showed "Server not reachable" while the server was fine.
+      failures += 1;
+      if (failures >= 2) {
+        unreachable = true;
+        renderUnreachable('The server may be restarting.');
+      }
       next = RETRY_MS;
     }
     if (document.visibilityState === 'hidden') next = Math.max(next, 30000);

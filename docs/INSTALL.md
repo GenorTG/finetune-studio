@@ -75,6 +75,8 @@ This will:
 4. Build the llama.cpp CLI (`.llama.cpp/`, used for GGUF export, at the tested commit in `pins/llama-cpp.txt`) for the same GPU backend
 5. Run the install-time health check and print next steps
 
+A first install on a GPU machine takes about an hour and 8.6 GB (measured from a clean clone on an RTX 3090, 2026-11-07: it compiles llama.cpp twice and a Qwen3.5 kernel; the steps with no output are the compiles). A CPU-only one is much shorter.
+
 Useful flags (`./install.sh --help` lists all):
 
 | Flag | What it does |
