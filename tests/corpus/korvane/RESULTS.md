@@ -1081,3 +1081,17 @@ On that stack, one real SFT run + merge + one Heretic trial each, workaround off
 quiz test with auto-judge → GGUF q4_k_m → load merged, adapter and GGUF in Inference and chat ("42") → unload back to the 1.3 GB
 baseline → Smart Brain quick index 3 files, search finds the passage, grounded chat cites it. Settings Check "1 update(s)
 available" and Apply (49.7 s) live too. Control sweep on this stack: all 19 pages with `--per-label 2`, 0 errors, 0 silent, 0 refused, owner settings unchanged.
+
+## 38. Fresh install from a clean clone (2026-11-07)
+
+Clean clone, isolated HOME/FTS_ROOT, plain PATH (no uv, system Python 3.11, no Homebrew), port 7871, removed afterwards.
+
+- `install.sh`: rc=0 in 52m58s (uv 0.13.7, CPython 3.12.16, torch cu132, llama.cpp at the pinned commit); installed versions match `pins/`; `--check` issues: none. nvidia-smi was not on the plain PATH: the plan fell back to PCI with a warning and picked the RTX 3090.
+- First hour: tour, project, 3 uploads. Smart Brain Quick index downloaded embedder + reranker (4.4 GB); search works; chat without a model is an honest 409.
+- Quick start steps 2-5 with no API key on Gemma 4 12B QAT: 394 s (13 pairs, training 186 s, loss 0.794, 13-question test 44 s). Local judge 168 s: 11 pass, 2 fail. This proves the plumbing, not quality.
+- GGUF q4_k_m 41 s, 504.8 MB; loads and chats. Smart Brain local chat answers with a citation. Heretic installs from Settings in 24 s, trial 1 at 237 s, Cancel works.
+- Control sweep `--gpu --per-label 2` on all 19 pages: rc=0, 0 errors, 0 silent, 1 refused (vision test, now disabled while vision is off).
+- `update.sh` at 355baf30: rc=0, 50.7 s, pins match, Heretic usable. It was already up to date after switching branch, so no real pull ran there. `install-service.sh --no-start` was run against a fake systemctl: unit text correct, real start not exercised under the isolated HOME.
+- #149 Hub cache fix, live: registering a small embedder and reranker added 88 MB each to the store and only 12 KB stubs to the HF cache; no second copy.
+
+Known and unfixed: on Auto each process holds about 84 MiB on the second GPU from ggml init; the model registry lags 1-2 s after a download.
