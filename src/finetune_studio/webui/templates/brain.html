@@ -738,7 +738,13 @@
         if (f.total && f.ready >= f.total) break;
         await new Promise(function (r) { setTimeout(r, 2000); });
       }
-      if (status) status.textContent = status.textContent.replace('Reading them…', 'Ready to build.');
+      if (status) {
+        const f = (lastBrainState && lastBrainState.files) || {};
+        const unread = (f.total || 0) - (f.ready || 0);
+        status.textContent = status.textContent.replace('Reading them…', unread
+          ? unread + ' file(s) could not be read yet: see Manage files.'
+          : (lastBrainState && lastBrainState.exists ? 'Update the Smart Brain to include them.' : 'Ready to build.'));
+      }
     };
     xhr.send(fd);
   }
@@ -1658,6 +1664,11 @@
     loadSharedModels();
     loadMcpDefaults();
     resumeBuild();
+    // A link like Use it's "Share or run as a server" lands on a folded panel: open it.
+    if (location.hash) {
+      const panel = document.querySelector(location.hash);
+      if (panel && panel.tagName === 'DETAILS') { panel.open = true; panel.scrollIntoView({ block: 'start' }); }
+    }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();

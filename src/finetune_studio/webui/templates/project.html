@@ -206,7 +206,7 @@
         <th>Size</th>
         <th>Version</th>
         <th>Uploaded</th>
-        <th title="Uploaded after the last training run">Changed since training</th>
+        {% if stats.runs %}<th title="Uploaded after the last training run">Changed since training</th>{% endif %}
         <th></th>
       </tr>
     </thead>
@@ -479,7 +479,7 @@
           '<td class="num mono">' + formatBytes(f.size_bytes) + '</td>' +
           '<td class="meta mono">v' + (f.current_version || 1) + '</td>' +
           '<td class="meta mono">' + relativeTime(f.uploaded_at) + '</td>' +
-          '<td>' + driftBadge(f) + '</td>' +
+          ({{ 'true' if stats.runs else 'false' }} ? '<td>' + driftBadge(f) + '</td>' : '') +
           '<td>' + actions + '</td>' +
           '</tr>';
       }).join('');
