@@ -185,7 +185,7 @@ def test_no_local_model_keeps_the_local_default_and_says_how_to_continue() -> No
     out = _run_answer_with(loaded=False, api=True)
     assert out["value"] == "model"
     assert not out["hidden"]
-    assert "Load a model in Inference" in out["hint"]
+    assert "Load one here" in out["hint"]
     assert "the AI assistant (OpenCode Go)" in out["hint"]
     assert "sends the question and the retrieved passages to that provider" in out["hint"]
     assert out["option"] == "the AI assistant (OpenCode Go)" and not out["disabled"]
@@ -205,4 +205,13 @@ def test_no_hint_when_a_local_model_is_loaded() -> None:
 def test_without_an_api_connection_the_hint_only_offers_loading_a_model() -> None:
     out = _run_answer_with(loaded=False, api=False)
     assert out["value"] == "model" and out["disabled"]
-    assert "Load a model in Inference" in out["hint"] and "AI assistant" not in out["hint"]
+    assert "Load one here" in out["hint"] and "AI assistant" not in out["hint"]
+
+
+def test_the_page_keeps_the_conversation_and_loads_a_model_in_place() -> None:
+    """Follow-up questions need the earlier turns, and a missing model is fixed where the question is asked."""
+    html = _TEMPLATE.read_text()
+    assert "messages: brainChat" in html and "messages: [{ role: 'user', content: text }]" not in html
+    assert "brainChat.pop();" in html                     # an unanswered question does not go along with the next one
+    assert 'id="chat-new-btn"' in html and "window.newBrainChat" in html
+    assert 'id="chat-model-row"' in html and "/api/models/load" in html

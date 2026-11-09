@@ -91,10 +91,8 @@ def test_build_activity_and_dashboard_ctx() -> None:
     assert ctx["desc_long"] is False
     assert ctx["production_run"] == {"id": "r1", "name": "run-one"}
     assert ctx["setup_checklist"]["items"][0]["state"] == "done"
-    assert ctx["setup_checklist"]["items"][1]["state"] == "done"
-    assert ctx["setup_checklist"]["items"][2]["state"] == "done"
-    assert ctx["setup_checklist"]["items"][3]["state"] == "next"
-    assert ctx["setup_checklist"]["next"] == {"label": "Test answer quality", "href": "/testing"}
+    assert ctx["setup_checklist"]["items"][1]["state"] == "next"
+    assert ctx["setup_checklist"]["next"] == {"label": "Build the Smart Brain", "href": "/brain"}
 
 
 def test_setup_checklist_tracks_live_project_state() -> None:
@@ -105,15 +103,38 @@ def test_setup_checklist_tracks_live_project_state() -> None:
     assert empty["next"] == {"label": "Add source files", "href": "/data"}
     assert not empty["complete"]
 
-    project = {
-        "production_run": "r1",
-        "datasets": [{"id": "d1"}],
-        "runs": [{"status": "done", "benchmarks": [{"status": "done"}]}],
-    }
-    done = build_setup_checklist(project, files=[{"id": "f1"}])
+    built = build_setup_checklist({}, files=[{"id": "f1"}], brain_built=True)
+    assert [item["state"] for item in built["items"]] == ["done", "done", "next"]
+    assert built["next"] == {"label": "Ask your documents", "href": "/brain"}   # built: use it, the test stays listed
+    assert not built["complete"]
+
+    done = build_setup_checklist({}, files=[{"id": "f1"}], brain_built=True, brain_tested=True)
     assert all(item["state"] == "done" for item in done["items"])
     assert done["complete"]
-    assert done["next"] == {"label": "Continue in chat", "href": "/chat"}
+    assert done["next"] == {"label": "Ask your documents", "href": "/brain"}
+
+
+def test_a_trained_project_without_an_index_still_starts_at_the_smart_brain() -> None:
+    """Training no longer counts toward the checklist: it is the optional path."""
+    from finetune_studio.webui.project_dashboard import build_setup_checklist
+
+    trained = {"production_run": "r1", "datasets": [{"id": "d1"}], "runs": [{"status": "done", "benchmarks": [{"status": "done"}]}]}
+    assert build_setup_checklist(trained, files=[{"id": "f1"}])["next"]["href"] == "/brain"
+
+
+def test_brain_summary_reads_the_manifest_and_survives_a_missing_one(tmp_path, monkeypatch) -> None:
+    import json
+
+    from finetune_studio.webui import project_dashboard as pd
+
+    monkeypatch.setattr("finetune_studio.data.fs.paths.brain_index_dir", lambda pid: tmp_path / pid)
+    assert pd.brain_summary("none") == {"built": False, "documents": 0, "chunks": 0}
+    (tmp_path / "p1").mkdir()
+    (tmp_path / "p1" / "manifest.json").write_text(json.dumps({"documents": 4, "chunks": 56}))
+    assert pd.brain_summary("p1") == {"built": True, "documents": 4, "chunks": 56}
+    (tmp_path / "p2").mkdir()
+    (tmp_path / "p2" / "manifest.json").write_text("{not json")
+    assert pd.brain_summary("p2")["built"] is False
 
 
 def test_testing_quiz_is_a_test_event_not_a_benchmark() -> None:

@@ -33,15 +33,15 @@ def test_export_gate_is_described_as_blocking_unless_forced() -> None:
 
 def test_tutorial_step_labels_match_the_project_nav() -> None:
     nav = (ROOT / "src/finetune_studio/webui/templates/base.html").read_text(encoding="utf-8")
-    assert "2 train" in nav and "3 test" in nav and "4 use it" in nav   # what the sub-nav prints
+    assert ">1 files<" in nav and ">2 Smart Brain<" in nav and ">3 test<" in nav and ">4 use it<" in nav   # the sub-nav
     labels = dict((m.group(2), m.group(1)) for m in re.finditer(r"\(step \*\*(\d) · ([a-z ]+)\*\*\)",
                                                                   PUBLIC["docs/TUTORIAL.md"]))
-    assert labels == {"files": "1", "pairs": "1", "train": "2", "test": "3", "use it": "4"}
+    assert labels == {"files": "1", "smart brain": "2", "test": "3", "use it": "4"}
 
 
 def test_pages_captions_use_the_nav_step_numbers() -> None:
     page = PUBLIC["docs/index.html"]
-    for caption in ("PAIRS · STEP 1", "TRAINING · STEP 2", "TESTING · STEP 3", "MODELS · STEP 4"):
+    for caption in ("FILES · STEP 1", "SMART BRAIN · STEP 2", "TESTING · STEP 3", "MODELS · STEP 4"):
         assert caption in page, caption
     assert not re.search(r"(PAIRS|TRAINING|TESTING|MODELS) · STEP 5", page)
 
@@ -49,7 +49,7 @@ def test_pages_captions_use_the_nav_step_numbers() -> None:
 def test_tutorial_explains_both_smart_brain_answer_sources() -> None:
     text = PUBLIC["docs/TUTORIAL.md"]
     assert "needs a chat\n   model loaded" not in text
-    section = text[text.index("**Ask about your documents**"):][:600]
+    section = text[text.index("**Ask your documents**"):][:700]
     assert "Answer with" in section and "API connection" in section and "sent to that provider" in section
 
 

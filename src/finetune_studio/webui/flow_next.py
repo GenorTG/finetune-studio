@@ -18,12 +18,12 @@ STATEFUL_PAGES = frozenset({"files", "data", "pairs", "data-prep", "training"})
 # Each page's Next step once its own state-aware step (``next_for``) is done. One table for base.html and the API, so a
 # bar refreshed in place (``GET /api/projects/{pid}/flow-next``) can fall back to it as well.
 STATIC_NEXT: dict[str, tuple[str, str, str]] = {
-    "files": ("/data-prep", "Review question-answer pairs", "For training, mine and approve examples from your files."),
+    "files": ("/brain", "Build the Smart Brain", "Turn your files into answers with sources; no training needed."),
     "pairs": ("/training", "Train an adapter", "Use the reviewed dataset to teach the model how to answer."),
     "training": ("/testing", "Test the answers", "Run a quiz to see what the adapter learned and when it declines."),
-    "testing": ("/export", "Export or use the model", "Package a finished adapter, then try it in chat."),
+    "testing": ("/export", "Use it", "Share the Smart Brain, run it as a server, or export a trained model."),
     "export": ("/chat", "Try it in chat", "Test the exported model; add Smart Brain when answers need document facts."),
-    "smart brain": ("/chat", "Ask with sources", "Chat uses the indexed files and shows where each answer came from."),
+    "smart brain": ("/testing", "Score its answers", "Run your own questions and see what it gets right and when it declines."),
     "chat": ("/testing", "Measure answer quality", "Run a quiz to check accuracy and appropriate declines."),
     "compare": ("/testing", "Run a focused quiz", "Compare models on the same questions, then score the answers."),
     "benchmarks": ("/testing", "Test your own questions", "Public benchmarks are useful context; your quiz measures your task."),
@@ -41,9 +41,21 @@ class ProjectCounts:
     datasets: int
     runs_done: int
     runs_active: int = 0
+    brain_built: bool = False
 
 
 _RUN_ACTIVE = {"queued", "loading", "training", "running", "saving", "merging"}
+
+
+def brain_built(pid: str) -> bool:
+    """A Smart Brain index with passages exists for this project (read from its manifest, no index load)."""
+    import json
+
+    from finetune_studio.data.fs.paths import brain_index_dir
+    try:
+        return int(json.loads((brain_index_dir(pid) / "manifest.json").read_text()).get("chunks") or 0) > 0
+    except (OSError, ValueError, TypeError):
+        return False
 
 
 def project_counts(pid: str) -> ProjectCounts:
@@ -62,6 +74,7 @@ def project_counts(pid: str) -> ProjectCounts:
         datasets=len(db.list_datasets(pid)),
         runs_done=sum(1 for r in runs if r.get("status") == "done"),
         runs_active=sum(1 for r in runs if r.get("status") in _RUN_ACTIVE),
+        brain_built=brain_built(pid),
     )
 
 
@@ -72,11 +85,9 @@ def next_for(page: str, c: ProjectCounts) -> tuple[str, str, str] | None:
             return ("", "Upload your files", "Everything starts from your documents: add them with Upload on this page.")
         if not c.parsed:
             return ("", "Wait for parsing", "Files are read in the background; the table shows when each one is ready.")
-        if not (c.pending or c.approved):
-            why = ("For training, the helper writes pairs from your files. To answer from the files without training, "
-                   "build the Smart Brain instead.")
-            return ("/data-prep", "Mine question-answer pairs", why)
-        return None
+        if not c.brain_built:
+            return ("/brain", "Build the Smart Brain", "Turn your files into answers with sources; no training needed.")
+        return ("/brain", "Ask your documents", "The index is built: ask a question and read the sources.")
     if page in ("pairs", "data-prep"):
         if not c.parsed:
             return ("/data", "Upload files first", "Pairs are mined from parsed files.")

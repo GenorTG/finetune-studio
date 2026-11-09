@@ -9,13 +9,27 @@
 {% include "_resources.html" %}
 
 <div class="page-head">
-  <h1>Export models</h1>
-  <div class="sub"><b>Step 4 · Use it.</b> Take a finished training run out of the
-    studio: <b>GGUF</b> to run it in llama.cpp / LM Studio / Ollama, or
-    <b>abliterated</b> for an uncensored variant. Adapter-only
-    runs are merged onto their base automatically at export time.
-    Want to talk to it instead? <a href="/projects/{{ pid }}/chat" data-link>Open chat</a>.</div>
+  <h1>Use it</h1>
+  <div class="sub"><b>Step 4.</b> Ask your Smart Brain here, share it with another studio, run it as a server of its own, or export a trained model.</div>
 </div>
+
+<div class="card mb-4" id="use-brain">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Your Smart Brain</div>
+      <div class="card-sub">Answers from your files, with sources, without leaving this computer.</div>
+    </div>
+  </div>
+  <div class="flex gap-2 wrap">
+    <a class="btn primary" href="/projects/{{ pid }}/brain" data-link>Ask your documents</a>
+    <a class="btn" href="/projects/{{ pid }}/brain#brain-export-panel" data-link title="An encrypted bundle another studio can import, or a standalone server (HTTP and MCP) that runs without this app">Share or run as a server</a>
+    <a class="btn ghost" href="/projects/{{ pid }}/chat" data-link>Open chat</a>
+  </div>
+</div>
+
+<h2 class="brain-section-label">Trained models</h2>
+<p class="text-sm dim mb-3">Take a finished training run out of the studio: <b>GGUF</b> to run it in llama.cpp / LM Studio / Ollama, or
+  <b>abliterated</b> for an uncensored variant. Adapter-only runs are merged onto their base automatically at export time.</p>
 
 {# ── Available runs to export ─────────────────────────────────────── #}
 <div class="card mb-4">

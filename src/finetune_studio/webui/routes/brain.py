@@ -111,14 +111,18 @@ async def brain_status(pid: str):
     if missing is not None:
         return missing
     from finetune_studio.knowledge import index as knowledge_index
+    from finetune_studio.knowledge.sources import list_sources
     from finetune_studio.smart_brain import BrainIndex
     state = knowledge_index.state(pid).as_dict()
+    sources = list_sources(pid)
+    files = {"total": len(sources), "ready": sum(1 for s in sources if s.ready)}   # what the page offers to build
     if not BrainIndex(_corpus_dir(pid)).exists():
-        return {"exists": False, "corpus_dir": str(_corpus_dir(pid)), "state": state}
+        return {"exists": False, "corpus_dir": str(_corpus_dir(pid)), "state": state, "files": files}
     m = json.loads((_corpus_dir(pid) / "manifest.json").read_text())
     return {
         "exists": True,
         "corpus_dir": str(_corpus_dir(pid)),
+        "files": files,
         "name": m["name"],
         "documents": m["documents"],
         "chunks": m["chunks"],

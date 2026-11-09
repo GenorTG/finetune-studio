@@ -10,22 +10,22 @@ Qwen3-4B-class training; the Smart Brain and chat work CPU-only too.
 
 ---
 
-## Two flows, one project
+## One main path, one optional one
 
-Every file goes one route first — **Files & Knowledge** — and is parsed once. From there, every project
-offers two uses of that same knowledge:
+Every file is parsed once in **Files**. From there the main path is the Smart Brain; training a model on the same
+files is optional and lives in its own group at the end of the project bar:
 
 ```
-1 Files & Knowledge (files · pairs) → 2 train         → 3 test → 4 use it
-                                    → 2 Smart Brain   → 3 test   (minutes, no training)
+1 files → 2 Smart Brain → 3 test → 4 use it        (minutes, no training)
+optional: quick work · pairs · train · compare · benchmarks
 ```
 
-The project home shows a live checklist and one suggested next action. Smart Brain remains an alternate path on that page, and the sub-nav lists the numbered steps of whichever flow you're in. You can do both, in any order — they never block each other.
+The project home shows a live checklist and one suggested next action, with training linked as the optional path, and the sub-nav lists the numbered steps of whichever flow you're in. You can do both, in any order — they never block each other.
 
 **The short path: ⚡ Quick work.** One page (`work` in the sub-nav) holds the
 whole model pipeline as six numbered cards — upload, make pairs, build the
 dataset, train, test, pin — each with a status pill and one button. There's
-even a **Run steps 2–5 now** chain that drives the entire pipeline unattended
+even a **Run all training steps** chain that drives the entire pipeline unattended
 while you watch. Use the individual pages when you want fine control; use
 Quick work when you just want the model.
 
@@ -53,61 +53,45 @@ Quick work when you just want the model.
    reads (training pairs and the Smart Brain alike). Tick **search inside files** next to the search box to search
    the mined facts and the parsed text, and fix a fact right there.
 
-### 2. Turn sources into training pairs (step **1 · pairs**)
+### 2. Smart Brain — answer from your files (step **2 · smart brain**)
 
-Ways to get prompt/response training data out of your parsed sources:
+Independent of training; same parse. The Smart Brain finds the passages that answer a question (semantic +
+keyword search, rank fusion, reranking — often called RAG) and the model quotes them. On its page:
 
-- **Mine pairs** (the **pairs** page) — the AI assistant (the local model or an API connection you
-  added in *Settings → AI assistant*) works through each file: a checklist of its data points, pairs
-  written for them, checked against the text and fixed until every point is stated or excluded.
-- **Ask the Guide** (the panel in the corner) — it can start the same mining job for you and tell you
-  what is left; it asks before it runs anything unless you switch it to hands-free.
-- **Manual upload** — bring your own JSONL
-  (`{"messages":[{role,content},…]}` per line).
-- **A use case** (Training page → *Start from a use case*) — extraction, classification, house style
-  or distillation examples, written by you or drafted by the assistant from raw texts for you to approve.
+1. Add files on the page itself (**＋ Add files**) or in **Files**.
+2. **Build Smart Brain** (Quick work's
+   Step 2 card does the whole flow in one click and shows a live coverage
+   pill, e.g. "129/129 · 100 %"). Sources are chunked and indexed for
+   keyword + meaning search; the first build may download the embedder. The panel at the top says *Ready* or
+   *Needs an update* when files were edited, added or removed since. Optional **fact cards** (under **Build options**)
+   also index your approved Q&A pairs.
+3. **Documents in the index** — what actually got indexed; a missing file
+   wasn't parsed.
+4. **Test a search** — a real query with per-passage scores, no AI answer, so
+   you can judge retrieval alone.
+5. **Ask your documents** — chat over those passages; follow-up questions keep the conversation, and each answer lists the files it used. **Answer with**
+   picks who writes the answer: the chat model loaded on this machine (the
+   default; the top-bar pill says which; nothing leaves the machine), or, as a
+   deliberate choice, the AI assistant's API connection from *Settings → AI
+   assistant* (needs no local model; the question and the retrieved passages
+   are sent to that provider). It is never picked for you: with no local model
+   loaded the page offers to load one right there, or you can choose the assistant.
+6. **Share or run it elsewhere** — the encrypted studio bundle (.ftsrag), or the **standalone
+   Smart Brain**: one tarball with the index + a small Python server +
+   `setup.sh`. On a machine with Python 3 (`python3` with the `venv` module; the tests run its server on 3.12):
+   `bash setup.sh` installs a venv, picks a port, starts the server, can install it as a persistent
+   service, and prints a copy-paste MCP entry. It speaks **MCP** (Claude
+   Desktop / OpenClaw / Cursor) and plain **HTTP** (`GET /search?q=…`).
+   Tick "Include models" (about 0.2 GB with the small MiniLM models, about 4.5 GB with
+   e5-large and bge-reranker-v2-m3) and the embedder + reranker ship inside
+   the package: full offline semantic search with no external service.
 
-Then **triage**: review pairs, ✅ approve / ✗ reject (bulk actions
-supported). Rejected identifiers (IDs, paths) stay out of training so the
-model doesn't learn to parrot internal keys.
+**Use the Smart Brain for facts that change; use fine-tuning for style/response shape.**
+Both read the same parse.
 
-### 3. Export pairs → dataset
+---
 
-Click **Export approved → Training**. This writes a ShareGPT JSONL and
-registers it under the project. Before it writes anything, the completeness
-gate checks every file's data-point checklist: each point must be stated by an
-approved pair or excluded with a reason. An incomplete file stops the export
-and lists its open points; you can fill them, exclude them, or choose
-**export anyway**. Nothing is generated for you at export. This checks the
-dataset, not the model: it does not guarantee that the trained model learned or
-can reproduce every fact.
-
-Two optional builders on the same page write extra datasets from your approved
-pairs with the AI assistant: **Study set** (re-worded questions, re-said answers
-and a short passage per pair, for an adapter that must recall facts) and
-**Preference pairs (DPO)** (a chosen source-faithful or honest “not covered”
-answer next to a rejected guess, for the Preference tuning route).
-A green **Start training with this dataset →** button appears — that's your
-handoff; it opens Training with the dataset preselected.
-
-### 4. Train (step **2 · train**)
-
-1. **Base model** — pick a local transformers-compatible base (GGUF
-   exports are inference-only; they can't be trained on). The preset picker
-   recommends rank/LR/epochs from base + dataset size.
-2. **Training data** — *From this project* is your exported dataset;
-   *Upload my own* registers a raw JSONL.
-3. Set epochs, LoRA rank, learning rate, batch size. For a small factual
-   domain dataset, plan for enough real optimizer steps — a handful of
-   epochs at 4× gradient accumulation is not memorization (see the badges
-   on the run: they report actual steps, never fake progress).
-4. **Start training.** Live loss/step/LR stream over SSE; the activity feed
-   logs every change you make. VRAM is profiled before the run and an actionable
-   error tells you what's holding memory if it can't fit.
-5. Runs can be stopped; interrupted runs are reconciled at next startup.
-   Past-run rows carry Details / ⭐ Set production / ▶ Open in inference / ⬇ Export.
-
-### 5. Test it (step **3 · test**)
+### 3. Test it (step **3 · test**)
 
 The **Testing** page answers one question: *did it learn MY material?*
 Auto-generated project suites test **every row of the training dataset**
@@ -124,7 +108,7 @@ verdict case by case.
 HellaSwag test sets from Hugging Face, or offline synthetic look-alikes — and a **Compare two runs**
 Δ table with a per-question McNemar test. Useful, and not a substitute for the project test.
 
-### 6. Use it (step **4 · use it**)
+### 4. Use it (step **4 · use it**)
 
 - **Pin a version** — Quick work's Step 6 pins the exact dataset + corpus +
   run + base model into an immutable project version, so any result is
@@ -143,43 +127,63 @@ HellaSwag test sets from Hugging Face, or offline synthetic look-alikes — and 
   persists; idle models auto-unload. No model loaded? The red ⚠ panel has
   a one-click loader right on the page.
 
-### 7. Smart Brain — answer from your files (step 2 without training)
+## Optional: train a model on the same files
 
-Independent of training; same parse. The Smart Brain finds the passages that answer a question (semantic +
-keyword search, rank fusion, reranking — often called RAG) and the model quotes them. On its page:
+For how a model answers (tone, format, a narrow task). For facts in your documents, the Smart Brain above is more accurate. These are the **Train a model** pages at the end of the project bar.
 
-1. Files come from **Files & Knowledge** (there is no separate upload).
-2. **Build the index** (or ⚡ Quick index; Quick work's
-   Step 1b card does the whole flow in one click and shows a live coverage
-   pill, e.g. "129/129 · 100 %"). Sources are chunked and indexed for
-   keyword + meaning search; the first build may download the embedder. The status says *up to date* or
-   *rebuild needed* when files were edited, added or removed since. Optional **fact cards** also index your
-   approved Q&A pairs.
-3. **Documents in the index** — what actually got indexed; a missing file
-   wasn't parsed.
-4. **Search test** — a real query with per-passage scores, no AI answer, so
-   you can judge retrieval alone.
-5. **Ask about your documents** — chat over those passages. **Answer with**
-   picks who writes the answer: the chat model loaded on this machine (the
-   default; the top-bar pill says which; nothing leaves the machine), or, as a
-   deliberate choice, the AI assistant's API connection from *Settings → AI
-   assistant* (needs no local model; the question and the retrieved passages
-   are sent to that provider). It is never picked for you: with no local model
-   loaded the page asks you to load one in Inference or choose the assistant.
-6. **Download / export** — the encrypted studio bundle (.ftsrag), or the **standalone
-   Smart Brain**: one tarball with the index + a small Python server +
-   `setup.sh`. On a machine with Python 3 (`python3` with the `venv` module; the tests run its server on 3.12):
-   `bash setup.sh` installs a venv, picks a port, starts the server, can install it as a persistent
-   service, and prints a copy-paste MCP entry. It speaks **MCP** (Claude
-   Desktop / OpenClaw / Cursor) and plain **HTTP** (`GET /search?q=…`).
-   Tick "Include models" (about 0.2 GB with the small MiniLM models, about 4.5 GB with
-   e5-large and bge-reranker-v2-m3) and the embedder + reranker ship inside
-   the package: full offline semantic search with no external service.
+### 5. Turn sources into training pairs (the optional **pairs** page)
 
-**Use the Smart Brain for facts that change; use fine-tuning for style/response shape.**
-Both read the same parse.
+Ways to get prompt/response training data out of your parsed sources:
 
----
+- **Mine pairs** (the **pairs** page) — the AI assistant (the local model or an API connection you
+  added in *Settings → AI assistant*) works through each file: a checklist of its data points, pairs
+  written for them, checked against the text and fixed until every point is stated or excluded.
+- **Ask the Guide** (the panel in the corner) — it can start the same mining job for you and tell you
+  what is left; it asks before it runs anything unless you switch it to hands-free.
+- **Manual upload** — bring your own JSONL
+  (`{"messages":[{role,content},…]}` per line).
+- **A use case** (Training page → *Start from a use case*) — extraction, classification, house style
+  or distillation examples, written by you or drafted by the assistant from raw texts for you to approve.
+
+Then **triage**: review pairs, ✅ approve / ✗ reject (bulk actions
+supported). Rejected identifiers (IDs, paths) stay out of training so the
+model doesn't learn to parrot internal keys.
+
+### 6. Export pairs → dataset
+
+Click **Export approved → Training**. This writes a ShareGPT JSONL and
+registers it under the project. Before it writes anything, the completeness
+gate checks every file's data-point checklist: each point must be stated by an
+approved pair or excluded with a reason. An incomplete file stops the export
+and lists its open points; you can fill them, exclude them, or choose
+**export anyway**. Nothing is generated for you at export. This checks the
+dataset, not the model: it does not guarantee that the trained model learned or
+can reproduce every fact.
+
+Two optional builders on the same page write extra datasets from your approved
+pairs with the AI assistant: **Study set** (re-worded questions, re-said answers
+and a short passage per pair, for an adapter that must recall facts) and
+**Preference pairs (DPO)** (a chosen source-faithful or honest “not covered”
+answer next to a rejected guess, for the Preference tuning route).
+A green **Start training with this dataset →** button appears — that's your
+handoff; it opens Training with the dataset preselected.
+
+### 7. Train (the optional **train** page)
+
+1. **Base model** — pick a local transformers-compatible base (GGUF
+   exports are inference-only; they can't be trained on). The preset picker
+   recommends rank/LR/epochs from base + dataset size.
+2. **Training data** — *From this project* is your exported dataset;
+   *Upload my own* registers a raw JSONL.
+3. Set epochs, LoRA rank, learning rate, batch size. For a small factual
+   domain dataset, plan for enough real optimizer steps — a handful of
+   epochs at 4× gradient accumulation is not memorization (see the badges
+   on the run: they report actual steps, never fake progress).
+4. **Start training.** Live loss/step/LR stream over SSE; the activity feed
+   logs every change you make. VRAM is profiled before the run and an actionable
+   error tells you what's holding memory if it can't fit.
+5. Runs can be stopped; interrupted runs are reconciled at next startup.
+   Past-run rows carry Details / ⭐ Set production / ▶ Open in inference / ⬇ Export.
 
 ## Common first-run problems
 
