@@ -263,28 +263,15 @@ def resolve_production_run(
     return {"id": run_id, "name": run_id[:8]}
 
 
-def build_setup_checklist(project: dict, *, files: list[dict] | None = None) -> dict[str, Any]:
-    """Return a live, ordered adapter workflow checklist for the project home."""
-    runs = project.get("runs") or []
-    datasets = project.get("datasets") or []
-    tested = any(
-        benchmark.get("status") == "done"
-        for run in runs
-        for benchmark in run.get("benchmarks") or []
-    )
-    complete = (
-        bool(files),
-        bool(datasets),
-        any(run.get("status") == "done" for run in runs),
-        tested,
-        bool((project.get("production_run") or "").strip()),
-    )
+def build_setup_checklist(
+    project: dict, *, files: list[dict] | None = None, brain_built: bool = False, brain_tested: bool = False,
+) -> dict[str, Any]:
+    """Return a live, ordered Smart Brain checklist for the project home (training is the optional path)."""
+    complete = (bool(files), brain_built, brain_tested)
     labels = (
         ("Add source files", "/data"),
-        ("Prepare a training dataset", "/data-prep"),
-        ("Train an adapter", "/training"),
+        ("Build the Smart Brain", "/brain"),
         ("Test answer quality", "/testing"),
-        ("Choose the adapter to use", "/models"),
     )
     next_index = next((index for index, done in enumerate(complete) if not done), None)
     items = [
@@ -295,11 +282,25 @@ def build_setup_checklist(project: dict, *, files: list[dict] | None = None) -> 
         }
         for index, ((label, href), done) in enumerate(zip(labels, complete, strict=True))
     ]
-    if next_index is None:
-        next_action = {"label": "Continue in chat", "href": "/chat"}
+    if next_index is None or (brain_built and not brain_tested):
+        # Built: the thing to do is use it; the test stays on the list as the next check.
+        next_action = {"label": "Ask your documents", "href": "/brain"}
     else:
         next_action = {"label": labels[next_index][0], "href": labels[next_index][1]}
     return {"items": items, "next": next_action, "complete": next_index is None}
+
+
+def brain_summary(pid: str) -> dict[str, Any]:
+    """The project's Smart Brain from its manifest: {built, documents, chunks}. Never loads the index."""
+    import json
+
+    from finetune_studio.data.fs.paths import brain_index_dir
+    try:
+        m = json.loads((brain_index_dir(pid) / "manifest.json").read_text())
+        chunks = int(m.get("chunks") or 0)
+        return {"built": chunks > 0, "documents": int(m.get("documents") or 0), "chunks": chunks}
+    except (OSError, ValueError, TypeError):
+        return {"built": False, "documents": 0, "chunks": 0}
 
 
 def build_dashboard_ctx(
@@ -308,6 +309,8 @@ def build_dashboard_ctx(
     *,
     files: list[dict] | None = None,
     now: float | None = None,
+    brain: dict[str, Any] | None = None,
+    brain_tested: bool = False,
 ) -> dict[str, Any]:
     """Assemble template extras for ``project.html``."""
     runs = project.get("runs") or []
@@ -318,7 +321,8 @@ def build_dashboard_ctx(
     size_gb = models_size_gb(models)
     desc = truncate_description(project.get("description"))
     production = resolve_production_run(project, runs)
-    checklist = build_setup_checklist(project, files=file_rows)
+    brain = brain or {}
+    checklist = build_setup_checklist(project, files=file_rows, brain_built=bool(brain.get("built")), brain_tested=brain_tested)
 
     return {
         "desc_short": desc["short"],
@@ -326,6 +330,7 @@ def build_dashboard_ctx(
         "desc_full": desc["full"],
         "production_run": production,
         "setup_checklist": checklist,
+        "brain": brain,
         "stats": {
             "files": len(file_rows),
             "datasets": len(datasets),

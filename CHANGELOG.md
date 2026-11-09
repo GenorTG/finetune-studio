@@ -9,6 +9,10 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+### Changed
+- The Smart Brain is now the main path of a project: `1 files → 2 Smart Brain → 3 test → 4 use it`, with training as an optional group at the end of the project bar. The project checklist, Next hints, Quick work, the dashboard and Use it all follow it.
+- The Smart Brain page leads with what state it is in and the one next action, then the conversation; every other control is folded under Manage. You can add files and load an answer model right on the page, and follow-up questions keep the conversation.
+
 ### Fixed
 - First run: a first Smart Brain build no longer leaves 4.4 GB of second copies of the embedder and reranker in the Hugging Face cache. Model library searches now find chat models with a vision tower (the official Qwen3.5 and Gemma models were missing while their GGUF re-uploads were listed). Quick work with no model points to the Model library instead of "the models folder". The install banner shows one clean address.
 - A long model load no longer flashes "Server not reachable" while the server is fine.

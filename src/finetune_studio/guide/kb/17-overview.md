@@ -5,14 +5,14 @@ page: overview
 keywords: overview project home checklist recent runs models files activity production run next step
 ---
 ## Purpose
-Project home: track adapter setup, see recent training runs, models, files and activity, and the production run.
+Project home: track the Smart Brain setup, see files and activity, and, when there are any, trained models, runs and the production run.
 
 ## Workflow
-Follow the checklist's single **Next** action to prepare and test an adapter. Open Smart Brain directly when you need document-grounded answers without training. Use **Recent training** to open a run; the production pill shows which run Chat serves by default.
+Follow the checklist's single **Next** action: add files, build the Smart Brain, test its answers. Training a model is optional and linked from the checklist. Use **Recent training** to open a run; the production pill shows which run Chat serves by default.
 
 ## Key controls
-- `#project-checklist` — live progress for the adapter workflow.
-- `#project-next-action` — the next incomplete adapter step.
+- `#project-checklist` — live progress for the Smart Brain path.
+- `#project-next-action` — the next step (once built: ask your documents).
 - `#production-run-pill` — the production run.
 - `#ov-runs-table` — recent training runs.
 

@@ -23,8 +23,8 @@
       <div class="card-sub">Asks the model every question and saves its raw answers. It does not decide what is correct.</div>
     </div>
     <div class="tp-seg" role="radiogroup" aria-label="What to test">
-      <label title="Questions from a quiz file, or the quiz the wizard built from your data"><input type="radio" name="t-mode" value="quiz" checked><span>Project quiz</span></label>
-      <label title="Look the answer up in the project's Smart Brain and answer only from what it finds"><input type="radio" name="t-mode" value="brain"><span>Smart Brain</span></label>
+      <label title="Questions from a quiz file, or the quiz the wizard built from your data"><input type="radio" name="t-mode" value="quiz"{% if not brain_built %} checked{% endif %}><span>Project quiz</span></label>
+      <label title="Look the answer up in the project's Smart Brain and answer only from what it finds"><input type="radio" name="t-mode" value="brain"{% if brain_built %} checked{% endif %}><span>Smart Brain</span></label>
       <label title="Questions built from the project's training dataset"><input type="radio" name="t-mode" value="dataset"><span>Dataset check</span></label>
     </div>
   </div>

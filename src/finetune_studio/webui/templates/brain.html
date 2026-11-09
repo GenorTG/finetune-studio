@@ -4,183 +4,109 @@
 {% block breadcrumb_tab %}smart brain{% endblock %}
 
 {% block content %}
-{% set res_compact = true %}
-{% include "_resources.html" %}
-
-<div class="page-head row">
-  <div>
-    <h1>🧠 Smart Brain</h1>
-    <div class="sub"><b>Step 2 · Answer from your files, no training.</b> The Smart Brain reads the files you
-      prepared in <a href="/projects/{{ pid }}/data" data-link>Files &amp; Knowledge</a>, finds the passages that
-      answer a question and quotes them; then <a href="/projects/{{ pid }}/chat" data-link>chat with it</a> or
-      <a href="/projects/{{ pid }}/testing" data-link>test it (step 3)</a>.</div>
-    <details class="page-more">
-      <summary>More about the Smart Brain</summary>
-      <p class="text-sm">It reads exactly the text that training uses: each file is parsed once in Files &amp; Knowledge,
-        including pictures read by the Vision reader and your hand edits. New or edited files only need a rebuild
-        (minutes, not hours) and model weights never change. Export it as an encrypted bundle or a standalone server
-        that runs without this app.</p>
-      <p class="text-xs dim">Search combines multilingual semantic embeddings with BM25 keyword matches using rank fusion,
-        then reranks passages with a cross-encoder. An answer gate declines when no passage supports the question;
-        this is often called retrieval-augmented generation (RAG).</p>
-    </details>
-  </div>
-  <div class="actions flex gap-2 wrap">
-    <button onclick="quickIndex()" id="quick-index-btn" class="btn primary"
-            title="⚡ One click: parse any library files that are not ready yet, then build the index. When the embedder runs on the GPU, the chat model is unloaded first.">⚡ Quick index</button>
-    <a href="/projects/{{ pid }}/data" class="btn" data-link
-       id="brain-cta-data">⬆ Files &amp; Knowledge (step 1)</a>
-    <span id="quick-index-status" class="text-xs dim self-center" role="status" aria-live="polite"></span>
-  </div>
+<div class="page-head">
+  <h1>🧠 Smart Brain</h1>
+  <div class="sub">Ask questions about your files and get answers with their sources. No training needed.</div>
+  <details class="page-more">
+    <summary>How it works</summary>
+    <ol class="brain-workflow-steps" aria-label="Smart Brain steps">
+      <li><b>Add files</b> here or in <a href="/projects/{{ pid }}/data" data-link>Files &amp; Knowledge</a>. Each file is read once; you can check or correct the text there.</li>
+      <li><b>Build</b> the index. New or edited files only need an update, and the status below says when one is due.</li>
+      <li><b>Ask</b>, then <a href="/projects/{{ pid }}/testing" data-link>score it on your own questions</a>.</li>
+    </ol>
+    <p class="text-xs dim">The index is external memory: model weights never change. Search combines multilingual semantic embeddings with BM25 keyword matches using rank fusion, then reranks passages with a cross-encoder. An answer gate declines when no passage supports the question; this is often called retrieval-augmented generation (RAG).</p>
+    <p class="text-xs dim">Stored on disk: the passages, their vectors, the keyword index and the search settings. Shared embedder and reranker weights live under <code>~/.finetune-studio/shared_models/</code>. <a href="/projects/{{ pid }}/chat?mode=agent" data-link>Agent chat</a> can recommend settings and start a build for you.</p>
+  </details>
 </div>
 
-{# Where the Smart Brain sits in the project flow #}
-<details class="card mb-4" id="brain-workflow">
-  <summary class="card-head">
-    <div>
-      <div class="card-title">How the Smart Brain fits in</div>
-      <div class="card-sub">Files are prepared once; the Smart Brain and training both read that one parse.</div>
-    </div>
-  </summary>
-  <ol class="brain-workflow-steps" aria-label="Smart Brain steps">
-    <li><a href="/projects/{{ pid }}/data" data-link><b>Upload</b></a> files in Files &amp; Knowledge; each one is parsed on arrival (pictures are read by the Vision reader during mining)</li>
-    <li><b>Check or edit</b> the parsed text there if a file read badly</li>
-    <li><b>Build</b> the index below (section 2); the status shows files that changed since the last build</li>
-    <li><b>Test</b> a search and chat below, or score it on the <a href="/projects/{{ pid }}/testing" data-link>test page</a></li>
-  </ol>
-  <p class="text-xs dim mt-2 mb-0">
-    Stored on disk: the passages, their vectors, the keyword index and the search settings. Shared embedder and
-    reranker weights live under <code>~/.finetune-studio/shared_models/</code> (not inside your fine-tuned model).
-  </p>
-</details>
-
-<details class="card mb-4" id="brain-agent-help">
-  <summary class="card-head brain-help-head">
-    <div>
-      <div class="card-title">Optional: ask Agent chat for help</div>
-      <div class="card-sub">Chat can recommend chunk size / embedder and call Build — it does not replace uploading files (step 1).</div>
-    </div>
-    <a href="/projects/{{ pid }}/chat?mode=agent" class="btn" data-link onclick="event.stopPropagation()">Open Agent chat →</a>
-  </summary>
-  <div class="text-xs dim brain-help-body">
-    Example prompts: <i>"Recommend an embedder for my sources."</i>
-    or <i>"Build the index with fact cards on."</i>
+{# The one thing to do next, from the live state (renderHero) #}
+<section class="card brain-hero is-loading mb-4" id="brain-hero" aria-labelledby="brain-state-title">
+  <div class="brain-hero-main">
+    <span class="pill text-xs" id="brain-state-pill">Checking…</span>
+    <h2 id="brain-state-title" class="brain-hero-title">Checking your Smart Brain…</h2>
+    <p id="brain-state-sub" class="brain-hero-sub muted"></p>
   </div>
-</details>
-
-{# Status #}
-<div class="card mb-4" id="brain-dashboard">
-  <div class="card-head">
-    <div>
-      <div class="card-title">1. Index status</div>
-      <div class="card-sub">Whether a search index exists on disk for this project, and where it lives (external memory, not model weights).</div>
-    </div>
-    <span class="pill solid-purple" id="brain-summary-badge" hidden></span>
+  <div class="brain-hero-actions">
+    <button onclick="quickIndex()" id="quick-index-btn" class="btn lg primary" hidden
+            title="Read any files that are not parsed yet, then build the index. When the embedder runs on the GPU, the chat model is unloaded first and you can load it again in the Ask panel.">Build Smart Brain</button>
+    <button type="button" class="btn" id="brain-add-files-btn" onclick="toggleBrainUpload()"
+            title="Upload more files to this project">＋ Add files</button>
+    <a href="/projects/{{ pid }}/data" class="btn ghost" data-link id="brain-cta-data"
+       title="Check, edit or remove files, and see how each one was read">Manage files</a>
   </div>
-  <div id="brain-status" class="text-sm muted">Loading…</div>
-  <div id="shared-models-info" class="mt-2 text-xs dim"></div>
-</div>
-
-{# Build #}
-<div class="card mb-4" id="brain-ingest">
-  <div class="card-head">
-    <div>
-      <div class="card-title">2. Build the index</div>
-      <div class="card-sub">
-        Split this project's <b>parsed text sources</b> into chunks and turn them
-        into a searchable index. First build may download the embedding model
-        (~2.2 GB) and, on a machine with a GPU, the reranker (~2.2 GB); later rebuilds reuse them.
-        Upload new files on the files page first — there is no upload on this page.
-      </div>
-    </div>
-  </div>
-  <div class="grid grid-12 gap-3 items-end">
-    <div class="col-span-4">
-      <label class="block text-xs muted mb-1"
-             title="An embedder is a small ML model that converts text into a fixed-length numeric vector (e.g. 1024 numbers). Texts with similar meaning land near each other in that vector space, which lets the system find chunks semantically related to a query. multilingual-e5-large handles 100+ languages; bge-large-en is stronger for English-only corpora; Qwen3-Embedding-0.6B is small and multilingual, and Ollama serves the same model (qwen3-embedding:0.6b), so an exported server can embed queries through an Ollama that already holds it; all-MiniLM-L6-v2 is tiny and fast but weaker.">Embedder <span class="dim">?</span></label>
-      <select id="b-embedder" class="select"
-              title="Pick the embedding model. Larger = better retrieval quality but more disk + slower build. You can change this and rebuild to compare results.">
-        <option value="intfloat/multilingual-e5-large" selected>multilingual-e5-large (1024d, multilingual, recommended)</option>
-        <option value="BAAI/bge-large-en-v1.5">bge-large-en-v1.5 (1024d, English only, strong)</option>
-        <option value="Qwen/Qwen3-Embedding-0.6B">Qwen3-Embedding-0.6B (1024d, multilingual, small: ~1.2 GB, also in Ollama)</option>
-        <option value="sentence-transformers/all-MiniLM-L6-v2">all-MiniLM-L6-v2 (384d, fast, weaker)</option>
-      </select>
-    </div>
-    <div class="col-span-6 text-xs dim self-center"
-         title="The index uses the passages each file was split into when it was parsed (Files &amp; Knowledge), the same passages mining reads. Measured on the Korvane quiz: right passage in the top 5 for 95/102 questions vs 89/102 with separate 400-token chunks.">
-      Passages: the same ones mining reads (one split per file, set when it is parsed). <span class="dim">?</span>
-    </div>
-    <div class="col-span-2 flex gap-2">
-      <button onclick="buildIndex(false)" id="build-btn" class="btn flex-1"
-              title="Build the Smart Brain index: chunk your sources, embed each chunk, index for fast retrieval. First build downloads the embedder (~2.2 GB) which takes a few minutes.">Build</button>
-      <button onclick="buildIndex(true)" id="rebuild-btn" class="btn"
-              title="Wipe the existing index and rebuild from scratch: parse, chunk and embed every file again.">⟲ Rebuild from scratch</button>
-      <button onclick="reembedIndex()" id="reembed-btn" class="btn"{% if not indexed_doc_count %} disabled{% endif %}
-              data-title-ready="Keep the documents and passages, replace only their vectors with the embedder picked above. Use it after changing the embedder: quicker than rebuilding from scratch."
-              data-title-none="No index yet: build it first (Build or Quick index), then Re-embed only swaps its vectors."
-              title="{% if indexed_doc_count %}Keep the documents and passages, replace only their vectors with the embedder picked above. Use it after changing the embedder: quicker than rebuilding from scratch.{% else %}No index yet: build it first (Build or Quick index), then Re-embed only swaps its vectors.{% endif %}">⇄ Re-embed only</button>
-    </div>
-  </div>
-  <label class="text-xs flex items-center gap-2 mt-3 cursor-pointer"
-         title="Also index every APPROVED question-answer pair as its own short card next to its file's passages, so a question can land on a reviewed fact. Off by default: measure it on your own questions (test page, Smart Brain mode) before relying on it. Kept for later rebuilds.">
-    <input type="checkbox" id="b-fact-cards"> Fact cards: also index the reviewed (approved) Q&amp;A pairs
-  </label>
-  <div id="build-status" class="mt-3 text-xs dim"></div>
-  <div id="build-progress-wrap" class="mt-2" hidden>
-    <div class="hpbar"><div id="build-progress-fill" class="hpbar-fill"></div></div>
-    <div class="flex gap-2 items-center mt-1">
-      <div id="build-progress-text" class="text-xs mono"></div>
-      <button type="button" class="btn sm" id="build-stop-btn" hidden onclick="stopBuild()"
-              title="Stop this build. It ends after the batch it is embedding (a few seconds); the index stays as it was before the build.">■ Stop build</button>
-    </div>
+  <div class="brain-hero-progress">
+<div id="build-status" class="brain-hero-status text-xs dim" role="status" aria-live="polite"></div>
+<div id="build-progress-wrap" class="mt-2" hidden>
+  <div class="hpbar"><div id="build-progress-fill" class="hpbar-fill"></div></div>
+  <div class="flex gap-2 items-center mt-1">
+    <div id="build-progress-text" class="text-xs mono"></div>
+    <button type="button" class="btn sm" id="build-stop-btn" hidden onclick="stopBuild()"
+            title="Stop this build. It ends after the batch it is embedding (a few seconds); the index stays as it was before the build.">■ Stop build</button>
   </div>
 </div>
+  </div>
+</section>
 
-{# Settings #}
+{# Upload without leaving the page: the first thing a new project needs #}
+<section class="card mb-4" id="brain-upload" hidden aria-label="Add files">
+  <form id="brain-upload-form" class="dropzone" data-drop enctype="multipart/form-data" onsubmit="return false">
+    <p class="mb-1"><b>Drop your files here</b> or choose them.</p>
+    <p class="text-xs muted mb-2">PDF, Word, Excel, PowerPoint, e-mail, text, CSV, HTML, code and more. Files stay on this computer.</p>
+    <input type="file" id="brain-upload-input" class="input" multiple aria-label="Files to add">
+    <div id="brain-upload-status" class="text-xs dim mt-2" role="status" aria-live="polite"></div>
+  </form>
+</section>
+
 <div class="card mb-4" id="brain-needs-index-note" hidden>
-  <p class="text-sm muted">Search settings, the document list, the search test, grounded chat and export appear here once the index is built (step 2 above).</p>
+  <p class="text-sm muted mb-0">Once the index is built you can ask questions here, and the document list, search test and export appear below.</p>
 </div>
 
-<details class="card mb-4" id="brain-search-settings" data-needs-index>
-  <summary class="card-head">
+<section class="card mb-4 brain-ask" id="brain-chat" data-needs-index aria-labelledby="brain-ask-title">
+  <div class="card-head">
     <div>
-      <div class="card-title">3. Search settings</div>
-      <div class="card-sub">
-        Saved with this project's index. Hybrid = keyword match + meaning match
-        combined; rerank = a second scoring pass that reorders results for
-        accuracy. These affect retrieval only — they never retrain the chat model.
-      </div>
+      <div class="card-title" id="brain-ask-title">Ask your documents</div>
+      <div class="card-sub">Answers come only from your indexed files, written by the loaded chat model or the AI assistant's API connection. Click a source to read the passage it came from. If the files do not say, it tells you so.</div>
     </div>
-  </summary>
-  <div class="grid grid-12 gap-3 items-end">
-    <div class="col-span-5">
-      <label class="block text-xs muted mb-1"
-             title="A reranker is a small cross-encoder model (separate from the embedder) that reads the query AND each candidate chunk together and outputs a relevance score. More accurate than raw embedding similarity but slower.">Reranker (cross-encoder) <span class="dim">?</span></label>
-      <select id="s-reranker" aria-label="Reranker model" class="select">
-        <option value="BAAI/bge-reranker-v2-m3" selected>bge-reranker-v2-m3 (multilingual, most accurate; default with a GPU)</option>
-        <option value="cross-encoder/ms-marco-MiniLM-L-6-v2">ms-marco-MiniLM-L-6-v2 (English, small; default without a GPU)</option>
-      </select>
-    </div>
-    <div class="col-span-3">
-      <label class="block text-xs muted mb-1"
-             title="How many candidate chunks to rerank. More = slower but possibly better precision. The reranker then returns the top-K (configured separately) of these. Typical: 30–100.">Rerank top-N <span class="dim">?</span></label>
-      <input id="s-rerank-top-n" aria-label="Candidates to rerank" type="number" min="1" max="200" value="50" class="input">
-    </div>
-    <div class="col-span-2 flex items-center gap-3">
-      <label class="flex items-center gap-2 text-xs" title="Re-rank dense-vector search results with the cross-encoder. Adds latency but improves precision. Disable for fast lookup-only workflows."><input id="s-rerank-enabled" type="checkbox" checked> Rerank</label>
-      <label class="flex items-center gap-2 text-xs" title="Hybrid retrieval = combine meaning-based (embedding) search with BM25 keyword search (classic exact-word matching), then rerank. Better recall than either alone — embedding catches paraphrases, BM25 catches exact terms / code / names."><input id="s-hybrid-enabled" type="checkbox" checked> Hybrid</label>
-    </div>
-    <div class="col-span-2">
-      <button onclick="saveSettings()" class="btn primary w-full">Save</button>
-    </div>
+    <button type="button" class="btn sm ghost" id="chat-new-btn" onclick="newBrainChat()" hidden
+            title="Clear this conversation and start again. Your index is not affected.">New conversation</button>
   </div>
-</details>
+  <div id="chat-messages" class="brain-chat-log" aria-live="polite">
+    <div class="brain-chat-empty" id="chat-empty">Your answers will appear here, each with the files it came from.</div>
+  </div>
+  <div class="flex gap-2 mt-3">
+    <input id="chat-input" type="text" placeholder="Ask a question about your indexed documents…"
+           class="input flex-1"
+           title="Your question is matched against the index, the best passages are pulled out, and the model answers from those passages. Follow-up questions keep the conversation."
+           onkeydown="if(event.key==='Enter'){event.preventDefault();sendChat();}">
+    <button onclick="sendChat()" id="chat-btn" class="btn primary"
+            title="Send your question. The system retrieves relevant chunks and sends them with your message to the selected answer source: the loaded chat model or the AI assistant API connection.">Ask</button>
+  </div>
+  <div class="flex items-center gap-3 wrap text-xs mt-2">
+    <label for="chat-answer-with" title="Which model writes the answer. The default is the chat model loaded on this machine (the top-bar pill; nothing leaves the machine). The AI assistant is an explicit choice, never picked for you: it is the API connection of its Smart Brain chat job (Settings → AI assistant): grounded chat without loading a local model; your question and the retrieved passages are sent to that API.">Answer with</label>
+    <select id="chat-answer-with" class="select" aria-label="Answer with" onchange="updateChatAnswerHint()">
+      <option value="model">the loaded chat model</option>
+      <option value="assistant">the AI assistant (API connection)</option>
+    </select>
+    <label class="flex items-center gap-2"
+         title="When the passages lack a fact the question needs (who manages the site where asset X is installed?), the model may ask for one more search before answering. It helped the API model and Qwen 3.5 4B on the Quillmoor benchmark; for small models that over-use it (Llama 3.2 3B, Gemma 3 4B gained nothing and Gemma abstained less) turn it off.">
+    <input id="chat-follow-up" type="checkbox" checked> Follow-up search for questions that go through another item</label>
+  </div>
+  <div id="chat-answer-hint" class="text-xs muted mt-1" role="status" hidden></div>
+  <div class="brain-chat-model" id="chat-model-row" hidden>
+    <span class="text-xs" id="chat-model-msg"></span>
+    <select id="chat-model-select" class="select" aria-label="Model to load for answering"></select>
+    <button type="button" class="btn sm primary" id="chat-model-load" onclick="loadBrainAnswerModel()"
+            title="Load this model on this machine so it can write the answers. Nothing leaves the computer.">Load</button>
+    <a class="btn sm ghost" id="chat-model-download" href="/models/explore" data-link hidden>Download a model</a>
+  </div>
+</section>
 
-{# Documents indexed #}
+<h2 class="brain-section-label">Manage</h2>
+
 <details class="card mb-4" id="brain-docs-panel" data-needs-index>
   <summary class="card-head">
     <div>
-      <div class="card-title">4. Documents in the index</div>
+      <div class="card-title">Documents in the index</div>
       <div class="card-sub">
         What actually got indexed — not your raw uploads (files page), and not the
         parsed sources list. If a file is missing here, it wasn't parsed or wasn't
@@ -261,18 +187,13 @@
   </div>
 </div>
 
-{# Test #}
-<div class="card mb-4" id="brain-search" data-needs-index>
-  <div class="card-head">
+<details class="card mb-4" id="brain-search" data-needs-index>
+  <summary class="card-head">
     <div>
-      <div class="card-title">5. Search test</div>
-      <div class="card-sub">
-        Search the index and see which passages come back — no AI answer is
-        generated. Use it to check whether your build and settings retrieve
-        the right text before you chat or train.
-      </div>
+      <div class="card-title">Test a search</div>
+      <div class="card-sub">See which passages come back for a question, without an AI answer. Use it when an answer looks wrong.</div>
     </div>
-  </div>
+  </summary>
   <div class="flex gap-2">
     <input id="q-text" type="text" placeholder="Ask a question about this project's documents…"
            class="input flex-1"
@@ -283,73 +204,87 @@
   </div>
   <div id="q-status" class="mt-2 text-xs dim"></div>
   <div id="q-results" class="mt-3" hidden></div>
-</div>
-
-{# Chat #}
-<div class="card mb-4" id="brain-chat" data-needs-index>
-  <div class="card-head">
-    <div>
-      <div class="card-title">6. Ask about your documents</div>
-      <div class="card-sub">
-        Smart Brain finds relevant passages in this index, then answers with the source you choose below: the loaded chat model or the AI assistant's API connection.
-        This uses your indexed documents; it does not change what a model learned during training.
-      </div>
-    </div>
-  </div>
-  <div id="chat-messages" class="flex flex-col gap-2 mb-3 brain-chat-log"></div>
-  <div class="flex gap-2">
-    <input id="chat-input" type="text" placeholder="Ask a question about your indexed documents…"
-           class="input flex-1"
-           title="A retrieval-augmented chat: your question is embedded, top-K matching chunks are pulled from the index, and the model is asked to answer using those chunks as context. Reduces hallucination and lets the model cite sources."
-           onkeydown="if(event.key==='Enter'){event.preventDefault();sendChat();}">
-    <button onclick="sendChat()" id="chat-btn" class="btn primary"
-            title="Send your question. The system retrieves relevant chunks and sends them with your message to the selected answer source: the loaded chat model or the AI assistant API connection.">Send</button>
-  </div>
-  <div class="flex items-center gap-2 text-xs mt-2">
-    <label for="chat-answer-with" title="Which model writes the answer. The default is the chat model loaded on this machine (the top-bar pill; nothing leaves the machine). The AI assistant is an explicit choice, never picked for you: it is the API connection of its Smart Brain chat job (Settings → AI assistant): grounded chat without loading a local model; your question and the retrieved passages are sent to that API.">Answer with</label>
-    <select id="chat-answer-with" class="select" aria-label="Answer with" onchange="updateChatAnswerHint()">
-      <option value="model">the loaded chat model</option>
-      <option value="assistant">the AI assistant (API connection)</option>
-    </select>
-  </div>
-  <div id="chat-answer-hint" class="text-xs muted mt-1" role="status" hidden></div>
-  <label class="flex items-center gap-2 text-xs mt-2"
-         title="When the passages lack a fact the question needs (who manages the site where asset X is installed?), the model may ask for one more search before answering. It helped the API model and Qwen 3.5 4B on the Quillmoor benchmark; for small models that over-use it (Llama 3.2 3B, Gemma 3 4B gained nothing and Gemma abstained less) turn it off.">
-    <input id="chat-follow-up" type="checkbox" checked> Follow-up search for questions that go through another item</label>
-</div>
-
-{# Import: reachable before any index exists (a new project is where a received bundle goes) #}
-<details class="card mb-4" id="brain-import-panel">
-  <summary class="card-head">
-    <div>
-      <div class="card-title">Import an index from another studio</div>
-      <div class="card-sub">Load an encrypted <code>.ftsrag</code> bundle someone exported from their Smart Brain
-        (or a legacy .tar/.zip). It brings the passages, vectors and keyword index; the original files stay with the
-        exporting project, so a later rebuild here indexes this project's own files instead.</div>
-    </div>
-  </summary>
-  <div class="grid grid-12 gap-3 items-end mb-2">
-    <div class="col-span-5">
-      <label class="block text-xs muted mb-1" for="bundle-import-file">Bundle file (.ftsrag, or legacy .tar/.zip)</label>
-      <input id="bundle-import-file" type="file" accept=".ftsrag,.tar,.tar.gz,.tgz,.zip" class="input">
-    </div>
-    <div class="col-span-5">
-      <label class="block text-xs muted mb-1" for="bundle-import-pass">Passphrase (from whoever exported it)</label>
-      <input id="bundle-import-pass" type="password" autocomplete="off" class="input">
-    </div>
-    <div class="col-span-2">
-      <button id="bundle-import-btn" onclick="startBundleImport()" class="btn primary w-full"
-              title="Decrypt and load the bundle as this project's index (an existing index is replaced, after a confirmation).">Import</button>
-    </div>
-  </div>
-  <div id="bundle-import-status" class="text-xs dim" role="status" aria-live="polite"></div>
 </details>
 
-{# Bundle #}
+<details class="card mb-4" id="brain-search-settings" data-needs-index>
+  <summary class="card-head">
+    <div>
+      <div class="card-title">Search settings</div>
+      <div class="card-sub">
+        Saved with this project's index. Hybrid = keyword match + meaning match
+        combined; rerank = a second scoring pass that reorders results for
+        accuracy. These affect retrieval only — they never retrain the chat model.
+      </div>
+    </div>
+  </summary>
+  <div class="grid grid-12 gap-3 items-end">
+    <div class="col-span-5">
+      <label class="block text-xs muted mb-1"
+             title="A reranker is a small cross-encoder model (separate from the embedder) that reads the query AND each candidate chunk together and outputs a relevance score. More accurate than raw embedding similarity but slower.">Reranker (cross-encoder) <span class="dim">?</span></label>
+      <select id="s-reranker" aria-label="Reranker model" class="select">
+        <option value="BAAI/bge-reranker-v2-m3" selected>bge-reranker-v2-m3 (multilingual, most accurate; default with a GPU)</option>
+        <option value="cross-encoder/ms-marco-MiniLM-L-6-v2">ms-marco-MiniLM-L-6-v2 (English, small; default without a GPU)</option>
+      </select>
+    </div>
+    <div class="col-span-3">
+      <label class="block text-xs muted mb-1"
+             title="How many candidate chunks to rerank. More = slower but possibly better precision. The reranker then returns the top-K (configured separately) of these. Typical: 30–100.">Rerank top-N <span class="dim">?</span></label>
+      <input id="s-rerank-top-n" aria-label="Candidates to rerank" type="number" min="1" max="200" value="50" class="input">
+    </div>
+    <div class="col-span-2 flex items-center gap-3">
+      <label class="flex items-center gap-2 text-xs" title="Re-rank dense-vector search results with the cross-encoder. Adds latency but improves precision. Disable for fast lookup-only workflows."><input id="s-rerank-enabled" type="checkbox" checked> Rerank</label>
+      <label class="flex items-center gap-2 text-xs" title="Hybrid retrieval = combine meaning-based (embedding) search with BM25 keyword search (classic exact-word matching), then rerank. Better recall than either alone — embedding catches paraphrases, BM25 catches exact terms / code / names."><input id="s-hybrid-enabled" type="checkbox" checked> Hybrid</label>
+    </div>
+    <div class="col-span-2">
+      <button onclick="saveSettings()" class="btn primary w-full">Save</button>
+    </div>
+  </div>
+</details>
+
+<details class="card mb-4" id="brain-ingest">
+  <summary class="card-head">
+    <div>
+      <div class="card-title">Build options</div>
+      <div class="card-sub">Choose another embedder, rebuild from scratch or replace only the vectors. The first build downloads the embedding model (~2.2 GB) and, on a machine with a GPU, the reranker (~2.2 GB).</div>
+    </div>
+  </summary>
+  <div class="grid grid-12 gap-3 items-end">
+    <div class="col-span-4">
+      <label class="block text-xs muted mb-1"
+             title="An embedder is a small ML model that converts text into a fixed-length numeric vector (e.g. 1024 numbers). Texts with similar meaning land near each other in that vector space, which lets the system find chunks semantically related to a query. multilingual-e5-large handles 100+ languages; bge-large-en is stronger for English-only corpora; Qwen3-Embedding-0.6B is small and multilingual, and Ollama serves the same model (qwen3-embedding:0.6b), so an exported server can embed queries through an Ollama that already holds it; all-MiniLM-L6-v2 is tiny and fast but weaker.">Embedder <span class="dim">?</span></label>
+      <select id="b-embedder" class="select"
+              title="Pick the embedding model. Larger = better retrieval quality but more disk + slower build. You can change this and rebuild to compare results.">
+        <option value="intfloat/multilingual-e5-large" selected>multilingual-e5-large (1024d, multilingual, recommended)</option>
+        <option value="BAAI/bge-large-en-v1.5">bge-large-en-v1.5 (1024d, English only, strong)</option>
+        <option value="Qwen/Qwen3-Embedding-0.6B">Qwen3-Embedding-0.6B (1024d, multilingual, small: ~1.2 GB, also in Ollama)</option>
+        <option value="sentence-transformers/all-MiniLM-L6-v2">all-MiniLM-L6-v2 (384d, fast, weaker)</option>
+      </select>
+    </div>
+    <div class="col-span-6 text-xs dim self-center"
+         title="The index uses the passages each file was split into when it was parsed (Files &amp; Knowledge), the same passages mining reads. Measured on the Korvane quiz: right passage in the top 5 for 95/102 questions vs 89/102 with separate 400-token chunks.">
+      Passages: the same ones mining reads (one split per file, set when it is parsed). <span class="dim">?</span>
+    </div>
+    <div class="col-span-2 flex gap-2">
+      <button onclick="buildIndex(false)" id="build-btn" class="btn flex-1"
+              title="Build the Smart Brain index: chunk your sources, embed each chunk, index for fast retrieval. First build downloads the embedder (~2.2 GB) which takes a few minutes.">Build</button>
+      <button onclick="buildIndex(true)" id="rebuild-btn" class="btn"
+              title="Wipe the existing index and rebuild from scratch: parse, chunk and embed every file again.">⟲ Rebuild from scratch</button>
+      <button onclick="reembedIndex()" id="reembed-btn" class="btn"{% if not indexed_doc_count %} disabled{% endif %}
+              data-title-ready="Keep the documents and passages, replace only their vectors with the embedder picked above. Use it after changing the embedder: quicker than rebuilding from scratch."
+              data-title-none="No index yet: build it first (Build or Quick index), then Re-embed only swaps its vectors."
+              title="{% if indexed_doc_count %}Keep the documents and passages, replace only their vectors with the embedder picked above. Use it after changing the embedder: quicker than rebuilding from scratch.{% else %}No index yet: build it first (Build or Quick index), then Re-embed only swaps its vectors.{% endif %}">⇄ Re-embed only</button>
+    </div>
+  </div>
+  <label class="text-xs flex items-center gap-2 mt-3 cursor-pointer"
+         title="Also index every APPROVED question-answer pair as its own short card next to its file's passages, so a question can land on a reviewed fact. Off by default: measure it on your own questions (test page, Smart Brain mode) before relying on it. Kept for later rebuilds.">
+    <input type="checkbox" id="b-fact-cards"> Fact cards: also index the reviewed (approved) Q&amp;A pairs
+  </label>
+</details>
+
 <details class="card mb-4" id="brain-export-panel" data-needs-index>
   <summary class="card-head">
     <div>
-      <div class="card-title">7. Download / export the index</div>
+      <div class="card-title">Share or run it elsewhere</div>
       <div class="card-sub">
         Studio-to-studio copy of this index (documents, chunks, vectors, keyword index, settings) as one
         <b>encrypted</b> <code>.ftsrag</code> file saved inside the project; the other studio loads it with
@@ -473,11 +408,36 @@
   <span id="bundle-status" class="block mt-2 text-xs dim"></span>
 </details>
 
-{# Shared models #}
+<details class="card mb-4" id="brain-import-panel">
+  <summary class="card-head">
+    <div>
+      <div class="card-title">Import an index from another studio</div>
+      <div class="card-sub">Load an encrypted <code>.ftsrag</code> bundle someone exported from their Smart Brain
+        (or a legacy .tar/.zip). It brings the passages, vectors and keyword index; the original files stay with the
+        exporting project, so a later rebuild here indexes this project's own files instead.</div>
+    </div>
+  </summary>
+  <div class="grid grid-12 gap-3 items-end mb-2">
+    <div class="col-span-5">
+      <label class="block text-xs muted mb-1" for="bundle-import-file">Bundle file (.ftsrag, or legacy .tar/.zip)</label>
+      <input id="bundle-import-file" type="file" accept=".ftsrag,.tar,.tar.gz,.tgz,.zip" class="input">
+    </div>
+    <div class="col-span-5">
+      <label class="block text-xs muted mb-1" for="bundle-import-pass">Passphrase (from whoever exported it)</label>
+      <input id="bundle-import-pass" type="password" autocomplete="off" class="input">
+    </div>
+    <div class="col-span-2">
+      <button id="bundle-import-btn" onclick="startBundleImport()" class="btn primary w-full"
+              title="Decrypt and load the bundle as this project's index (an existing index is replaced, after a confirmation).">Import</button>
+    </div>
+  </div>
+  <div id="bundle-import-status" class="text-xs dim" role="status" aria-live="polite"></div>
+</details>
+
 <details class="card mb-4" id="brain-shared-models">
   <summary class="card-head">
     <div>
-      <div class="card-title">8. Shared search models</div>
+      <div class="card-title">Shared search models</div>
       <div class="card-sub">
         The embedder and reranker model files (the helpers that turn text into
         searchable numbers) live in <code>~/.finetune-studio/shared_models/</code> —
@@ -489,6 +449,21 @@
   </summary>
   <div id="shared-models-list" class="text-xs muted">Loading…</div>
 </details>
+
+<details class="card mb-4" id="brain-dashboard" data-sprite="corpus-node">
+  <summary class="card-head">
+    <div>
+      <div class="card-title">Index details</div>
+      <div class="card-sub">What is on disk: counts, embedder and where the index lives (external memory, not model weights).</div>
+    </div>
+    <span class="pill solid-purple" id="brain-summary-badge" hidden></span>
+  </summary>
+  <div id="brain-status" class="text-sm muted">Loading…</div>
+  <div id="shared-models-info" class="mt-2 text-xs dim"></div>
+</details>
+
+{% set res_compact = true %}
+{% include "_resources.html" %}
 
 {# Danger zone #}
 <div class="card card-danger">
@@ -630,16 +605,14 @@
     const chatMessages = document.getElementById('chat-messages');
     const chatInput = document.getElementById('chat-input');
     const buildStatus = document.getElementById('build-status');
-    const quickStatus = document.getElementById('quick-index-status');
     if (queryStatus) queryStatus.textContent = 'No indexed passages. Build the index to search.';
     if (queryResults) {
       queryResults.replaceChildren();
       queryResults.hidden = true;
     }
-    if (chatMessages) chatMessages.replaceChildren();
+    if (chatMessages) newBrainChat();
     if (chatInput) chatInput.value = '';
     if (buildStatus) buildStatus.textContent = 'Sources cleared. Build the index again to search and chat.';
-    if (quickStatus) quickStatus.textContent = 'Sources cleared. Build the index again to search and chat.';
   }
 
   window.clearAllDocuments = async function() {
@@ -651,6 +624,139 @@
       loadIndexedDocs(); notify('All sources cleared', 'success');
     } catch (e) { notify('Failed: ' + e.message, 'error'); }
   };
+
+  // ── What the page says first: one state, one next action ─────────
+  let buildRunning = false;
+  let lastBrainState = null;
+
+  function changesText(st) {
+    const n = (a) => (a || []).length;
+    return [n(st.stale) ? n(st.stale) + ' changed' : '', n(st.missing) ? n(st.missing) + ' new' : '',
+            n(st.removed) ? n(st.removed) + ' removed' : '', st.facts_changed ? 'reviewed facts changed' : '']
+      .filter(Boolean).join(' · ');
+  }
+
+  // The state the page is in, from GET /brain (files = the project's sources, state = what changed since the build).
+  function brainStateOf(d) {
+    const st = d.state || {};
+    const files = d.files || { total: 0, ready: 0 };
+    const built = !!d.exists && d.chunks > 0;
+    const count = function (n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); };
+    if (buildRunning) {
+      return { key: 'building', pill: 'Building', tone: 'solid-blue', title: 'Building your Smart Brain…',
+               sub: 'It runs on its own: you can leave this page.', action: '' };
+    }
+    if (built && st.fresh) {
+      return { key: 'ready', pill: 'Ready', tone: 'solid-green', title: 'Ready to answer',
+               sub: count(d.documents, 'document') + ' · ' + count(d.chunks, 'passage') + ' indexed. Ask below.', action: '' };
+    }
+    if (built) {
+      return { key: 'stale', pill: 'Needs an update', tone: 'solid-amber', title: 'Your files changed since the last build',
+               sub: (changesText(st) || 'Files changed') + '. Answers still use the old index until you update it.',
+               action: 'Update Smart Brain' };
+    }
+    if (!files.total) {
+      return { key: 'empty', pill: 'Start here', tone: 'outline', title: 'Add your files to begin',
+               sub: 'A Smart Brain answers questions from your own documents, with the sources.', action: '' };
+    }
+    if (!files.ready) {
+      return { key: 'parsing', pill: 'Reading', tone: 'solid-blue', title: 'Reading your files…',
+               sub: count(files.total, 'file') + ' uploaded. You can build as soon as one is ready.', action: 'Build Smart Brain' };
+    }
+    return { key: 'unbuilt', pill: 'One step left', tone: 'solid-purple', title: count(files.ready, 'file') + ' ready to index',
+             sub: 'Building takes a minute or two. The first build also downloads the search models (about 4 GB).',
+             action: 'Build Smart Brain' };
+  }
+
+  function renderHero(d) {
+    const v = brainStateOf(d);
+    lastBrainState = d;
+    const hero = document.getElementById('brain-hero');
+    const pill = document.getElementById('brain-state-pill');
+    const btn = document.getElementById('quick-index-btn');
+    const upload = document.getElementById('brain-upload');
+    if (hero) { hero.className = 'card brain-hero mb-4 is-' + v.key; }
+    if (pill) { pill.className = 'pill text-xs ' + v.tone; pill.textContent = v.pill; }
+    document.getElementById('brain-state-title').textContent = v.title;
+    document.getElementById('brain-state-sub').textContent = v.sub;
+    if (btn) { btn.hidden = !v.action; if (v.action) btn.textContent = v.action; }
+    if (upload && v.key === 'empty') upload.hidden = false;
+    const chatNew = document.getElementById('chat-new-btn');
+    if (chatNew) chatNew.hidden = !brainChat.length;
+  }
+
+  function focusAsk() {
+    const input = document.getElementById('chat-input');
+    if (input && !input.closest('[hidden]')) input.focus({ preventScroll: false });
+  }
+
+  // ── Add files without leaving the page ───────────────────────────
+  window.toggleBrainUpload = function () {
+    const card = document.getElementById('brain-upload');
+    if (!card) return;
+    card.hidden = !card.hidden;
+    if (!card.hidden) card.scrollIntoView({ block: 'nearest' });
+  };
+
+  function uploadBrainFiles(fileList) {
+    const status = document.getElementById('brain-upload-status');
+    const input = document.getElementById('brain-upload-input');
+    if (!fileList || !fileList.length) return;
+    const fd = new FormData();
+    for (const f of fileList) fd.append('files', f, f.name);
+    if (input) input.disabled = true;
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/projects/' + PID + '/files/upload');
+    xhr.upload.onprogress = function (ev) {
+      if (status && ev.lengthComputable) status.textContent = 'Uploading ' + Math.round(ev.loaded / ev.total * 100) + '%…';
+    };
+    const done = function () { if (input) { input.disabled = false; input.value = ''; } };
+    xhr.onerror = function () { done(); if (status) status.textContent = 'Upload failed: the connection dropped.'; };
+    xhr.onload = async function () {
+      done();
+      let data = {};
+      try { data = JSON.parse(xhr.responseText); } catch (_e) { /* reported below */ }
+      if (xhr.status >= 400) {
+        const msg = (typeof data.detail === 'string' && data.detail) || ('the server answered ' + xhr.status);
+        if (status) status.textContent = 'Upload failed: ' + msg;
+        notify('Upload failed: ' + msg, 'error');
+        return;
+      }
+      const c = data.counts || {};
+      const errors = (data.files || data.report || []).filter(function (f) { return f.status === 'error'; });
+      if (status) {
+        status.textContent = 'Added ' + (c.uploaded || 0) + ' file(s)'
+          + (c.duplicates_skipped ? ', ' + c.duplicates_skipped + ' already here' : '')
+          + (errors.length ? '. Could not add: ' + errors.map(function (f) { return f.filename + ' (' + f.error + ')'; }).join(', ') : '')
+          + '. Reading them…';
+      }
+      if (window.fts && fts.refreshFlowNext) fts.refreshFlowNext();
+      // Parsing runs in the background: follow it so the build button turns up by itself.
+      for (let i = 0; i < 30; i++) {
+        await loadBrainStatus();
+        const f = (lastBrainState && lastBrainState.files) || {};
+        if (f.total && f.ready >= f.total) break;
+        await new Promise(function (r) { setTimeout(r, 2000); });
+      }
+      if (status) status.textContent = status.textContent.replace('Reading them…', 'Ready to build.');
+    };
+    xhr.send(fd);
+  }
+
+  function initBrainUpload() {
+    const input = document.getElementById('brain-upload-input');
+    const form = document.getElementById('brain-upload-form');
+    if (input) input.addEventListener('change', function () { uploadBrainFiles(input.files); });
+    if (form) {
+      ['dragover', 'dragenter'].forEach(function (e) {
+        form.addEventListener(e, function (ev) { ev.preventDefault(); form.classList.add('dragging'); });
+      });
+      ['dragleave', 'drop'].forEach(function (e) {
+        form.addEventListener(e, function (ev) { ev.preventDefault(); form.classList.remove('dragging'); });
+      });
+      form.addEventListener('drop', function (ev) { uploadBrainFiles(ev.dataTransfer.files); });
+    }
+  }
 
   // ── Index status card (readable fields, not JSON) ─────────────────
   window.loadBrainStatus = async function() {
@@ -665,8 +771,9 @@
       if (note) note.hidden = !!d.exists;
       window.BRAIN_HAS_INDEX = !!d.exists;
       setHasIndex(d.exists && d.chunks > 0);   // Clear the index keeps the folder: exists alone is not enough
+      renderHero(d);
       if (!d.exists) {
-        el.innerHTML = '<p class="text-sm muted">No index yet. Use Quick index above, or choose an embedder below and click Build.</p>'
+        el.innerHTML = '<p class="text-sm muted">No index yet.</p>'
           + '<div class="text-xs dim mono mt-1">' + esc(d.corpus_dir || '') + '</div>';
         if (badge) badge.hidden = true;
         return;
@@ -677,23 +784,16 @@
       }
       // What changed since the build (knowledge.index.state): edited, new and removed files need a rebuild.
       const st = d.state || {};
-      const changed = (st.stale || []).length, added = (st.missing || []).length, gone = (st.removed || []).length;
       const imported = st.imported_from
         ? '<div class="text-xs muted mb-2">Imported from “' + esc(st.imported_from) + '”: '
           + (st.imported || []).length + ' file(s) came with the bundle. A rebuild here indexes this project\u2019s own files instead.</div>'
         : '';
       const fc = document.getElementById('b-fact-cards');
       if (fc) fc.checked = !!st.fact_cards;
-      const fresh = st.fresh
-        ? '<span class="pill solid-green text-xs">up to date</span>'
-        : '<span class="pill solid-amber text-xs">rebuild needed</span> <span class="text-xs muted">'
-          + [changed ? changed + ' file(s) changed since the build' : '', added ? added + ' new file(s)' : '',
-             gone ? gone + ' file(s) removed' : '', st.facts_changed ? 'reviewed facts changed' : '']
-            .filter(Boolean).join(' · ') + '</span>';
-      el.innerHTML = '<div class="mb-2">' + fresh + '</div>' + imported + '<table class="table text-xs run-kv-table"><tbody>'
+      el.innerHTML = imported + '<table class="table text-xs run-kv-table"><tbody>'
         + '<tr><td class="meta muted">Name</td><td class="mono" title="' + esc(d.name || '—') + '">' + esc(d.name || '—') + '</td></tr>'
         + '<tr><td class="meta muted">Documents</td><td class="mono">' + esc(d.documents) + '</td></tr>'
-        + '<tr><td class="meta muted">Chunks</td><td class="mono">' + esc(d.chunks) + '</td></tr>'
+        + '<tr><td class="meta muted">Passages</td><td class="mono">' + esc(d.chunks) + '</td></tr>'
         + '<tr><td class="meta muted">Embedder</td><td class="mono" title="' + esc(d.embedder || '—') + '">' + esc(embedderLabel(d.embedder)) + '</td></tr>'
         + '<tr><td class="meta muted">Path</td><td class="mono text-xs" title="' + esc(d.corpus_dir || '') + '">' + esc(d.corpus_dir || '') + '</td></tr>'
         + '</tbody></table>'
@@ -760,48 +860,135 @@
     }
   };
 
+  // ── The conversation: earlier turns go with each question, so a follow-up can say "and the second one?" ──
+  let brainChat = [];
+
+  window.newBrainChat = function () {
+    brainChat = [];
+    const box = document.getElementById('chat-messages');
+    if (box) box.innerHTML = '<div class="brain-chat-empty" id="chat-empty">Your answers will appear here, each with the files it came from.</div>';
+    const b = document.getElementById('chat-new-btn');
+    if (b) b.hidden = true;
+    focusAsk();
+  };
+
+  // Sources: one row per file, the files the answer names first. The prompt tells the model to cite by file name
+  // ([handbook.pdf]); some models use the context blocks' numbers ([2]) instead. Both open the file's row.
+  function groupSources(reply, sources) {
+    const files = new Map();
+    sources.forEach(function (s, i) {
+      const name = s.filename || s.source || 'source';
+      if (!files.has(name)) files.set(name, { name: name, passages: [], cited: false });
+      files.get(name).passages.push({ n: s.rank || i + 1, text: s.chunk_text_preview || '' });
+    });
+    const groups = Array.from(files.values());
+    groups.forEach(function (g, i) {
+      g.id = i;
+      g.cited = reply.indexOf('[' + g.name + ']') >= 0
+        || g.passages.some(function (p) { return reply.indexOf('[' + p.n + ']') >= 0; });
+    });
+    groups.sort(function (x, y) { return Number(y.cited) - Number(x.cited); });
+    return groups;
+  }
+
+  function citeLinks(html, msgId, groups) {
+    const link = function (g, label) {
+      return '<a href="#" class="brain-cite" data-source="' + msgId + '-' + g.id + '" title="Show the passages">' + label + '</a>';
+    };
+    groups.forEach(function (g) {
+      html = html.split('[' + esc(g.name) + ']').join(link(g, '[' + esc(g.name) + ']'));
+    });
+    return html.replace(/\[(\d{1,3})\](?!<\/a>)/g, function (m, n) {
+      const g = groups.find(function (x) { return x.passages.some(function (p) { return p.n === Number(n); }); });
+      return g ? link(g, m) : m;
+    });
+  }
+
+  function sourcesHtml(msgId, groups) {
+    const row = function (g) {
+      const count = g.passages.length === 1 ? '1 passage' : g.passages.length + ' passages';
+      return '<details class="brain-source" id="src-' + msgId + '-' + g.id + '"><summary>' + esc(g.name)
+        + ' <span class="dim">· ' + count + '</span></summary>'
+        + g.passages.map(function (p) { return '<div class="brain-source-text">' + esc(p.text) + '</div>'; }).join('')
+        + '</details>';
+    };
+    const used = groups.filter(function (g) { return g.cited; });
+    const also = groups.filter(function (g) { return !g.cited; });
+    // No file named at all: every file it read is simply "Sources".
+    const first = used.length ? used : also;
+    let html = '<div class="brain-sources"><div class="brain-sources-label">Sources</div>' + first.map(row).join('');
+    if (used.length && also.length) {
+      html += '<details class="brain-sources-more"><summary>Also read (' + also.length + ')</summary>' + also.map(row).join('') + '</details>';
+    }
+    return html + '</div>';
+  }
+
+  function brainBubble(role, html) {
+    const box = document.getElementById('chat-messages');
+    const empty = document.getElementById('chat-empty');
+    if (empty) empty.remove();
+    const el = document.createElement('div');
+    el.className = 'brain-msg brain-msg-' + role;
+    el.innerHTML = html;
+    box.appendChild(el);
+    box.scrollTop = box.scrollHeight;
+    return el;
+  }
+
   window.sendChat = async function() {
     const input = document.getElementById('chat-input');
     const box = document.getElementById('chat-messages');
     const btn = document.getElementById('chat-btn');
     const text = (input && input.value || '').trim();
-    if (!text || !box) return;
+    if (!text || !box || (btn && btn.disabled)) return;
     if (btn) btn.disabled = true;
-    box.insertAdjacentHTML('beforeend',
-      '<div class="text-xs"><b>You</b>: ' + esc(text) + '</div>');
+    brainBubble('user', esc(text));
     if (input) input.value = '';
+    brainChat.push({ role: 'user', content: text });
+    const pending = brainBubble('assistant', '<span class="spinner"></span> <span class="dim">Searching your files and writing the answer…</span>');
     try {
       const d = await api().post('/api/projects/' + PID + '/brain/chat', {
-        messages: [{ role: 'user', content: text }],
+        messages: brainChat,
         top_k: 10,
         follow_up: (document.getElementById('chat-follow-up') || {}).checked === false ? 0 : 1,
         answer_with: (document.getElementById('chat-answer-with') || {}).value || 'model',
       });
       const reply = d.reply || d.response || '';
-      box.insertAdjacentHTML('beforeend',
-        '<div class="text-xs"><b>Assistant</b>: ' + esc(reply) + '</div>');
+      brainChat.push({ role: 'assistant', content: reply });
+      const msgId = 'm' + brainChat.length;
+      const sources = d.sources || [];
+      const groups = groupSources(reply, sources);
+      let html = '<div class="brain-answer">' + citeLinks(esc(reply), msgId, groups) + '</div>';
       if (d.follow_up_searches && d.follow_up_searches.length) {
         // The model asked for a second search before answering (a question that goes through another item).
-        box.insertAdjacentHTML('beforeend', '<div class="text-xs dim">Also searched: ' +
-          esc(d.follow_up_searches.map(function(q) { return '"' + q + '"'; }).join(', ')) + '</div>');
+        html += '<div class="text-xs dim mt-1">Also searched: ' +
+          esc(d.follow_up_searches.map(function(q) { return '"' + q + '"'; }).join(', ')) + '</div>';
       }
-      if (d.sources && d.sources.length) {
-        box.insertAdjacentHTML('beforeend',
-          // Numbered like the answer's [n] citations (the context blocks are labelled by rank); a bare repeated list of
-          // file names did not say which one [2] was.
-          '<div class="text-xs dim">Sources: ' + esc(d.sources.map(function(s, i) {
-            return '[' + (s.rank || i + 1) + '] ' + (s.filename || s.source || s);
-          }).join(' · ')) + '</div>');
-      }
+      if (sources.length) html += sourcesHtml(msgId, groups);
+      pending.innerHTML = html;
       box.scrollTop = box.scrollHeight;
+      const n = document.getElementById('chat-new-btn');
+      if (n) n.hidden = false;
     } catch (e) {
-      box.insertAdjacentHTML('beforeend',
-        '<div class="text-xs err">' + esc(e.message || e) + '</div>');
-      notify(String(e.message || e), 'error');
+      brainChat.pop();   // the question never got an answer: it must not go along with the next one
+      const m = String(e.message || e);
+      pending.className = 'brain-msg brain-msg-error';
+      pending.textContent = m;
+      notify(m, 'error');
+      if (input && !input.value) input.value = text;   // nothing lost: it can be sent again
+      if (e && e.code === 'no_model' || /No chat model is loaded/.test(m)) initChatAnswerWith();
     } finally {
       if (btn) btn.disabled = false;
     }
   };
+
+  document.addEventListener('click', function (ev) {
+    const a = ev.target.closest && ev.target.closest('.brain-cite');
+    if (!a) return;
+    ev.preventDefault();
+    const src = document.getElementById('src-' + a.dataset.source);
+    if (src) { src.open = true; src.scrollIntoView({ block: 'nearest' }); }
+  });
 
   function showPassphrase(p) {
     if (!p) return;
@@ -1099,12 +1286,63 @@
         + ': your question and the retrieved passages are sent to that provider.';
     } else if (!chatAnswerState.loaded) {
       text = chatAnswerState.api
-        ? "No local chat model is loaded. Load a model in Inference, or choose 'the AI assistant ("
+        ? "No local chat model is loaded. Load one here, or choose 'the AI assistant ("
           + chatAnswerState.provider + ")': this sends the question and the retrieved passages to that provider."
-        : 'No local chat model is loaded. Load a model in Inference (or from the model pill in the top bar).';
+        : 'No local chat model is loaded. Load one here to get answers.';
     }
     hint.textContent = text;
     hint.hidden = !text;
+    renderModelRow(sel.value !== 'assistant' && !chatAnswerState.loaded);
+  };
+
+  // Load a model from here: answers are the point of this page, and sending a new user to Inference loses them.
+  async function renderModelRow(show) {
+    const row = document.getElementById('chat-model-row');
+    if (!row) return;
+    row.hidden = !show;
+    if (!show) return;
+    const sel = document.getElementById('chat-model-select');
+    const load = document.getElementById('chat-model-load');
+    const dl = document.getElementById('chat-model-download');
+    const msg = document.getElementById('chat-model-msg');
+    let models = [];
+    try {
+      const r = await fetch('/api/models/list?for_selector=true');
+      if (r.ok) models = await r.json();
+    } catch (_e) { /* the empty case below says what to do */ }
+    const usable = (models || []).filter(function (m) { return m && m.path; })
+      .sort(function (a, b) { return Number(a.category === 'trained_export') - Number(b.category === 'trained_export'); });
+    if (sel) {
+      sel.innerHTML = usable.map(function (m) {
+        return '<option value="' + esc(m.path) + '">' + esc(m.name) + (m.size_gb ? ' (' + m.size_gb + ' GB)' : '') + '</option>';
+      }).join('');
+      sel.hidden = !usable.length;
+    }
+    if (load) load.hidden = !usable.length;
+    if (dl) dl.hidden = !!usable.length;
+    if (msg) msg.textContent = usable.length ? 'Load a model:' : 'No chat model on this computer yet.';
+  }
+
+  window.loadBrainAnswerModel = async function () {
+    const sel = document.getElementById('chat-model-select');
+    const btn = document.getElementById('chat-model-load');
+    const msg = document.getElementById('chat-model-msg');
+    if (!sel || !sel.value) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+    if (msg) msg.textContent = 'Loading (this can take a minute)…';
+    try {
+      const r = await api().post('/api/models/load', { path: sel.value });
+      (r && r.warnings || []).forEach(function (w) { notify(w, 'warn'); });
+      notify('Model loaded', 'success');
+      await initChatAnswerWith();
+      focusAsk();
+    } catch (e) {
+      const m = String(e.message || e);
+      if (msg) msg.textContent = 'Could not load it: ' + m;
+      notify('Load failed: ' + m, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Load'; }
+    }
   };
 
   window.initChatAnswerWith = async function() {
@@ -1156,6 +1394,8 @@
 
   // Disable the build buttons while a build runs (this page's or one found running on load).
   function setBuildBusy(on) {
+    buildRunning = !!on;
+    if (lastBrainState) renderHero(lastBrainState);
     ['quick-index-btn', 'build-btn', 'rebuild-btn', 'reembed-btn'].forEach(function (id) {
       const b = document.getElementById(id);
       if (b) b.disabled = !!on || (id === 'reembed-btn' && !hasIndex);
@@ -1296,23 +1536,20 @@
   // chat then has no model. Say it where the build was started.
   function gpuNote(r) {
     if (!r) return '';
-    return r.gpu ? ' The embedder runs on the GPU, so the chat model was unloaded: load it again for grounded chat.'
-      : ' The embedder runs on the CPU: a large one (e5-large, bge-large, Qwen3-Embedding) can take many minutes; the progress shows the time left, and Stop build keeps the old index.';
+    if (r.gpu) return chatAnswerState.loaded ? ' The embedder runs on the GPU, so the chat model was unloaded: load it again in Ask your documents.' : '';
+    return ' The embedder runs on the CPU: a large one (e5-large, bge-large, Qwen3-Embedding) can take many minutes; the progress shows the time left, and Stop build keeps the old index.';
   }
 
   function buildDone(b) {
     if (typeof window.loadIndexedDocs === 'function') window.loadIndexedDocs();
     if (typeof window.loadBrainStatus === 'function') window.loadBrainStatus();
-    return (b.documents != null ? b.documents : '?') + ' docs, ' + (b.chunks != null ? b.chunks : '?') + ' chunks';
+    return (b.documents != null ? b.documents : '?') + ' documents, ' + (b.chunks != null ? b.chunks : '?') + ' passages';
   }
 
   window.quickIndex = async function () {
-    // The button sits at the top of the page; section 2's #build-status is below the fold: say it in both places.
-    const lower = document.getElementById('build-status');
-    const near = document.getElementById('quick-index-status');
-    const status = { set textContent(t) { lower.textContent = t; if (near) near.textContent = t; } };
+    const status = document.getElementById('build-status');
     setBuildBusy(true);
-    status.textContent = 'Quick index: starting… (first build downloads the embedder ~2.2 GB)';
+    status.textContent = 'Starting… (the first build downloads the search models, about 4 GB)';
     try {
       // The parse step and the build run in one job (it runs on its own: you can leave this page). A job that
       // cannot start is a 4xx/5xx whose detail says why.
@@ -1323,12 +1560,17 @@
         'building the index (it runs on its own: you can leave this page)…' + note;
       const b = await followBuild((r.build || {}).build_id || r.build_id);
       const failed = (b.failed || []).length;
-      const converted = (b.promoted ? '⚡ Converted ' + b.promoted + ' new file(s)' : '⚡ Every file was already parsed') +
+      const converted = (b.promoted ? 'Read ' + b.promoted + ' new file(s)' : 'Every file was already read') +
         (failed ? ' (' + failed + ' failed to parse)' : '');
       status.textContent = converted + ' · index: ' + buildDone(b) + '.' + note;
-      notify('Quick index done: ' + (b.promoted || 0) + ' converted · ' + b.chunks + ' chunks', 'success');
+      initChatAnswerWith();
+      notify('Smart Brain ready: ' + b.chunks + ' passages', 'success');
+      const up = document.getElementById('brain-upload');
+      if (up) up.hidden = true;
+      await loadBrainStatus();
+      focusAsk();
     } catch (e) {
-      buildEnded(status, 'Quick index failed', e);
+      buildEnded(status, 'Build failed', e);
     } finally {
       setBuildBusy(false);
     }
@@ -1356,6 +1598,7 @@
       const done = buildDone(b);
       status.textContent = 'Done — ' + done + ' indexed.' + note;
       notify('Index built: ' + done, 'success');
+      initChatAnswerWith();
     } catch (e) {
       buildEnded(status, 'Build failed', e);
     } finally {
@@ -1409,6 +1652,7 @@
   function init() {
     loadRagSettings();
     initChatAnswerWith();
+    initBrainUpload();
     loadIndexedDocs();
     loadBrainStatus();
     loadSharedModels();

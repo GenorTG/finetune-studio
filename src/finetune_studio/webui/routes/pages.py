@@ -22,6 +22,7 @@ from fastapi.templating import Jinja2Templates
 
 from finetune_studio import __release_channel__ as RELEASE_CHANNEL
 from finetune_studio import __version__ as APP_VERSION
+from finetune_studio.webui.flow_next import brain_built as flow_brain_built
 from finetune_studio.webui.flow_next import flow_next_step
 from finetune_studio.webui.model_labels import model_label as _model_label
 
@@ -159,7 +160,8 @@ async def index(request: Request):
     """Home page — project list + system overview."""
     from finetune_studio import db
     from finetune_studio.webui.app import discovered_models, training_engine
-    projects = db.list_projects()
+    from finetune_studio.webui.project_dashboard import brain_summary
+    projects = [{**p, "brain": brain_summary(p["id"])} for p in db.list_projects()]
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -307,14 +309,19 @@ async def project_overview_alias(request: Request, pid: str):
 @router.get("/projects/{pid}", response_class=HTMLResponse)
 async def project_detail_page(request: Request, pid: str):
     """Project overview dashboard — stats, recent runs/models/files, activity."""
+    from finetune_studio import db
     from finetune_studio.data.fs import file_library as fl
-    from finetune_studio.webui.project_dashboard import build_dashboard_ctx
+    from finetune_studio.webui.project_dashboard import (
+        brain_summary,
+        build_dashboard_ctx,
+    )
 
     ctx = _project_ctx(pid)
     if not ctx:
         raise HTTPException(status_code=404, detail="Project not found")
     files = fl.list_files(pid)
-    dash = build_dashboard_ctx(ctx["project"], pid, files=files)
+    tested = any(b.get("kind") == "brain" and b.get("status") == "done" for b in db.list_benchmarks_for_project(pid))
+    dash = build_dashboard_ctx(ctx["project"], pid, files=files, brain=brain_summary(pid), brain_tested=tested)
     return templates.TemplateResponse(
         request,
         "project.html",
@@ -417,6 +424,7 @@ async def project_testing_page(request: Request, pid: str):
         request,
         "project_testing.html",
         {
+            "brain_built": flow_brain_built(pid),
             **ctx,
             "models": models,
             "library_models": library_models_for_testing(models),

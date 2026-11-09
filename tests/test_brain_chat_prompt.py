@@ -139,7 +139,7 @@ def test_build_status_says_a_gpu_build_unloads_the_chat_model() -> None:
     from pathlib import Path
 
     page = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/brain.html").read_text()
-    assert "function gpuNote(r)" in page and "r.gpu ?" in page
+    assert "function gpuNote(r)" in page and "if (r.gpu)" in page
     assert page.count("+ note;") == 6          # Quick index, Build and Re-embed: running + done each
 
 

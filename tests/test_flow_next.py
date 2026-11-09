@@ -13,7 +13,8 @@ def counts(**kw: int) -> fn.ProjectCounts:
 
 @pytest.mark.parametrize(("page", "state", "title", "href"), [
     ("files", counts(), "Upload your files", ""),
-    ("files", counts(files=3, parsed=3), "Mine question-answer pairs", "/data-prep"),
+    ("files", counts(files=3, parsed=3), "Build the Smart Brain", "/brain"),
+    ("files", counts(files=3, parsed=3, brain_built=True), "Ask your documents", "/brain"),
     ("pairs", counts(), "Upload files first", "/data"),
     ("pairs", counts(files=3, parsed=3), "Mine pairs", ""),
     ("pairs", counts(files=3, parsed=3, pending=40), "Review the pending pairs", ""),
@@ -28,7 +29,6 @@ def test_next_step_follows_the_state(page: str, state: fn.ProjectCounts, title: 
 
 
 @pytest.mark.parametrize(("page", "state"), [
-    ("files", counts(files=3, parsed=3, pending=4)),
     ("pairs", counts(files=3, parsed=3, approved=5, datasets=1)),
     ("training", counts(datasets=1, runs_done=1)),
     ("testing", counts()),
@@ -59,7 +59,7 @@ def test_flow_next_api_follows_the_counts(client, monkeypatch: pytest.MonkeyPatc
     first = client.get(f"/api/projects/{pid}/flow-next?page=files").json()["next"]
     assert first == {"href": "", "title": "Upload your files", "why": first["why"]}
     counts["n"] = fn.ProjectCounts(files=6, parsed=6, pending=0, approved=0, datasets=0, runs_done=0)
-    assert client.get(f"/api/projects/{pid}/flow-next?page=files").json()["next"]["href"] == "/data-prep"
+    assert client.get(f"/api/projects/{pid}/flow-next?page=files").json()["next"]["href"] == "/brain"
     counts["n"] = fn.ProjectCounts(files=6, parsed=6, pending=0, approved=40, datasets=1, runs_done=0)
     # the page's own step is done: the static entry comes back (the in-place refresh must not keep "Export ...")
     assert client.get(f"/api/projects/{pid}/flow-next?page=pairs").json()["next"]["title"] == "Train an adapter"

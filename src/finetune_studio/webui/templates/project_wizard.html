@@ -7,7 +7,7 @@
 {% block content %}
 <div class="page-head">
   <h1>⚡ Quick work</h1>
-  <div class="sub">Upload <b>files</b>, then get a <b>trained model</b> (Quick start runs the steps in order) or a <b>Smart Brain</b> that answers from the files (step 1b, no training) from this one page.</div>
+  <div class="sub">Upload <b>files</b> and build a <b>Smart Brain</b> that answers from them, on this one page. Below that, optionally train a model too: Quick start runs those steps in order.</div>
   <details class="page-more"><summary>More about this page</summary>
   <div class="sub">Quick start chains files &rarr; question-answer pairs &rarr; dataset &rarr; training &rarr; test &rarr; pin, one step at a time. &#128218; A Smart Brain is one click and needs no training. &#128736; Step by step shows every control separately, in any order.</div>
   </details>
@@ -40,11 +40,10 @@
 
   <div class="card mb-2 border-cyan" id="wiz-step-brain">
     <div class="card-head"><div>
-      <div class="card-title">Step 1b · Or answer from the files now (Smart Brain)</div>
+      <div class="card-title">Step 2 · Build the Smart Brain</div>
       <div class="card-sub text-dim">
-        Skips training entirely: every parsed file becomes a searchable
-        knowledge index you can query and chat with right away. Independent of
-        the steps below — do both, in any order.
+        Every parsed file becomes a searchable knowledge index you can ask
+        questions right away, with sources. No training needed.
       </div>
     </div><span class="pill outline" id="wiz-brain-pill">…</span></div>
     <div class="text-sm" id="wiz-brain-sub">checking…</div>
@@ -55,9 +54,11 @@
     </div>
   </div>
 
+  <h2 class="brain-section-label">Optional: train a model on these files</h2>
+
   <div class="card mb-2" id="wiz-step-qa">
     <div class="card-head"><div>
-      <div class="card-title">Step 2 · Make question-answer pairs</div>
+      <div class="card-title">Train 1 · Make question-answer pairs</div>
       <div class="card-sub text-dim">
         Each parsed document gets a checklist of its data points; the assistant
         writes pairs until every point is stated, then quick mode approves them.
@@ -73,7 +74,7 @@
 
   <div class="card mb-2" id="wiz-step-dataset">
     <div class="card-head"><div>
-      <div class="card-title">Step 3 · Build the dataset</div>
+      <div class="card-title">Train 2 · Build the dataset</div>
       <div class="card-sub text-dim">
         Turns the approved pairs into one training-ready dataset file. Every
         data point of every file has to be stated by an approved pair (or
@@ -92,7 +93,7 @@
 
   <div class="card mb-2" id="wiz-step-train">
     <div class="card-head"><div>
-      <div class="card-title">Step 4 · Train the adapter (LoRA)</div>
+      <div class="card-title">Train 3 · Train the adapter (LoRA)</div>
       <div class="card-sub text-dim">
         Fine-tunes a base model on your approved pairs with the chosen preset: it learns how to answer
         (tone, format, a few key facts), not a whole document set — pair it with the Smart Brain for the facts.
@@ -139,7 +140,7 @@
 
   <div class="card mb-2" id="wiz-step-test">
     <div class="card-head"><div>
-      <div class="card-title">Step 5 · Test it</div>
+      <div class="card-title">Train 4 · Test it</div>
       <div class="card-sub text-dim">
         Generates a quiz from <b>every row</b> of the training data — 100 rows means 100 questions — and scores
         the trained model's answers. This is a training-set recall check, not a held-out generalization score;
@@ -160,7 +161,7 @@
 
   <div class="card mb-2" id="wiz-step-done">
     <div class="card-head"><div>
-      <div class="card-title">Step 6 · Save &amp; use it</div>
+      <div class="card-title">Train 5 · Save &amp; use it</div>
       <div class="card-sub text-dim">
         Pin a version so you can reproduce this exact result later, or export
         the model for chat / GGUF.
@@ -381,7 +382,7 @@
           pill("flow-brain", "not built", false); set("flow-brain", "index missing — build it on the Smart Brain page");
           pill("wiz-brain", "not built", false);
           set("wiz-brain", d.state === "no_sources"
-            ? "no index yet — add and parse files in Step 1 first"
+            ? "no index yet — add files in Step 1 first"
             : "no index yet — ⚡ Build Smart Brain below does it in one click");
           line("Smart Brain coverage: " + d.state.replace("_", " "));
           return;
@@ -424,7 +425,7 @@
         // "ready" only when a finished run exists to test (was shown with 0 runs).
         var state = tested.length > 0 ? "tested" : (res.nDone > 0 ? "ready" : "needs a trained model");
         set("wiz-test", res.nDone ? tested.length + " run(s) have a generated quiz"
-                                  : "train a model in Step 4 first");
+                                  : "train a model in Train 3 first");
         pill("wiz-test", state, tested.length > 0);
         set("flow-test", tested.length + " run(s) with generated suite(s)");
         pill("flow-test", tested.length > 0 ? "tested" : "no runs", tested.length > 0);
@@ -451,7 +452,7 @@
   window.wizRefresh = wizRefresh;
   window.flowCheck = wizRefresh;  /* advanced cards reuse the same checks */
 
-  /* Saved versions: the table under Step 6, the "builds on" pickers, and per-version lineage / contents / delete
+  /* Saved versions: the table under Train 5, the "builds on" pickers, and per-version lineage / contents / delete
      (GET/DELETE /api/projects/{pid}/versions/{vid}, GET …/{vid}/lineage). */
   function versionName(v) { return "v" + v.version_number + (v.label ? " " + v.label : ""); }
   function cell(tr, text) { var td = document.createElement("td"); td.textContent = text; tr.appendChild(td); return td; }
@@ -584,11 +585,11 @@
     try {
       var srcs = await api("/api/projects/" + PID + "/data-prep/sources");
       var sources = (srcs.sources || []).filter(function (s) { return s.parse_status !== "error"; });
-      if (!sources.length) { line("Step 2: no parsed documents yet — upload files (step 1) first."); return false; }
+      if (!sources.length) { line("Train 1: no parsed documents yet — upload files (step 1) first."); return false; }
       // Per-file mining: files never mined get a "mine" job, mined files with open data points a "fill" job.
       var mine = sources.filter(function (s) { return !s.mining || s.mining.status === "parsed"; }).map(function (s) { return s.id; });
       var fill = sources.filter(function (s) { return s.mining && s.mining.status === "gaps"; }).map(function (s) { return s.id; });
-      if (!mine.length && !fill.length) { line("Step 2: every document is already mined; review the pairs on the pairs page."); wizRefresh("qa"); return true; }
+      if (!mine.length && !fill.length) { line("Train 1: every document is already mined; review the pairs on the pairs page."); wizRefresh("qa"); return true; }
       // A local helper must be resident; an API helper is seated on demand by the server.
       var prov = await api("/api/providers");
       var helperId = prov.helper_provider_id || "local-default";
@@ -622,7 +623,7 @@
       jobs.forEach(function (j) {
         line("  " + j.filename + ": " + j.status + (j.error ? " — " + j.error : (j.message ? " — " + j.message : "")));
       });
-      if (!ok.length) { line("Step 2 failed: no document was mined — fix the error above and retry."); return false; }
+      if (!ok.length) { line("Train 1 failed: no document was mined — fix the error above and retry."); return false; }
       var succeededSourceIds = new Set();
       ok.forEach(function (s) { succeededSourceIds.add(s.source_id); });
       var qa = await api("/api/projects/" + PID + "/data-prep/qa?status=pending");
@@ -636,7 +637,7 @@
       wizRefresh("qa");
       return true;
     } catch (e) {
-      line("Step 2 failed: " + e.message);
+      line("Train 1 failed: " + e.message);
       return false;
     } finally { setBusy(false); }
   };
@@ -731,7 +732,7 @@
       wizRefresh("dataset");
       return true;
     } catch (e) {
-      line("Step 3 failed: " + e.message);
+      line("Train 2 failed: " + e.message);
       return false;
     } finally { setBusy(false); }
   };
@@ -811,18 +812,18 @@
   window.wizTrain = async function () {
     if (busy) { line("Already running — wait for the current step."); return false; }
     var model = (document.getElementById("wiz-base-model") || {}).value || "";
-    if (!model) { line("Step 4: pick a base model first (download one in the Model library)."); return false; }
+    if (!model) { line("Train 3: pick a base model first (download one in the Model library)."); return false; }
     var preset = (document.getElementById("wiz-preset") || {}).value || "standard";
     setBusy(true);
     try {
       var ds = await api("/api/projects/" + PID + "/datasets");
       var list = ds.datasets || [];
-      if (!list.length) { line("Step 4: no dataset yet — run step 3 first."); return false; }
+      if (!list.length) { line("Train 3: no dataset yet — run step 3 first."); return false; }
       var dataset = list[0];
       wizDatasetRows = Number(dataset.qa_count) || 0;
       wizUpdateStepsHint();
       updateActionReadiness();
-      if (wizDatasetRows < 1) { line("Step 4: the selected dataset is empty — approve pairs and rebuild it first."); return false; }
+      if (wizDatasetRows < 1) { line("Train 3: the selected dataset is empty — approve pairs and rebuild it first."); return false; }
       // Free VRAM: a resident helper GGUF + the trainable base can stack past
       // the card and OOM the run at step zero.
       try {
@@ -837,7 +838,7 @@
       var epochsRaw = ((document.getElementById("wiz-epochs") || {}).value || "").trim();
       if (epochsRaw) {
         var ep = Number(epochsRaw);
-        if (!Number.isInteger(ep) || ep < 1) { line("Step 4: epochs must be a whole number of 1 or more."); return false; }
+        if (!Number.isInteger(ep) || ep < 1) { line("Train 3: epochs must be a whole number of 1 or more."); return false; }
         startBody.num_epochs = ep;   // top-level field, same as the Training page form
       }
       var r = await post("/api/training/start", startBody);
@@ -854,7 +855,7 @@
       wizRefresh("train");
       return true;
     } catch (e) {
-      line("Step 4 failed: " + e.message);
+      line("Train 3 failed: " + e.message);
       await wizExplainFailure();
       wizRefresh("train");
       return false;
@@ -899,7 +900,7 @@
     try {
       var rows = await api("/api/training/runs/" + PID);
       var done = (rows || []).filter(function (r) { return ["done", "completed"].indexOf(r.status) >= 0; });
-      if (!done.length) { line("Step 5: no completed training run to test yet."); return false; }
+      if (!done.length) { line("Train 4: no completed training run to test yet."); return false; }
       var run = null;
       for (var i = 0; i < done.length; i++) if (done[i].id === wizLastRunId) run = done[i];
       if (!run) run = done[0];
@@ -976,7 +977,7 @@
       wizRefresh("test");
       return true;
     } catch (e) {
-      line("Step 5 failed: " + e.message);
+      line("Train 4 failed: " + e.message);
       return false;
     } finally { setBusy(false); }
   };

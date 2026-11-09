@@ -222,7 +222,7 @@ class TestWizardPage:
         assert "wiz-quick" in body and "wiz-advanced" in body
 
     def test_wizard_page_offers_brain_quick_step(self, client):
-        """One-page flow = training AND the Smart Brain: Step 1b must be in quick mode."""
+        """One-page flow = the Smart Brain, then optional training: the Smart Brain is step 2."""
         pid = self._pid(client, name="Wizard Brain Step")
         body = client.get(f"/projects/{pid}/wizard").text
         assert "wiz-step-brain" in body
@@ -246,17 +246,17 @@ class TestWizardPage:
         assert checklist.count('class="btn primary"') == 1
 
     def test_project_nav_is_one_flow_with_two_step_2s(self, client):
-        """Genor 2026-10-14: files go one route (Files & Knowledge), then train OR Smart Brain. Every project page shows
-        the same flow bar in that order, with the current page marked."""
+        """Genor 2026-11-09: files -> Smart Brain -> test -> use it on every project page, then the optional training
+        group, with the current page marked."""
         pid = self._pid(client, name="Nav Flow")
         def flow(body: str) -> str:
             return body.split('id="workspace-subnav"', 1)[1].split("</nav>", 1)[0]
 
-        order = ['data-tab="data"', 'data-tab="data-prep"', 'data-tab="training"', 'data-tab="brain"',
-                 'data-tab="testing"', 'data-tab="export"']
+        order = ['data-tab="data"', 'data-tab="brain"', 'data-tab="testing"', 'data-tab="export"',
+                 'data-tab="data-prep"', 'data-tab="training"']
         for page, tab in (("training", "training"), ("brain", "brain"), ("data", "data")):
             bar = flow(client.get(f"/projects/{pid}/{page}").text)
-            assert "Files &amp; Knowledge" in bar
+            assert "Train a model" in bar
             positions = [bar.index(t) for t in order]
             assert positions == sorted(positions), page
             here = bar.split(f'data-tab="{tab}"', 1)[1].split(">", 1)[0]

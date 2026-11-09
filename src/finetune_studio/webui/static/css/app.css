@@ -5408,3 +5408,40 @@ label, .field-label { color: var(--text-muted); font-size: 13px; font-weight: 55
    (WCAG 2.4.11 focus not obscured). nav_overflow.js keeps --session-bar-h at the bar's real height (0 when it
    does not stick). */
 html { scroll-padding-top: calc(var(--session-bar-h, 104px) + 8px); }
+
+/* Smart Brain page: one state and next action, then the conversation, then everything else folded. */
+.brain-hero { display: grid; grid-template-columns: 1fr auto; gap: .75rem 1.5rem; align-items: center; }
+.brain-hero-title { font-size: 1.35rem; margin: .4rem 0 .15rem; }
+.brain-hero-sub { margin: 0; }
+.brain-hero-actions { display: flex; gap: .5rem; flex-wrap: wrap; justify-content: flex-end; }
+.brain-hero-progress { grid-column: 1 / -1; }
+.brain-hero-progress:has(#build-status:empty):has(#build-progress-wrap[hidden]) { display: none; }
+.brain-hero.is-ready { border-color: var(--ok); }
+.brain-hero.is-stale { border-color: var(--warn); }
+.brain-hero.is-unbuilt { border-color: var(--border-hot); }
+.brain-section-label { font-size: .8rem; text-transform: uppercase; letter-spacing: .08em; color: var(--text-dim); margin: 1.5rem 0 .6rem; }
+.brain-ask { border-color: var(--border-strong); }
+.brain-chat-log { display: flex; flex-direction: column; gap: .6rem; min-height: 11rem; max-height: 62vh; overflow-y: auto; padding: .75rem; background: var(--bg-panel-2); border: 1px solid var(--border); border-radius: var(--radius); }
+.brain-chat-empty { margin: auto; color: var(--text-dim); font-size: .85rem; text-align: center; }
+.brain-msg { max-width: 92%; padding: .55rem .75rem; border-radius: var(--radius); font-size: .92rem; line-height: 1.5; overflow-wrap: anywhere; }
+.brain-msg-user { align-self: flex-end; background: var(--accent-glow); border: 1px solid var(--border-hot); }
+.brain-msg-assistant { align-self: flex-start; background: var(--bg-panel); border: 1px solid var(--border); }
+.brain-msg-error { align-self: stretch; max-width: none; color: var(--err); border: 1px solid var(--err); }
+.brain-answer { white-space: pre-wrap; }
+.brain-cite { color: var(--accent); font-size: .85em; }
+.brain-sources { margin-top: .5rem; border-top: 1px solid var(--border); padding-top: .4rem; }
+.brain-sources-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--text-dim); margin-bottom: .2rem; }
+.brain-source summary { cursor: pointer; font-size: .8rem; color: var(--text-muted); }
+.brain-source-text { font-size: .8rem; color: var(--text-muted); white-space: pre-wrap; padding: .35rem .6rem; margin: .25rem 0 .4rem; border-left: 2px solid var(--border-strong); }
+.brain-chat-model { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-top: .6rem; padding: .5rem .6rem; border: 1px dashed var(--warn); border-radius: var(--radius); }
+.brain-chat-model .select { flex: 1 1 16rem; width: auto; }
+#brain-upload-form { padding: 1.5rem; text-align: center; }
+#brain-upload-form.dragging { border-color: var(--border-hot); background: var(--accent-glow); }
+@media (max-width: 720px) {
+  .brain-hero { grid-template-columns: 1fr; }
+  .brain-hero-actions { justify-content: flex-start; }
+}
+.brain-ask .select { width: auto; }
+.brain-sources-more > summary { cursor: pointer; font-size: .75rem; color: var(--text-dim); margin-top: .25rem; }
+.ws-primary { font-weight: 600; }
+#project-trained > summary { cursor: pointer; }

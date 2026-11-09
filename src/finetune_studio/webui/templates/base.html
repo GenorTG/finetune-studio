@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/static/css/base.css?v=1">
   <link rel="stylesheet" href="/static/css/components.css?v=2">
   <link rel="stylesheet" href="/static/css/layout.css?v=1">
-  <link rel="stylesheet" href="/static/css/app.css?v=131">
+  <link rel="stylesheet" href="/static/css/app.css?v=132">
   <link rel="stylesheet" href="/static/css/typography.css?v=1">
   <link rel="stylesheet" href="/static/css/access.css?v=3">
   <script src="/static/js/access.js?v=1"></script>
@@ -97,16 +97,16 @@
               <a href="/projects" class="sb-nav-more-link" data-link data-tab="projects" role="menuitem">projects</a>
               {% if pid is defined and pid %}
               <a href="/projects/{{ pid }}" class="sb-nav-more-link" data-link data-tab="overview" role="menuitem">overview</a>
-              <a href="/projects/{{ pid }}/wizard" class="sb-nav-more-link" data-link data-tab="wizard" role="menuitem">⚡ quick work</a>
               <a href="/projects/{{ pid }}/data" class="sb-nav-more-link" data-link data-tab="data" role="menuitem">files</a>
-              <a href="/projects/{{ pid }}/data-prep" class="sb-nav-more-link" data-link data-tab="data-prep" role="menuitem">pairs</a>
               <a href="/projects/{{ pid }}/brain" class="sb-nav-more-link" data-link data-tab="brain" role="menuitem">smart brain</a>
-              <a href="/projects/{{ pid }}/training" class="sb-nav-more-link" data-link data-tab="training" role="menuitem">training</a>
               <a href="/projects/{{ pid }}/testing" class="sb-nav-more-link" data-link data-tab="testing" role="menuitem">testing</a>
+              <a href="/projects/{{ pid }}/export" class="sb-nav-more-link" data-link data-tab="export" role="menuitem">export</a>
+              <a href="/projects/{{ pid }}/chat" class="sb-nav-more-link" data-link data-tab="project-chat" role="menuitem">chat</a>
+              <a href="/projects/{{ pid }}/wizard" class="sb-nav-more-link" data-link data-tab="wizard" role="menuitem">⚡ quick work</a>
+              <a href="/projects/{{ pid }}/data-prep" class="sb-nav-more-link" data-link data-tab="data-prep" role="menuitem">pairs</a>
+              <a href="/projects/{{ pid }}/training" class="sb-nav-more-link" data-link data-tab="training" role="menuitem">training</a>
               <a href="/projects/{{ pid }}/compare" class="sb-nav-more-link" data-link data-tab="compare" role="menuitem">compare</a>
               <a href="/projects/{{ pid }}/benchmarks" class="sb-nav-more-link" data-link data-tab="benchmarks" role="menuitem">benchmarks</a>
-              <a href="/projects/{{ pid }}/chat" class="sb-nav-more-link" data-link data-tab="project-chat" role="menuitem">chat</a>
-              <a href="/projects/{{ pid }}/export" class="sb-nav-more-link" data-link data-tab="export" role="menuitem">export</a>
               {% endif %}
               <a href="/models/explore" class="sb-nav-more-link" data-link data-tab="hf" role="menuitem" title="Browse + download base models from Hugging Face">model library</a>
               <a href="/models" class="sb-nav-more-link" data-link data-tab="my-models" role="menuitem" title="Models already on this machine">my models</a>
@@ -169,26 +169,18 @@
     <div id="service-banner" class="service-banner" role="alert" hidden></div>
 
     {% if pid is defined and pid %}
-    {# The ONE project nav (Genor 2026-10-14): files go one route — Files & Knowledge — and are then either trained
-       into a model or served by the Smart Brain. Both are step 2; test and use follow. ``here`` is server-rendered
-       from each page's ``breadcrumb_tab``. #}
+    {# The ONE project nav: files -> Smart Brain -> test -> use it is the main path (Genor 2026-11-09). Training is the
+       optional group at the end. ``here`` is server-rendered from each page's ``breadcrumb_tab``. #}
     {% set bc = self.breadcrumb_tab()|trim %}
     {% set _flow_next = flow_next_step(pid, bc) if flow_next_step is defined else None %}
     <nav id="workspace-subnav" class="workspace-subnav" aria-label="Project flow" data-pid="{{ pid }}" data-flow-page="{{ bc }}">
-      <span class="ws-label" title="Files are prepared once, then trained into a model or served by the Smart Brain">Flow</span>
+      <span class="ws-label" title="Add files, build the Smart Brain, check its answers, use it">Flow</span>
       <a href="/projects/{{ pid }}" data-link data-tab="overview" class="ws-link {% if bc == 'overview' %}here{% endif %}" title="Project home">home</a>
-      <a href="/projects/{{ pid }}/wizard" data-link data-tab="wizard" class="ws-link {% if bc == 'quick work' %}here{% endif %}" title="All steps on one page, in order">⚡ quick work</a>
       <span class="ws-sep" aria-hidden="true">|</span>
-      <span class="ws-steps-label ws-group" title="1 · Upload, read, edit, parse and mine your files">1 Files &amp; Knowledge</span>
-      <a href="/projects/{{ pid }}/data" data-link data-tab="data" class="ws-link {% if bc in ('files', 'data') %}here{% endif %}" title="Upload, organise, read and edit your files">files</a>
-      <a href="/projects/{{ pid }}/data-prep" data-link data-tab="data-prep" class="ws-link {% if bc in ('pairs', 'data-prep') %}here{% endif %}" title="Mine question-answer pairs from the files, review them, build the dataset">pairs</a>
-      <span class="ws-sep" aria-hidden="true">|</span>
-      <a href="/projects/{{ pid }}/training" data-link data-tab="training" class="ws-link {% if bc == 'training' %}here{% endif %}" title="2 · Train an adapter (LoRA) on the reviewed pairs: how to answer, not a document store (merged checkpoint optional)">2 train</a>
-      <span class="ws-steps-label" aria-hidden="true">or</span>
-      <a href="/projects/{{ pid }}/brain" data-link data-tab="brain" class="ws-link {% if bc == 'smart brain' %}here{% endif %}" title="2 · Smart Brain: answer from the files without training (search index, chat with sources, standalone server)">2 Smart Brain</a>
-      <span class="ws-sep" aria-hidden="true">|</span>
-      <a href="/projects/{{ pid }}/testing" data-link data-tab="testing" class="ws-link {% if bc == 'testing' %}here{% endif %}" title="3 · Score the model or the Smart Brain on your own questions">3 test</a>
-      <a href="/projects/{{ pid }}/export" data-link data-tab="export" class="ws-link {% if bc in ('export', 'models') %}here{% endif %}" title="4 · Export / use the trained model">4 use it</a>
+      <a href="/projects/{{ pid }}/data" data-link data-tab="data" class="ws-link {% if bc in ('files', 'data') %}here{% endif %}" title="1 · Upload, organise, read and edit your files">1 files</a>
+      <a href="/projects/{{ pid }}/brain" data-link data-tab="brain" class="ws-link ws-primary {% if bc == 'smart brain' %}here{% endif %}" title="2 · Build the index and ask your documents, with sources">2 Smart Brain</a>
+      <a href="/projects/{{ pid }}/testing" data-link data-tab="testing" class="ws-link {% if bc == 'testing' %}here{% endif %}" title="3 · Score the answers on your own questions">3 test</a>
+      <a href="/projects/{{ pid }}/export" data-link data-tab="export" class="ws-link {% if bc in ('export', 'models') %}here{% endif %}" title="4 · Share the Smart Brain, run it as a server, or export a trained model">4 use it</a>
       {% if _flow_next %}
       <div class="next-step" aria-label="Next step">
         <span class="next-step-label">Next</span>
@@ -197,11 +189,15 @@
       </div>
       {% endif %}
       <span class="ws-sep" aria-hidden="true">|</span>
-      <span class="ws-steps-label" aria-hidden="true">also</span>
-      <a href="/projects/{{ pid }}/compare" data-link data-tab="compare" class="ws-link {% if bc == 'compare' %}here{% endif %}" title="Same questions to several models, answers side by side, judged afterwards">compare</a>
-      <a href="/projects/{{ pid }}/benchmarks" data-link data-tab="benchmarks" class="ws-link {% if bc in ('benchmarks', 'bench') %}here{% endif %}" title="Public exams (MMLU, GSM8K, HellaSwag)">benchmarks</a>
       <a href="/projects/{{ pid }}/chat" data-link data-tab="project-chat" class="ws-link {% if bc == 'chat' %}here{% endif %}" title="Chat with a model, with or without the Smart Brain">chat</a>
       <a href="/projects/{{ pid }}/settings" data-link data-tab="project-settings" class="ws-link {% if bc == 'settings' %}here{% endif %}" title="Project settings">settings</a>
+      <span class="ws-sep" aria-hidden="true">|</span>
+      <span class="ws-steps-label ws-group" title="Optional: train a model (LoRA adapter) on your data. Best for how it answers: tone, format, a narrow task. For facts in your documents, the Smart Brain is more accurate.">Train a model</span>
+      <a href="/projects/{{ pid }}/wizard" data-link data-tab="wizard" class="ws-link {% if bc == 'quick work' %}here{% endif %}" title="All steps on one page, in order">⚡ quick work</a>
+      <a href="/projects/{{ pid }}/data-prep" data-link data-tab="data-prep" class="ws-link {% if bc in ('pairs', 'data-prep') %}here{% endif %}" title="Mine question-answer pairs from the files, review them, build the dataset">pairs</a>
+      <a href="/projects/{{ pid }}/training" data-link data-tab="training" class="ws-link {% if bc == 'training' %}here{% endif %}" title="Train an adapter (LoRA) on the reviewed pairs: how to answer, not a document store (merged checkpoint optional)">train</a>
+      <a href="/projects/{{ pid }}/compare" data-link data-tab="compare" class="ws-link {% if bc == 'compare' %}here{% endif %}" title="Same questions to several models, answers side by side, judged afterwards">compare</a>
+      <a href="/projects/{{ pid }}/benchmarks" data-link data-tab="benchmarks" class="ws-link {% if bc in ('benchmarks', 'bench') %}here{% endif %}" title="Public exams (MMLU, GSM8K, HellaSwag)">benchmarks</a>
     </nav>
     {% endif %}
 

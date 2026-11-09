@@ -249,9 +249,9 @@ The larger pieces, roughly in the order you meet them:
 - **⚡ Quick work** — the entire model pipeline on one page (upload →
   pairs → dataset → train → test → pin), a live status pill per step, and
   **Run steps 2–5** to chain dataset → training → test unattended.
-- **One project flow** — `1 Files & Knowledge (files · pairs) → 2 train
-  or 2 Smart Brain → 3 test → 4 use it`: every file is parsed once and both
-  routes read that one parse; the project home offers both as cards.
+- **One project flow** — `1 files → 2 Smart Brain → 3 test → 4 use it`, with
+  training as an optional group: every file is parsed once and both read that
+  one parse.
 - **File browser v2** — folder chips with drag-to-move, tag pills, bulk
   actions, zip export, per-file usage chain (file → pairs → datasets →
   runs → Smart Brain), knowledge search (facts + passages, edit in place),
@@ -327,22 +327,20 @@ projects, quick-create buttons.
 
 ### Project home (`/projects/{pid}`)
 
-Answers “where am I?”: a **project checklist** for the adapter path (files → dataset → train →
-test → pick the adapter) with a link to the Smart Brain for answers without training, then live
-counts for files, datasets, runs and models, recent training runs, latest exports, recent files
-and the activity feed.
+Answers “where am I?”: a **project checklist** (files → Smart Brain → test) with one next action, a
+link to optional training, then live counts for files, the Smart Brain, runs and models, any
+trained models, recent files and the activity feed.
 
 ![Project home](docs/screenshots/02_project.png)
 
 ### ⚡ Quick work (`/projects/{pid}/work`)
 
-The whole pipeline on one page: six numbered cards — **1** upload files,
-**1b** build the Smart Brain (one click, live coverage pill), **2** make
-question-answer pairs, **3** build the dataset, **4** train, **5** test,
-**6** pin & use — each with its own button and status pill, plus
-**Run steps 2–5 now** to chain dataset → training → test unattended while
-progress streams below. This is the recommended path; the individual pages
-are there when you want fine control.
+Everything on one page: **Step 1** upload files, **Step 2** build the Smart
+Brain (one click, live coverage pill), then optionally train a model on them:
+**Train 1** make question-answer pairs, **Train 2** build the dataset,
+**Train 3** train, **Train 4** test, **Train 5** pin & use, each with its own
+button and status pill, plus **Run steps 2–5 now** to chain dataset → training
+→ test unattended while progress streams below.
 
 ![Quick work](docs/screenshots/03_quick_work.png)
 
@@ -373,14 +371,15 @@ model will learn it (see the measurements above).
 
 ![Pairs](docs/screenshots/05_pairs.png)
 
-### Smart Brain — step 2 without training (`/projects/{pid}/brain`)
+### Smart Brain — the main path (`/projects/{pid}/brain`)
 
-Build an index, search it, tune retrieval parameters, and take it with you.
-Sections are numbered in workflow order: **1. Index status**, **2. Build the
-index** (⚡ Quick index parses anything not parsed yet and builds, in one click), **3. Search
-settings**, **4. Documents in the index**, **5. Search test**, **6. Ask about
-your documents**, **7. Download / export the index**, **8. Shared search
-models**. The export card offers the encrypted studio bundle (`.ftsrag`) and the
+The top panel says what state the Smart Brain is in and offers the one next
+action: add files (right on the page), **Build Smart Brain**, or **Update
+Smart Brain** after files change. Below it, **Ask your documents** is a real
+conversation with sources you can open, and you can load a model in the same
+place. Everything else is folded under **Manage**: documents, test a search,
+search settings, build options, share or export, import, shared models and
+index details. The export card offers the encrypted studio bundle (`.ftsrag`) and the
 **standalone Smart Brain** (`POST /api/projects/{pid}/brain/standalone`) — a
 self-installing tarball with the index, a single-file Python server,
 `setup.sh`, MCP config example, and a README; it speaks MCP over stdio and
@@ -479,8 +478,8 @@ own settings page too, with a **WebUI log tail** for debugging long jobs.
 
 The session bar at the top of every page is a Tmux-style tab strip with
 **[SYS]** and **[TOOLS]**. Inside a project, one flow bar shows every step —
-`1 Files & Knowledge (files · pairs) → 2 train or 2 Smart Brain → 3 test →
-4 use it`, plus compare, benchmarks, chat and settings. The current page is
+`1 files → 2 Smart Brain → 3 test → 4 use it`, plus chat, settings and the
+optional Train a model group (quick work, pairs, train, compare, benchmarks). The current page is
 marked.
 `Ctrl+K` opens the command palette — fuzzy-search any page in any
 project.
