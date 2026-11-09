@@ -218,7 +218,7 @@ class TestWizardPage:
         body = r.text
         assert "Quick work" in body
         assert "Quick start" in body and "Step by step" in body
-        assert "Run steps 2-5 now" in body
+        assert "Run all training steps" in body
         assert "wiz-quick" in body and "wiz-advanced" in body
 
     def test_wizard_page_offers_brain_quick_step(self, client):

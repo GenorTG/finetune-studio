@@ -25,7 +25,7 @@ The project home shows a live checklist and one suggested next action, with trai
 **The short path: ⚡ Quick work.** One page (`work` in the sub-nav) holds the
 whole model pipeline as six numbered cards — upload, make pairs, build the
 dataset, train, test, pin — each with a status pill and one button. There's
-even a **Run steps 2–5 now** chain that drives the entire pipeline unattended
+even a **Run all training steps** chain that drives the entire pipeline unattended
 while you watch. Use the individual pages when you want fine control; use
 Quick work when you just want the model.
 

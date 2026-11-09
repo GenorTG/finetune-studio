@@ -248,7 +248,7 @@ The larger pieces, roughly in the order you meet them:
 
 - **⚡ Quick work** — the entire model pipeline on one page (upload →
   pairs → dataset → train → test → pin), a live status pill per step, and
-  **Run steps 2–5** to chain dataset → training → test unattended.
+  **Run all training steps** to chain dataset → training → test unattended.
 - **One project flow** — `1 files → 2 Smart Brain → 3 test → 4 use it`, with
   training as an optional group: every file is parsed once and both read that
   one parse.
@@ -339,7 +339,7 @@ Everything on one page: **Step 1** upload files, **Step 2** build the Smart
 Brain (one click, live coverage pill), then optionally train a model on them:
 **Train 1** make question-answer pairs, **Train 2** build the dataset,
 **Train 3** train, **Train 4** test, **Train 5** pin & use, each with its own
-button and status pill, plus **Run steps 2–5 now** to chain dataset → training
+button and status pill, plus **Run all training steps** to chain dataset → training
 → test unattended while progress streams below.
 
 ![Quick work](docs/screenshots/03_quick_work.png)
