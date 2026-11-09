@@ -245,10 +245,11 @@ def test_quick_rejected_for_a_busy_gpu_says_why_once(client, gated, monkeypatch)
     assert "the GPU is busy with training job t-1" in r.json()["detail"]
 
 
-def test_quick_index_status_is_shown_next_to_its_button() -> None:
+def test_quick_index_status_is_in_the_same_panel_as_its_button() -> None:
     from pathlib import Path
 
     page = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/brain.html").read_text()
-    actions = page.split('id="quick-index-btn"', 1)[1].split("</div>", 1)[0]
-    assert 'id="quick-index-status"' in actions
-    assert "getElementById('quick-index-status')" in page
+    # One status line in the panel the button sits in (it used to be repeated next to the button).
+    hero = page.split('id="brain-hero"', 1)[1].split("</section>", 1)[0]
+    assert 'id="quick-index-btn"' in hero and 'id="build-status"' in hero
+    assert "quick-index-status" not in page

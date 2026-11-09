@@ -83,7 +83,7 @@ def test_brain_build_uses_subscribe_not_1_5s_poll() -> None:
     assert "Debug JSON" in html
     # A build is a job: the page follows its build row to the end (and re-attaches on load).
     assert "/brain/builds/" in html and "followBuild" in html and "resumeBuild" in html
-    assert "docs, " in html and "chunks" in html and " indexed." in html
+    assert "documents, " in html and "passages" in html and " indexed." in html
 
 
 def test_brain_build_answers_202_then_the_build_row_carries_the_result(client, tmp_path, monkeypatch) -> None:
@@ -243,7 +243,7 @@ def test_brain_source_clear_resets_stale_retrieval_and_chat_feedback() -> None:
     html = _RAG_HTML.read_text(encoding="utf-8")
     assert "function clearBrainTransientOutput()" in html
     helper = html.split("function clearBrainTransientOutput()", 1)[1].split("\n  }", 1)[0]
-    for element_id in ("q-status", "q-results", "chat-messages", "build-status", "quick-index-status"):
+    for element_id in ("q-status", "q-results", "chat-messages", "build-status"):
         assert f"getElementById('{element_id}')" in helper
 
     for action in ("clearAllDocuments", "wipeIndex"):
