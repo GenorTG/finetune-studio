@@ -57,6 +57,40 @@
   </form>
 </section>
 
+{# Who it speaks for: goes with every answer and into the exported package #}
+<details class="card mb-4" id="brain-identity">
+  <summary class="card-head">
+    <div>
+      <div class="card-title">Identity</div>
+      <div class="card-sub">Your company, its personality and how it should answer. Used in every answer here and in Testing, and packed into the export.</div>
+    </div>
+    <span class="pill text-xs outline" id="identity-pill">Not set</span>
+  </summary>
+  <div class="grid grid-12 gap-3">
+    <div class="col-span-12">
+      <label class="block text-xs muted mb-1" for="id-name">Name</label>
+      <input id="id-name" class="input" maxlength="200" placeholder="e.g. Korvane Assistant, or your own name">
+    </div>
+    <div class="col-span-12">
+      <label class="block text-xs muted mb-1" for="id-about">About you or your company</label>
+      <textarea id="id-about" class="textarea" rows="4" maxlength="20000" placeholder="What every answer should already know: what you do, who you serve, where you operate."></textarea>
+    </div>
+    <div class="col-span-6">
+      <label class="block text-xs muted mb-1" for="id-personality">Personality</label>
+      <textarea id="id-personality" class="textarea" rows="4" maxlength="4000" placeholder="e.g. Plain-spoken and warm. Short sentences. No marketing language."></textarea>
+    </div>
+    <div class="col-span-6">
+      <label class="block text-xs muted mb-1" for="id-rules">How to answer</label>
+      <textarea id="id-rules" class="textarea" rows="4" maxlength="8000" placeholder="e.g. Lead with the answer. Use EUR. Say which policy version applies."></textarea>
+    </div>
+  </div>
+  <div class="flex gap-2 items-center mt-3">
+    <button type="button" class="btn primary" id="identity-save" onclick="saveIdentity()">Save identity</button>
+    <span id="identity-status" class="text-xs dim" role="status" aria-live="polite"></span>
+  </div>
+  <p class="text-xs dim mt-2 mb-0">Facts still come only from this text and your files: a personality changes the voice, not what the sources say. No rebuild needed.</p>
+</details>
+
 <div class="card mb-4" id="brain-needs-index-note" hidden>
   <p class="text-sm muted mb-0">Once the index is built you can ask questions here, and the document list, search test and export appear below.</p>
 </div>
@@ -866,6 +900,44 @@
     }
   };
 
+  // ── Identity: who it speaks for, how it sounds, how it answers ───
+  const IDENTITY_FIELDS = { name: 'id-name', about: 'id-about', personality: 'id-personality', answer_rules: 'id-rules' };
+
+  function showIdentityState(isSet) {
+    const pill = document.getElementById('identity-pill');
+    if (!pill) return;
+    pill.textContent = isSet ? 'Set' : 'Not set';
+    pill.className = 'pill text-xs ' + (isSet ? 'solid-green' : 'outline');
+  }
+
+  async function loadIdentity() {
+    try {
+      const d = await api().get('/api/projects/' + PID + '/brain/identity');
+      Object.keys(IDENTITY_FIELDS).forEach(function (k) {
+        document.getElementById(IDENTITY_FIELDS[k]).value = d[k] || '';
+      });
+      showIdentityState(d.is_set);
+    } catch (_e) { /* the form stays empty; Save reports any real problem */ }
+  }
+
+  window.saveIdentity = async function () {
+    const status = document.getElementById('identity-status');
+    const btn = document.getElementById('identity-save');
+    const body = {};
+    Object.keys(IDENTITY_FIELDS).forEach(function (k) { body[k] = document.getElementById(IDENTITY_FIELDS[k]).value; });
+    btn.disabled = true;
+    status.textContent = 'Saving…';
+    try {
+      const d = await api().put('/api/projects/' + PID + '/brain/identity', body);
+      showIdentityState(d.is_set);
+      status.textContent = d.is_set ? 'Saved. The next answer uses it.' : 'Cleared: answers use the default instructions.';
+    } catch (e) {
+      status.textContent = 'Not saved: ' + (e.message || e);
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
   // ── The conversation: earlier turns go with each question, so a follow-up can say "and the second one?" ──
   let brainChat = [];
 
@@ -1660,6 +1732,7 @@
     loadRagSettings();
     initChatAnswerWith();
     initBrainUpload();
+    loadIdentity();
     loadIndexedDocs();
     loadBrainStatus();
     loadSharedModels();

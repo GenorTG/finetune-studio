@@ -682,8 +682,8 @@ def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool,
         embed_section=embed_section.format(embed_model=embed_model),
         mcp_snippet=mcp_snippet, mcp_enc_note=mcp_enc_note,
         layers_section=_layers_section(cfg, bundled_embedder=bundled_embedder, bundled_reranker=bundled_reranker),
-        tools=("`rag_search(query, top_k)`, `rag_info()` and `rag_answer(question)`" if cfg.answer_enabled
-               else "`rag_search(query, top_k)` and `rag_info()`"),
+        tools=("`rag_search(query, top_k)`, `rag_profile()`, `rag_info()` and `rag_answer(question)`" if cfg.answer_enabled
+               else "`rag_search(query, top_k)`, `rag_profile()` and `rag_info()`"),
         sources_note=("the original documents are inside `corpus.enc` "
                       "(read lazily, in memory)." if encrypted else
                       "`corpus/sources/` keeps the parsed text of every document."),
@@ -739,6 +739,7 @@ def build_package(
     config: BrainExportConfig | None = None,
     encrypt: bool | None = None,
     passphrase: str | None = None,
+    identity: dict | None = None,
 ) -> PackageResult:
     """Assemble the hostable package for a built corpus and archive it.
 
@@ -773,6 +774,8 @@ def build_package(
             raise FileNotFoundError(f"corpus missing {req}: {corpus}")
     manifest = json.loads((corpus / "manifest.json").read_text(encoding="utf-8"))
     manifest["search_layers"] = search_layers(cfg)
+    if identity:   # inside the manifest, so an encrypted package keeps it encrypted
+        manifest["identity"] = dict(identity)
     title = name or manifest.get("name") or corpus.name
     if encrypted:  # nothing derived from the project/document names in paths/README
         title, slug, root = "Portable RAG pack", NEUTRAL_ROOT, NEUTRAL_ROOT

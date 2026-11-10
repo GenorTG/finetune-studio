@@ -42,7 +42,7 @@ def generate_passphrase() -> str:
 
 def export_secure_bundle(corpus_dir: str | Path, out_path: str | Path,
                          passphrase: str | None = None, *,
-                         log_n: int = 17) -> tuple[Path, str | None]:
+                         log_n: int = 17, identity: dict | None = None) -> tuple[Path, str | None]:
     """Write the corpus at ``corpus_dir`` to ``out_path`` (encrypted).
 
     Returns ``(path, generated_passphrase)``; the second item is set only when
@@ -72,6 +72,8 @@ def export_secure_bundle(corpus_dir: str | Path, out_path: str | Path,
         with open(part, "wb") as fp:
             cw = ContainerWriter(fp, passphrase, log_n=log_n)
             cw.add("manifest.json", manifest_bytes)
+            if identity:   # the project's identity travels with the copy; the importing project adopts it
+                cw.add("identity.json", json.dumps(identity, ensure_ascii=False).encode("utf-8"))
             for f in sorted(src.rglob("*")):
                 rel = f.relative_to(src)
                 if (not f.is_file() or f.is_symlink() or rel.parts[0] in _MODEL_DIRS

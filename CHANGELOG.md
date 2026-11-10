@@ -9,6 +9,9 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+### Added
+- Smart Brain identity: your company, personality and answer rules go with every answer and test and are packed, encrypted, into the export. MCP clients get them through `rag_profile` and the server instructions, HTTP through `/profile`.
+
 ### Changed
 - The first-run tour and the app's description now lead with the Smart Brain; training is presented as the optional extra.
 - The Smart Brain is now the main path of a project: `1 files → 2 Smart Brain → 3 test → 4 use it`, with training as an optional group at the end of the project bar. The project checklist, Next hints, Quick work, the dashboard and Use it all follow it.

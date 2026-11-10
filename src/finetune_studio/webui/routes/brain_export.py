@@ -56,6 +56,13 @@ class BundleRequest(BaseModel):
 _SAFE_BUNDLE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.ftsrag$")
 
 
+def _identity_load(pid: str) -> dict | None:
+    from finetune_studio.smart_brain import identity as brain_identity
+
+    saved = brain_identity.load(pid)
+    return saved if brain_identity.is_set(saved) else None
+
+
 def _bundle_dir(pid: str) -> Path:
     return project_dir(pid) / "brain-bundles"
 
@@ -80,7 +87,7 @@ async def brain_bundle(pid: str, body: BundleRequest | None = None):
     out = _bundle_dir(pid) / f"{stem}{sb.BUNDLE_EXT}"
     try:
         path, generated = await asyncio.to_thread(
-            sb.export_secure_bundle, corpus, out, req.passphrase or None)
+            sb.export_secure_bundle, corpus, out, req.passphrase or None, identity=_identity_load(pid))
     except ValueError as e:
         return JSONResponse({"detail": str(e)}, status_code=422)
     except Exception as e:
@@ -172,6 +179,8 @@ async def brain_import(pid: str, file: UploadFile, overwrite: bool = False,
         from finetune_studio.knowledge import index as knowledge_index
 
         stats = await asyncio.to_thread(knowledge_index.register_import, pid, bundle=filename)
+        from finetune_studio.smart_brain import identity as brain_identity
+        await asyncio.to_thread(brain_identity.adopt_imported, pid, index.dir)
     except FileNotFoundError as e:
         return JSONResponse({"detail": str(e)}, status_code=400)
     except FileExistsError as e:
@@ -329,6 +338,7 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
     from fastapi.responses import JSONResponse
 
     from finetune_studio.smart_brain import export_config as ec
+    from finetune_studio.smart_brain import identity as brain_identity
     from finetune_studio.smart_brain.server_package import build_package
 
     proj = _require_project(pid)
@@ -353,7 +363,7 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
     try:
         result = await asyncio.to_thread(
             build_package, corpus, out_path, name=title, config=cfg,
-            passphrase=(req.passphrase or None))
+            passphrase=(req.passphrase or None), identity=brain_identity.package_record(pid))
     except FileNotFoundError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except ValueError as e:
@@ -371,6 +381,7 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
             "passphrase": result.passphrase,
             "config": cfg.model_dump(),
             "layers": result.layers,
+            "identity": brain_identity.is_set(brain_identity.load(pid)),
         },
         headers={"Cache-Control": "no-store"},
     )

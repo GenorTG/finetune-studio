@@ -11,11 +11,11 @@ Searches a corpus produced by Finetune Studio.  Two on-disk layouts:
                         legacy / --no-encrypt plaintext layout.
 
 Modes
-    --http [PORT]   REST API:   GET /health   GET /search?q=...&top_k=5[&source_prefix=pl-]
+    --http [PORT]   REST API:   GET /health   GET /profile   GET /search?q=...&top_k=5[&source_prefix=pl-]
                     Binds 127.0.0.1 by default.  A non-loopback --host
                     REQUIRES an auth token (Authorization: Bearer ...).
     --mcp           MCP stdio server (JSON-RPC 2.0 over stdin/stdout).
-                    Exposes rag_search(query, top_k) and rag_info().
+                    Exposes rag_search(query, top_k), rag_profile() and rag_info().
     --query TEXT    one search, JSON on stdout.
     --print-config  show the effective merged config (secrets redacted).
     --save-config   persist the given flags into rag.config.json.
@@ -344,6 +344,7 @@ class Corpus:
             for line in read("chunks.jsonl").decode("utf-8").splitlines()
             if line.strip()
         ]
+        self.identity = dict(self.manifest.get("identity") or {})   # who it speaks for and how it answers (studio)
         self.chunk_ids = [c["id"] for c in self.chunks]
         self.idx_map = {cid: i for i, cid in enumerate(self.chunk_ids)}
         # Search layers: a layer runs when the package ships its files AND the config leaves it on. A flag can turn
@@ -641,7 +642,13 @@ class Corpus:
             "mode": mode,
             "layers": lay,
             "embed_endpoint": self.embed_base or "(not set)",
+            "identity": self.identity.get("name") or ("set" if self.identity else "none"),
         }
+
+    def profile(self) -> dict:
+        """The identity baked in at export: who it speaks for, how it sounds, how to answer, and those as one prompt."""
+        return {key: self.identity.get(key, "") for key in ("name", "about", "personality", "answer_rules")} | {
+            "instructions": self.identity.get("system_prompt", "")}
 
     def answer(self, question: str, top_k: int | None = None) -> dict:
         """The generation half of RAG: retrieve, then ask the configured chat model to answer from the passages."""
@@ -657,7 +664,8 @@ class Corpus:
             return {"question": question, "answer": "Nothing in this corpus matches the question.",
                     "sources": [], "weak": True, "model": None}
         result = answer_with_follow_ups(question, hits, lambda q: self.search(q, top_k), self._chat,
-                                        follow_ups=int(self.cfg["follow_up"]))
+                                        follow_ups=int(self.cfg["follow_up"]),
+                                        system_prompt=self.identity.get("system_prompt", ""))
         sources = [{"rank": h["rank"], "filename": h["filename"], "chunk_id": h["chunk_id"]} for h in result["hits"]]
         return {"question": question, "answer": result["answer"], "sources": sources, "weak": weak,
                 "model": self.cfg["llm_model"], "follow_up_searches": result["follow_up_searches"]}
@@ -824,6 +832,8 @@ def make_handler(corpus: Corpus, token: str = ""):
             u = urlparse(self.path)
             if u.path == "/health":
                 self._json({"ok": True, **corpus.info()})
+            elif u.path == "/profile":
+                self._json(corpus.profile())
             elif u.path == "/ask":
                 q = (parse_qs(u.query).get("q") or [""])[0]
                 self._answer(q, None)
@@ -838,7 +848,7 @@ def make_handler(corpus: Corpus, token: str = ""):
                 except ValueError as e:
                     self._json({"error": str(e)}, 400)
             else:
-                self._json({"error": "not found — try /health, /search?q=... or /ask?q=..."}, 404)
+                self._json({"error": "not found — try /health, /profile, /search?q=... or /ask?q=..."}, 404)
 
         def _answer(self, question, top_k):
             if not corpus.cfg["answer"]:
@@ -922,6 +932,11 @@ _TOOLS = [{
         "required": ["query"],
     },
 }, {
+    "name": "rag_profile",
+    "description": ("Who this knowledge base speaks for: its name, background, personality and answering rules. "
+                    "Read it first and follow its instructions when you answer."),
+    "inputSchema": {"type": "object", "properties": {}},
+}, {
     "name": "rag_info",
     "description": "Corpus stats: name, chunk/document counts, which search layers run.",
     "inputSchema": {"type": "object", "properties": {}},
@@ -944,11 +959,15 @@ def mcp_responder(corpus: Corpus):
         method = msg.get("method")
         mid = msg.get("id")
         if method == "initialize":
-            return {"jsonrpc": "2.0", "id": mid, "result": {
+            result = {
                 "protocolVersion": PROTOCOL_VERSION,
                 "capabilities": {"tools": {}},
                 "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
-            }}
+            }
+            if corpus.identity.get("system_prompt"):   # clients that honour server instructions get the identity up front
+                result["instructions"] = ("Use rag_search for anything about this knowledge base; its passages are the "
+                                          "CONTEXT.\n\n" + corpus.identity["system_prompt"])
+            return {"jsonrpc": "2.0", "id": mid, "result": result}
         if method and method.startswith("notifications/"):
             return None
         if method == "tools/list":
@@ -966,6 +985,8 @@ def mcp_responder(corpus: Corpus):
                                         int(args["dense_extra"]) if args.get("dense_extra") is not None else None)
                 elif name == "rag_info":
                     out = corpus.info()
+                elif name == "rag_profile":
+                    out = corpus.profile()
                 elif name == "rag_answer" and corpus.cfg["answer"]:
                     out = corpus.answer(str(args.get("question", "")),
                                         int(args["top_k"]) if args.get("top_k") is not None else None)

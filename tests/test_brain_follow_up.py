@@ -114,6 +114,7 @@ def test_follow_up_config_key_flag_env_and_range() -> None:
 def test_package_answer_runs_the_loop_and_reports_the_search() -> None:
     corpus = MagicMock(spec=srv.Corpus)
     corpus.cfg = {**srv.DEFAULT_CONFIG, "answer": True, "llm_model": "m", "llm_base_url": "http://x/v1"}
+    corpus.identity = {}
     corpus.search.side_effect = lambda q, top_k=None: FIRST if q.startswith("Who") else SECOND
     corpus._chat.side_effect = ["SEARCH: Quellvoe Desalination Plant manager", "Oona Halwicks [site.txt]."]
     out = srv.Corpus.answer(corpus, "Who manages the site where UVR-4655-R is installed?")
