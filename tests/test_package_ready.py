@@ -24,6 +24,8 @@ def test_a_good_encrypted_package_passes_and_reports_its_identity(corpus_dir: Pa
                           identity={"name": "Ada", "system_prompt": "You are Ada."})
     out = verify_package(built.path, PASS)
     assert out["ok"] is True and out["hits"] > 0 and out["identity"] is True
+    assert out["layers"]["keyword"]["available"] is True
+    assert out["layers"]["semantic"]["available"] is False  # no embedder bundled in this test package
     assert [p.name for p in tmp_path.iterdir() if p.name.startswith(".verify-")] == []     # nothing left behind
 
 
@@ -44,6 +46,23 @@ def test_a_zip_package_passes(corpus_dir: Path, tmp_path: Path) -> None:  # noqa
     built = build_package(corpus_dir, tmp_path / "p.zip", name="T", fmt="zip",
                           config=BrainExportConfig(kdf_log_n=10, archive_format="zip"), passphrase=PASS)
     assert verify_package(built.path, PASS)["ok"] is True
+
+
+def test_package_self_test_uses_the_bundled_search_settings(corpus_dir: Path, tmp_path: Path, monkeypatch) -> None:  # noqa: F811
+    from finetune_studio.smart_brain import server_package
+
+    calls: list[list[str]] = []
+    original = server_package.subprocess.run
+
+    def record(args, *a, **kw):
+        calls.append(list(args))
+        return original(args, *a, **kw)
+
+    monkeypatch.setattr(server_package.subprocess, "run", record)
+    built = build_package(corpus_dir, tmp_path / "p.tar.gz", name="T", config=FAST, passphrase=PASS)
+    assert verify_package(built.path, PASS)["ok"] is True
+    mcp = next(args for args in calls if "--mcp" in args)
+    assert "--no-semantic" not in mcp and "--no-reranker" not in mcp
 
 
 @pytest.fixture

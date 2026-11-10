@@ -111,8 +111,16 @@ Or by hand:
 ```bash
 bash install.sh          # once; makes .venv/
 bash run-http.sh         # search API on 127.0.0.1:8899
+open http://127.0.0.1:8899/   # browser chat and provider connection
 {curl_hint}
 ```
+
+The browser chat can connect directly to OpenAI or Anthropic Claude (or an
+OpenAI-compatible endpoint). Enter the provider URL, model and API key in the
+page; the key is sent for that request only and is not written into the package
+or its config. For a network-hosted instance, put it behind HTTPS and set
+`RAG_AUTH_TOKEN`; enter that service token in the page as well. Provider usage
+is billed to the account whose key you enter.
 
 One-shot from the shell, no server:
 
@@ -906,14 +914,12 @@ def build_package(
 def verify_package(archive: str | Path, passphrase: str | None) -> dict:
     """Open a finished package the way a customer would: unpack it, start its server, ask it something over MCP.
 
-    The search runs on word search only, so a package without bundled models needs nothing else; bundled model folders
-    are not unpacked. Temporary files sit next to the archive and are removed. Returns ``{"ok": bool, "detail": str,
-    "hits": int, "identity": bool, "seconds": float}``; a package with no word search cannot be checked this way
-    (``ok`` None).
+    The package's configured semantic/keyword/fusion/reranker layers are left enabled, including bundled models.
+    Temporary files sit next to the archive and are removed. Returns a per-layer check report and the legacy summary.
     """
     started = time.monotonic()
     path = Path(archive)
-    out = {"ok": False, "detail": "", "hits": 0, "identity": False, "seconds": 0.0}
+    out = {"ok": False, "detail": "", "hits": 0, "identity": False, "layers": {}, "seconds": 0.0}
     work = Path(tempfile.mkdtemp(prefix=".verify-", dir=path.parent))
     try:
         root = _unpack_runtime(path, work)
@@ -930,17 +936,19 @@ def verify_package(archive: str | Path, passphrase: str | None) -> dict:
         if not info:
             out["detail"] = "the server started but answered nothing usable"
             return out
-        if not str(info.get("layers", {}).get("keyword", "")).startswith("on"):
-            out.update(ok=None, detail="this package has no word search, so it needs its embedder to be checked")
-            return out
+        layer_status = info.get("layers", {})
+        out["layers"] = {key: {"available": str(value).startswith("on"), "detail": value}
+                          for key, value in layer_status.items() if key in {"semantic", "keyword", "fusion", "reranker"}}
         profile = _tool_json(first.get(3)) or {}
         query = _sample_query(root, env)
         second = _run_mcp(root, env, [requests[0], {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {
             "name": "rag_search", "arguments": {"query": query, "top_k": 3}}}])
         hits = _tool_json(second.get(4))
         count = len(hits) if isinstance(hits, list) else len((hits or {}).get("hits", []))
-        out.update(hits=count, identity=bool(profile.get("instructions")), ok=count > 0,
-                   detail=f"opened it and found {count} passages" if count else "the server opened it but a search found nothing")
+        available = [v["available"] for k, v in out["layers"].items() if k in {"semantic", "keyword", "reranker"}]
+        out.update(hits=count, identity=bool(profile.get("instructions")), ok=count > 0 and any(available),
+                   detail=f"opened it, exercised configured search and found {count} passages"
+                   if count else "the server opened it but a search found nothing")
     except (OSError, subprocess.SubprocessError, ValueError, tarfile.TarError, zipfile.BadZipFile) as e:
         out["detail"] = f"could not open the package: {type(e).__name__}: {str(e)[:200]}"
     finally:
@@ -950,10 +958,10 @@ def verify_package(archive: str | Path, passphrase: str | None) -> dict:
 
 
 def _unpack_runtime(archive: Path, dest: Path) -> Path:
-    """The package without its bundled model folders; returns its root directory."""
+    """Unpack the complete package runtime, including optional bundled model folders."""
     def wanted(name: str) -> bool:
         parts = Path(name).parts
-        return not ({"embedder", "reranker"} & set(parts[:3])) and ".." not in parts and not name.startswith("/")
+        return ".." not in parts and not name.startswith("/")
 
     if archive.suffix == ".zip":
         with zipfile.ZipFile(archive) as zf:
@@ -970,7 +978,7 @@ def _unpack_runtime(archive: Path, dest: Path) -> Path:
 
 def _run_mcp(root: Path, env: dict, requests: list[dict]) -> dict:
     """Send JSON-RPC lines to the package's real server; {id: response}."""
-    args = [sys.executable, "-I", str(root / "server.py"), "--mcp", "--no-semantic", "--no-reranker"]
+    args = [sys.executable, "-I", str(root / "server.py"), "--mcp"]
     done = subprocess.run(args, input="".join(json.dumps(r) + "\n" for r in requests), capture_output=True, text=True,
                           env=env, cwd=root, timeout=120, check=False)
     if done.returncode != 0:
@@ -988,7 +996,7 @@ def _tool_json(reply: dict | None):
 
 def _sample_query(root: Path, env: dict) -> str:
     """A few words from the package's own first passage, read through the server so encrypted packages work too."""
-    code = ("import server,json,os;c=server.Corpus(server.CORPUS_DIR,server.resolve_config({'semantic':False,'reranker':False},"
+    code = ("import server,json,os;c=server.Corpus(server.CORPUS_DIR,server.resolve_config({},"
             "os.environ,{})[0],os.environ.get('RAG_PASSPHRASE'));print(' '.join(c.chunks[0]['text'].split()[:12]))")
     done = subprocess.run([sys.executable, "-I", "-c", f"import sys;sys.path.insert(0,'.');{code}"], capture_output=True,
                           text=True, env=env, cwd=root, timeout=120, check=False)

@@ -166,13 +166,22 @@ def _check_files(sources: list[Source], texts: dict[str, str]) -> list[Finding]:
     return out
 
 
-def _labelled_values(text: str) -> dict[str, set[str]]:
-    out: dict[str, set[str]] = defaultdict(set)
+def _labelled_values(text: str) -> dict[str, set[tuple[str, str]]]:
+    """Extract a label, value and nearby unit; values in unlike units are not conflicts."""
+    out: dict[str, set[tuple[str, str]]] = defaultdict(set)
     for match in _LABELLED_VALUE.finditer(text):
         words = match.group(1).lower().split()
         if set(words) & _LABEL_NOISE or _DATE_LIKE.match(text, match.start(2)):
             continue
-        out[" ".join(words)].add(match.group(2).rstrip(".,").replace(",", ""))
+        prefix = match.group(0).upper()
+        suffix = text[match.end(2):match.end(2) + 24]
+        unit_match = re.match(r"\s*(months?|days?|weeks?|years?|hours?|minutes?|eur|pln|usd|%|percent|employees?)(?=\W|$)",
+                              suffix, re.IGNORECASE)
+        unit = unit_match.group(1).lower().rstrip("s") if unit_match else ""
+        currency = next((code.lower() for code in ("EUR", "PLN", "USD") if code in prefix), "")
+        currency = currency or ("eur" if "€" in prefix else "usd" if "$" in prefix else "")
+        unit = unit or currency.lower()
+        out[" ".join(words)].add((match.group(2).rstrip(".,").replace(",", ""), unit))
     return out
 
 
@@ -194,8 +203,8 @@ def _check_conflicts(pid: str, sources: list[Source]) -> list[Finding]:
     docs = chunks["document_id"].to_numpy()
     texts = chunks["text"].tolist()
     by_id = {s.id: s for s in sources}
-    found: dict[tuple[str, str], list[tuple[str, str]]] = defaultdict(list)
-    label_values: dict[str, set[str]] = defaultdict(set)
+    found: dict[tuple[str, str], list[tuple[str, str, str]]] = defaultdict(list)
+    label_values: dict[tuple[str, str], set[str]] = defaultdict(set)
     for start in range(0, len(matrix), 512):
         block = matrix[start:start + 512] @ matrix.T
         for offset, scores in enumerate(block):
@@ -205,15 +214,26 @@ def _check_conflicts(pid: str, sources: list[Source]) -> list[Finding]:
                     continue
                 left, right = _labelled_values(texts[i]), _labelled_values(texts[j])
                 for label in left.keys() & right.keys():
-                    if left[label] and right[label] and not left[label] & right[label]:
+                    left_by_unit: dict[str, set[str]] = defaultdict(set)
+                    right_by_unit: dict[str, set[str]] = defaultdict(set)
+                    for value, unit in left[label]:
+                        left_by_unit[unit].add(value)
+                    for value, unit in right[label]:
+                        right_by_unit[unit].add(value)
+                    for unit in left_by_unit.keys() & right_by_unit.keys():
+                        if left_by_unit[unit] & right_by_unit[unit]:
+                            continue
                         pair = tuple(sorted((str(docs[i]), str(docs[j]))))
                         a, b = (left, right) if pair[0] == docs[i] else (right, left)
-                        found[pair].append((label, f'"{label}": {"/".join(sorted(a[label]))} vs {"/".join(sorted(b[label]))}'))
-                        label_values[label] |= left[label] | right[label]
+                        av, bv = left_by_unit[unit], right_by_unit[unit]
+                        found[pair].append((label, unit,
+                                            f'"{label}": {"/".join(sorted(av))} vs {"/".join(sorted(bv))}'))
+                        label_values[(label, unit)] |= av | bv
     out = []
     for (a, b), examples in found.items():
         # A label with many different values is a template field ("station raised": each site's own figure), not a fact.
-        unique = list(dict.fromkeys(text for label, text in examples if len(label_values[label]) <= MAX_LABEL_VALUES))
+        unique = list(dict.fromkeys(text for label, unit, text in examples
+                                    if len(label_values[(label, unit)]) <= MAX_LABEL_VALUES))
         if not unique:
             continue
         out.append(_finding("conflict", "warning", f"{by_id[a].filename} and {by_id[b].filename} may disagree",

@@ -16,6 +16,9 @@ import os
 import subprocess
 import sys
 import tarfile
+import threading
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 import numpy as np
@@ -416,3 +419,64 @@ def test_query_prefix_reaches_the_embeddings_api(corpus_dir: Path, tmp_path: Pat
     monkeypatch.setattr(srv.urllib.request, "urlopen", fake_urlopen)
     corpus.search("salt", 1)
     assert sent[0]["input"] == ["Instruct: find it\nQuery:salt"]
+
+
+@pytest.mark.parametrize(("provider", "url", "response", "expected_path"), [
+    ("openai", "https://api.openai.com/v1", {"choices": [{"message": {"content": "OpenAI answer"}}]},
+     "/v1/chat/completions"),
+    ("anthropic", "https://api.anthropic.com/v1", {"content": [{"type": "text", "text": "Claude answer"}]},
+     "/v1/messages"),
+])
+def test_standalone_chat_supports_external_api_presets(corpus_dir: Path, tmp_path: Path, monkeypatch,
+                                                        provider: str, url: str, response: dict,
+                                                        expected_path: str) -> None:
+    from finetune_studio.smart_brain import standalone_server as srv
+
+    corpus = _in_process_corpus(corpus_dir, tmp_path)
+    captured: list[object] = []
+
+    class Resp:
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+        def read(self): return json.dumps(response).encode()
+
+    def fake_urlopen(req, timeout=0):
+        captured.extend([req.full_url, req.headers, json.loads(req.data)])
+        return Resp()
+
+    monkeypatch.setattr(srv.urllib.request, "urlopen", fake_urlopen)
+    settings = {"provider": provider, "llm_base_url": url, "llm_model": "model-test",
+                "llm_api_key": "runtime-only-key", "llm_headers": {}, "llm_body": {},
+                "answer_max_tokens": 128}
+    assert corpus._chat([{"role": "system", "content": "context"}, {"role": "user", "content": "question"}],
+                       settings) == ("Claude answer" if provider == "anthropic" else "OpenAI answer")
+    assert expected_path in str(captured[0])
+    assert "runtime-only-key" not in json.dumps(captured[2])
+    if provider == "anthropic":
+        assert captured[1]["X-api-key"] == "runtime-only-key"
+        assert captured[1]["Anthropic-version"] == "2026-10-21"
+        assert captured[2]["system"] == "context"
+
+
+def test_hosted_browser_chat_is_public_but_corpus_api_requires_token(corpus_dir: Path, tmp_path: Path) -> None:
+    from finetune_studio.smart_brain import standalone_server as srv
+
+    corpus = _in_process_corpus(corpus_dir, tmp_path)
+    httpd = srv._Server(("127.0.0.1", 0), srv.make_handler(corpus, "service-secret"))
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    base = f"http://127.0.0.1:{httpd.server_port}"
+    try:
+        with urllib.request.urlopen(base + "/", timeout=5) as response:
+            page = response.read().decode()
+        assert "Smart Brain" in page and "Anthropic Claude" in page and "not saved" in page
+        with pytest.raises(urllib.error.HTTPError) as denied:
+            urllib.request.urlopen(base + "/profile", timeout=5)
+        assert denied.value.code == 401
+        req = urllib.request.Request(base + "/profile", headers={"Authorization": "Bearer service-secret"})
+        with urllib.request.urlopen(req, timeout=5) as response:
+            assert response.status == 200
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        thread.join(timeout=5)

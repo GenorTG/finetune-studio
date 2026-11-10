@@ -109,6 +109,19 @@ def test_conflict_same_label_different_value(monkeypatch, tmp_path: Path) -> Non
     assert rules(found) == ["conflict"] and found[0].detail == ['"probation period": 2 vs 3']
 
 
+@pytest.mark.parametrize(("left", "right"), [
+    ("The probation period is 2 months.", "The probation period is 2 days."),
+    ("The annual salary is EUR 2,000.", "The annual salary is $2,000."),
+])
+def test_different_units_are_not_reported_as_a_conflict(monkeypatch, tmp_path: Path,
+                                                        left: str, right: str) -> None:
+    found = conflicts(monkeypatch, tmp_path, [
+        ("a", left),
+        ("b", right),
+    ])
+    assert found == []
+
+
 def test_no_conflict_for_equal_values_or_the_same_file(monkeypatch, tmp_path: Path) -> None:
     assert conflicts(monkeypatch, tmp_path, [("a", "The probation period is 3 months."), ("b", "The probation period is 3 months."),
                                              ("a", "The probation period is 9 months.")][:2]) == []
