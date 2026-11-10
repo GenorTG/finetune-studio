@@ -17,7 +17,7 @@ _PROJECT_TEMPLATES = {
     "project_testing.html": "testing",
     "brain.html": "smart brain",
     "chat_v2.html": "chat",
-    "export_models.html": "export",
+    "export_models.html": "package",
     "project_data.html": "files",
     "project_models.html": "models",
     "project_settings.html": "settings",
