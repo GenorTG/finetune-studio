@@ -213,7 +213,8 @@ def _export(args: argparse.Namespace) -> None:
     out = out_dir / (f"{safe}-smart-brain{'-with-models' if cfg.include_models else ''}"
                      f"{'' if cfg.encrypt else '-PLAINTEXT'}.{ext}")
     try:
-        result = build_package(corpus, out, name=title, config=cfg, passphrase=passphrase)
+        result = build_package(corpus, out, name=title, config=cfg, passphrase=passphrase,
+                               identity=_identity_for(args, package=True))
     except (FileNotFoundError, ValueError) as e:
         _die(str(e))
     print(json.dumps({"path": str(result.path), "size": result.size, "encrypted": result.encrypted,
@@ -221,6 +222,47 @@ def _export(args: argparse.Namespace) -> None:
                       "pipeline": pipeline_text(cfg, bundled_reranker=result.layers.get("reranker", False)),
                       **({"passphrase": result.passphrase, "note": "shown once: store it now, it is not saved"}
                          if result.passphrase else {})}, indent=2))
+
+
+def _identity_for(args: argparse.Namespace, *, package: bool = False) -> dict | None:
+    """The project's identity for an export; a standalone ``--corpus`` has none."""
+    if not args.project:
+        return None
+    from finetune_studio.cli.commands.dataset import resolve_project
+    from finetune_studio.smart_brain import identity as brain_identity
+
+    pid = resolve_project(args.project)["id"]
+    saved = brain_identity.load(pid)
+    if not brain_identity.is_set(saved):
+        return None
+    return brain_identity.package_record(pid) if package else saved
+
+
+def _identity(args: argparse.Namespace) -> None:
+    """Show or change who the Smart Brain speaks for (the page's Identity card). Unset flags keep their value."""
+    from finetune_studio.cli.commands.dataset import resolve_project
+    from finetune_studio.smart_brain import identity as brain_identity
+
+    if not args.project:
+        _die("--project is required")
+    pid = resolve_project(args.project)["id"]
+    saved = brain_identity.load(pid)
+    changes = {k: v for k, v in {"name": args.name, "about": _text_arg(args.about),
+                                 "personality": _text_arg(args.personality),
+                                 "answer_rules": _text_arg(args.answer_rules)}.items() if v is not None}
+    if changes:
+        try:
+            saved = brain_identity.save(pid, {**saved, **changes})
+        except brain_identity.IdentityError as e:
+            _die(str(e))
+    print(json.dumps({**saved, "instructions": brain_identity.compose(saved)}, indent=2, ensure_ascii=False))
+
+
+def _text_arg(value: str | None) -> str | None:
+    """A flag's text, or the contents of a file when written @path."""
+    if value is not None and value.startswith("@"):
+        return Path(value[1:]).read_text(encoding="utf-8")
+    return value
 
 
 def _read_pass(path: str | None) -> str | None:
@@ -236,7 +278,8 @@ def _bundle(args: argparse.Namespace) -> None:
         _die(f"no index at {corpus}: build it first (fts brain build)")
     out = Path(args.out or ".") / f"{args.name or corpus.name}{sb.BUNDLE_EXT}"
     try:
-        path, generated = sb.export_secure_bundle(corpus, out, _read_pass(args.passphrase_file))
+        path, generated = sb.export_secure_bundle(corpus, out, _read_pass(args.passphrase_file),
+                                                  identity=_identity_for(args))
     except ValueError as e:
         _die(str(e))
     print(json.dumps({"path": str(path), "size": path.stat().st_size,
@@ -272,11 +315,16 @@ def _import(args: argparse.Namespace) -> None:
             target.import_bundle(src, overwrite=True)
     except (ContainerError, ValueError, FileNotFoundError) as e:
         _die(str(e))
-    print(json.dumps(index.register_import(pid, bundle=src.name), indent=2))
+    stats = index.register_import(pid, bundle=src.name)
+    from finetune_studio.smart_brain import identity as brain_identity
+
+    brain_identity.adopt_imported(pid, target.dir)
+    print(json.dumps(stats, indent=2))
 
 
 _HANDLERS = {"build": _build, "search": _search, "ask": _ask, "eval": _eval, "rebuild-vectors": _rebuild_vectors,
-             "info": _info, "export": _export, "bundle": _bundle, "import": _import}
+             "info": _info, "export": _export, "bundle": _bundle, "import": _import,
+             "identity": _identity}
 
 
 def cmd_brain(args: argparse.Namespace) -> None:
@@ -364,6 +412,12 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     sp.add_argument("--device")
     sp.add_argument("--name", help="package title (default: the project name)")
     sp.add_argument("--out", help="output directory (default: output/projects/<id>/brain-packages)")
+
+    sp = target(brain.add_parser("identity", help="Show or set who the Smart Brain speaks for and how it answers"))
+    sp.add_argument("--name", help="who it is")
+    sp.add_argument("--about", help="about you or your company (text, or @file)")
+    sp.add_argument("--personality", help="how it sounds (text, or @file)")
+    sp.add_argument("--answer-rules", help="how it should answer (text, or @file)")
 
     sp = target(brain.add_parser("bundle", help="Encrypted .ftsrag copy of the index for another studio"))
     sp.add_argument("--passphrase-file", help="file holding the passphrase (default: generate one, printed once)")

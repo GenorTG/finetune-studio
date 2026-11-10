@@ -139,6 +139,34 @@ async def brain_status(pid: str):
     }
 
 
+@router.get("/{pid}/brain/identity")
+def brain_identity_get(pid: str):
+    """Who this Smart Brain speaks for, how it sounds and how it answers; ``instructions`` is what the model gets."""
+    from finetune_studio.smart_brain import identity as brain_identity
+
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    saved = brain_identity.load(pid)
+    return {**saved, "is_set": brain_identity.is_set(saved), "instructions": brain_identity.compose(saved),
+            "limits": brain_identity.LIMITS}
+
+
+@router.put("/{pid}/brain/identity")
+def brain_identity_put(pid: str, body: dict):
+    """Replace the identity. It applies to the next answer; the index does not need a rebuild."""
+    from finetune_studio.smart_brain import identity as brain_identity
+
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    try:
+        saved = brain_identity.save(pid, body)
+    except brain_identity.IdentityError as e:
+        raise ApiError(422, str(e), code="invalid_identity") from None
+    return {**saved, "is_set": brain_identity.is_set(saved), "instructions": brain_identity.compose(saved)}
+
+
 @router.get("/{pid}/brain/settings")
 async def brain_get_settings(pid: str):
     from finetune_studio.smart_brain import BrainIndex
@@ -523,6 +551,7 @@ async def brain_chat(pid: str, req: ChatRequest):
     and the prior conversation. Returns the reply, cited sources, and follow-up searches.
     """
     from finetune_studio.smart_brain import BrainIndex, prompt
+    from finetune_studio.smart_brain import identity as brain_identity
     from finetune_studio.smart_brain.standalone_server import answer_with_follow_ups
     from finetune_studio.webui.app import inference_engine
 
@@ -547,7 +576,8 @@ async def brain_chat(pid: str, req: ChatRequest):
     hits = await asyncio.to_thread(q.search, last_user, top_k=req.top_k)
     n_ctx = None if assistant_client is not None else (
         inference_engine.n_ctx if inference_engine.model is not None else (_active_n_ctx() or None))
-    history_chars = sum(len(str(m.get("content", ""))) for m in req.messages) + len(req.system_prompt or "")
+    system_prompt = req.system_prompt or await asyncio.to_thread(brain_identity.system_prompt, pid)
+    history_chars = sum(len(str(m.get("content", ""))) for m in req.messages) + len(system_prompt)
     budget = prompt.context_char_budget(n_ctx, max_new_tokens=req.max_tokens, history_chars=history_chars)
     last_index = max(i for i, m in enumerate(req.messages) if m.get("role") == "user")
     history = [{"role": m["role"], "content": m["content"]} for m in req.messages[:last_index]]
@@ -588,7 +618,7 @@ async def brain_chat(pid: str, req: ChatRequest):
         # context-grounded training row's; the follow-up offer is its declared extra_instructions part.
         return answer_with_follow_ups(
             last_user, hits, lambda query: q.search(query, top_k=req.top_k), chat,
-            follow_ups=req.follow_up, max_chars=budget, system_prompt=req.system_prompt, history=history,
+            follow_ups=req.follow_up, max_chars=budget, system_prompt=system_prompt, history=history,
             system_turn=lambda h, chars, system, extra: prompt.build_system_prompt(
                 prompt.format_context_blocks(h, max_chars=chars), system, extra))
 

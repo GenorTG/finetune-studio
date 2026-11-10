@@ -129,15 +129,15 @@ def provenance_from_hit(hit: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def build_grounded_messages(question: str, context: str) -> list[dict[str, str]]:
-    """System + user messages that enforce context-only answering."""
+def build_grounded_messages(question: str, context: str, system_prompt: str = "") -> list[dict[str, str]]:
+    """System + user messages that enforce context-only answering. ``system_prompt``: the project's identity."""
     user = (
         "Use ONLY the context below. If the answer is not in the context, "
         f'reply exactly: "{UNKNOWN_REPLY}" Otherwise answer concisely.\n\n'
         f"CONTEXT:\n{context}\n\nQUESTION: {question}"
     )
     return [
-        {"role": "system", "content": BRAIN_SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt or BRAIN_SYSTEM_PROMPT},
         {"role": "user", "content": user},
     ]
 
@@ -312,6 +312,7 @@ def run_brain_case(
     temperature: float = 0.3,
     think: bool = False,
     max_context_chars: int = DEFAULT_CONTEXT_CHARS,
+    system_prompt: str = "",
 ) -> BrainCaseResult:
     """Retrieve -> ground the prompt -> generate -> record the transcript and the retrieval provenance."""
     start = time.time()
@@ -325,7 +326,7 @@ def run_brain_case(
         gold_rank_wide = wide_rank_of_source(brain_query, case, hits_raw, top_k=top_k)
         provenance = [provenance_from_hit(h) for h in hits_raw]
         context = brain_query.format_context(hits_raw, max_chars=max_context_chars)
-        messages = build_grounded_messages(case.question, context)
+        messages = build_grounded_messages(case.question, context, system_prompt)
         response = engine.generate(
             messages,
             max_tokens=max_tokens,
@@ -350,7 +351,7 @@ def run_brain_case(
     except Exception as e:  # noqa: BLE001
         elapsed_ms = (time.time() - start) * 1000
         provenance = [provenance_from_hit(h) for h in hits_raw]
-        messages = build_grounded_messages(case.question, context)
+        messages = build_grounded_messages(case.question, context, system_prompt)
         case_result = CaseResult(
             case_name=case.name,
             category=case.category,
@@ -395,6 +396,7 @@ def run_brain_suite(
     max_context_chars: int = DEFAULT_CONTEXT_CHARS,
     on_result: Callable[[BrainCaseResult], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
+    system_prompt: str = "",
 ) -> list[BrainCaseResult]:
     """Run every case through retrieve -> ground -> generate. Records transcripts; never judges."""
     out: list[BrainCaseResult] = []
@@ -403,7 +405,7 @@ def run_brain_suite(
             break
         result = run_brain_case(
             engine, brain_query, case, top_k=top_k, max_tokens=max_tokens, temperature=temperature,
-            think=think, max_context_chars=max_context_chars,
+            think=think, max_context_chars=max_context_chars, system_prompt=system_prompt,
         )
         out.append(result)
         if on_result is not None:

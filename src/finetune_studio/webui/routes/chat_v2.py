@@ -249,7 +249,9 @@ async def chat(request: Request, pid: str):
         history_chars = sum(len(str(m.get("content", ""))) for m in history) + len(base_prompt)
         budget = brain_prompt.context_char_budget(getattr(inference_engine, "n_ctx", None), max_new_tokens=int(max_tokens),
                                                   history_chars=history_chars)
-        grounded = brain_prompt.build_system_prompt(brain_prompt.format_context_blocks(hits, max_chars=budget))
+        from finetune_studio.smart_brain import identity as brain_identity
+        grounded = brain_prompt.build_system_prompt(brain_prompt.format_context_blocks(hits, max_chars=budget),
+                                                    brain_identity.system_prompt(pid))
         augmented_system = f"{base_prompt}\n\n{grounded}" if base_prompt else grounded
     else:
         augmented_system = base_prompt

@@ -273,6 +273,8 @@ def _execute_run(spec: RunSpec, bid: str, owner_run_id: str, stop: threading.Eve
                                f"now) after {saved} answer(s); the answers saved so far are kept")
 
     if spec.kind == "brain":
+        from finetune_studio.smart_brain.identity import system_prompt
+
         query, corpus = open_brain_query(project_id=spec.project_id, corpus_path=str(spec.brain.get("corpus_path") or ""))
         max_chars = spec.brain.get("max_context_chars")
         if not max_chars:
@@ -288,7 +290,7 @@ def _execute_run(spec: RunSpec, bid: str, owner_run_id: str, stop: threading.Eve
         run_brain_suite(
             engine, query, spec.cases, top_k=int(spec.brain.get("top_k") or DEFAULT_TOP_K), max_tokens=spec.max_tokens,
             temperature=spec.temperature, max_context_chars=int(max_chars), on_result=on_brain,
-            should_stop=should_stop,
+            should_stop=should_stop, system_prompt=system_prompt(spec.project_id),
         )
         check_swap()
         return {"retrieval": compute_retrieval_metrics(brain_results), "corpus_path": corpus,

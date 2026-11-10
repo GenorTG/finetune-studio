@@ -429,3 +429,40 @@ def test_build_uses_config_models_and_zip(corpus_dir: Path, tmp_path: Path) -> N
     assert json.loads((root / "rag.config.json").read_text())["port"] == 9555
     assert _query(root, "highmere crowns", env={"RAG_PASSPHRASE": PASS})[0]["chunk_id"] == "c2"
     assert _IDS  # fixture sanity
+
+
+def test_identity_ships_encrypted_and_reaches_every_client(corpus_dir: Path, tmp_path: Path) -> None:  # noqa: F811
+    """The package carries who it speaks for: never readable in the archive, served over MCP and HTTP, used by /ask."""
+    identity = {"name": "Zephyrine Quillfeather", "about": "Sells moon rope.", "personality": "Dry.",
+                "answer_rules": "Lead with the answer.", "system_prompt": "You are Zephyrine Quillfeather. Be dry."}
+    built = _build(corpus_dir, tmp_path / "pkg.tar.gz", identity=identity, passphrase=PASS)
+    assert b"Quillfeather" not in built.path.read_bytes()
+    root = _extract(built.path, tmp_path / "x")
+    assert all(b"Quillfeather" not in data for data in _all_bytes(root).values())
+
+    srv = _load_server()
+    corpus = srv.Corpus(root / "corpus", srv.resolve_config({}, {}, {})[0], PASS)
+    assert corpus.profile()["name"] == "Zephyrine Quillfeather"
+    assert corpus.profile()["instructions"] == identity["system_prompt"] and corpus.info()["identity"] == identity["name"]
+
+    respond = srv.mcp_responder(corpus)
+    init = respond({"jsonrpc": "2.0", "id": 1, "method": "initialize"})["result"]
+    assert identity["system_prompt"] in init["instructions"]
+    names = [t["name"] for t in respond({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})["result"]["tools"]]
+    assert "rag_profile" in names
+    called = respond({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "rag_profile"}})
+    assert "Sells moon rope" in called["result"]["content"][0]["text"]
+
+    seen: list[list[dict]] = []
+    corpus.cfg["answer"] = True
+    corpus._chat = lambda messages: seen.append(messages) or "An answer."
+    assert corpus.answer("oath of salt")["answer"] == "An answer."
+    assert seen[0][0]["content"].startswith(identity["system_prompt"])
+
+
+def test_a_package_without_identity_keeps_the_default_prompt(corpus_dir: Path, tmp_path: Path) -> None:  # noqa: F811
+    built = _build(corpus_dir, tmp_path / "pkg.tar.gz", passphrase=PASS)
+    srv = _load_server()
+    corpus = srv.Corpus(_extract(built.path, tmp_path / "x") / "corpus", srv.resolve_config({}, {}, {})[0], PASS)
+    assert corpus.profile()["instructions"] == "" and corpus.info()["identity"] == "none"
+    assert "instructions" not in srv.mcp_responder(corpus)({"jsonrpc": "2.0", "id": 1, "method": "initialize"})["result"]
