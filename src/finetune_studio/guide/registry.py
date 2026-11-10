@@ -172,6 +172,7 @@ def _controls() -> dict[str, Control]:
         ("training.past_runs", "training", "#past-runs-table", "Past runs"),
         # testing
         ("testing.mode", "testing", '[name="t-mode"]', "What to test (project quiz, RAG-grounded, dataset check)"),
+        ("testing.brain_quiz", "testing", "#t-bq-btn", "Write a quiz from your documents"),
         ("testing.model", "testing", "#t-model", "Model to test"),
         ("testing.suite", "testing", "#t-suite", "Question suite"),
         ("testing.run", "testing", "#t-run-btn", "Run test"),

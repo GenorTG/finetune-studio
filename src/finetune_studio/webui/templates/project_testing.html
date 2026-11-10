@@ -64,7 +64,7 @@
         {% endfor %}
       </select>
       {% if not suites %}
-      <div class="text-xs dim mt-1" id="t-suite-empty">No quizzes yet. Open <a href="/projects/{{ pid }}/wizard" data-link>Quick work</a> and run <b>Step 5 · Test it</b> to generate one from your training data, or import your own below.</div>
+      <div class="text-xs dim mt-1" id="t-suite-empty">No quizzes yet: write one from your documents below, or open <a href="/projects/{{ pid }}/wizard" data-link>Quick work</a> and run <b>Step 5 · Test it</b> to generate one from your training data, or import your own below.</div>
       {% endif %}
       <div id="t-suite-hint" class="text-xs dim mt-1" hidden></div>
     </div>
@@ -84,6 +84,18 @@
     </div>
     <div id="t-suite-import-msg" class="text-xs dim mt-1" role="status" aria-live="polite"></div>
   </details>
+
+  <div class="mt-2" id="t-brain-quiz-box">
+    <div class="text-sm font-semibold">Write a quiz from your documents</div>
+    <div class="text-xs dim mt-1">The assistant <span class="mono">{{ helper_label }}</span> writes questions from your indexed files, plus some the files do not answer.
+      A question whose answer is not really in its passage is dropped. Building a new quiz replaces the last one.</div>
+    <div class="flex gap-2 items-center mt-1">
+      <label class="text-xs muted" for="t-bq-n">Questions</label>
+      <input id="t-bq-n" class="input w-20" type="number" min="5" max="200" value="40">
+      <button type="button" class="btn sm primary" id="t-bq-btn">Write quiz</button>
+    </div>
+    <div id="t-bq-msg" class="text-xs dim mt-1" role="status" aria-live="polite"></div>
+  </div>
 
   <details class="mt-2" id="t-reworded-box">
     <summary class="text-xs muted">Build a reworded quiz · held-out facts, new wording</summary>
@@ -263,6 +275,7 @@
   function syncMode() {
     const m = mode();
     $('t-opts-brain').hidden = m !== 'brain';
+    $('t-brain-quiz-box').hidden = m !== 'brain';
     $('t-opts-dataset').hidden = m !== 'dataset';
     $('t-suite-wrap').style.display = m === 'dataset' ? 'none' : '';
     $('t-suite-import-box').style.display = m === 'dataset' ? 'none' : '';
@@ -374,6 +387,37 @@
       msg.textContent = 'Could not build the reworded quiz: ' + ((e && e.message) || e);
       if (((e && e.data) || {}).code === 'no_model' && window.fts && window.fts.offerAssistantLoad) {
         window.fts.offerAssistantLoad(msg, 'quiz', buildRewordedQuiz);
+      }
+    } finally {
+      clearInterval(timer);
+      btn.disabled = false;
+    }
+  }
+
+  async function buildBrainQuiz() {
+    const btn = $('t-bq-btn'), msg = $('t-bq-msg');
+    const base = '/api/projects/' + encodeURIComponent(PID) + '/testing/brain-quiz';
+    btn.disabled = true;
+    msg.textContent = 'Writing questions from your documents…';
+    const timer = setInterval(async function() {
+      if (!root.isConnected) { clearInterval(timer); return; }
+      try {
+        const p = await api.get(base + '/progress');
+        if (p.running && p.planned) msg.textContent = 'Writing questions: ' + p.done + ' / ' + p.planned + ' (' + p.kept + ' kept)';
+      } catch (e) { /* the build call reports the real outcome */ }
+    }, 1500);
+    try {
+      const d = await api.post(base, { questions: parseInt($('t-bq-n').value || '40', 10) || 40 });
+      const label = 'Smart Brain quiz · ' + d.case_count + ' questions';
+      addSuiteOption(d.path, label, 'project', d.name);
+      const dropped = Object.keys(d.dropped || {}).map(function(k) { return k + ' ' + d.dropped[k]; }).join(', ');
+      msg.textContent = 'Saved ' + d.case_count + ' questions from ' + d.documents + ' documents, ' + d.kept_unanswerable
+        + ' of them not answered by the files' + (dropped ? ' (dropped: ' + dropped + ')' : '')
+        + (d.helper_errors ? ', ' + d.helper_errors + ' assistant calls failed' : '') + '. Selected above: read a few before you trust the score.';
+    } catch (e) {
+      msg.textContent = 'Could not write the quiz: ' + ((e && e.message) || e);
+      if (((e && e.data) || {}).code === 'no_model' && window.fts && window.fts.offerAssistantLoad) {
+        window.fts.offerAssistantLoad(msg, 'quiz', buildBrainQuiz);
       }
     } finally {
       clearInterval(timer);
@@ -791,6 +835,7 @@
   document.querySelectorAll('input[name="t-mode"]').forEach(function(el) { el.addEventListener('change', syncMode); });
   $('t-suite-import-btn').addEventListener('click', importQuiz);
   $('t-rq-btn').addEventListener('click', buildRewordedQuiz);
+  $('t-bq-btn').addEventListener('click', buildBrainQuiz);
   $('t-auto-judge').addEventListener('change', saveJudgeDefaults);
   $('t-judge-provider').addEventListener('change', saveJudgeDefaults);
   $('rv-judge-new').addEventListener('click', function() { startJudge(true); });
