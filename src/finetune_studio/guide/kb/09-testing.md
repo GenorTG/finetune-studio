@@ -16,6 +16,7 @@ Did the model actually learn your material? A test is two separate steps. **1 ·
 6. **Export JSON / JSONL** gives the raw transcripts and all judgements for outside review.
 
 ## Key controls
+- `#t-bq-btn` — Smart Brain mode: write a quiz from the indexed documents with the AI assistant, including questions they do not answer. Items whose answer is not in their passage are dropped; building again replaces the last quiz.
 - `[name="t-mode"]` — project quiz, Smart Brain or dataset check.
 - `#t-model` — model to test.
 - `#t-suite` — question suite.

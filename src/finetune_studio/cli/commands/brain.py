@@ -280,6 +280,20 @@ def _lint(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+def _quiz(args: argparse.Namespace) -> None:
+    """Write a quiz from the indexed documents (the Testing page's "Write a quiz from your documents")."""
+    from finetune_studio.cli.commands.dataset import resolve_project
+    from finetune_studio.data.prep.preference import NoGenerator
+    from finetune_studio.testing import brain_quiz as bq
+
+    if not args.project:
+        _die("--project is required")
+    try:
+        print(json.dumps(bq.build_brain_quiz(resolve_project(args.project)["id"], questions=args.questions), indent=2))
+    except (bq.NoIndex, NoGenerator, bq.NoUsableQuestions) as e:
+        _die(str(e))
+
+
 def _text_arg(value: str | None) -> str | None:
     """A flag's text, or the contents of a file when written @path."""
     if value is not None and value.startswith("@"):
@@ -346,7 +360,7 @@ def _import(args: argparse.Namespace) -> None:
 
 _HANDLERS = {"build": _build, "search": _search, "ask": _ask, "eval": _eval, "rebuild-vectors": _rebuild_vectors,
              "info": _info, "export": _export, "bundle": _bundle, "import": _import,
-             "identity": _identity, "lint": _lint}
+             "identity": _identity, "lint": _lint, "quiz": _quiz}
 
 
 def cmd_brain(args: argparse.Namespace) -> None:
@@ -443,6 +457,9 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
 
     sp = target(brain.add_parser("lint", help="Check the documents: unreadable, duplicate, out of date, conflicting, secrets"))
     sp.add_argument("--json", action="store_true", help="the full report as JSON")
+
+    sp = target(brain.add_parser("quiz", help="Write a test quiz from the indexed documents (uses the AI assistant)"))
+    sp.add_argument("--questions", type=int, default=40, help="how many to attempt (default 40)")
 
     sp = target(brain.add_parser("bundle", help="Encrypted .ftsrag copy of the index for another studio"))
     sp.add_argument("--passphrase-file", help="file holding the passphrase (default: generate one, printed once)")
