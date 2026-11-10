@@ -83,7 +83,7 @@ def test_brain_build_uses_subscribe_not_1_5s_poll() -> None:
     assert "Debug JSON" in html
     # A build is a job: the page follows its build row to the end (and re-attaches on load).
     assert "/brain/builds/" in html and "followBuild" in html and "resumeBuild" in html
-    assert "documents, " in html and "passages" in html and " indexed." in html
+    assert "many(b.documents, 'document')" in html and "many(b.chunks, 'passage')" in html and " indexed." in html
 
 
 def test_brain_build_answers_202_then_the_build_row_carries_the_result(client, tmp_path, monkeypatch) -> None:

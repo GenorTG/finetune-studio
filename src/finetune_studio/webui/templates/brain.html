@@ -1549,7 +1549,8 @@
   function buildDone(b) {
     if (typeof window.loadIndexedDocs === 'function') window.loadIndexedDocs();
     if (typeof window.loadBrainStatus === 'function') window.loadBrainStatus();
-    return (b.documents != null ? b.documents : '?') + ' documents, ' + (b.chunks != null ? b.chunks : '?') + ' passages';
+    const many = function (v, word) { return (v != null ? v : '?') + ' ' + word + (v === 1 ? '' : 's'); };
+    return many(b.documents, 'document') + ', ' + many(b.chunks, 'passage');
   }
 
   window.quickIndex = async function () {
