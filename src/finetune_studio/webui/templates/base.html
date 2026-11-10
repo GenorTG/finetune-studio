@@ -180,7 +180,7 @@
       <a href="/projects/{{ pid }}/data" data-link data-tab="data" class="ws-link {% if bc in ('files', 'data') %}here{% endif %}" title="1 · Upload, organise, read and edit your files">1 files</a>
       <a href="/projects/{{ pid }}/brain" data-link data-tab="brain" class="ws-link ws-primary {% if bc == 'smart brain' %}here{% endif %}" title="2 · Build the index and ask your documents, with sources">2 Smart Brain</a>
       <a href="/projects/{{ pid }}/testing" data-link data-tab="testing" class="ws-link {% if bc == 'testing' %}here{% endif %}" title="3 · Score the answers on your own questions">3 test</a>
-      <a href="/projects/{{ pid }}/export" data-link data-tab="export" class="ws-link {% if bc in ('export', 'models') %}here{% endif %}" title="4 · Readiness and the package your models will use; trained-model export too">4 package</a>
+      <a href="/projects/{{ pid }}/export" data-link data-tab="export" class="ws-link {% if bc in ('package', 'models') %}here{% endif %}" title="4 · Readiness and the package your models will use; trained-model export too">4 package</a>
       {% if _flow_next %}
       <div class="next-step" aria-label="Next step">
         <span class="next-step-label">Next</span>
