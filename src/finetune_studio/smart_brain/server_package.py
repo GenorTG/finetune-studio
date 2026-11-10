@@ -945,10 +945,25 @@ def verify_package(archive: str | Path, passphrase: str | None) -> dict:
             "name": "rag_search", "arguments": {"query": query, "top_k": 3}}}])
         hits = _tool_json(second.get(4))
         count = len(hits) if isinstance(hits, list) else len((hits or {}).get("hits", []))
-        available = [v["available"] for k, v in out["layers"].items() if k in {"semantic", "keyword", "reranker"}]
-        out.update(hits=count, identity=bool(profile.get("instructions")), ok=count > 0 and any(available),
-                   detail=f"opened it, exercised configured search and found {count} passages"
-                   if count else "the server opened it but a search found nothing")
+        hits_list = hits if isinstance(hits, list) else (hits or {}).get("hits", [])
+        active = {key for key in ("semantic", "keyword", "reranker")
+                  if out["layers"].get(key, {}).get("available")}
+        exercised = {
+            "semantic": any("dense_score" in hit for hit in hits_list),
+            "keyword": any("bm25_score" in hit for hit in hits_list),
+            "reranker": any("ce_score" in hit for hit in hits_list),
+        }
+        if out["layers"].get("fusion", {}).get("available"):
+            active.add("fusion")
+            exercised["fusion"] = any("dense_score" in hit and "bm25_score" in hit for hit in hits_list)
+        missing = sorted(layer for layer in active if not exercised.get(layer, False))
+        out.update(hits=count, identity=bool(profile.get("instructions")),
+                   exercised={layer: exercised.get(layer, False) for layer in sorted(active)},
+                   ok=count > 0 and bool(active) and not missing,
+                   detail=(f"opened it, exercised {', '.join(sorted(active))} search and found {count} passages"
+                           if count and not missing else
+                           f"search did not exercise available layer(s): {', '.join(missing)}"
+                           if missing else "the server opened it but a search found nothing"))
     except (OSError, subprocess.SubprocessError, ValueError, tarfile.TarError, zipfile.BadZipFile) as e:
         out["detail"] = f"could not open the package: {type(e).__name__}: {str(e)[:200]}"
     finally:

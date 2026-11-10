@@ -1,6 +1,7 @@
 """The package opens itself before it is handed over, and the Package page says what is left to do."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -27,6 +28,7 @@ def test_a_good_encrypted_package_passes_and_reports_its_identity(corpus_dir: Pa
     assert out["ok"] is True and out["hits"] > 0 and out["identity"] is True
     assert out["layers"]["keyword"]["available"] is True
     assert out["layers"]["semantic"]["available"] is False  # no embedder bundled in this test package
+    assert out["exercised"]["keyword"] is True
     assert [p.name for p in tmp_path.iterdir() if p.name.startswith(".verify-")] == []     # nothing left behind
 
 
@@ -64,6 +66,35 @@ def test_package_self_test_uses_the_bundled_search_settings(corpus_dir: Path, tm
     assert verify_package(built.path, PASS)["ok"] is True
     mcp = next(args for args in calls if "--mcp" in args)
     assert "--no-semantic" not in mcp and "--no-reranker" not in mcp
+
+
+def test_package_self_test_fails_when_a_search_layer_is_not_exercised(tmp_path: Path, monkeypatch) -> None:
+    from finetune_studio.smart_brain import server_package
+
+    archive = tmp_path / "package.tar.gz"
+    archive.touch()
+    monkeypatch.setattr(server_package, "_unpack_runtime", lambda archive, dest: tmp_path)
+    monkeypatch.setattr(server_package, "_sample_query", lambda root, env: "sample query")
+
+    def run_mcp(root, env, requests):
+        if requests[1]["id"] == 2:
+            return {
+                2: {"result": {"content": [{"text": json.dumps({"layers": {
+                    "semantic": "on (bundled embedder)", "keyword": "on", "fusion": "on (RRF)",
+                    "reranker": "off",
+                }})}]}},
+                3: {"result": {"content": [{"text": json.dumps({"instructions": "grounded"})}]}},
+            }
+        return {4: {"result": {"content": [{"text": json.dumps([
+            {"chunk_id": "c1", "text": "sample", "bm25_score": 1.0},
+        ])}]}}}
+
+    monkeypatch.setattr(server_package, "_run_mcp", run_mcp)
+    result = verify_package(archive, None)
+
+    assert result["ok"] is False
+    assert result["exercised"] == {"fusion": False, "keyword": True, "semantic": False}
+    assert "fusion, semantic" in result["detail"]
 
 
 @pytest.fixture
