@@ -258,6 +258,28 @@ def _identity(args: argparse.Namespace) -> None:
     print(json.dumps({**saved, "instructions": brain_identity.compose(saved)}, indent=2, ensure_ascii=False))
 
 
+def _lint(args: argparse.Namespace) -> None:
+    """Knowledge check of a project's documents (the page's Knowledge check). Exits 1 when there are errors."""
+    from finetune_studio.cli.commands.dataset import resolve_project
+    from finetune_studio.knowledge.lint import lint
+
+    if not args.project:
+        _die("--project is required")
+    report = lint(resolve_project(args.project)["id"])
+    if args.json:
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+    else:
+        print(f"{report['files']} files: {report['errors']} errors, {report['warnings']} warnings, {report['ignored']} ignored")
+        for f in report["findings"]:
+            if not f["ignored"]:
+                print(f"[{f['severity']}] {f['title']}")
+                for line in f["detail"]:
+                    print(f"    {line}")
+                print(f"    -> {f['fix']}")
+    if report["errors"]:
+        sys.exit(1)
+
+
 def _text_arg(value: str | None) -> str | None:
     """A flag's text, or the contents of a file when written @path."""
     if value is not None and value.startswith("@"):
@@ -324,7 +346,7 @@ def _import(args: argparse.Namespace) -> None:
 
 _HANDLERS = {"build": _build, "search": _search, "ask": _ask, "eval": _eval, "rebuild-vectors": _rebuild_vectors,
              "info": _info, "export": _export, "bundle": _bundle, "import": _import,
-             "identity": _identity}
+             "identity": _identity, "lint": _lint}
 
 
 def cmd_brain(args: argparse.Namespace) -> None:
@@ -418,6 +440,9 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     sp.add_argument("--about", help="about you or your company (text, or @file)")
     sp.add_argument("--personality", help="how it sounds (text, or @file)")
     sp.add_argument("--answer-rules", help="how it should answer (text, or @file)")
+
+    sp = target(brain.add_parser("lint", help="Check the documents: unreadable, duplicate, out of date, conflicting, secrets"))
+    sp.add_argument("--json", action="store_true", help="the full report as JSON")
 
     sp = target(brain.add_parser("bundle", help="Encrypted .ftsrag copy of the index for another studio"))
     sp.add_argument("--passphrase-file", help="file holding the passphrase (default: generate one, printed once)")

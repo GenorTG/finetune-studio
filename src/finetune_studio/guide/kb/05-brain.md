@@ -20,6 +20,7 @@ While it builds, the bar shows the passages embedded, the time taken and the tim
 
 ## Key controls
 - `#brain-hero` — the current state and the one next action.
+- `#brain-lint` — Knowledge check: errors (unreadable files, real keys) and items to review (almost no text, garbled, duplicates, out-of-date versions, documents that disagree on a value, possible passwords, index out of date). Review items can be ignored; the check needs no model. Conflict detection needs a built index.
 - `#brain-identity` — who it speaks for: name, about you or your company, personality and how to answer. Used in every answer and in Testing and packed into the export (MCP `rag_profile`, HTTP `/profile`). Facts still come only from it and the files; no rebuild needed.
 - `#quick-index-btn` — Build / Update Smart Brain: one-click parse + build.
 - `#brain-add-files-btn` — add files without leaving the page (`#brain-upload-input`).

@@ -10,6 +10,7 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Added
+- Knowledge check on the Smart Brain page and `fts brain lint`: unreadable files, duplicates, out-of-date versions, documents that disagree and leaked passwords or keys.
 - Smart Brain identity: your company, personality and answer rules go with every answer and test and are packed, encrypted, into the export. MCP clients get them through `rag_profile` and the server instructions, HTTP through `/profile`.
 
 ### Changed

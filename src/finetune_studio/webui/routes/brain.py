@@ -167,6 +167,34 @@ def brain_identity_put(pid: str, body: dict):
     return {**saved, "is_set": brain_identity.is_set(saved), "instructions": brain_identity.compose(saved)}
 
 
+@router.get("/{pid}/brain/lint")
+def brain_lint(pid: str):
+    """Knowledge check of the project's documents (``knowledge.lint``): no model, a second or two."""
+    from finetune_studio.knowledge import lint as knowledge_lint
+
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    return knowledge_lint.lint(pid)
+
+
+class LintIgnoreRequest(BaseModel):
+    key: str = Field(min_length=1, max_length=64)
+    ignored: bool = True
+
+
+@router.post("/{pid}/brain/lint/ignore")
+def brain_lint_ignore(pid: str, req: LintIgnoreRequest):
+    """Ignore a finding ("we keep both on purpose"), or stop ignoring it."""
+    from finetune_studio.knowledge import lint as knowledge_lint
+
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    knowledge_lint.set_ignored(pid, req.key, req.ignored)
+    return {"ok": True}
+
+
 @router.get("/{pid}/brain/settings")
 async def brain_get_settings(pid: str):
     from finetune_studio.smart_brain import BrainIndex

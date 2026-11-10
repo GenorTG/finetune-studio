@@ -91,6 +91,22 @@
   <p class="text-xs dim mt-2 mb-0">Facts still come only from this text and your files: a personality changes the voice, not what the sources say. No rebuild needed.</p>
 </details>
 
+{# Lint: what is wrong with the documents, before they are packaged #}
+<details class="card mb-4" id="brain-lint">
+  <summary class="card-head">
+    <div>
+      <div class="card-title">Knowledge check</div>
+      <div class="card-sub">Finds unreadable files, duplicates, out-of-date versions, documents that disagree and leaked passwords or keys.</div>
+    </div>
+    <span class="pill text-xs outline" id="lint-pill">Checking…</span>
+  </summary>
+  <div id="lint-list" class="brain-lint-list"></div>
+  <div class="flex gap-2 items-center mt-3">
+    <button type="button" class="btn sm" id="lint-run" onclick="runLint()" title="Check every document again">Check again</button>
+    <span id="lint-status" class="text-xs dim" role="status" aria-live="polite"></span>
+  </div>
+</details>
+
 <div class="card mb-4" id="brain-needs-index-note" hidden>
   <p class="text-sm muted mb-0">Once the index is built you can ask questions here, and the document list, search test and export appear below.</p>
 </div>
@@ -900,6 +916,51 @@
     }
   };
 
+  // ── Knowledge check ──────────────────────────────────────────────
+  function lintRow(f) {
+    const links = f.files.map(function (x) { return esc(x.name); }).join(', ');
+    return '<div class="brain-lint-row is-' + esc(f.severity) + (f.ignored ? ' is-ignored' : '') + '">'
+      + '<div class="brain-lint-title">' + esc(f.title) + '</div>'
+      + (f.detail.length ? '<div class="text-xs dim">' + f.detail.map(esc).join(' · ') + '</div>' : '')
+      + '<div class="text-xs muted">' + esc(f.fix) + (links && f.files.length > 2 ? ' Files: ' + links : '') + '</div>'
+      + '<div class="flex gap-2 mt-1">'
+      + (f.files.length ? '<a class="btn sm ghost" href="/projects/' + PID + '/data" data-link>Open files</a>' : '')
+      + (f.severity === 'error' && !f.ignored ? '' :
+         '<button type="button" class="btn sm ghost" data-lint-key="' + esc(f.key) + '" data-lint-ignored="' + (f.ignored ? '1' : '0') + '">'
+         + (f.ignored ? 'Stop ignoring' : 'Ignore') + '</button>')
+      + '</div></div>';
+  }
+
+  window.runLint = async function () {
+    const list = document.getElementById('lint-list');
+    const pill = document.getElementById('lint-pill');
+    const status = document.getElementById('lint-status');
+    status.textContent = 'Checking…';
+    try {
+      const r = await api().get('/api/projects/' + PID + '/brain/lint');
+      const problems = r.errors + r.warnings;
+      pill.textContent = r.errors ? r.errors + ' to fix' + (r.warnings ? ' · ' + r.warnings + ' to review' : '')
+        : r.warnings ? r.warnings + ' to review' : (r.files ? 'All clear' : 'No files yet');
+      pill.className = 'pill text-xs ' + (r.errors ? 'solid-rose' : r.warnings ? 'solid-amber' : r.files ? 'solid-green' : 'outline');
+      list.innerHTML = r.findings.length ? r.findings.map(lintRow).join('')
+        : '<p class="text-sm muted mb-0">' + (r.files ? 'Nothing to fix in ' + r.files + ' file(s).' : 'Add files and they are checked here.') + '</p>';
+      if (r.errors) document.getElementById('brain-lint').open = true;
+      status.textContent = r.files + ' file(s) checked' + (r.reading ? ', ' + r.reading + ' still being read' : '')
+        + (r.ignored ? ', ' + r.ignored + ' ignored' : '') + (problems ? '' : '.');
+    } catch (e) {
+      status.textContent = 'The check failed: ' + (e.message || e);
+    }
+  };
+
+  document.addEventListener('click', async function (ev) {
+    const b = ev.target.closest && ev.target.closest('[data-lint-key]');
+    if (!b) return;
+    try {
+      await api().post('/api/projects/' + PID + '/brain/lint/ignore', { key: b.dataset.lintKey, ignored: b.dataset.lintIgnored !== '1' });
+      runLint();
+    } catch (e) { notify('Could not save that: ' + (e.message || e), 'error'); }
+  });
+
   // ── Identity: who it speaks for, how it sounds, how it answers ───
   const IDENTITY_FIELDS = { name: 'id-name', about: 'id-about', personality: 'id-personality', answer_rules: 'id-rules' };
 
@@ -1644,6 +1705,7 @@
       status.textContent = converted + ' · index: ' + buildDone(b) + '.' + note;
       initChatAnswerWith();
       notify('Smart Brain ready: ' + b.chunks + ' passages', 'success');
+      runLint();
       const up = document.getElementById('brain-upload');
       if (up) up.hidden = true;
       await loadBrainStatus();
@@ -1677,6 +1739,7 @@
       const done = buildDone(b);
       status.textContent = 'Done — ' + done + ' indexed.' + note;
       notify('Index built: ' + done, 'success');
+      runLint();
       initChatAnswerWith();
     } catch (e) {
       buildEnded(status, 'Build failed', e);
@@ -1733,6 +1796,7 @@
     initChatAnswerWith();
     initBrainUpload();
     loadIdentity();
+    runLint();
     loadIndexedDocs();
     loadBrainStatus();
     loadSharedModels();
