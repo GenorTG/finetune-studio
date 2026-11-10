@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Smart Brain packages now stop on unreviewed superseded-document warnings, so obsolete facts cannot silently ship.
+
 - Exported Smart Brain packages now include a browser chat for OpenAI/Claude API connections; package verification exercises configured retrieval layers, and the knowledge check avoids numeric conflicts across unlike units.
 
 ### Added

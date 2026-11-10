@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -91,6 +92,38 @@ def test_a_package_older_than_the_index_needs_review(monkeypatch, client, projec
     rd.record_package(project, filename="p.tar.gz", size=1, encrypted=True, identity=False, verified={"ok": True, "detail": "x"})
     monkeypatch.setattr(rd, "_index_time", lambda pid: 9e12)
     assert _states(rd.readiness(project))["package"] == "review"
+
+
+def test_unreviewed_superseded_documents_block_package_build(monkeypatch, client, project: str,
+                                                             tmp_path: Path) -> None:
+    from finetune_studio.knowledge import lint as knowledge_lint
+    from finetune_studio.webui.routes import brain_export
+
+    finding = {"rule": "old_version", "ignored": False,
+               "files": [{"name": "staff-handbook-superseded.pdf"}]}
+    report = {"errors": 0, "warnings": 1, "ignored": 0, "findings": [finding]}
+    monkeypatch.setattr(rd, "list_sources", lambda pid: [SimpleNamespace(ready=True)])
+    monkeypatch.setattr(rd, "lint", lambda pid: report)
+    monkeypatch.setattr(knowledge_lint, "lint", lambda pid: report)
+    monkeypatch.setattr(rd.knowledge_index, "state", lambda pid: SimpleNamespace(fresh=True, built=True))
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    (corpus / "manifest.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(brain_export, "_corpus_dir", lambda pid: corpus)
+
+    status = client.get(f"/api/projects/{project}/brain/readiness").json()
+    assert status["ready"] is False
+    check = next(step for step in status["steps"] if step["key"] == "check")
+    assert check["state"] == "problem" and "removed or explicitly accepted" in check["detail"]
+
+    response = client.post(f"/api/projects/{project}/brain/standalone", json={})
+    assert response.status_code == 409
+    assert "staff-handbook-superseded.pdf" in response.json()["detail"]
+
+    accepted = {**report, "warnings": 0, "ignored": 1,
+                "findings": [{**finding, "ignored": True}]}
+    monkeypatch.setattr(rd, "lint", lambda pid: accepted)
+    assert rd.readiness(project)["ready"] is True
 
 
 def test_the_package_page_shows_the_list(client, project: str) -> None:
