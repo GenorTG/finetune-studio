@@ -650,7 +650,8 @@ class Corpus:
         return {key: self.identity.get(key, "") for key in ("name", "about", "personality", "answer_rules")} | {
             "instructions": self.identity.get("system_prompt", "")}
 
-    def answer(self, question: str, top_k: int | None = None, provider: Mapping | None = None) -> dict:
+    def answer(self, question: str, top_k: int | None = None, provider: Mapping | None = None,
+               history: list[dict] | None = None) -> dict:
         """The generation half of RAG: retrieve, then ask the configured chat model to answer from the passages."""
         if not self.cfg["answer"] and not provider:
             raise ValueError("answer generation is off in this server (start it with --answer)")
@@ -666,7 +667,7 @@ class Corpus:
         chat = self._chat if provider is None else lambda messages: self._chat(messages, provider)
         result = answer_with_follow_ups(question, hits, lambda q: self.search(q, top_k), chat,
                                         follow_ups=int(self.cfg["follow_up"]),
-                                        system_prompt=self.identity.get("system_prompt", ""))
+                                        system_prompt=self.identity.get("system_prompt", ""), history=history)
         sources = [{"rank": h["rank"], "filename": h["filename"], "chunk_id": h["chunk_id"]} for h in result["hits"]]
         return {"question": question, "answer": result["answer"], "sources": sources, "weak": weak,
                 "model": (provider or {}).get("llm_model", self.cfg["llm_model"]),
@@ -890,11 +891,11 @@ main{width:min(850px,100%);margin:auto;padding:clamp(18px,5vw,48px)}header{margi
 <label>API key<input id="key" type="password" autocomplete="off" placeholder="Required by your provider"></label></details>
 <p class="notice" id="status">The key and provider settings are not stored by the server.</p><button id="send">Ask</button></form>
 <script>
-const $=id=>document.getElementById(id), chat=$('chat');
+const $=id=>document.getElementById(id), chat=$('chat');let history=[];
 $('provider').onchange=()=>{if($('provider').value==='anthropic'){$('base').value='https://api.anthropic.com/v1';$('model').value='claude-sonnet-5-5'}else{$('base').value='https://api.openai.com/v1';$('model').value='gpt-4.1-mini'}};
 const authHeaders=()=>{const h={'Content-Type':'application/json'};if($('serverToken').value)h.Authorization='Bearer '+$('serverToken').value;return h};
 const loadProfile=()=>fetch('/profile',{headers:authHeaders()}).then(r=>r.ok?r.json():null).then(p=>{if(p?.name)$('about').textContent=`${p.name} · Ask your knowledge package. Answers include source documents.`}).catch(()=>{});$('serverToken').onchange=loadProfile;loadProfile();
-$('ask').onsubmit=async e=>{e.preventDefault();const q=$('question').value.trim();if(!q)return;const u=document.createElement('div');u.className='turn user';u.textContent=q;chat.append(u);$('question').value='';$('send').disabled=true;$('status').textContent='Searching the package and asking your provider…';try{const r=await fetch('/ask',{method:'POST',headers:authHeaders(),body:JSON.stringify({question:q,provider:$('provider').value,llm_base_url:$('base').value.trim(),llm_model:$('model').value.trim(),llm_api_key:$('key').value})});const d=await r.json();if(!r.ok)throw Error(d.error||`Request failed (${r.status})`);const a=document.createElement('div');a.className='turn';a.textContent=d.answer;const s=document.createElement('div');s.className='sources';s.textContent=d.sources?.length?'Sources: '+d.sources.map(x=>x.filename).join(', '):'No matching source passages';a.append(s);chat.append(a);$('status').textContent=d.weak?'Answer may be incomplete: the retrieved passages do not cover the whole question.':'Answer ready.'}catch(err){$('status').textContent=err.message}finally{$('send').disabled=false;$('question').focus()}};
+$('ask').onsubmit=async e=>{e.preventDefault();const q=$('question').value.trim();if(!q)return;const u=document.createElement('div');u.className='turn user';u.textContent=q;chat.append(u);$('question').value='';$('send').disabled=true;$('status').textContent='Searching the package and asking your provider…';try{const r=await fetch('/ask',{method:'POST',headers:authHeaders(),body:JSON.stringify({question:q,history,provider:$('provider').value,llm_base_url:$('base').value.trim(),llm_model:$('model').value.trim(),llm_api_key:$('key').value})});const d=await r.json();if(!r.ok)throw Error(d.error||`Request failed (${r.status})`);const a=document.createElement('div');a.className='turn';a.textContent=d.answer;const s=document.createElement('div');s.className='sources';s.textContent=d.sources?.length?'Sources: '+d.sources.map(x=>x.filename).join(', '):'No matching source passages';a.append(s);chat.append(a);history.push({role:'user',content:q},{role:'assistant',content:d.answer});history=history.slice(-12);$('status').textContent=d.weak?'Answer may be incomplete: the retrieved passages do not cover the whole question.':'Answer ready.'}catch(err){$('status').textContent=err.message}finally{$('send').disabled=false;$('question').focus()}};
 </script></main></html>'''
             data = page.encode()
             self.send_response(200)
@@ -921,8 +922,20 @@ $('ask').onsubmit=async e=>{e.preventDefault();const q=$('question').value.trim(
             elif not corpus.cfg["answer"]:
                 self._json({"error": "connect a provider in the chat settings or start with --answer and configure an endpoint"}, 400)
                 return
+            history = []
+            if body and body.get("history") is not None:
+                raw_history = body["history"]
+                if not isinstance(raw_history, list):
+                    self._json({"error": "history must be a list of user and assistant turns"}, 400)
+                    return
+                for turn in raw_history[-12:]:
+                    if (not isinstance(turn, dict) or turn.get("role") not in {"user", "assistant"}
+                            or not isinstance(turn.get("content"), str)):
+                        self._json({"error": "history turns need a user or assistant role and text content"}, 400)
+                        return
+                    history.append({"role": turn["role"], "content": turn["content"][:8000]})
             try:
-                self._json(corpus.answer(question, top_k, provider))
+                self._json(corpus.answer(question, top_k, provider, history))
             except ValueError as e:
                 self._json({"error": str(e)}, 400)
             except RuntimeError as e:
