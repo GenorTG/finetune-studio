@@ -56,7 +56,7 @@ def test_every_project_page_renders_the_one_flow_bar(client) -> None:
         assert r.status_code == 200, (page, r.text[:200])
         assert 'id="project-breadcrumb"' in r.text
         bar = _bar(r.text)
-        for label in (">1 files<", ">2 Smart Brain<", ">3 test<", ">4 use it<", ">home<", "Train a model", ">pairs<", ">train<"):
+        for label in (">1 files<", ">2 Smart Brain<", ">3 test<", ">4 package<", ">home<", "Train a model", ">pairs<", ">train<"):
             assert label in bar, (page, label)
         assert "ws-switch" not in bar
         assert "here" in bar.split(f'data-tab="{tab}"', 1)[1].split(">", 1)[0], page

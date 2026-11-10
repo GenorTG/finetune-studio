@@ -21,7 +21,7 @@ STATIC_NEXT: dict[str, tuple[str, str, str]] = {
     "files": ("/brain", "Build the Smart Brain", "Turn your files into answers with sources; no training needed."),
     "pairs": ("/training", "Train an adapter", "Use the reviewed dataset to teach the model how to answer."),
     "training": ("/testing", "Test the answers", "Run a quiz to see what the adapter learned and when it declines."),
-    "testing": ("/export", "Use it", "Share the Smart Brain, run it as a server, or export a trained model."),
+    "testing": ("/export", "Package it", "See what is left, then build the package your models will use."),
     "export": ("/chat", "Try it in chat", "Test the exported model; add Smart Brain when answers need document facts."),
     "smart brain": ("/testing", "Score its answers", "Run your own questions and see what it gets right and when it declines."),
     "chat": ("/testing", "Measure answer quality", "Run a quiz to check accuracy and appropriate declines."),

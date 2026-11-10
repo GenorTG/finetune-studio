@@ -195,6 +195,17 @@ def brain_lint_ignore(pid: str, req: LintIgnoreRequest):
     return {"ok": True}
 
 
+@router.get("/{pid}/brain/readiness")
+def brain_readiness(pid: str):
+    """Is this knowledge ready to ship? Each step's live state (``knowledge.readiness``)."""
+    from finetune_studio.knowledge.readiness import readiness
+
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    return readiness(pid)
+
+
 @router.get("/{pid}/brain/settings")
 async def brain_get_settings(pid: str):
     from finetune_studio.smart_brain import BrainIndex

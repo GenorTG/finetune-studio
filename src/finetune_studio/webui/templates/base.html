@@ -22,7 +22,7 @@
   <link rel="stylesheet" href="/static/css/base.css?v=1">
   <link rel="stylesheet" href="/static/css/components.css?v=2">
   <link rel="stylesheet" href="/static/css/layout.css?v=1">
-  <link rel="stylesheet" href="/static/css/app.css?v=133">
+  <link rel="stylesheet" href="/static/css/app.css?v=134">
   <link rel="stylesheet" href="/static/css/typography.css?v=1">
   <link rel="stylesheet" href="/static/css/access.css?v=3">
   <script src="/static/js/access.js?v=1"></script>
@@ -100,7 +100,7 @@
               <a href="/projects/{{ pid }}/data" class="sb-nav-more-link" data-link data-tab="data" role="menuitem">files</a>
               <a href="/projects/{{ pid }}/brain" class="sb-nav-more-link" data-link data-tab="brain" role="menuitem">smart brain</a>
               <a href="/projects/{{ pid }}/testing" class="sb-nav-more-link" data-link data-tab="testing" role="menuitem">testing</a>
-              <a href="/projects/{{ pid }}/export" class="sb-nav-more-link" data-link data-tab="export" role="menuitem">export</a>
+              <a href="/projects/{{ pid }}/export" class="sb-nav-more-link" data-link data-tab="export" role="menuitem">package</a>
               <a href="/projects/{{ pid }}/chat" class="sb-nav-more-link" data-link data-tab="project-chat" role="menuitem">chat</a>
               <a href="/projects/{{ pid }}/wizard" class="sb-nav-more-link" data-link data-tab="wizard" role="menuitem">⚡ quick work</a>
               <a href="/projects/{{ pid }}/data-prep" class="sb-nav-more-link" data-link data-tab="data-prep" role="menuitem">pairs</a>
@@ -180,7 +180,7 @@
       <a href="/projects/{{ pid }}/data" data-link data-tab="data" class="ws-link {% if bc in ('files', 'data') %}here{% endif %}" title="1 · Upload, organise, read and edit your files">1 files</a>
       <a href="/projects/{{ pid }}/brain" data-link data-tab="brain" class="ws-link ws-primary {% if bc == 'smart brain' %}here{% endif %}" title="2 · Build the index and ask your documents, with sources">2 Smart Brain</a>
       <a href="/projects/{{ pid }}/testing" data-link data-tab="testing" class="ws-link {% if bc == 'testing' %}here{% endif %}" title="3 · Score the answers on your own questions">3 test</a>
-      <a href="/projects/{{ pid }}/export" data-link data-tab="export" class="ws-link {% if bc in ('export', 'models') %}here{% endif %}" title="4 · Share the Smart Brain, run it as a server, or export a trained model">4 use it</a>
+      <a href="/projects/{{ pid }}/export" data-link data-tab="export" class="ws-link {% if bc in ('export', 'models') %}here{% endif %}" title="4 · Readiness and the package your models will use; trained-model export too">4 package</a>
       {% if _flow_next %}
       <div class="next-step" aria-label="Next step">
         <span class="next-step-label">Next</span>
@@ -305,7 +305,7 @@
   <script src="/static/js/nav_overflow.js?v=3"></script>
   <script src="/static/js/spa.js?v=20"></script>
   <script src="/static/js/palette.js?v=16"></script>
-  <script src="/static/js/tutorial.js?v=18"></script>
+  <script src="/static/js/tutorial.js?v=19"></script>
   <script src="/static/js/activity.js?v=20"></script>
   <script src="/static/js/service.js?v=6"></script>
   <script src="/static/js/guide.js?v=3"></script>

@@ -12,11 +12,11 @@ upload ─► file library (bytes, versions, folders, trash)
            │ parsed ONCE ─► knowledge.sources: parsed text + passages (+ Vision readings, hand edits)
            ▼
   passages ─► 2 Smart Brain index (semantic + keyword search, rank fusion, reranking) ─► ask with sources ─► 3 test ─►
-              4 use it: encrypted bundle, standalone MCP + HTTP server
-  optional:  mining ─► Q&A pairs ─► dataset ─► train: LoRA adapter / merged model ─► 3 test ─► 4 use it
+              4 package: encrypted bundle, standalone MCP + HTTP server
+  optional:  mining ─► Q&A pairs ─► dataset ─► train: LoRA adapter / merged model ─► 3 test ─► 4 package
 ```
 
-Every project page shows one flow bar: `1 files → 2 Smart Brain → 3 test → 4 use it`, then the optional `Train a model`
+Every project page shows one flow bar: `1 files → 2 Smart Brain → 3 test → 4 package`, then the optional `Train a model`
 group (quick work, pairs, train, compare, benchmarks).
 
 ## Layout
