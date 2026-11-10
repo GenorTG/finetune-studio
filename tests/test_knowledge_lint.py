@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import random
 from pathlib import Path
 
 import numpy as np
@@ -59,7 +60,8 @@ def test_secrets_are_flagged_and_the_value_is_not_repeated(text: str, severity: 
 def test_exact_and_near_duplicates() -> None:
     assert rules(kl._check_files([src("a", "one.txt", sha="same"), src("b", "two.txt", sha="same")],
                                  {"a": BODY, "b": BODY})) == ["duplicate"]
-    long_text = " ".join("".join(chr(97 + (i * k * 7 + k) % 26) for k in range(1, 7)) for i in range(1, 400))
+    rng = random.Random(1)
+    long_text = " ".join("".join(rng.choices("abcdefghij", k=6)) for _ in range(400))
     near = long_text + " One closing sentence was added to this copy."
     assert rules(kl._check_files([src("a", "one.txt"), src("b", "two.txt")], {"a": long_text, "b": near})) == ["near_duplicate"]
 
