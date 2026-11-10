@@ -175,10 +175,11 @@ def _labelled_values(text: str) -> dict[str, set[tuple[str, str]]]:
             continue
         prefix = match.group(0).upper()
         suffix = text[match.end(2):match.end(2) + 24]
-        unit_match = re.match(r"\s*(months?|days?|weeks?|years?|hours?|minutes?|eur|pln|usd|%|percent|employees?)(?:\b|$)",
+        unit_match = re.match(r"\s*(months?|days?|weeks?|years?|hours?|minutes?|eur|pln|usd|%|percent|employees?)(?=\W|$)",
                               suffix, re.IGNORECASE)
         unit = unit_match.group(1).lower().rstrip("s") if unit_match else ""
-        currency = next((name for name in ("EUR", "PLN", "USD") if name in prefix), "")
+        currency = next((code.lower() for code in ("EUR", "PLN", "USD") if code in prefix), "")
+        currency = currency or ("eur" if "€" in prefix else "usd" if "$" in prefix else "")
         unit = unit or currency.lower()
         out[" ".join(words)].add((match.group(2).rstrip(".,").replace(",", ""), unit))
     return out
