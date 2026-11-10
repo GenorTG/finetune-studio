@@ -16,7 +16,7 @@ Every file is parsed once in **Files**. From there the main path is the Smart Br
 files is optional and lives in its own group at the end of the project bar:
 
 ```
-1 files → 2 Smart Brain → 3 test → 4 use it        (minutes, no training)
+1 files → 2 Smart Brain → 3 test → 4 package        (minutes, no training)
 optional: quick work · pairs · train · compare · benchmarks
 ```
 
@@ -108,7 +108,7 @@ verdict case by case.
 HellaSwag test sets from Hugging Face, or offline synthetic look-alikes — and a **Compare two runs**
 Δ table with a per-question McNemar test. Useful, and not a substitute for the project test.
 
-### 4. Use it (step **4 · use it**)
+### 4. Use it (step **4 · package**)
 
 - **Pin a version** — Quick work's Step 6 pins the exact dataset + corpus +
   run + base model into an immutable project version, so any result is

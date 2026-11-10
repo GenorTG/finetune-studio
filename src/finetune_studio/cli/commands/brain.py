@@ -217,8 +217,17 @@ def _export(args: argparse.Namespace) -> None:
                                identity=_identity_for(args, package=True))
     except (FileNotFoundError, ValueError) as e:
         _die(str(e))
+    from finetune_studio.smart_brain.server_package import verify_package
+
+    verified = verify_package(result.path, result.passphrase or passphrase)
+    if args.project:
+        from finetune_studio.cli.commands.dataset import resolve_project
+        from finetune_studio.knowledge.readiness import record_package
+
+        record_package(resolve_project(args.project)["id"], filename=result.path.name, size=result.size,
+                       encrypted=result.encrypted, identity=bool(_identity_for(args)), verified=verified)
     print(json.dumps({"path": str(result.path), "size": result.size, "encrypted": result.encrypted,
-                      "layers": result.layers,
+                      "verified": verified, "layers": result.layers,
                       "pipeline": pipeline_text(cfg, bundled_reranker=result.layers.get("reranker", False)),
                       **({"passphrase": result.passphrase, "note": "shown once: store it now, it is not saved"}
                          if result.passphrase else {})}, indent=2))
@@ -294,6 +303,21 @@ def _quiz(args: argparse.Namespace) -> None:
         _die(str(e))
 
 
+def _readiness(args: argparse.Namespace) -> None:
+    """Is this project's knowledge ready to ship (the Package page's list)? Exits 1 when it is not."""
+    from finetune_studio.cli.commands.dataset import resolve_project
+    from finetune_studio.knowledge.readiness import readiness
+
+    if not args.project:
+        _die("--project is required")
+    report = readiness(resolve_project(args.project)["id"])
+    for step in report["steps"]:
+        print(f"[{step['state']:7}] {step['label']}: {step['detail']}")
+    print("Ready to package." if report["ready"] else "Not ready yet.")
+    if not report["ready"]:
+        sys.exit(1)
+
+
 def _text_arg(value: str | None) -> str | None:
     """A flag's text, or the contents of a file when written @path."""
     if value is not None and value.startswith("@"):
@@ -360,7 +384,7 @@ def _import(args: argparse.Namespace) -> None:
 
 _HANDLERS = {"build": _build, "search": _search, "ask": _ask, "eval": _eval, "rebuild-vectors": _rebuild_vectors,
              "info": _info, "export": _export, "bundle": _bundle, "import": _import,
-             "identity": _identity, "lint": _lint, "quiz": _quiz}
+             "identity": _identity, "lint": _lint, "quiz": _quiz, "readiness": _readiness}
 
 
 def cmd_brain(args: argparse.Namespace) -> None:
@@ -460,6 +484,8 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
 
     sp = target(brain.add_parser("quiz", help="Write a test quiz from the indexed documents (uses the AI assistant)"))
     sp.add_argument("--questions", type=int, default=40, help="how many to attempt (default 40)")
+
+    target(brain.add_parser("readiness", help="Is this knowledge ready to ship? Each step's state"))
 
     sp = target(brain.add_parser("bundle", help="Encrypted .ftsrag copy of the index for another studio"))
     sp.add_argument("--passphrase-file", help="file holding the passphrase (default: generate one, printed once)")

@@ -9,20 +9,29 @@
 {% include "_resources.html" %}
 
 <div class="page-head">
-  <h1>Use it</h1>
-  <div class="sub"><b>Step 4.</b> Ask your Smart Brain here, share it with another studio, run it as a server of its own, or export a trained model.</div>
+  <h1>Package</h1>
+  <div class="sub"><b>Step 4.</b> Everything your models need about you in one encrypted package: your documents, who it speaks for and how to answer. Any model can use it over MCP or HTTP.</div>
 </div>
 
-<div class="card mb-4" id="use-brain">
+<div class="card mb-4" id="package-readiness">
   <div class="card-head">
     <div>
-      <div class="card-title">Your Smart Brain</div>
-      <div class="card-sub">Answers from your files, with sources, without leaving this computer.</div>
+      <div class="card-title">{% if package_state.ready %}Ready to package{% else %}Not ready yet{% endif %}</div>
+      <div class="card-sub">Each step from your files to the package.</div>
     </div>
+    <a class="btn primary" id="package-build-link" href="/projects/{{ pid }}/brain#brain-export-panel" data-link>Build the package</a>
   </div>
-  <div class="flex gap-2 wrap">
-    <a class="btn primary" href="/projects/{{ pid }}/brain" data-link>Ask your documents</a>
-    <a class="btn" href="/projects/{{ pid }}/brain#brain-export-panel" data-link title="An encrypted bundle another studio can import, or a standalone server (HTTP and MCP) that runs without this app">Share or run as a server</a>
+  <ol class="package-steps">
+    {% for step in package_state.steps %}
+    <li class="package-step is-{{ step.state }}">
+      <a href="/projects/{{ pid }}{{ step.href }}" data-link><b>{{ step.label }}</b></a>
+      <span class="pill text-xs {{ {'done':'solid-green','review':'solid-amber','problem':'solid-rose'}.get(step.state, 'outline') }}">{{ {'done':'Done','review':'Review','problem':'Fix this','todo':'To do'}[step.state] }}</span>
+      <div class="text-xs dim">{{ step.detail }}</div>
+    </li>
+    {% endfor %}
+  </ol>
+  <div class="flex gap-2 wrap mt-2">
+    <a class="btn" href="/projects/{{ pid }}/brain" data-link>Ask your documents</a>
     <a class="btn ghost" href="/projects/{{ pid }}/chat" data-link>Open chat</a>
   </div>
 </div>

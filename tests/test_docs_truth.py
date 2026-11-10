@@ -33,10 +33,10 @@ def test_export_gate_is_described_as_blocking_unless_forced() -> None:
 
 def test_tutorial_step_labels_match_the_project_nav() -> None:
     nav = (ROOT / "src/finetune_studio/webui/templates/base.html").read_text(encoding="utf-8")
-    assert ">1 files<" in nav and ">2 Smart Brain<" in nav and ">3 test<" in nav and ">4 use it<" in nav   # the sub-nav
+    assert ">1 files<" in nav and ">2 Smart Brain<" in nav and ">3 test<" in nav and ">4 package<" in nav   # the sub-nav
     labels = dict((m.group(2), m.group(1)) for m in re.finditer(r"\(step \*\*(\d) · ([a-z ]+)\*\*\)",
                                                                   PUBLIC["docs/TUTORIAL.md"]))
-    assert labels == {"files": "1", "smart brain": "2", "test": "3", "use it": "4"}
+    assert labels == {"files": "1", "smart brain": "2", "test": "3", "package": "4"}
 
 
 def test_pages_captions_use_the_nav_step_numbers() -> None:

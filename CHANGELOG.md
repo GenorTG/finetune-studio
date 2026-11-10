@@ -10,6 +10,7 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Added
+- Package page: each step from files to package with its live state, and every built package now opens itself with its own server and runs a search before it is handed over (`fts brain readiness`).
 - Smart Brain tests no longer need training data: Testing writes a quiz from your indexed documents, including questions they do not answer (`fts brain quiz`).
 - Knowledge check on the Smart Brain page and `fts brain lint`: unreadable files, duplicates, out-of-date versions, documents that disagree and leaked passwords or keys.
 - Smart Brain identity: your company, personality and answer rules go with every answer and test and are packed, encrypted, into the export. MCP clients get them through `rag_profile` and the server instructions, HTTP through `/profile`.

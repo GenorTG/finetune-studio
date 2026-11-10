@@ -1,12 +1,14 @@
 # ⚡ Finetune Studio
 
-**Ask your own documents questions with local language models and get answers with their sources.**
+**Prepare, check and test everything your local models should know about you, then export it as one encrypted knowledge package.**
 
-You upload your files once and build a **Smart Brain**: search plus a model that answers from your files and
-cites them, or says so when they don't cover it. Test its answers on your own questions, share it, or run it as a
-server of its own. As an optional extra you can also train a **LoRA adapter** that changes how a model answers
-(tone, format, a fixed system prompt, some facts), with benchmarks and export to GGUF. It runs on your own machine
-in the browser.
+Upload your documents once. Finetune Studio reads them, lints them for problems (unreadable files, duplicates,
+out-of-date versions, documents that disagree, leaked keys), and builds a **Smart Brain**: search plus answers that cite
+their sources and say so when the files don't cover something. You set who it speaks for: your company, its personality,
+how it should answer. Test it on questions written from your own documents, then export it all as one encrypted package
+with its own server, so any model gets that context over MCP or HTTP. The knowledge lives in the package, not in the model
+weights, so you can swap models freely. It runs on your own machine in the browser. Training a LoRA adapter is there too,
+as an optional extra for tone and format.
 
 This is a hobby project. I built it because I like tinkering with local models, and I did my best to make it
 solid: it has a large test suite, CI, and every number below comes from a real measured run. It is still a
@@ -250,7 +252,7 @@ The larger pieces, roughly in the order you meet them:
 - **⚡ Quick work** — the entire model pipeline on one page (upload →
   pairs → dataset → train → test → pin), a live status pill per step, and
   **Run all training steps** to chain dataset → training → test unattended.
-- **One project flow** — `1 files → 2 Smart Brain → 3 test → 4 use it`, with
+- **One project flow** — `1 files → 2 Smart Brain → 3 test → 4 package`, with
   training as an optional group: every file is parsed once and both read that
   one parse.
 - **File browser v2** — folder chips with drag-to-move, tag pills, bulk
@@ -479,7 +481,7 @@ own settings page too, with a **WebUI log tail** for debugging long jobs.
 
 The session bar at the top of every page is a Tmux-style tab strip with
 **[SYS]** and **[TOOLS]**. Inside a project, one flow bar shows every step —
-`1 files → 2 Smart Brain → 3 test → 4 use it`, plus chat, settings and the
+`1 files → 2 Smart Brain → 3 test → 4 package`, plus chat, settings and the
 optional Train a model group (quick work, pairs, train, compare, benchmarks). The current page is
 marked.
 `Ctrl+K` opens the command palette — fuzzy-search any page in any

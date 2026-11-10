@@ -42,8 +42,8 @@
     {
       target: null,
       title: "WELCOME TO FINETUNE STUDIO",
-      body: "Turn your files into a Smart Brain that answers questions with their sources, on " +
-            "your own computer. Training a model on them is there too, as an optional extra. " +
+      body: "Turn your files into a Smart Brain that answers questions with their sources, then " +
+            "export it as one package your models can use. Training a model is there too, as an optional extra. " +
             "This short tour shows the setup. Esc skips; Settings \u2192 Replay brings it back.",
     },
     {
@@ -95,7 +95,7 @@
             "(or you) decides pass / partial / fail for every saved answer. Open a run, read the answers, " +
             "and press 1/2/3 to override the judge where it got it wrong — the judge is a model, not truth, " +
             "so spot-check 10–20 answers before trusting a score. " +
-            "Then Use it shares the Smart Brain or runs it as a server of its own.",
+            "Then 4 Package builds one encrypted package your models can use over MCP or HTTP.",
     },
     {
       target: null,

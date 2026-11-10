@@ -77,7 +77,7 @@ def test_header_nav_overflow_affordance_markup() -> None:
     assert "nav_overflow.js" in base
     assert "☰" in base
     assert "components.css?v=2" in base
-    assert "app.css?v=133" in base
+    assert "app.css?v=134" in base
     assert "{{ release_channel }}" in base
     assert "· {{ release_channel }}</title>" in base
     assert "spa.js?v=20" in base
@@ -138,7 +138,7 @@ def test_next_step_is_part_of_the_project_flow_band() -> None:
 
     assert 'aria-label="Next step"' in flow
     assert 'href="/projects/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/export"' in flow
-    assert "Share the Smart Brain, run it as a server, or export a trained model." in flow
+    assert "See what is left, then build the package your models will use." in flow
     assert flow.index('aria-label="Next step"') < flow.index("Train a model")
 
 
@@ -220,7 +220,7 @@ def test_project_pages_serve_nav_affordance(client: TestClient) -> None:
 def test_css_cache_bust_header_nav() -> None:
     base = _BASE.read_text(encoding="utf-8")
     assert "components.css?v=2" in base
-    assert "app.css?v=133" in base
+    assert "app.css?v=134" in base
     assert "nav_overflow.js?v=3" in base
 
 

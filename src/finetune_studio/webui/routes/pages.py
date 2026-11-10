@@ -271,10 +271,14 @@ def export_page(pid: str, request: Request):
     project["runs"] = annotate_runs_for_export(db.list_runs(pid))
     project["models"] = _scan_run_models(project["runs"])
     caps = probe_export_capabilities()
+    from finetune_studio.knowledge.readiness import readiness
+
+    package_state = readiness(pid)
     return templates.TemplateResponse(
         request,
         "export_models.html",
         {
+            "package_state": package_state,
             "request": request,
             "project": project,
             "pid": pid,
