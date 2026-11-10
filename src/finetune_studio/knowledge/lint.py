@@ -91,11 +91,11 @@ def _similarity(a: frozenset[int], b: frozenset[int]) -> float:
 
 
 def _version_key(name: str) -> tuple[str, int] | None:
-    match = _VERSION.search(name)
+    stem = re.sub(r"\.[^.]+$", "", name)   # first: the same document can be a .docx in one version and a .pdf in the next
+    match = _VERSION.search(stem)
     if not match:
         return None
-    stem = _VERSION.sub("_", name, count=1)
-    return re.sub(r"[\W_]+", "", re.sub(r"\.[^.]+$", "", stem)).lower(), int(match.group(1))
+    return re.sub(r"[\W_]+", "", _VERSION.sub("_", stem, count=1)).lower(), int(match.group(1))
 
 
 def _check_files(sources: list[Source], texts: dict[str, str]) -> list[Finding]:

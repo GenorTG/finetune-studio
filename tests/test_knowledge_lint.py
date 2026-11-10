@@ -83,6 +83,12 @@ def test_old_version_from_the_text_and_from_a_newer_sibling() -> None:
     assert rules(found) == ["old_version"] and found[0].files[0]["name"] == "manual_v2.pdf"
 
 
+def test_a_newer_version_in_another_file_type_counts() -> None:
+    other = "Different words about invoices and shipping terms for the customer. " * 20
+    found = kl._check_files([src("a", "policy-443-v1.epub"), src("b", "policy-443-v2.odt")], {"a": BODY, "b": other})
+    assert rules(found) == ["old_version"] and found[0].files[0]["name"] == "policy-443-v1.epub"
+
+
 def _index(tmp: Path, rows: list[tuple[str, str]]) -> Path:
     corpus = tmp / "corpus"
     corpus.mkdir()
