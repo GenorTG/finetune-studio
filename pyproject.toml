@@ -1,7 +1,7 @@
 [project]
 name = "finetune-studio"
 version = "0.2.0"
-description = "Full-featured model training app with WebUI"
+description = "Ask your own documents questions with local models and get answers with sources; optional fine-tuning. WebUI and CLI."
 license = {file = "LICENSE"}
 classifiers = ["License :: Other/Proprietary License"]
 requires-python = ">=3.12,<3.14"
