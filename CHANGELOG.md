@@ -9,7 +9,9 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
-- Exported Smart Brain packages now include a browser chat for OpenAI/Claude API connections; package verification exercises configured retrieval layers, and the knowledge check avoids numeric conflicts across unlike units.
+- Smart Brain packages now stop on unreviewed superseded-document warnings, so obsolete facts cannot silently ship.
+
+- Exported Smart Brain packages now include a browser chat for OpenAI/Claude API connections, with short-lived in-memory conversation history; package verification exercises configured retrieval layers, and the knowledge check avoids numeric conflicts across unlike units.
 
 ### Added
 - Package page: each step from files to package with its live state, and every built package now opens itself with its own server and runs a search before it is handed over (`fts brain readiness`).

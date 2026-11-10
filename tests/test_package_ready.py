@@ -1,7 +1,9 @@
 """The package opens itself before it is handed over, and the Package page says what is left to do."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -26,6 +28,7 @@ def test_a_good_encrypted_package_passes_and_reports_its_identity(corpus_dir: Pa
     assert out["ok"] is True and out["hits"] > 0 and out["identity"] is True
     assert out["layers"]["keyword"]["available"] is True
     assert out["layers"]["semantic"]["available"] is False  # no embedder bundled in this test package
+    assert out["exercised"]["keyword"] is True
     assert [p.name for p in tmp_path.iterdir() if p.name.startswith(".verify-")] == []     # nothing left behind
 
 
@@ -65,6 +68,35 @@ def test_package_self_test_uses_the_bundled_search_settings(corpus_dir: Path, tm
     assert "--no-semantic" not in mcp and "--no-reranker" not in mcp
 
 
+def test_package_self_test_fails_when_a_search_layer_is_not_exercised(tmp_path: Path, monkeypatch) -> None:
+    from finetune_studio.smart_brain import server_package
+
+    archive = tmp_path / "package.tar.gz"
+    archive.touch()
+    monkeypatch.setattr(server_package, "_unpack_runtime", lambda archive, dest: tmp_path)
+    monkeypatch.setattr(server_package, "_sample_query", lambda root, env: "sample query")
+
+    def run_mcp(root, env, requests):
+        if requests[1]["id"] == 2:
+            return {
+                2: {"result": {"content": [{"text": json.dumps({"layers": {
+                    "semantic": "on (bundled embedder)", "keyword": "on", "fusion": "on (RRF)",
+                    "reranker": "off",
+                }})}]}},
+                3: {"result": {"content": [{"text": json.dumps({"instructions": "grounded"})}]}},
+            }
+        return {4: {"result": {"content": [{"text": json.dumps([
+            {"chunk_id": "c1", "text": "sample", "bm25_score": 1.0},
+        ])}]}}}
+
+    monkeypatch.setattr(server_package, "_run_mcp", run_mcp)
+    result = verify_package(archive, None)
+
+    assert result["ok"] is False
+    assert result["exercised"] == {"fusion": False, "keyword": True, "semantic": False}
+    assert "fusion, semantic" in result["detail"]
+
+
 @pytest.fixture
 def project(client) -> str:
     return client.post("/api/projects", json={"name": "ready-test"}).json()["id"]
@@ -91,6 +123,38 @@ def test_a_package_older_than_the_index_needs_review(monkeypatch, client, projec
     rd.record_package(project, filename="p.tar.gz", size=1, encrypted=True, identity=False, verified={"ok": True, "detail": "x"})
     monkeypatch.setattr(rd, "_index_time", lambda pid: 9e12)
     assert _states(rd.readiness(project))["package"] == "review"
+
+
+def test_unreviewed_superseded_documents_block_package_build(monkeypatch, client, project: str,
+                                                             tmp_path: Path) -> None:
+    from finetune_studio.knowledge import lint as knowledge_lint
+    from finetune_studio.webui.routes import brain_export
+
+    finding = {"rule": "old_version", "ignored": False,
+               "files": [{"name": "staff-handbook-superseded.pdf"}]}
+    report = {"errors": 0, "warnings": 1, "ignored": 0, "findings": [finding]}
+    monkeypatch.setattr(rd, "list_sources", lambda pid: [SimpleNamespace(ready=True)])
+    monkeypatch.setattr(rd, "lint", lambda pid: report)
+    monkeypatch.setattr(knowledge_lint, "lint", lambda pid: report)
+    monkeypatch.setattr(rd.knowledge_index, "state", lambda pid: SimpleNamespace(fresh=True, built=True))
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    (corpus / "manifest.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(brain_export, "_corpus_dir", lambda pid: corpus)
+
+    status = client.get(f"/api/projects/{project}/brain/readiness").json()
+    assert status["ready"] is False
+    check = next(step for step in status["steps"] if step["key"] == "check")
+    assert check["state"] == "problem" and "removed or explicitly accepted" in check["detail"]
+
+    response = client.post(f"/api/projects/{project}/brain/standalone", json={})
+    assert response.status_code == 409
+    assert "staff-handbook-superseded.pdf" in response.json()["detail"]
+
+    accepted = {**report, "warnings": 0, "ignored": 1,
+                "findings": [{**finding, "ignored": True}]}
+    monkeypatch.setattr(rd, "lint", lambda pid: accepted)
+    assert rd.readiness(project)["ready"] is True
 
 
 def test_the_package_page_shows_the_list(client, project: str) -> None:

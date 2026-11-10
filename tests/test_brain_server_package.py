@@ -476,7 +476,37 @@ def test_hosted_browser_chat_is_public_but_corpus_api_requires_token(corpus_dir:
         req = urllib.request.Request(base + "/profile", headers={"Authorization": "Bearer service-secret"})
         with urllib.request.urlopen(req, timeout=5) as response:
             assert response.status == 200
+        bad_history = urllib.request.Request(
+            base + "/ask", data=json.dumps({"question": "q", "history": "bad",
+                                            "provider": "openai", "llm_base_url": "https://api.openai.com/v1",
+                                            "llm_model": "model"}).encode(),
+            headers={"Authorization": "Bearer service-secret", "Content-Type": "application/json"})
+        with pytest.raises(urllib.error.HTTPError) as invalid:
+            urllib.request.urlopen(bad_history, timeout=5)
+        assert invalid.value.code == 400 and "history must be a list" in invalid.value.read().decode()
     finally:
         httpd.shutdown()
         httpd.server_close()
         thread.join(timeout=5)
+
+
+def test_answer_passes_chat_history_to_the_grounded_provider(corpus_dir: Path, tmp_path: Path,
+                                                              monkeypatch) -> None:
+    from finetune_studio.smart_brain import standalone_server as srv
+
+    corpus = _in_process_corpus(corpus_dir, tmp_path)
+    history = [{"role": "user", "content": "What about the warehouse?"},
+               {"role": "assistant", "content": "The rate is nine crowns."}]
+    observed: dict = {}
+
+    def answer(question, hits, search, chat, **options):
+        observed.update(options)
+        return {"answer": "It is nine crowns.", "hits": hits, "follow_up_searches": []}
+
+    monkeypatch.setattr(srv, "answer_with_follow_ups", answer)
+    out = corpus.answer("And for the Highmere Stair?", provider={
+        "provider": "openai", "llm_base_url": "https://api.openai.com/v1", "llm_model": "model",
+        "llm_api_key": "runtime-only", "llm_headers": {}, "llm_body": {},
+        "answer_max_tokens": 128}, history=history)
+    assert out["answer"] == "It is nine crowns."
+    assert observed["history"] == history

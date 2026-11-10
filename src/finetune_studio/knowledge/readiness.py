@@ -1,7 +1,8 @@
 """Is this project's knowledge ready to ship? One list, from the live state of each step of the main path.
 
 ``state``: done | todo | review (usable, someone should look) | problem (fix before shipping). ``ready`` needs readable
-files, no lint errors and a fresh index; identity, a test and a built package are shown but never block.
+files, no lint errors or unreviewed superseded-document findings, and a fresh index; identity, a test and a built package
+are shown but never block.
 """
 from __future__ import annotations
 
@@ -79,10 +80,16 @@ def readiness(pid: str) -> dict[str, Any]:
     sources = list_sources(pid)
     n_ready = sum(s.ready for s in sources)
     report = lint(pid)
+    superseded = sum(1 for f in report["findings"]
+                     if f["rule"] == "old_version" and not f["ignored"])
     st = knowledge_index.state(pid)
     index_time = _index_time(pid)
     saved = brain_identity.load(pid)
-    if report["errors"]:
+    if superseded:
+        check = _step("check", "Check the knowledge", "problem",
+                      f"{superseded} superseded document(s) must be removed or explicitly accepted before packaging.",
+                      "/brain#brain-lint")
+    elif report["errors"]:
         check = _step("check", "Check the knowledge", "problem", f"{report['errors']} to fix, {report['warnings']} to review.", "/brain#brain-lint")
     elif report["warnings"]:
         check = _step("check", "Check the knowledge", "review", f"{report['warnings']} to review.", "/brain#brain-lint")
@@ -98,4 +105,4 @@ def readiness(pid: str) -> dict[str, Any]:
         _test_step(pid, index_time),
         _package_step(pid, index_time),
     ]
-    return {"ready": bool(n_ready) and not report["errors"] and st.fresh, "steps": steps}
+    return {"ready": bool(n_ready) and not report["errors"] and not superseded and st.fresh, "steps": steps}
