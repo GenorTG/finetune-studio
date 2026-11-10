@@ -117,6 +117,7 @@ def _controls() -> dict[str, Control]:
         # Smart Brain
         ("brain.quick_index", "brain", "#quick-index-btn", "Build / Update Smart Brain"),
         ("brain.hero", "brain", "#brain-hero", "State and next action"),
+        ("brain.lint", "brain", "#brain-lint", "Knowledge check"),
         ("brain.identity", "brain", "#brain-identity", "Identity: company, personality, how to answer"),
         ("brain.add_files", "brain", "#brain-add-files-btn", "Add files"),
         ("brain.new_chat", "brain", "#chat-new-btn", "New conversation"),
