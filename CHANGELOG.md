@@ -10,6 +10,7 @@ turns that section into the release's notes.
 ## [Unreleased]
 
 ### Changed
+- The first-run tour and the app's description now lead with the Smart Brain; training is presented as the optional extra.
 - The Smart Brain is now the main path of a project: `1 files → 2 Smart Brain → 3 test → 4 use it`, with training as an optional group at the end of the project bar. The project checklist, Next hints, Quick work, the dashboard and Use it all follow it.
 - The Smart Brain page leads with what state it is in and the one next action, then the conversation; every other control is folded under Manage. You can add files and load an answer model right on the page, and follow-up questions keep the conversation.
 

@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>⚡ Finetune Studio — self-hosted LLM workshop</title>
-<meta name="description" content="A self-hosted local-LLM workshop: one route for your files, then LoRA fine-tuning or a Smart Brain that answers from them, plus evaluation, export, and chat. Runs on your hardware; optional model downloads and integrations may use external services.">
+<title>⚡ Finetune Studio — ask your own documents, locally</title>
+<meta name="description" content="Ask your own documents questions on your own hardware: a Smart Brain answers from your files with sources. Plus evaluation, chat and optional LoRA fine-tuning. Runs on your hardware; optional model downloads and integrations may use external services.">
 <meta property="og:title" content="⚡ Finetune Studio">
-<meta property="og:description" content="A self-hosted local-model workshop: organize files once, then use Smart Brain retrieval or train a LoRA adapter, evaluate results, and chat. Responsive dark/light WebUI.">
+<meta property="og:description" content="Ask your own documents questions on your own hardware: a Smart Brain answers from your files with sources. Plus evaluation, chat and optional LoRA fine-tuning. Responsive dark/light WebUI.">
 <meta property="og:type" content="website">
 
 <style>
@@ -122,8 +122,7 @@
 
 <header><div class="wrap">
   <h1>⚡ FINETUNE STUDIO<span class="cursor">▮</span></h1>
-  <p class="tagline">A web app for working with local language models on your
-  own documents: search them, fine-tune on them, test the result.</p>
+  <p class="tagline">Ask your own documents questions with local language models and get answers with their sources.</p>
   <p class="sub">A hobby project: I like tinkering with local models and did my best to make this solid
   (tests, CI, measured results), but it is a one-person beta. Use it if it helps you.</p>
   <p class="sub">Project data is stored locally. If you enable a connected provider, the data needed for that feature may be sent to it.</p>
@@ -154,12 +153,12 @@
       images via OCR or the AI assistant reading pictures). The <b>Smart Brain</b> answers from that parse with sources: semantic +
       keyword search, rank fusion, reranking, an answer gate — often called RAG. Live build progress via SSE,
       an index status that says when files changed, optional <b>fact cards</b> from reviewed pairs. One-click
-      <b>⚡ Quick index</b>; export it as a standalone MCP + HTTP server.</p>
+      <b>Build Smart Brain</b>; export it as a standalone MCP + HTTP server.</p>
       <div class="pillbox"><span class="pill">SMART BRAIN</span><span class="pill">HYBRID SEARCH</span></div>
     </div>
 
     <div class="usecase">
-      <h4>2 · FINE-TUNE A MODEL</h4>
+      <h4>2 · OPTIONAL: FINE-TUNE A MODEL</h4>
       <blockquote>"I want to teach a small open model how my company talks."</blockquote>
       <p>Point at a JSONL or your mined dataset, pick a base model, run
       LoRA / QLoRA. Live loss curves, VRAM profiles, adapter merge, then

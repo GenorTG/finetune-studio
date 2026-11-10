@@ -5,7 +5,7 @@ page: dashboard
 keywords: start new user overview workflow order steps flow files knowledge smart brain rag vs training where begin how app works pages tabs train a model on my documents first time how to train beginner end to end
 ---
 ## Purpose
-Finetune Studio turns your own documents into a fine-tuned model, a **Smart Brain** that answers from them without training, or both. Every file follows one route first: **Files & Knowledge**, where it is uploaded and parsed once; training and the Smart Brain both read that one parse.
+Finetune Studio's main tool is the **Smart Brain**: it answers from your own documents, with sources, without training. Training a model on them is an optional extra, for how a model answers rather than what your documents say. Every file follows one route first: **Files & Knowledge**, where it is uploaded and parsed once; training and the Smart Brain both read that one parse.
 
 ## Workflow
 The main path: 1 Files (`/projects/{pid}/data`: upload, read and edit the parsed text) → 2 Smart Brain (`/brain`: build the index, ask your documents with sources; no training, model weights never change) → 3 Test (`/testing`: score it on your own questions) → 4 Use it (`/export`: ask, share the Smart Brain, run it as a server, or export a trained model).

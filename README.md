@@ -1,11 +1,12 @@
 # ⚡ Finetune Studio
 
-**A web app for working with local language models on your own documents: search them, fine-tune on them, test the result.**
+**Ask your own documents questions with local language models and get answers with their sources.**
 
-You upload your files once. From there you can build a **Smart Brain** (search plus a model that answers
-from your files and cites them), or train a **LoRA adapter** that changes how a model answers (tone, format,
-a fixed system prompt, some facts). There is also a chat page, test and benchmark pages, and export to GGUF.
-It runs on your own machine in the browser.
+You upload your files once and build a **Smart Brain**: search plus a model that answers from your files and
+cites them, or says so when they don't cover it. Test its answers on your own questions, share it, or run it as a
+server of its own. As an optional extra you can also train a **LoRA adapter** that changes how a model answers
+(tone, format, a fixed system prompt, some facts), with benchmarks and export to GGUF. It runs on your own machine
+in the browser.
 
 This is a hobby project. I built it because I like tinkering with local models, and I did my best to make it
 solid: it has a large test suite, CI, and every number below comes from a real measured run. It is still a
