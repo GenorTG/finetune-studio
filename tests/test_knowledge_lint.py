@@ -109,6 +109,14 @@ def test_conflict_same_label_different_value(monkeypatch, tmp_path: Path) -> Non
     assert rules(found) == ["conflict"] and found[0].detail == ['"probation period": 2 vs 3']
 
 
+def test_different_units_are_not_reported_as_a_conflict(monkeypatch, tmp_path: Path) -> None:
+    found = conflicts(monkeypatch, tmp_path, [
+        ("a", "The probation period is 2 months."),
+        ("b", "The probation period is 2 days."),
+    ])
+    assert found == []
+
+
 def test_no_conflict_for_equal_values_or_the_same_file(monkeypatch, tmp_path: Path) -> None:
     assert conflicts(monkeypatch, tmp_path, [("a", "The probation period is 3 months."), ("b", "The probation period is 3 months."),
                                              ("a", "The probation period is 9 months.")][:2]) == []

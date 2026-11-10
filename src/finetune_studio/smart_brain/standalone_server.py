@@ -650,9 +650,9 @@ class Corpus:
         return {key: self.identity.get(key, "") for key in ("name", "about", "personality", "answer_rules")} | {
             "instructions": self.identity.get("system_prompt", "")}
 
-    def answer(self, question: str, top_k: int | None = None) -> dict:
+    def answer(self, question: str, top_k: int | None = None, provider: Mapping | None = None) -> dict:
         """The generation half of RAG: retrieve, then ask the configured chat model to answer from the passages."""
-        if not self.cfg["answer"]:
+        if not self.cfg["answer"] and not provider:
             raise ValueError("answer generation is off in this server (start it with --answer)")
         question = (question or "").strip()
         if not question:
@@ -663,33 +663,54 @@ class Corpus:
         if not hits:
             return {"question": question, "answer": "Nothing in this corpus matches the question.",
                     "sources": [], "weak": True, "model": None}
-        result = answer_with_follow_ups(question, hits, lambda q: self.search(q, top_k), self._chat,
+        chat = self._chat if provider is None else lambda messages: self._chat(messages, provider)
+        result = answer_with_follow_ups(question, hits, lambda q: self.search(q, top_k), chat,
                                         follow_ups=int(self.cfg["follow_up"]),
                                         system_prompt=self.identity.get("system_prompt", ""))
         sources = [{"rank": h["rank"], "filename": h["filename"], "chunk_id": h["chunk_id"]} for h in result["hits"]]
         return {"question": question, "answer": result["answer"], "sources": sources, "weak": weak,
-                "model": self.cfg["llm_model"], "follow_up_searches": result["follow_up_searches"]}
+                "model": (provider or {}).get("llm_model", self.cfg["llm_model"]),
+                "follow_up_searches": result["follow_up_searches"]}
 
-    def _chat(self, messages: list[dict]) -> str:
+    def _chat(self, messages: list[dict], provider: Mapping | None = None) -> str:
         """One completion from the configured answer model; the reply with any <think> block removed."""
-        body = json.dumps({"model": self.cfg["llm_model"], "messages": messages,
-                           "max_tokens": int(self.cfg["answer_max_tokens"]), "temperature": 0.2,
-                           **self.cfg["llm_body"]}).encode()
+        settings = {**self.cfg, **(provider or {})}
+        api = str(settings.get("provider") or "openai").lower()
+        if api not in {"openai", "anthropic"}:
+            raise RuntimeError("provider must be openai or anthropic")
+        if api == "anthropic":
+            system = next((str(m["content"]) for m in messages if m.get("role") == "system"), "")
+            turns = [m for m in messages if m.get("role") != "system"]
+            request_body = {"model": settings["llm_model"], "messages": turns,
+                            "max_tokens": int(settings["answer_max_tokens"]), "system": system}
+            endpoint = str(settings["llm_base_url"]).rstrip("/") + "/messages"
+        else:
+            request_body = {"model": settings["llm_model"], "messages": messages,
+                            "max_tokens": int(settings["answer_max_tokens"]), "temperature": 0.2,
+                            **settings["llm_body"]}
+            endpoint = str(settings["llm_base_url"]).rstrip("/") + "/chat/completions"
+        body = json.dumps(request_body).encode()
         headers = {"Content-Type": "application/json", "User-Agent": USER_AGENT,
-                   **{str(k): str(v).replace("{session}", SESSION_ID) for k, v in self.cfg["llm_headers"].items()}}
-        req = urllib.request.Request(f"{self.cfg['llm_base_url']}/chat/completions", data=body,
+                   **{str(k): str(v).replace("{session}", SESSION_ID) for k, v in settings["llm_headers"].items()}}
+        req = urllib.request.Request(endpoint, data=body,
                                      headers=headers, method="POST")
-        if self.cfg["llm_api_key"]:
-            req.add_header("Authorization", f"Bearer {self.cfg['llm_api_key']}")
+        if settings["llm_api_key"]:
+            if api == "anthropic":
+                req.add_header("x-api-key", str(settings["llm_api_key"]))
+                req.add_header("anthropic-version", "2026-10-21")
+            else:
+                req.add_header("Authorization", f"Bearer {settings['llm_api_key']}")
         try:
             with urllib.request.urlopen(req, timeout=300) as resp:
                 data = json.loads(resp.read().decode())
-            text = data["choices"][0]["message"]["content"] or ""
+            text = ("".join(str(block.get("text", "")) for block in data.get("content", [])
+                            if block.get("type") == "text") if api == "anthropic"
+                    else data["choices"][0]["message"]["content"]) or ""
         except urllib.error.HTTPError as e:
             detail = e.read()[:300].decode("utf-8", "replace")
-            raise RuntimeError(f"answer model at {self.cfg['llm_base_url']} said {e.code}: {detail}") from e
+            raise RuntimeError(f"answer model at {endpoint} said {e.code}: {detail}") from e
         except (urllib.error.URLError, KeyError, IndexError, ValueError, TimeoutError) as e:
-            raise RuntimeError(f"answer model unavailable at {self.cfg['llm_base_url']}: {e}") from e
+            raise RuntimeError(f"answer model unavailable at {endpoint}: {e}") from e
         return strip_thinking(text)
 
 
@@ -812,6 +833,8 @@ def make_handler(corpus: Corpus, token: str = ""):
             """Bearer check (constant time). Without a token the server is
             loopback-only; reject foreign Host headers (DNS rebinding)."""
             if token:
+                if self.command == "GET" and urlparse(self.path).path == "/":
+                    return True  # the static client contains no corpus data; API calls remain authenticated
                 auth = self.headers.get("Authorization") or ""
                 if auth[:7].lower() == "bearer " and tokens_equal(auth[7:].strip(), token):
                     return True
@@ -830,7 +853,9 @@ def make_handler(corpus: Corpus, token: str = ""):
             if not self._authorized():
                 return
             u = urlparse(self.path)
-            if u.path == "/health":
+            if u.path == "/":
+                self._html()
+            elif u.path == "/health":
                 self._json({"ok": True, **corpus.info()})
             elif u.path == "/profile":
                 self._json(corpus.profile())
@@ -848,14 +873,56 @@ def make_handler(corpus: Corpus, token: str = ""):
                 except ValueError as e:
                     self._json({"error": str(e)}, 400)
             else:
-                self._json({"error": "not found — try /health, /profile, /search?q=... or /ask?q=..."}, 404)
+                self._json({"error": "not found — try /, /health, /profile, /search?q=... or /ask?q=..."}, 404)
 
-        def _answer(self, question, top_k):
-            if not corpus.cfg["answer"]:
-                self._json({"error": "answer generation is off in this server (start it with --answer)"}, 404)
+        def _html(self):
+            page = r'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smart Brain</title><style>
+:root{color-scheme:light dark;font:16px system-ui,sans-serif;--bg:#10151b;--panel:#19212b;--line:#303d4b;--accent:#8bd5ca;--text:#edf3f7;--muted:#aab8c4}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#20333a,var(--bg) 55%);color:var(--text);min-height:100vh}
+main{width:min(850px,100%);margin:auto;padding:clamp(18px,5vw,48px)}header{margin-bottom:24px}h1{margin:0;font-size:clamp(28px,6vw,42px)}header p,.hint{color:var(--muted)}#chat{display:grid;gap:14px}.turn{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;white-space:pre-wrap;line-height:1.55}.user{border-color:#537d77}.sources{font-size:13px;color:var(--muted);margin-top:10px}form,.settings{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px}textarea,input,select,button{font:inherit}textarea,input,select{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:11px;margin:5px 0 12px}textarea{min-height:90px;resize:vertical}button{background:var(--accent);color:#10201e;font-weight:700;border:0;border-radius:9px;padding:11px 18px;cursor:pointer}button:disabled{opacity:.6;cursor:wait}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.notice{font-size:13px;color:var(--muted)}@media(max-width:600px){.grid{grid-template-columns:1fr}}
+</style><main><header><h1>Smart Brain</h1><p id="about">Ask your knowledge package. Answers include source documents.</p></header>
+<section id="chat" aria-live="polite"></section><form id="ask"><label for="question">Your question</label><textarea id="question" required placeholder="Ask about the documents…"></textarea>
+<details class="settings"><summary>Connect an AI provider</summary><p class="notice">Choose OpenAI or Anthropic. Your API key is sent only with each request and is not saved in this package. Use HTTPS when accessing this page over a network.</p>
+<label>Server access token<input id="serverToken" type="password" autocomplete="off" placeholder="Only if the server is hosted with RAG_AUTH_TOKEN"></label>
+<label>Provider<select id="provider"><option value="openai">OpenAI / compatible API</option><option value="anthropic">Anthropic Claude</option></select></label>
+<div class="grid"><label>API base URL<input id="base" value="https://api.openai.com/v1" autocomplete="url"></label><label>Model<input id="model" value="gpt-4o-mini" autocomplete="off"></label></div>
+<label>API key<input id="key" type="password" autocomplete="off" placeholder="Required by your provider"></label></details>
+<p class="notice" id="status">The key and provider settings are not stored by the server.</p><button id="send">Ask</button></form>
+<script>
+const $=id=>document.getElementById(id), chat=$('chat');
+$('provider').onchange=()=>{if($('provider').value==='anthropic'){$('base').value='https://api.anthropic.com/v1';$('model').value='claude-sonnet-5-5'}else{$('base').value='https://api.openai.com/v1';$('model').value='gpt-4.1-mini'}};
+const authHeaders=()=>{const h={'Content-Type':'application/json'};if($('serverToken').value)h.Authorization='Bearer '+$('serverToken').value;return h};
+const loadProfile=()=>fetch('/profile',{headers:authHeaders()}).then(r=>r.ok?r.json():null).then(p=>{if(p?.name)$('about').textContent=`${p.name} · Ask your knowledge package. Answers include source documents.`}).catch(()=>{});$('serverToken').onchange=loadProfile;loadProfile();
+$('ask').onsubmit=async e=>{e.preventDefault();const q=$('question').value.trim();if(!q)return;const u=document.createElement('div');u.className='turn user';u.textContent=q;chat.append(u);$('question').value='';$('send').disabled=true;$('status').textContent='Searching the package and asking your provider…';try{const r=await fetch('/ask',{method:'POST',headers:authHeaders(),body:JSON.stringify({question:q,provider:$('provider').value,llm_base_url:$('base').value.trim(),llm_model:$('model').value.trim(),llm_api_key:$('key').value})});const d=await r.json();if(!r.ok)throw Error(d.error||`Request failed (${r.status})`);const a=document.createElement('div');a.className='turn';a.textContent=d.answer;const s=document.createElement('div');s.className='sources';s.textContent=d.sources?.length?'Sources: '+d.sources.map(x=>x.filename).join(', '):'No matching source passages';a.append(s);chat.append(a);$('status').textContent=d.weak?'Answer may be incomplete: the retrieved passages do not cover the whole question.':'Answer ready.'}catch(err){$('status').textContent=err.message}finally{$('send').disabled=false;$('question').focus()}};
+</script></main></html>'''
+            data = page.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(data)
+
+        def _answer(self, question, top_k, body=None):
+            provider = None
+            if body and body.get("provider"):
+                provider = {"provider": str(body.get("provider")),
+                            "llm_base_url": str(body.get("llm_base_url") or "").strip().rstrip("/"),
+                            "llm_model": str(body.get("llm_model") or "").strip(),
+                            "llm_api_key": str(body.get("llm_api_key") or ""),
+                            "llm_headers": {}, "llm_body": {}}
+                if provider["provider"] not in {"openai", "anthropic"}:
+                    self._json({"error": "provider must be openai or anthropic"}, 400)
+                    return
+                if not provider["llm_base_url"].startswith(("https://", "http://")) or not provider["llm_model"]:
+                    self._json({"error": "enter a valid provider URL and model"}, 400)
+                    return
+            elif not corpus.cfg["answer"]:
+                self._json({"error": "connect a provider in the chat settings or start with --answer and configure an endpoint"}, 400)
                 return
             try:
-                self._json(corpus.answer(question, top_k))
+                self._json(corpus.answer(question, top_k, provider))
             except ValueError as e:
                 self._json({"error": str(e)}, 400)
             except RuntimeError as e:
@@ -873,7 +940,7 @@ def make_handler(corpus: Corpus, token: str = ""):
                 top_k = body.get("top_k")
                 if urlparse(self.path).path == "/ask":
                     self._answer(str(body.get("question") or body.get("query") or ""),
-                                 int(top_k) if top_k is not None else None)
+                                 int(top_k) if top_k is not None else None, body)
                     return
                 hits = corpus.search(str(body.get("query", "")),
                                      int(top_k) if top_k is not None else None,
