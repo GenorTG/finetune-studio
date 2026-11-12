@@ -63,10 +63,9 @@ Open http://localhost:7860. The first visit offers a short onboarding tour. By d
 - [Contributing](#contributing)
 - [License & attributions](#license--attributions)
 
-> **New here?** The fastest path from zero to a trained model is the
-> step-by-step [**Tutorial**](docs/TUTORIAL.md) — or open **⚡ Quick work**
-> inside a project and chain files → pairs → train → test in one page.
-> Common first-run pitfalls are covered in both.
+> **New here?** The step-by-step [**Tutorial**](docs/TUTORIAL.md) goes from a folder of documents to a checked,
+> tested, exported knowledge package (`1 files → 2 Smart Brain → 3 test → 4 package`, no training needed), then
+> shows the optional training path. **⚡ Quick work** inside a project chains files → pairs → train → test on one page.
 
 ---
 
@@ -122,6 +121,10 @@ handles:
   added or removed since the build), and a documents panel with chunk previews
 - Optional **fact cards**: reviewed (approved) Q&A pairs indexed next to the
   passages they came from
+- A **Knowledge check** before anything ships: unreadable files, duplicates, out-of-date versions, documents that
+  disagree, leaked keys; an amendment is linked to what it amends
+- An **identity** (who it speaks for, its personality, how to answer) packed with every answer and the export
+- A **quiz written from your own files** (with questions they do not answer), run and judged on the Testing page
 - **Standalone export**: one download turns the corpus into a self-installing
   package (its own venv) that serves search over **MCP**
   (Claude Desktop / OpenClaw / Cursor) *and* a plain **HTTP API** —
@@ -133,6 +136,9 @@ handles:
   embedding model + reranker ship **inside** the package: full offline
   semantic search with no external service at all (about 0.2 GB with the small MiniLM models, about 4.5 GB with
   e5-large and bge-reranker-v2-m3)
+- **Package options**: MCP over stdio *and* HTTP, a browser chat page, only some folders or tags in a package (a
+  public bot from `public/`), the original files on request, hidden file names for public bots, and versions: a new
+  version reports the documents added, changed and removed, and `bash update.sh NEW.tar.gz` updates a running copy
 
 ### Use case 2 — Train an adapter (LoRA) on your pairs
 
@@ -247,8 +253,13 @@ fixed. Write-up: [`docs/benchmarks/quillmoor-2026-10.md`](docs/benchmarks/quillm
 
 ## What's in the beta
 
-The larger pieces, roughly in the order you meet them:
+The larger pieces, knowledge package first:
 
+- **Knowledge package** — the Package page shows each step from files to package with its state; every package
+  self-tests with its own server before it is handed over; versions, audience scope, original files and in-place
+  updates as above.
+- **Knowledge check, identity and the documents' own quiz** — lint the documents, say who the answers speak for, and
+  test the answers on questions written from your files, judged by an AI judge or you.
 - **⚡ Quick work** — the entire model pipeline on one page (upload →
   pairs → dataset → train → test → pin), a live status pill per step, and
   **Run all training steps** to chain dataset → training → test unattended.
