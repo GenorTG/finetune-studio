@@ -42,6 +42,8 @@ encrypted package, create a passphrase file using your password manager or a sec
 directly in a command or commit it. Restrict it to your account:
 
 ```bash
+mkdir -p "$HOME/.config/fts"
+chmod 700 "$HOME/.config/fts"
 chmod 600 "$HOME/.config/fts/brain-passphrase.txt"
 bash setup.sh --keyfile "$HOME/.config/fts/brain-passphrase.txt"
 ```
