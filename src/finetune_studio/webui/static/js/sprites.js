@@ -644,7 +644,7 @@
     }
 
     // Data stream → data prep pages
-    if (/\/data-prep/.test(path) || /\/data\b/.test(path)) {
+    if (/\/data-prep(?:\/|$)/.test(path)) {
       const target = document.querySelector('[data-sprite="data-stream"]') || firstCard;
       if (target && !target.querySelector('.stream-sprite')) {
         const host = document.createElement('div');
