@@ -103,8 +103,10 @@
   <div id="lint-list" class="brain-lint-list"></div>
   <div class="flex gap-2 items-center mt-3">
     <button type="button" class="btn sm" id="lint-run" onclick="runLint()" title="Check every document again">Check again</button>
+    <button type="button" class="btn sm" id="lint-read-pictures" data-lint-action="read_pictures" hidden title="Read the charts, table images and scanned pages that only OCR read, with the vision reader">Read pictures</button>
     <span id="lint-status" class="text-xs dim" role="status" aria-live="polite"></span>
   </div>
+  <div id="lint-pictures" class="text-xs dim mt-1"></div>
 </details>
 
 <div class="card mb-4" id="brain-needs-index-note" hidden>
@@ -987,6 +989,7 @@
       + '<div class="text-xs muted">' + esc(f.fix) + (links && f.files.length > 2 ? ' Files: ' + links : '') + '</div>'
       + '<div class="flex gap-2 mt-1">'
       + (f.files.length ? '<a class="btn sm ghost" href="/projects/' + PID + '/data" data-link>Open files</a>' : '')
+      + (f.link && f.link.href ? '<a class="btn sm" href="' + esc(f.link.href) + '" data-link>' + esc(f.link.label || 'Fix') + '</a>' : '')
       + (f.severity === 'error' && !f.ignored ? '' :
          '<button type="button" class="btn sm ghost" data-lint-key="' + esc(f.key) + '" data-lint-ignored="' + (f.ignored ? '1' : '0') + '">'
          + (f.ignored ? 'Stop ignoring' : 'Ignore') + '</button>')
@@ -1009,10 +1012,39 @@
       if (r.errors) document.getElementById('brain-lint').open = true;
       status.textContent = r.files + ' file(s) checked' + (r.reading ? ', ' + r.reading + ' still being read' : '')
         + (r.ignored ? ', ' + r.ignored + ' ignored' : '') + (problems ? '' : '.');
+      document.getElementById('lint-read-pictures').hidden = !r.findings.some(function (f) { return f.action === 'read_pictures'; });
+      showPictures();
     } catch (e) {
       status.textContent = 'The check failed: ' + (e.message || e);
     }
   };
+
+  async function showPictures() {
+    const box = document.getElementById('lint-pictures');
+    try {
+      const p = await api().get('/api/projects/' + PID + '/brain/pictures');
+      const all = p.pictures + p.scanned;
+      const job = p.job || {};
+      box.textContent = all ? 'Pictures: ' + all + ' (' + p.read + ' read by a vision model, '
+        + (p.pictures_ocr + p.scanned_ocr) + ' by OCR only) · vision reader: ' + p.reader.label
+        + (job.running ? ' · reading now' + (job.state && job.state.file ? ' (' + job.state.file + ')' : '') + '…' : '') : '';
+      if (job.running) setTimeout(showPictures, 5000);
+    } catch (e) { box.textContent = ''; }
+  }
+
+  document.addEventListener('click', async function (ev) {
+    const a = ev.target.closest && ev.target.closest('[data-lint-action="read_pictures"]');
+    if (!a) return;
+    a.disabled = true;
+    try {
+      const r = await api().post('/api/projects/' + PID + '/brain/pictures/read', {});
+      notify(r.already_running ? 'Pictures are already being read.' : 'Reading pictures in ' + (r.files || 0) + ' file(s) with the vision reader. Update Smart Brain when it is done.', 'success');
+      setTimeout(runLint, 2000);
+    } catch (e) {
+      a.disabled = false;
+      notify('Could not read pictures: ' + (e.message || e), 'error');
+    }
+  });
 
   document.addEventListener('click', async function (ev) {
     const b = ev.target.closest && ev.target.closest('[data-lint-key]');

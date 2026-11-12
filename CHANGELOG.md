@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Pictures in documents (chart images, table screenshots, scanned pages in docx, pptx and pdf files) are read by the vision reader as soon as the files are uploaded, whenever one is set in Settings → AI assistant → Reading pictures; before, only mining used it and a Smart Brain packaged the OCR text (a chart's months and values came apart). When only OCR read them, the parse result, the Files page ("N OCR only") and the Knowledge check say so ("N picture(s) read by OCR only — figures in charts may be wrong; set a vision reader") with a link to the setting; the Knowledge check's **Read pictures** button (or `fts brain pictures --read`) reads the ones left. Native Excel/PowerPoint/Word charts keep being read from their chart data.
+
 - A package exported with models and then opened in a project (Import / `fts brain import`) can be exported again with models: its reranker came back as a bare short id and the next export stopped with "the reranker … could not be bundled".
 
 - The knowledge check now finds an older version when each version's file name also carries its own year or date (`Employee_Handbook_v1_2023.pdf` next to `Employee_Handbook_v2_2025.docx`); before, the year kept them apart and the superseded file went unflagged. A lower version with a later year (`budget_2025_v1` next to `budget_2024_v3`) is not called older.

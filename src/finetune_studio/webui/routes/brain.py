@@ -195,6 +195,35 @@ def brain_lint_ignore(pid: str, req: LintIgnoreRequest):
     return {"ok": True}
 
 
+@router.get("/{pid}/brain/pictures")
+def brain_pictures(pid: str):
+    """Pictures in the project's documents: how many only OCR read, the Vision reader seat, the latest pictures job."""
+    from finetune_studio.knowledge import pictures
+
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    return pictures.project_status(pid)
+
+
+class PicturesReadRequest(BaseModel):
+    file_ids: list[str] = Field(default_factory=list, max_length=5000)
+
+
+@router.post("/{pid}/brain/pictures/read", status_code=202)
+def brain_pictures_read(pid: str, req: PicturesReadRequest | None = None):
+    """Read the OCR-only figures with the Vision reader (the ``pictures`` job); 400 when no reader is set."""
+    from finetune_studio.knowledge import pictures
+
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    try:
+        return pictures.start(pid, file_ids=(req.file_ids if req else None) or None)
+    except pictures.PicturesError as e:
+        raise ApiError(e.status, str(e), code="pictures") from None
+
+
 @router.get("/{pid}/brain/readiness")
 def brain_readiness(pid: str):
     """Is this knowledge ready to ship? Each step's live state (``knowledge.readiness``)."""
