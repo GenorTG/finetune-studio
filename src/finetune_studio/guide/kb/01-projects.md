@@ -8,13 +8,14 @@ keywords: project create new import delete template blank chat training smart br
 A project groups its files and knowledge (parsed text, Q&A pairs), datasets, training runs, the Smart Brain and chat history. Everything else in the app is scoped to the active project.
 
 ## Workflow
-1. Click **＋ New project**, choose a template (blank, chat-focused, training, Smart Brain), name it, optionally pick a base model, create.
+1. Click **＋ New project**. The **🧠 Smart Brain** template is chosen (files → Smart Brain → test → package); Blank, Chat-focused and Training are the others. Name it and create: it opens the new project. A base model and a system prompt are only for training and chat, folded under **Training (optional)** (`#np-training`; the Training template opens it).
 2. Open the project card to land on its overview; the top strip then shows the project's pages.
 3. Projects can be imported from a `.tar.gz`/`.tar` export and bulk-selected for deletion.
 
 ## Key controls
 - `#new-project-btn` — opens the New project card.
-- `#np-form` — the creation form (name, description, base model).
+- `#np-form` — the creation form (template, name, description, tags; base model and system prompt under Training).
+- `#np-training` — Training (optional): base model and system prompt.
 - `#np-base` — optional base model (can be picked later; training has its own base-model dropdown).
 - `#proj-search` — filter the list.
 - `#import-file` — pick an exported project archive to import.

@@ -11,10 +11,12 @@
   <div>
     <h1>Files — {{ project.name }}</h1>
     <div class="sub">
-      <b>Step 1 · Files &amp; Knowledge.</b> Everything starts here: upload your documents,
-      organise them, and check, read or edit the text each one parsed into. That one parse feeds both
-      <a href="/projects/{{ pid }}/data-prep" data-link>question-answer pairs</a> (to train an adapter)
-      and the <a href="/projects/{{ pid }}/brain" data-link>Smart Brain</a> (to answer from the files).
+      <b>Step 1 · Files &amp; Knowledge.</b> Everything starts here: upload your documents (folders keep
+      their structure), then check, read or edit the text each one was read into. Next, the
+      <a href="/projects/{{ pid }}/brain" data-link>Smart Brain</a> turns them into answers with sources, and the
+      <a href="/projects/{{ pid }}/export" data-link>Package</a> step ships them to your models.
+      <span class="dim">Training is optional: the same text also feeds
+      <a href="/projects/{{ pid }}/data-prep" data-link>question-answer pairs</a>.</span>
       <br>
       {{ desc_short }}
       {% if desc_long %}
@@ -144,9 +146,8 @@
     <div>
       <div class="card-title">Uploaded files</div>
       <div class="card-sub">
-        Project file library (raw uploads). To turn files into search sources and
-        training question–answer pairs, continue on the
-        <a href="/projects/{{ pid }}/data-prep" data-link>Question-answer pairs</a> page.
+        Your documents as uploaded, with the passages each one was read into. When they are in, build the
+        <a href="/projects/{{ pid }}/brain" data-link>Smart Brain</a> from them.
       </div>
     </div>
   </div>
