@@ -76,9 +76,11 @@ def facts_sha(pid: str) -> str:
 
 def documents(pid: str, *, fact_cards: bool = False) -> list[Any]:
     """Every ready source of the project as an index document (+ its approved pairs as fact cards when asked)."""
+    from finetune_studio.data.fs import file_library as fl
     from finetune_studio.smart_brain.schema import IndexDocument
 
     facts = _approved_facts(pid) if fact_cards else {}
+    folders = fl.folder_paths(pid)
     out = []
     for s in sources.list_sources(pid):
         if not s.ready:
@@ -86,8 +88,10 @@ def documents(pid: str, *, fact_cards: bool = False) -> list[Any]:
         text = sources.parsed_text(pid, s)
         path = str(sources.source_dir(pid, s) / "parsed.txt")
         passages = tuple(p for p in sources.passages(pid, s.sha256) if p.strip())
+        folder = folders.get(s.file_id, "")
         if passages:
-            out.append(IndexDocument(s.id, s.filename, path, text, chunks=passages))
+            out.append(IndexDocument(s.id, s.filename, path, text, chunks=passages,
+                                     path=f"{folder}/{s.filename}" if folder else s.filename))
         cards = tuple(f"Q: {q}\nA: {a}" for _fid, q, a in facts.get(s.id, ()))
         if cards:
             out.append(IndexDocument(s.id + FACTS_SUFFIX, f"{s.filename} · reviewed facts", path, "\n\n".join(cards),

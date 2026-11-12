@@ -88,6 +88,8 @@ def _controls() -> dict[str, Control]:
         # files
         ("files.upload_toggle", "files", "#fb-upload-toggle", "Upload toggle"),
         ("files.upload_input", "files", "#fb-upload-input", "Choose files"),
+        ("files.upload_folder", "files", "#fb-upload-folder-input", "Upload a whole folder (keeps sub-folders)"),
+        ("files.upload_into", "files", "#fb-upload-into", "Folder to upload into"),
         ("files.table", "files", "#fb-files-table", "Uploaded files table"),
         ("files.bulk_reparse", "files", "#fb-bulk-reparse", "Re-parse selected"),
         # pairs

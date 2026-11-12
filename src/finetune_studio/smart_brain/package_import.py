@@ -147,8 +147,7 @@ def _folder_id(pid: str, name: str, cache: dict[str, str]) -> str:
     from finetune_studio.data.fs import file_library as fl
 
     if name not in cache:
-        found = next((f["id"] for f in fl.list_folders(pid, include_auto=False) if f["name"] == name), None)
-        cache[name] = found or fl.create_folder(pid, name)["id"]
+        cache[name] = fl.ensure_folder(pid, name)["id"]     # a path (public/faq): the folders above it too
     return cache[name]
 
 

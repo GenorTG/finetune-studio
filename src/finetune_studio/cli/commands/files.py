@@ -195,6 +195,24 @@ def _parse_uploaded_source(pid: str, file_id: str, filename: str) -> dict[str, A
     }
 
 
+def _upload_items(raw_paths: list[str], base: str) -> list[tuple[Path, str]]:
+    """``(file, project folder)`` for each argument: a file goes into ``base``; a folder's files keep its tree below
+    ``base`` (``files/public`` -> ``public/faq/x.md``), hidden files skipped. A missing path is kept so its error is
+    reported."""
+    out: list[tuple[Path, str]] = []
+    for raw in raw_paths:
+        path = Path(raw).expanduser()
+        if not path.is_dir():
+            out.append((path, base))
+            continue
+        for f in sorted(p for p in path.rglob("*") if p.is_file()):
+            rel = f.relative_to(path.parent)
+            if any(part.startswith(".") for part in rel.parts):
+                continue
+            out.append((f, fl.folder_path("/".join(p for p in (base, rel.parent.as_posix()) if p))))
+    return out
+
+
 def _upload_files(args: argparse.Namespace) -> None:
     project = _resolve_project(args.project)
     pid = str(project["id"])
@@ -202,8 +220,8 @@ def _upload_files(args: argparse.Namespace) -> None:
     report: list[dict[str, Any]] = []
     counts = {"uploaded": 0, "duplicates_skipped": 0, "errors": 0}
 
-    for raw_path in args.paths:
-        path = Path(raw_path).expanduser()
+    base = fl.folder_path(getattr(args, "folder", "") or "")
+    for path, folder in _upload_items(args.paths, base):
         name = path.name or "unnamed"
         staged_path: Path | None = None
         try:
@@ -238,6 +256,8 @@ def _upload_files(args: argparse.Namespace) -> None:
                 mime_hint=mime_hint,
             )
             staged_path = None  # adopted by the library
+            if folder:
+                fl.move_file_to_folder(pid, meta.file_id, fl.ensure_folder(pid, folder)["id"])
             source = _parse_uploaded_source(pid, meta.file_id, name)
             report.append({
                 "filename": name,
@@ -247,6 +267,7 @@ def _upload_files(args: argparse.Namespace) -> None:
                 "size_bytes": meta.size_bytes,
                 "raw_hash": meta.raw_hash,
                 "auto_kind": meta.auto_kind,
+                "folder": folder,
                 "source": source,
                 "parse_status": source["status"] if source else "not staged",
             })

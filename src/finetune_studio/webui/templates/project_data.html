@@ -122,7 +122,15 @@
       <div class="bin-host"></div>
       <div class="flex-1">
         <input type="file" name="files" id="fb-upload-input" class="input" multiple>
-        <div class="text-xs dim mt-1 mono">// drag &amp; drop files here</div>
+        <div class="flex gap-2 items-center mt-2 wrap">
+          <label class="text-xs muted" for="fb-upload-folder-input">or a whole folder (keeps its sub-folders)</label>
+          <input type="file" id="fb-upload-folder-input" class="input" webkitdirectory multiple aria-label="Upload a folder">
+        </div>
+        <div class="flex gap-2 items-center mt-2 wrap">
+          <label class="text-xs muted" for="fb-upload-into">Into folder</label>
+          <input type="text" id="fb-upload-into" class="input" placeholder="e.g. public/faq (optional; created if missing)" aria-label="Folder to upload into">
+        </div>
+        <div class="text-xs dim mt-1 mono">// drag &amp; drop files or folders here</div>
       </div>
     </div>
     <div class="flex gap-2 mt-3">
@@ -378,13 +386,21 @@
     if (res) res.disabled = n === 0;
   }
 
+  // A folder holds its sub-folders' files too: "public" shows public/faq/… (folder names are paths: public/faq).
+  function inFolder(f, fid) {
+    if (String(f.folder_id || '') === fid) return true;
+    const sel = folders.find((x) => x.id === fid);
+    const own = folders.find((x) => x.id === String(f.folder_id || ''));
+    return !!(sel && own && sel.kind !== 'auto' && String(own.name).startsWith(sel.name + '/'));
+  }
+
   function visibleFiles() {
     const q = searchQ.trim().toLowerCase();
     const rows = files.filter((f) => {
       const deleted = !!f.deleted_at;
       if (view === 'active' && deleted) return false;
       if (view === 'trash' && !deleted) return false;
-      if (folderId && String(f.folder_id || '') !== folderId) return false;
+      if (folderId && !inFolder(f, folderId)) return false;
       if (mimePrefix) {
         const m = f.mime_type || '';
         if (mimePrefix.endsWith('/') ? !m.startsWith(mimePrefix) : m !== mimePrefix) return false;
@@ -444,10 +460,12 @@
   function renderFolderChips() {
     const row = document.getElementById('fb-folders-row');
     if (!row) return;
-    const user = folders.filter((f) => f.kind !== 'auto');
+    const user = folders.filter((f) => f.kind !== 'auto').slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    // Sub-folders follow their parent: "public", "↳ faq" (its name is public/faq), "↳↳ returns".
+    const label = (f) => { const parts = String(f.name).split('/'); return '↳'.repeat(parts.length - 1) + (parts.length > 1 ? ' ' : '') + parts[parts.length - 1]; };
     const chip = (f, active) =>
       '<span class="fb-folder-chip' + (active ? ' active' : '') + '" data-fid="' + esc(f.id) + '" ' +
-      'title="Click: filter · drop files here to move">📁 ' + esc(f.name) +
+      'title="' + esc(f.name) + ' · click: filter (with its sub-folders) · drop files here to move">📁 ' + esc(label(f)) +
       ' <button class="fb-chip-act" type="button" data-act="rename" title="Rename folder">✎</button>' +
       ' <button class="fb-chip-act danger" type="button" data-act="delete" title="Delete folder (files survive)">🗑</button></span>';
     const allActive = !folderId ? ' active' : '';
@@ -970,7 +988,8 @@
     if (!row) return;
     row.addEventListener('click', async (e) => {
       if (e.target.closest && e.target.closest('#fb-folder-new')) {
-        const name = await fts.prompt('New folder name:');
+        const cur = folders.find((x) => x.id === folderId && x.kind !== 'auto');
+        const name = await fts.prompt('New folder (a path makes sub-folders: public/faq):', cur ? cur.name + '/' : '');
         if (!name) return;
         try {
           const r = await fetch('/api/projects/' + PID + '/folders', {
@@ -989,7 +1008,7 @@
       const act = e.target.getAttribute('data-act');
       if (act === 'rename') {
         const fo = folders.find((x) => x.id === fid) || {};
-        const name = await fts.prompt('Rename folder:', fo.name);
+        const name = await fts.prompt('Rename folder (a path moves it: archive/faq):', fo.name);
         if (!name || name === fo.name) return;
         try {
           const r = await fetch('/api/projects/' + PID + '/folders/' + encodeURIComponent(fid), {
@@ -1004,7 +1023,7 @@
       }
       if (act === 'delete') {
         const fo = folders.find((x) => x.id === fid) || {};
-        const ok = await confirmDanger('Delete folder "' + (fo.name || '') + '"? Files inside survive (they move to root).', { title: 'Delete folder', danger: true, okText: 'Delete folder' });
+        const ok = await confirmDanger('Delete folder "' + (fo.name || '') + '" and its sub-folders? Files inside survive (they move to root).', { title: 'Delete folder', danger: true, okText: 'Delete folder' });
         if (!ok) return;
         try {
           const r = await fetch('/api/projects/' + PID + '/folders/' + encodeURIComponent(fid), { method: 'DELETE' });
@@ -1322,7 +1341,16 @@
     const fd = new FormData();
     const names = [];
     let total = 0;
-    for (const f of fileList) { fd.append('files', f, f.name); total += f.size; names.push(f.name); }
+    // Items are Files or {file, path}: a folder's files carry their relative path (public/faq/x.md) so the
+    // server puts each in the same sub-folder.
+    for (const it of fileList) {
+      const f = it.file || it;
+      const rel = it.path || f.webkitRelativePath || '';
+      fd.append('files', f, f.name); fd.append('paths', rel); total += f.size; names.push(rel || f.name);
+    }
+    const into = (document.getElementById('fb-upload-into') || {}).value || '';
+    if (into.trim()) fd.append('folder_path', into.trim());
+    else if (folderId && (folders.find((x) => x.id === folderId) || {}).kind === 'user') fd.append('folder_id', folderId);
     if (input) input.disabled = true;
     // Real-time progress: XHR upload.onprogress → "Uploading 42% (1.2 MB / 2.7 MB)…",
     // then the server's queued/parse result (supported-file parsing runs in a background task).
@@ -1356,6 +1384,7 @@
         notify('Upload failed: ' + e.message, 'error');
       } finally {
         if (input) { input.disabled = false; input.value = ''; }
+        await loadFolders();
       }
     };
     xhr.onerror = () => {
@@ -1414,7 +1443,30 @@
       form.addEventListener('submit', (e) => {
         e.preventDefault();
         const input = document.getElementById('fb-upload-input');
-        uploadFiles(input && input.files);
+        const dir = document.getElementById('fb-upload-folder-input');
+        const picked = [...((input && input.files) || []), ...((dir && dir.files) || [])];
+        uploadFiles(picked);
+        if (dir) dir.value = '';
+      });
+      // Dropped files and folders upload at once; a folder is walked so its tree is kept.
+      form.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        const items = [...((e.dataTransfer && e.dataTransfer.items) || [])];
+        const entries = items.map((i) => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+        if (!entries.length) { uploadFiles([...((e.dataTransfer && e.dataTransfer.files) || [])]); return; }
+        const out = [];
+        const walk = (entry, dir) => new Promise((resolve) => {
+          if (entry.isFile) { entry.file((f) => { out.push({ file: f, path: dir + f.name }); resolve(); }, () => resolve()); return; }
+          const reader = entry.createReader();
+          const all = [];
+          const more = () => reader.readEntries(async (batch) => {
+            if (!batch.length) { for (const c of all) await walk(c, dir + entry.name + '/'); resolve(); return; }
+            all.push(...batch); more();
+          }, () => resolve());
+          more();
+        });
+        for (const en of entries) await walk(en, '');
+        uploadFiles(out.filter((x) => !x.path.split('/').some((p) => p.startsWith('.'))));
       });
     }
     const bulkPrepBtn = document.getElementById('wb-bulk-prep');

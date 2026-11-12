@@ -17,6 +17,7 @@ class IndexDocument:
     source: str
     text: str
     chunks: tuple[str, ...] = ()
+    path: str = ""          # where it sits in the project's folders ("public/faq/returns.md"); "" = no folder
 
 
 @dataclass
