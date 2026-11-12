@@ -705,6 +705,7 @@ answer model may then ask for one more search (`SEARCH: …`) before it answers,
 `follow_up_searches`. When the answer says part of the question is not stated, the server searches once more for
 that part and answers again; the reply's `followup` names the search and the sources it added (`RAG_RETRY_MISSING=0`
 turns it off). `RAG_FOLLOW_UP=0` turns both off; up to 3 follow-up searches are allowed.
+File names in answers: {"**hidden** (a public bot: no source file is named; `/ask` returns `sources` only with `\"sources\": true`, `rag_answer` only with `include_sources`)" if cfg.hide_file_names else "shown (answers cite `[file name]`)"}; `RAG_HIDE_FILE_NAMES=1/0` changes it.
 
 ```bash
 export RAG_LLM_PROVIDER="{cfg.llm_provider}"   # openai (any OpenAI-compatible API) or anthropic (Claude)

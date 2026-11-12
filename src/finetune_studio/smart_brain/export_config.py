@@ -60,6 +60,9 @@ class BrainExportConfig(BaseModel):
     # The uploaded files themselves (inside the encrypted container when encrypted). Anyone who can reach the server
     # can download them (MCP rag_get_document, GET /files/<id>): leave it off for a public bot.
     include_originals: bool = False
+    # A public bot: answers name no source files (no "[terms_v4.docx]" citations); /ask and rag_answer return the
+    # sources only when the caller asks for them ("sources": true / include_sources).
+    hide_file_names: bool = False
     originals_inline_max_mb: int = Field(20, ge=1, le=512)   # rag_get_document: larger files come back as a link
 
     @field_validator("llm_headers")
@@ -111,6 +114,7 @@ class BrainExportConfig(BaseModel):
             "llm_base_url": self.llm_base_url, "llm_model": self.llm_model.strip(),
             "llm_headers": dict(self.llm_headers), "llm_body": dict(self.llm_body),
             "file_inline_max_mb": self.originals_inline_max_mb,
+            "hide_file_names": self.hide_file_names,
         }
 
 
