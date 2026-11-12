@@ -41,3 +41,10 @@ def test_dashboard_includes_shared_resources_partial() -> None:
     assert 'id="ram-text"' in resources
     assert 'id="vram-rows"' in resources
     assert 'id="sys-resources"' in resources
+
+
+def test_package_first_actions_precede_machine_telemetry() -> None:
+    body = _INDEX.read_text(encoding="utf-8")
+    assert body.index('<div class="page-head">') < body.index('id="dash-actions"')
+    assert body.index('id="dash-actions"') < body.index('id="dash-training-status"')
+    assert body.index('id="dash-training-status"') < body.index('{% include "_resources.html" %}')

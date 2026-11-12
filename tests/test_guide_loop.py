@@ -75,6 +75,7 @@ def test_prompt_includes_authoritative_current_page_kb_entry() -> None:
     assert "Change settings for this project only" in prompt
     assert "The folded WebUI log tail below the form is the studio service log shared across projects." in prompt
     assert "Do not infer controls or behavior that this reference does not list." in prompt
+    assert "never show internal HTML ids or route keys" in prompt
 
 
 def test_prompt_prefers_page_specific_entry_over_generic_app_map() -> None:
