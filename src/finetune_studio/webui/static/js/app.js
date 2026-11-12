@@ -309,7 +309,12 @@
           api.request(url, form.dataset.method || "POST", data).then((d) => {
             if (d && d.run_id) { notify("Training started · run " + d.run_id.slice(0, 8), "success"); surfaceRun(); }
             else notify("Done", "success");
-            if (form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
+            // data-redirect="/projects/{id}": open what was just created (New project used to leave you on the list).
+            if (form.dataset.redirect && d && d.id) {
+              const to = form.dataset.redirect.replace("{id}", encodeURIComponent(d.id));
+              setTimeout(() => location.assign(to), 400);
+            }
+            else if (form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
           })
           .catch((err) => notify(err.message || "Request failed", "error"))
           .finally(done);
