@@ -58,8 +58,14 @@ Reply with one JSON object and nothing else: {{"question": "..."}}
 Rules: the question sounds like a natural one about this same company or subject, and asks for a specific detail (an
 amount, a date, a name) that this text does not give. Make sense on its own; never say "this document"."""
 
-_VERIFY = """Do these passages answer the question? Reply with one JSON object and nothing else: {{"answered": true}} or \
-{{"answered": false}}.
+_VERIFY = """Could a careful reader answer this question from these passages? Reply with one JSON object and nothing else: \
+{{"answered": true}} or {{"answered": false}}.
+
+Count it as answered when a passage gives the answer directly OR by a clear implication, for example:
+- a rule for a whole range, plan or group answers it for each member ("every model in the range has a two-year warranty" answers it for one model of that range);
+- "included", "free" or "no charge" answers a question about the cost;
+- a general policy answers a question about one case it covers.
+Reply false only when no passage gives the asked detail at all.
 
 QUESTION: {question}
 
@@ -171,8 +177,12 @@ def unanswerable_case(row: dict[str, str], reply: str, rows: list[dict[str, str]
 
 
 def build_cases(rows: list[dict[str, str]], generate: GenerateFn, *, questions: int = DEFAULT_QUESTIONS, workers: int = 1,
-                progress: ProgressFn | None = None) -> tuple[list[dict[str, Any]], BrainQuizReport]:
-    """Write the cases; a failing helper call drops that item and is counted, it never stops the quiz."""
+                progress: ProgressFn | None = None, verify: GenerateFn | None = None,
+                ) -> tuple[list[dict[str, Any]], BrainQuizReport]:
+    """Write the cases; a failing helper call drops that item and is counted, it never stops the quiz. ``verify`` (default:
+    ``generate``) asks whether an "unanswerable" question is answered after all: deterministic (temperature 0) in the app,
+    because at the writer's temperature the same passages flipped between yes and no."""
+    verify = verify or generate
     report = BrainQuizReport(documents=len({r["document_id"] for r in rows}))
     n_unknown = max(1, round(questions * UNANSWERABLE_SHARE))
     answer_rows = spread_passages(rows, questions - n_unknown)
@@ -187,7 +197,7 @@ def build_cases(rows: list[dict[str, str]], generate: GenerateFn, *, questions: 
             if kind == "answer":
                 return answerable_case(row, generate(_ANSWERABLE.format(filename=row["filename"], passage=passage)), report)
             reply = generate(_UNANSWERABLE.format(filename=row["filename"], passage=passage))
-            return unanswerable_case(row, reply, rows, generate, report)
+            return unanswerable_case(row, reply, rows, verify, report)
         except Exception:  # noqa: BLE001 - one provider failure must not lose the rest of the quiz
             report.helper_errors += 1
             return None
@@ -232,6 +242,7 @@ def build_brain_quiz(pid: str, *, questions: int = DEFAULT_QUESTIONS, generate: 
     from finetune_studio.testing.suite_import import import_suite
 
     rows = index_rows(pid)
+    verify: GenerateFn | None = None
     if generate is None:
         from finetune_studio.data.mining.scheduler import helper_info
         from finetune_studio.data.prep.generator import helper_resolution_error
@@ -240,8 +251,10 @@ def build_brain_quiz(pid: str, *, questions: int = DEFAULT_QUESTIONS, generate: 
         generate = helper_generate(max_tokens=400, temperature=0.4, job="quiz")
         if generate is None:
             raise NoGenerator(helper_resolution_error("quiz"))
+        verify = helper_generate(max_tokens=400, temperature=0.0, job="quiz")
         workers = workers or int(helper_info("quiz").get("concurrency") or 1)
-    cases, report = build_cases(rows, generate, questions=questions, workers=workers or 1, progress=progress)
+    cases, report = build_cases(rows, generate, questions=questions, workers=workers or 1, progress=progress,
+                                verify=verify)
     if not any(not c.get("expect_abstain") for c in cases):
         raise NoUsableQuestions("No question passed the quality checks, so no quiz was saved.", report)
     meta = import_suite(pid, SUITE_FILE, json.dumps(cases, ensure_ascii=False).encode("utf-8"))
