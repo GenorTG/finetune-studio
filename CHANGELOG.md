@@ -9,6 +9,9 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- The Smart Brain quiz checks “unanswerable” questions against the index's top 10 hybrid-search passages, so answers
+  assembled from more than one document are less likely to be mislabeled as missing.
+
 - The knowledge package leads everywhere: the dashboard's quick actions are New project, Open <last project> and
   Package it (model download and local chat are linked below); New project starts on the Smart Brain template with
   the base model and system prompt folded under "Training (optional)"; the Files page points to the Smart Brain and
