@@ -3,8 +3,6 @@
 {% block nav_models_local %}active{% endblock %}
 
 {% block content %}
-{% include "_resources.html" %}
-
 <div class="page-head">
   <div>
     <h1>Local models</h1>
@@ -16,6 +14,9 @@
     <span id="models-rescan-status" class="text-xs dim self-center" role="status" aria-live="polite"></span>
   </div>
 </div>
+
+{% set res_compact = true %}
+{% include "_resources.html" %}
 
 {# Category filter pills — wrap + scroll so nothing is silently clipped at 375px #}
 <div class="models-index-filters mb-4" id="models-index-filters" role="toolbar" aria-label="Filter models by category">

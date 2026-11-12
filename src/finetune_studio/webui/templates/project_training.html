@@ -5,9 +5,6 @@
 {% block breadcrumb_tab %}training{% endblock %}
 
 {% block content %}
-{% set res_compact = true %}
-{% include "_resources.html" %}
-
 <div class="page-head row">
   <div>
     <h1>Training</h1>
@@ -35,6 +32,9 @@
     </span>
   </div>
 </div>
+
+{% set res_compact = true %}
+{% include "_resources.html" %}
 
 {% if detail_run %}
 {# ── Run-detail panel — only rendered when ?run=<id> is in the URL ── #}
