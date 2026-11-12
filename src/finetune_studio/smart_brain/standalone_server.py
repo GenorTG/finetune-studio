@@ -734,6 +734,7 @@ class Corpus:
             "embed_endpoint": self.embed_base or "(not set)",
             "identity": self.identity.get("name") or ("set" if self.identity else "none"),
             "original_files": len(self.originals),
+            "scope": self.manifest.get("scope") or {"label": "all documents"},
             "answer_connection": {
                 "configured": bool(self.cfg["answer"] and self.cfg["llm_base_url"] and self.cfg["llm_model"]),
                 "provider": self.cfg["provider"], "base_url": self.cfg["llm_base_url"], "model": self.cfg["llm_model"],

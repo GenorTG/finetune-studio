@@ -214,12 +214,21 @@ def _export(args: argparse.Namespace) -> None:
     out = out_dir / (f"{safe}-smart-brain{'-with-models' if cfg.include_models else ''}"
                      f"{'' if cfg.encrypt else '-PLAINTEXT'}.{ext}")
     from finetune_studio.smart_brain import originals as brain_originals
+    from finetune_studio.smart_brain import scope as brain_scope
 
-    originals = (brain_originals.collect(corpus, resolve_project(args.project)["id"] if args.project else None)
-                 if cfg.include_originals else [])
+    pid = resolve_project(args.project)["id"] if args.project else None
+    docs = brain_scope.documents(corpus, pid)
+    try:
+        keep, scope_record = brain_scope.resolve(brain_scope.DocumentScope(
+            include=args.include or [], exclude=args.exclude or [], tags=args.tag or []), docs)
+    except ValueError as e:
+        _die(str(e))
+    probes = brain_scope.probe_queries(corpus, {d.document_id for d in docs} - keep) if keep is not None else {}
+    originals = brain_originals.collect(corpus, pid) if cfg.include_originals else []
     try:
         result = build_package(corpus, out, name=title, config=cfg, passphrase=passphrase,
-                               identity=_identity_for(args, package=True), originals=originals)
+                               identity=_identity_for(args, package=True), originals=originals,
+                               documents=keep, scope=scope_record)
     except (FileNotFoundError, ValueError) as e:
         _die(str(e))
     from finetune_studio.smart_brain.server_package import (
@@ -228,7 +237,7 @@ def _export(args: argparse.Namespace) -> None:
     )
 
     verified = verify_package(result.path, result.passphrase or passphrase, studio_models=studio_models_for(corpus),
-                              expected_originals={o.document_id: o.sha256 for o in originals})
+                              expected_originals={o.document_id: o.sha256 for o in originals}, out_of_scope=probes)
     if args.project:
         from finetune_studio.cli.commands.dataset import resolve_project
         from finetune_studio.knowledge.readiness import record_package
@@ -236,7 +245,9 @@ def _export(args: argparse.Namespace) -> None:
         record_package(resolve_project(args.project)["id"], filename=result.path.name, size=result.size,
                        encrypted=result.encrypted, identity=bool(_identity_for(args)), verified=verified)
     print(json.dumps({"path": str(result.path), "size": result.size, "encrypted": result.encrypted,
-                      "verified": verified, "layers": result.layers, "original_files": len(originals),
+                      "verified": verified, "layers": result.layers,
+                      "original_files": sum(1 for o in originals if keep is None or o.document_id in keep),
+                      "scope": scope_record,
                       "pipeline": pipeline_text(cfg, bundled_reranker=result.layers.get("reranker", False)),
                       **({"passphrase": result.passphrase, "note": "shown once: store it now, it is not saved"}
                          if result.passphrase else {})}, indent=2))
@@ -475,6 +486,11 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     sp.add_argument("--models", action=bo, default=None,
                     help="bundle the embedder (+ reranker) for offline use (~2 GB, not encrypted)")
     sp.add_argument("--encrypt", action=bo, default=None, help="encrypt the corpus (default on)")
+    sp.add_argument("--include", action="append", metavar="PREFIX",
+                    help="only documents whose path (folder/file name) starts with PREFIX, e.g. public/ (repeatable)")
+    sp.add_argument("--exclude", action="append", metavar="PREFIX",
+                    help="leave out documents whose path starts with PREFIX (repeatable)")
+    sp.add_argument("--tag", action="append", metavar="TAG", help="only documents with this file tag (repeatable)")
     sp.add_argument("--originals", action=bo, default=None,
                     help="ship the original uploaded files (encrypted with the corpus); anyone who can reach the "
                          "server can download them: leave off for a public bot (default off)")

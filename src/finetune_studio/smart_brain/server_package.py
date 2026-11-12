@@ -692,6 +692,48 @@ curl "http://127.0.0.1:8899/ask?q=your+question"
 """
 
 
+def _base_id(document_id: str) -> str:
+    return str(document_id).split("~", 1)[0]
+
+
+def _subset(corpus: Path, chunks_df, layer_files: tuple[str, ...], keep: set[str], manifest: dict):
+    """The kept documents' corpus, in memory: their passages, their vectors (rows sliced, ids renumbered), a BM25
+    index recomputed over their passages alone (document frequencies, lengths and averages of the subset), and the
+    manifest's counts and document list cut to match. Returns ``(chunks_df, {file: bytes})``."""
+    import io
+
+    import numpy as np
+
+    from .bm25 import BM25Index
+
+    mask = chunks_df["document_id"].map(lambda d: _base_id(d) in keep)
+    sub = chunks_df[mask].reset_index(drop=True)
+    if sub.empty:
+        raise ValueError("no passage of the chosen documents is in the index")
+    data: dict[str, bytes | Path] = {}
+    if "vectors.npy" in layer_files:
+        vectors = np.load(corpus / "vectors.npy", allow_pickle=False)
+        idx = json.loads((corpus / "vectors.idx.json").read_text(encoding="utf-8"))
+        rows = [int(idx[cid]) for cid in sub["id"]]
+        buf = io.BytesIO()
+        np.save(buf, vectors[rows])
+        data["vectors.npy"] = buf.getvalue()
+        data["vectors.idx.json"] = json.dumps({cid: i for i, cid in enumerate(sub["id"])}).encode("utf-8")
+    if "bm25.json" in layer_files:
+        old = json.loads((corpus / "bm25.json").read_text(encoding="utf-8"))
+        bm25 = BM25Index.build([str(t) for t in sub["text"]])
+        bm25.k1, bm25.b = float(old.get("k1", bm25.k1)), float(old.get("b", bm25.b))
+        data["bm25.json"] = json.dumps(bm25.to_dict()).encode("utf-8")
+    extra = manifest.setdefault("extra", {})
+    extra["documents_meta"] = [m for m in extra.get("documents_meta") or []
+                               if _base_id(m.get("document_id") or "") in keep]
+    if isinstance(extra.get("built_from"), dict):
+        extra["built_from"] = {k: v for k, v in extra["built_from"].items() if _base_id(k) in keep}
+    manifest["documents"] = len({_base_id(d) for d in sub["document_id"]})
+    manifest["chunks"] = len(sub)
+    return sub, data
+
+
 def _originals_index(rows: list) -> bytes:
     return json.dumps([o.entry() for o in rows], ensure_ascii=False, indent=1).encode("utf-8")
 
@@ -708,9 +750,22 @@ unless every file in it may be public.
 """
 
 
+def _scope_section(scope: dict | None) -> str:
+    """Which documents are in the package. Folder/tag names only: no file names (an encrypted package's README
+    holds no document names)."""
+    if not scope:
+        return ""
+    n, total = scope.get("documents"), scope.get("of")
+    if scope.get("label", "all documents") == "all documents":
+        return f"## Documents in this package\n\nAll {n} documents of the index.\n\n"
+    return (f"## Documents in this package\n\nA chosen part of the index: **{n} of {total} documents** "
+            f"({scope.get('label')}). Only their passages, vectors, word index and files are inside; nothing else "
+            "from the index can be found or read through this server (`rag_info` reports the same scope).\n\n")
+
+
 def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool,
             models: bool, cfg: BrainExportConfig, bundled_embedder: bool = False,
-            bundled_reranker: bool = False, originals: int = 0) -> str:
+            bundled_reranker: bool = False, originals: int = 0, scope: dict | None = None) -> str:
     mcp_snippet = _mcp_config_example(slug if encrypted else f"{slug}-brain",
                                       NEUTRAL_ROOT if encrypted else f"{slug}-brain",
                                       encrypted).rstrip("\n")
@@ -724,7 +779,8 @@ def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool,
         enc_note=" (**encrypted** in `corpus/corpus.enc`)" if encrypted else "",
         container_note=("; `brain_container.py` next to it opens the encrypted corpus"
                         if encrypted else ""),
-        security_section=(_SECURITY_ENCRYPTED if encrypted else _SECURITY_PLAIN) + (_README_ORIGINALS.format(
+        security_section=_scope_section(scope) + (_SECURITY_ENCRYPTED if encrypted else _SECURITY_PLAIN) + (
+            _README_ORIGINALS.format(
             count=originals, where=" (inside the encrypted container)" if encrypted else " (`corpus/originals/`)")
             if originals else ""),
         curl_hint='curl "http://127.0.0.1:8899/search?q=your+question&top_k=5"'
@@ -797,6 +853,8 @@ def build_package(
     passphrase: str | None = None,
     identity: dict | None = None,
     originals: list | None = None,
+    documents: set[str] | None = None,
+    scope: dict | None = None,
 ) -> PackageResult:
     """Assemble the hostable package for a built corpus and archive it.
 
@@ -811,6 +869,10 @@ def build_package(
 
     ``originals`` (``smart_brain.originals.collect``) are the uploaded files; they ship only with
     ``config.include_originals``, inside the encrypted container when the package is encrypted.
+
+    ``documents`` (``smart_brain.scope.resolve``) keeps only those document ids: the passages, their vectors, a BM25
+    index recomputed over them, their parsed sources and originals; ``scope`` describes the choice (manifest,
+    README, ``rag_info``). None = every document.
     """
     import pandas as pd  # local import: only needed at export time
 
@@ -836,7 +898,9 @@ def build_package(
     manifest["search_layers"] = search_layers(cfg)
     if identity:   # inside the manifest, so an encrypted package keeps it encrypted
         manifest["identity"] = dict(identity)
-    ship_originals = list(originals or []) if cfg.include_originals else []
+    keep = set(documents) if documents is not None else None
+    ship_originals = [o for o in (originals or []) if keep is None or o.document_id in keep] \
+        if cfg.include_originals else []
     manifest["original_files"] = len(ship_originals)
     title = name or manifest.get("name") or corpus.name
     if encrypted:  # nothing derived from the project/document names in paths/README
@@ -887,22 +951,31 @@ def build_package(
     ok = False
     try:
         # ---- corpus ----------------------------------------------------
-        chunks_jsonl = pd.read_parquet(corpus / "chunks.parquet").to_json(
-            orient="records", lines=True, force_ascii=False)
+        chunks_df = pd.read_parquet(corpus / "chunks.parquet")
+        layer_data: dict[str, bytes | Path] = {f: corpus / f for f in layer_files}
+        if keep is not None:
+            chunks_df, layer_data = _subset(corpus, chunks_df, layer_files, keep, manifest)
+        total_docs = len({_base_id(d) for d in pd.read_parquet(corpus / "chunks.parquet",
+                                                               columns=["document_id"])["document_id"]})
+        manifest["scope"] = dict(scope or {"label": "all documents", "documents": total_docs, "of": total_docs})
+        chunks_jsonl = chunks_df.to_json(orient="records", lines=True, force_ascii=False)
         manifest_json = json.dumps(manifest, indent=2, ensure_ascii=False)
         source_files = []
         if (corpus / "sources").is_dir():
             source_files = [f for f in sorted((corpus / "sources").rglob("*"))
-                            if f.is_file() and not f.is_symlink()]
+                            if f.is_file() and not f.is_symlink() and (keep is None or _base_id(f.stem) in keep)]
         if encrypted:
             from .brain_container import ContainerWriter
             spool = tempfile.TemporaryFile()  # noqa: SIM115 - anonymous, ciphertext only
             cw = ContainerWriter(spool, passphrase, log_n=cfg.kdf_log_n)
             cw.add("manifest.json", manifest_json.encode("utf-8"))
             cw.add("chunks.jsonl", chunks_jsonl.encode("utf-8"))
-            for fname in layer_files:
-                with open(corpus / fname, "rb") as fp:
-                    cw.add(fname, fp)
+            for fname, data in layer_data.items():
+                if isinstance(data, bytes):
+                    cw.add(fname, data)
+                else:
+                    with open(data, "rb") as fp:
+                        cw.add(fname, fp)
             for f in source_files:
                 with open(f, "rb") as fp:
                     cw.add(f"sources/{f.relative_to(corpus / 'sources').as_posix()}", fp)
@@ -918,8 +991,11 @@ def build_package(
         else:
             sink.add_bytes(f"{root}/corpus/manifest.json", manifest_json)
             sink.add_bytes(f"{root}/corpus/chunks.jsonl", chunks_jsonl)
-            for fname in layer_files:
-                sink.add_file(f"{root}/corpus/{fname}", corpus / fname)
+            for fname, data in layer_data.items():
+                if isinstance(data, bytes):
+                    sink.add_bytes(f"{root}/corpus/{fname}", data)
+                else:
+                    sink.add_file(f"{root}/corpus/{fname}", data)
             for f in source_files:
                 sink.add_file(
                     f"{root}/corpus/sources/{f.relative_to(corpus / 'sources').as_posix()}", f)
@@ -927,7 +1003,7 @@ def build_package(
                 sink.add_bytes(f"{root}/corpus/{ORIGINALS_INDEX}", _originals_index(ship_originals))
                 for o in ship_originals:
                     sink.add_file(f"{root}/corpus/{ORIGINALS_DIR}/{o.document_id}", o.path)
-        del chunks_jsonl, manifest_json
+        del chunks_jsonl, manifest_json, chunks_df, layer_data
 
         # ---- models (public weights; streamed, never staged) -----------
         if emb_src:
@@ -956,7 +1032,7 @@ def build_package(
             title=title, slug=slug, embed_model=embed_model,
             encrypted=encrypted, models=models, cfg=cfg,
             bundled_embedder=emb_src is not None, bundled_reranker=rr_src is not None,
-            originals=len(ship_originals)))
+            originals=len(ship_originals), scope=manifest["scope"]))
         sink.close()
         part.replace(out)
         ok = True
@@ -983,7 +1059,8 @@ def studio_models_for(corpus_dir: str | Path) -> dict[str, Path]:
 
 
 def verify_package(archive: str | Path, passphrase: str | None, *, studio_models: dict[str, Path] | None = None,
-                   embed_base_url: str | None = None, expected_originals: dict[str, str] | None = None) -> dict:
+                   embed_base_url: str | None = None, expected_originals: dict[str, str] | None = None,
+                   out_of_scope: dict[str, str] | None = None) -> dict:
     """Open a finished package the way a customer would: unpack it, start its server, ask it something over MCP.
 
     Every search layer the package ships is exercised: meaning search, word search, their fusion and a bundled reranker.
@@ -992,7 +1069,9 @@ def verify_package(archive: str | Path, passphrase: str | None, *, studio_models
     at an embedding endpoint instead. Then the package's HTTP server is
     started and its chat page and MCP-over-HTTP endpoint are checked. A package with original files has one fetched
     over MCP (``rag_get_document``) and over HTTP (``/files/<id>``), its sha256 compared with ``expected_originals``
-    (``document_id -> sha256`` of the studio's file; else the package's own record). Temporary files sit next to the archive and are
+    (``document_id -> sha256`` of the studio's file; else the package's own record). ``out_of_scope``
+    (``smart_brain.scope.probe_queries``: documents left out of a scoped package, with words from their passages) are
+    searched for: no hit and no listed document may come from them. Temporary files sit next to the archive and are
     removed. Returns a per-layer report.
     """
     started = time.monotonic()
@@ -1051,6 +1130,9 @@ def verify_package(archive: str | Path, passphrase: str | None, *, studio_models
         if int(info.get("original_files") or 0):
             original = _check_original_mcp(root, env, requests[0], expected_originals or {})
             out["original"] = original
+        scope_check = _check_scope(root, env, requests[0], out_of_scope) if out_of_scope else None
+        if scope_check is not None:
+            out["scope"] = scope_check
         http = _check_http(root, env, original if original and original.get("ok") else None)
         out["http"] = http
         if lent:
@@ -1060,13 +1142,15 @@ def verify_package(archive: str | Path, passphrase: str | None, *, studio_models
         out.update(hits=count, identity=bool(profile.get("instructions")),
                    exercised={layer: exercised.get(layer, False) for layer in sorted(active)},
                    ok=(count > 0 and bool(active) and not missing and http["ok"]
-                       and (original is None or bool(original.get("ok")))),
+                       and (original is None or bool(original.get("ok")))
+                       and (scope_check is None or bool(scope_check.get("ok")))),
                    detail=(f"opened it, exercised {', '.join(sorted(active))} search and found {count} passages"
                            if count and not missing else
                            f"search did not exercise available layer(s): {', '.join(missing)}"
                            if missing else "the server opened it but a search found nothing")
                    + ("" if http["ok"] else f"; HTTP server: {http['detail']}")
-                   + ("" if original is None else f"; original file: {original['detail']}"))
+                   + ("" if original is None else f"; original file: {original['detail']}")
+                   + ("" if scope_check is None else f"; scope: {scope_check['detail']}"))
     except (OSError, subprocess.SubprocessError, ValueError, tarfile.TarError, zipfile.BadZipFile) as e:
         out["detail"] = f"could not open the package: {type(e).__name__}: {str(e)[:200]}"
     finally:
@@ -1103,6 +1187,24 @@ def _run_mcp(root: Path, env: dict, requests: list[dict]) -> dict:
         raise ValueError((done.stderr or "the server exited with an error").strip().splitlines()[-1])
     replies = [json.loads(line) for line in done.stdout.splitlines() if line.strip().startswith("{")]
     return {r.get("id"): r for r in replies}
+
+
+def _check_scope(root: Path, env: dict, init: dict, probes: dict[str, str]) -> dict:
+    """Search for words of documents left out of the package: none of them may come back, nor be listed."""
+    calls = [init, {"jsonrpc": "2.0", "id": 10, "method": "tools/call", "params": {
+        "name": "rag_list_documents", "arguments": {}}}]
+    calls += [{"jsonrpc": "2.0", "id": 11 + i, "method": "tools/call", "params": {
+        "name": "rag_search", "arguments": {"query": q, "top_k": 20}}} for i, q in enumerate(probes.values())]
+    replies = _run_mcp(root, env, calls)
+    outside = set(probes)
+    listed = {_base_id(d.get("document_id") or "") for d in (_tool_json(replies.get(10)) or [])}
+    leaked = listed & outside
+    for i in range(len(probes)):
+        hits = _tool_json(replies.get(11 + i)) or []
+        leaked |= {_base_id(h.get("document_id") or "") for h in hits} & outside
+    if leaked:
+        return {"ok": False, "detail": f"{len(leaked)} document(s) outside the scope can be found"}
+    return {"ok": True, "detail": f"{len(probes)} search(es) for left-out documents found nothing outside the scope"}
 
 
 def _check_original_mcp(root: Path, env: dict, init: dict, expected: dict[str, str]) -> dict:
