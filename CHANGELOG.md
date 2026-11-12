@@ -9,6 +9,10 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Settings → Apply update finds `uv` where it was installed (Linuxbrew, `~/.local/bin`, `~/.cargo/bin` or the path the
+  installer recorded) instead of failing every dependency step, and an update whose dependency sync or build fails
+  now stops before the restart with the failed steps as its reason instead of ending "Update complete".
+
 - The Package page opens at once: its checklist loads after the page, and the knowledge check behind it is kept until a
   file or the index changes (a 120-file project took 4 s per visit, now 0.2 s). The status pills sit next to each step
   instead of stretching across it.
