@@ -82,8 +82,9 @@ async def test_a_run_job_without_top_k_retrieves_ten(monkeypatch: pytest.MonkeyP
 
 def test_the_rag_page_defaults_match() -> None:
     html = (TEMPLATES / "brain.html").read_text(encoding="utf-8")
-    assert re.search(r'id="mcp-topk"[^>]*value="10"', html)
-    assert "|| 10," in html and "top_k: 10" in html
+    package = (TEMPLATES / "export_models.html").read_text(encoding="utf-8")
+    assert re.search(r'id="mcp-topk"[^>]*value="10"', package) and "|| 10," in package
+    assert "top_k: 10" in html
     assert not re.search(r"top_k:\s*5\b", html) and "|| 5," not in html
 
 

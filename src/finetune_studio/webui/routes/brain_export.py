@@ -18,7 +18,7 @@ import re
 import shutil
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
@@ -264,7 +264,8 @@ class ExportConfigSave(BaseModel):
 class StandaloneRequest(ExportConfigPatch):
     """Export request: optional overrides + the (never stored) passphrase."""
 
-    name: str | None = None
+    name: str | None = Field(default=None, max_length=120)   # the package's name (shown in its versions; file name)
+    audience: Literal["internal", "public", "other"] | None = None   # a label: who uses it (staff / customers)
     passphrase: str | None = Field(default=None, repr=False)
     scope: DocumentScope | None = None    # which documents go in (default: all)
     new_version_of: str | None = None     # a package id from this project's package history: keep it, bump the version
@@ -273,7 +274,7 @@ class StandaloneRequest(ExportConfigPatch):
 
 def _patch_values(p: ExportConfigPatch) -> dict[str, Any]:
     values = {k: v for k, v in p.model_dump().items()
-              if v is not None and k not in ("scope", "name", "passphrase", "new_version_of", "version")}
+              if v is not None and k not in ("scope", "name", "audience", "passphrase", "new_version_of", "version")}
     conn = values.pop("llm_connection", None)
     if conn:
         values = {**connection_llm_settings(conn), **values}   # a typed endpoint or model wins
@@ -443,7 +444,7 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
         raise HTTPException(status_code=422, detail=str(e)) from e
     from finetune_studio.smart_brain import package_meta as pm
 
-    title = req.name or proj["name"] or pid
+    title = (req.name or "").strip() or proj["name"] or pid
     out_dir = _package_dir(pid)
     base = None
     if req.new_version_of:
@@ -498,7 +499,9 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
                                        out_of_scope=probes)
     await asyncio.to_thread(pm.add_history, out_dir, {
         **record, "origin": "exported", "filename": result.path.name, "name": title, "scope": scope_record["label"],
-        "encrypted": result.encrypted, "changes_md": changes_md})
+        "audience": req.audience or (base or {}).get("audience") or "",
+        "originals": sum(1 for o in originals if keep is None or o.document_id in keep),
+        "hide_file_names": bool(cfg.hide_file_names), "encrypted": result.encrypted, "changes_md": changes_md})
     await asyncio.to_thread(record_package, pid, filename=result.path.name, size=result.size, encrypted=result.encrypted,
                             identity=brain_identity.is_set(brain_identity.load(pid)), verified=verified)
     return JSONResponse(
