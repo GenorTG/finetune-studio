@@ -1912,9 +1912,19 @@ async function load() {
   fillKinds(); syncKind(false);
   if (!pkg && !saved.model) $('conn').open = true;
 }
+const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+// Answers are Markdown-ish (**bold**, `code`, ### headings, - lists): escape first, then add <strong>/<code> only.
+const mdInline = (html) => String(html)
+  .replace(/^#{1,4} +(.+)$/gm, '<strong>$1</strong>')
+  .replace(/^([ \t]*)[-*] +/gm, '$1\u2022 ')
+  .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+  .replace(/`([^`\n]+)`/g, '<code>$1</code>');
 function bubble(cls, text) {
   const d = document.createElement('div');
-  d.className = 'turn ' + cls; d.textContent = text; $('chat').append(d); d.scrollIntoView({ block: 'nearest' });
+  d.className = 'turn ' + cls;
+  if (cls === 'bot') d.innerHTML = mdInline(esc(text)); else d.textContent = text;
+  $('chat').append(d); d.scrollIntoView({ block: 'nearest' });
   return d;
 }
 function sources(box, list) {

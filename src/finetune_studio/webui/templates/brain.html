@@ -623,6 +623,13 @@
   const esc = (s) => String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  // Answers are Markdown-ish (**bold**, `code`, ### headings, - lists): show them as such instead of raw asterisks.
+  // Takes ALREADY-ESCAPED text and adds only <strong>/<code> tags; the line breaks stay (white-space: pre-wrap).
+  const mdInline = (html) => String(html)
+    .replace(/^#{1,4} +(.+)$/gm, '<strong>$1</strong>')
+    .replace(/^([ \t]*)[-*] +/gm, '$1\u2022 ')
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>');
 
   function statusPill(status) {
     if (status === 'indexed') return '<span class="pill solid-green">indexed</span>';
@@ -1204,7 +1211,7 @@
       const msgId = 'm' + brainChat.length;
       const sources = d.sources || [];
       const groups = groupSources(reply, sources);
-      let html = '<div class="brain-answer">' + citeLinks(esc(reply), msgId, groups) + '</div>';
+      let html = '<div class="brain-answer">' + citeLinks(mdInline(esc(reply)), msgId, groups) + '</div>';
       const fu = d.followup;
       const asked = (d.follow_up_searches || []).filter(function (q) { return !fu || q !== fu.query; });
       if (asked.length) {

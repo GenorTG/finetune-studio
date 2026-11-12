@@ -9,6 +9,7 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Answers show their formatting: **bold**, `code`, headings and bullet lists in Smart Brain answers (and on a package's own chat page) are rendered instead of appearing as raw asterisks and hashes.
 - Two packages of one project no longer share a file: the archive name now carries the package id (`<name>-smart-brain-<id>-v1.0.0.tar.gz`). Before, exporting a second new package (say the internal one after a public-folder bot) overwrote the first one's file while Package versions still listed both, so downloading the public one could hand out the other.
 
 - Public bots can hide file names: Export → *Hide file names in answers* (`fts brain export --hide-file-names`, `RAG_HIDE_FILE_NAMES=1` where it runs; off by default). The package's answers then cite no `[file.docx]` (the answer model sees passages by number only and any file name it writes is removed) and its chat page shows no source list; your own tools still get the sources with `POST /ask {"sources": true}` or `rag_answer` with `include_sources`.
