@@ -285,6 +285,8 @@ def _fields() -> dict[tuple[str, str], Field]:
         Field("brain", "rerank_enabled", "#s-rerank-enabled", "bool", "Rerank"),
         Field("brain", "hybrid_enabled", "#s-hybrid-enabled", "bool", "Hybrid retrieval"),
         Field("brain", "rerank_top_n", "#s-rerank-top-n", "int", "Rerank top-N", minimum=1, maximum=200),
+        Field("brain", "max_per_document", "#s-max-per-doc", "int", "Passages per document in the top results",
+              minimum=0, maximum=100),
         Field("testing", "eval_kind", "#t-eval-kind", "choice", "Evaluation type", choices=("heldout", "training_leakage")),
         Field("wizard", "epochs", "#wiz-epochs", "int", "Epochs override", minimum=1, maximum=100),
         Field("inference", "n_ctx", "#n-ctx", "int", "Context length", minimum=0, maximum=1048576),

@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Smart Brain search no longer lets one document fill the top results: at most 3 passages of a document come first (Smart Brain → Retrieval settings → *Per document*, 0 = off), and its other passages still fill the end when nothing else matches. A long e-mail thread or contract stops pushing the passage that answers the second part of a question out of the top 10. The studio search and chat and exported packages use the same cap (package servers can override it with `max_per_document` / `RAG_MAX_PER_DOCUMENT` / `--max-per-document`).
+
 - Pictures in documents (chart images, table screenshots, scanned pages in docx, pptx and pdf files) are read by the vision reader as soon as the files are uploaded, whenever one is set in Settings → AI assistant → Reading pictures; before, only mining used it and a Smart Brain packaged the OCR text (a chart's months and values came apart). When only OCR read them, the parse result, the Files page ("N OCR only") and the Knowledge check say so ("N picture(s) read by OCR only — figures in charts may be wrong; set a vision reader") with a link to the setting; the Knowledge check's **Read pictures** button (or `fts brain pictures --read`) reads the ones left. Native Excel/PowerPoint/Word charts keep being read from their chart data.
 
 - A package exported with models and then opened in a project (Import / `fts brain import`) can be exported again with models: its reranker came back as a bare short id and the next export stopped with "the reranker … could not be bundled".

@@ -48,14 +48,21 @@ class BrainQuery:
     def search(self, query: str, top_k: int = DEFAULT_TOP_K,
                hybrid: bool | None = None,
                rerank: bool | None = None,
-               rerank_top_n: int | None = None) -> list[dict]:
-        """Top-k hits. hybrid/rerank default to manifest settings."""
+               rerank_top_n: int | None = None,
+               max_per_document: int | None = None) -> list[dict]:
+        """Top-k hits. hybrid/rerank/max_per_document default to manifest settings (``smart_brain.diversity``)."""
+        from finetune_studio.smart_brain.diversity import (
+            CANDIDATES_PER_RESULT,
+            diversify,
+        )
+
         if not query.strip():
             return []
         s = self.manifest.rag_settings
         use_hybrid = s.hybrid_enabled if hybrid is None else hybrid
         use_rerank = s.rerank_enabled if rerank is None else rerank
         n_before_rerank = rerank_top_n or s.rerank_top_n
+        cap = s.max_per_document if max_per_document is None else int(max_per_document)
 
         q = self.encode(query)
         q_dim = int(q.shape[0]) if getattr(q, "ndim", 0) == 1 else int(q.shape[-1])
@@ -84,7 +91,8 @@ class BrainQuery:
         # RRF
         rrf_scores = rrf_fuse([dense_rank, bm25_rank], k=s.rrf_k)
         candidates = sorted(rrf_scores.items(), key=lambda kv: -kv[1])
-        candidates = candidates[: max(top_k, n_before_rerank if use_rerank else top_k)]
+        pool = top_k * CANDIDATES_PER_RESULT if cap > 0 else top_k     # room to pass over a document's extra passages
+        candidates = candidates[: max(pool, n_before_rerank if use_rerank else top_k)]
 
         # Initial ranking result (pre-rerank)
         results = []
@@ -121,10 +129,11 @@ class BrainQuery:
                 # Pad with non-reranked tail
                 results = rerank_pool + results[n_before_rerank:]
 
-        # Re-number ranks and trim
-        for rank, r in enumerate(results[:top_k], start=1):
+        # One document may not fill the top results; then re-number ranks
+        results = diversify(results, top_k, cap)
+        for rank, r in enumerate(results, start=1):
             r["rank"] = rank
-        return results[:top_k]
+        return results
 
     def list_sources(self) -> list[dict]:
         """List current corpus documents from manifest / chunks (not stale dirs)."""

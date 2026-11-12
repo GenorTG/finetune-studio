@@ -68,6 +68,7 @@ class SearchRequest(BaseModel):
     hybrid: bool | None = None
     rerank: bool | None = None
     rerank_top_n: int | None = None
+    max_per_document: int | None = Field(default=None, ge=0, le=100)   # None = the index setting
 
 
 class ChatRequest(BaseModel):
@@ -101,6 +102,7 @@ class SettingsPatch(BaseModel):
     rerank_top_n: int | None = None
     hybrid_enabled: bool | None = None
     rrf_k: int | None = None
+    max_per_document: int | None = Field(default=None, ge=0, le=100)
 
 
 # ── Routes ──────────────────────────────────────────────────────────────
@@ -133,6 +135,7 @@ async def brain_status(pid: str):
         "rerank_top_n": m["rag_settings"]["rerank_top_n"],
         "hybrid_enabled": m["rag_settings"]["hybrid_enabled"],
         "rrf_k": m["rag_settings"]["rrf_k"],
+        "max_per_document": m["rag_settings"].get("max_per_document", 3),
         "created_at": m["created_at"],
         "updated_at": m["updated_at"],
         "state": state,
@@ -253,6 +256,7 @@ async def brain_get_settings(pid: str):
         "rerank_top_n": m.rag_settings.rerank_top_n,
         "hybrid_enabled": m.rag_settings.hybrid_enabled,
         "rrf_k": m.rag_settings.rrf_k,
+        "max_per_document": m.rag_settings.max_per_document,
         "chunk_settings": {
             "size": m.chunk_settings.size,
             "overlap": m.chunk_settings.overlap,
@@ -287,6 +291,8 @@ async def brain_patch_settings(pid: str, req: SettingsPatch):
         m.rag_settings.hybrid_enabled = req.hybrid_enabled
     if req.rrf_k is not None:
         m.rag_settings.rrf_k = req.rrf_k
+    if req.max_per_document is not None:
+        m.rag_settings.max_per_document = req.max_per_document
     m.updated_at = time.time()
     write_json(_corpus_dir(pid) / "manifest.json", m.to_json())
     return {"ok": True, "updated": req.model_dump(exclude_none=True)}
@@ -556,7 +562,7 @@ async def brain_search(pid: str, req: SearchRequest):
         return JSONResponse({"detail": f"load failed: {e}"}, status_code=500)
     hits = await asyncio.to_thread(q.search, req.query, top_k=req.top_k,
                                    hybrid=req.hybrid, rerank=req.rerank,
-                                   rerank_top_n=req.rerank_top_n)
+                                   rerank_top_n=req.rerank_top_n, max_per_document=req.max_per_document)
     weak = weak_match(req.query, hits)
     return {"hits": hits, "count": len(hits), "query": req.query, "weak": weak,
             "note": "These passages share few words with your question; the corpus may not cover it." if weak else ""}

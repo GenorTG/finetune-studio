@@ -27,6 +27,7 @@ While it builds, the bar shows the passages embedded, the time taken and the tim
 - `#brain-add-files-btn` — add files without leaving the page (`#brain-upload-input`).
 - `#chat-new-btn` — start a new conversation.
 - `#chat-model-select` — pick a local model to answer with when none is loaded.
+- `#s-max-per-doc` — Per document (retrieval settings): at most this many passages of one document in a search's top results before other documents get a turn (default 3; 0 = no cap); its other passages still fill the end when nothing else matches. Studio search, chat and exported packages use it (a package server can override it with `max_per_document` / `RAG_MAX_PER_DOCUMENT`).
 - `#b-embedder` — embedding model (multilingual-e5-large default; bge-large-en for English-only; all-MiniLM-L6-v2 is small and weaker).
 - `#build-btn` (under **Build options**) — build; `#rebuild-btn` wipes and rebuilds from scratch.
 - `#build-stop-btn` — stop a running build; it ends after the current batch and the old index stays as it was.
