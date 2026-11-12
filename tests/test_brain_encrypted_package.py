@@ -112,6 +112,10 @@ def test_roundtrip_matches_plaintext_baseline(corpus_dir: Path, tmp_path: Path) 
     assert not (enc / "corpus" / "chunks.jsonl").exists()
     assert (enc / "brain_container.py").is_file()
     assert "cryptography" in (enc / "requirements.txt").read_text()
+    readme = (enc / "README.md").read_text(encoding="utf-8")
+    assert readme.startswith("# Smart Brain knowledge package\n")
+    assert "Portable RAG pack" not in readme
+    assert "Test Corpus" not in readme
 
     for q in QUERIES:
         base = _query(plain, q)
