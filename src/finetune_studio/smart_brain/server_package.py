@@ -98,6 +98,7 @@ Desktop, OpenClaw, Cursor and friends speak).
 | `run-mcp.sh` | starts the MCP server on stdio (for agent apps) |
 | `mcp-config.example.json` | config snippet for agent apps |
 | `setup.sh` | guided setup: install, port, start, optional service, MCP entry |
+| `update.sh` | replace this package with a newer version of it, keeping your config (`setup.sh --update`) |
 
 {security_section}{layers_section}## Quickstart
 
@@ -355,6 +356,26 @@ cd "$(dirname "$0")"
 exec .venv/bin/python server.py --mcp "$@"
 """
 
+_UPDATE_SH = r"""#!/usr/bin/env bash
+# Replace this package with a newer version of the same package, in place:
+#   bash update.sh /path/to/new-version.tar.gz [--keyfile PATH] [--force]
+# The corpus, server and scripts are replaced; rag.config.json keeps your edits (new keys are added), the venv and
+# your keyfile stay. Another package id, or a version not newer, is refused unless --force. With --keyfile / RAG_PASSPHRASE the new corpus is
+# opened first, so a wrong passphrase changes nothing. A running service (setup.sh --service) is restarted.
+set -euo pipefail
+cd "$(dirname "$0")"
+[ $# -ge 1 ] || { sed -n '2,7p' "$0" | sed 's/^# \?//'; exit 2; }
+[ -x .venv/bin/python ] || bash install.sh
+.venv/bin/python server.py --update "$@"
+.venv/bin/pip install --quiet -r requirements.txt
+UNIT="fts-brain-$(basename "$(pwd)").service"
+if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet "$UNIT" 2>/dev/null; then
+  systemctl --user restart "$UNIT" && echo "Restarted $UNIT with the new version."
+else
+  echo "Restart the server (bash run-http.sh / run-mcp.sh, or your MCP client) to use the new version."
+fi
+"""
+
 _SETUP_SH = r"""#!/usr/bin/env bash
 # One-command setup for this Finetune Studio RAG pack.
 #
@@ -363,6 +384,8 @@ _SETUP_SH = r"""#!/usr/bin/env bash
 #   bash setup.sh --yes --start --port 8899
 #   bash setup.sh --service    run as a persistent systemd user service
 #   bash setup.sh --uninstall  remove the service (keeps files)
+#   bash setup.sh --update NEW.tar.gz [--keyfile PATH] [--force]
+#                              replace this package with its newer version
 #
 # Pass-through flags (forwarded to server.py): --config PATH --device D
 #   --host H --port N --top-k N --no-reranker --keyfile PATH
@@ -382,6 +405,7 @@ ASSUME_YES=0; DO_START=0; DO_SERVICE=0; DO_UNINSTALL=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
+    --update)      shift; exec bash "$PKG_DIR/update.sh" "$@" ;;
     --yes|-y)      ASSUME_YES=1 ;;
     --port)        shift; PORT="${1:?--port needs a number}" ;;
     --port=*)      PORT="${1#--port=}" ;;
@@ -394,7 +418,7 @@ while [ $# -gt 0 ]; do
     --start)       DO_START=1 ;;
     --service)     DO_SERVICE=1 ;;
     --uninstall)   DO_UNINSTALL=1 ;;
-    -h|--help)     sed -n '2,15p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help)     sed -n '2,17p' "$0" | sed 's/^# \?//'; exit 0 ;;
     *) echo "unknown option: $1 (try --help)"; exit 2 ;;
   esac
   shift
@@ -750,6 +774,23 @@ unless every file in it may be public.
 """
 
 
+def _version_section(package: dict | None, encrypted: bool) -> str:
+    """Version, id, date, parent; the document list only in a plaintext package (an encrypted README names none)."""
+    if not package:
+        return ""
+    docs = package.get("documents") or []
+    text = (f"## Version\n\nPackage `{package['package_id']}`, version **{package['version']}**, built "
+            f"{package['created']}" + (f", replaces version {package['parent_version']}" if package.get(
+                "parent_version") else " (first version)") + f". {len(docs)} document(s); `CHANGES.md` lists what "
+            "changed. `rag_info` and `GET /health` report the same, with every document's name and sha256.\n\n"
+            "Update a running copy in place (keeps `rag.config.json` and your keyfile): "
+            "`bash update.sh /path/to/new-version.tar.gz`.\n\n")
+    if not encrypted and docs:
+        text += "| Document | sha256 | Size |\n|---|---|---|\n" + "".join(
+            f"| {d['path']} | `{d['sha256'][:12]}` | {d['size']} |\n" for d in docs) + "\n"
+    return text
+
+
 def _scope_section(scope: dict | None) -> str:
     """Which documents are in the package. Folder/tag names only: no file names (an encrypted package's README
     holds no document names)."""
@@ -765,7 +806,8 @@ def _scope_section(scope: dict | None) -> str:
 
 def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool,
             models: bool, cfg: BrainExportConfig, bundled_embedder: bool = False,
-            bundled_reranker: bool = False, originals: int = 0, scope: dict | None = None) -> str:
+            bundled_reranker: bool = False, originals: int = 0, scope: dict | None = None,
+            package: dict | None = None) -> str:
     mcp_snippet = _mcp_config_example(slug if encrypted else f"{slug}-brain",
                                       NEUTRAL_ROOT if encrypted else f"{slug}-brain",
                                       encrypted).rstrip("\n")
@@ -779,7 +821,7 @@ def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool,
         enc_note=" (**encrypted** in `corpus/corpus.enc`)" if encrypted else "",
         container_note=("; `brain_container.py` next to it opens the encrypted corpus"
                         if encrypted else ""),
-        security_section=_scope_section(scope) + (_SECURITY_ENCRYPTED if encrypted else _SECURITY_PLAIN) + (
+        security_section=_version_section(package, encrypted) + _scope_section(scope) + (_SECURITY_ENCRYPTED if encrypted else _SECURITY_PLAIN) + (
             _README_ORIGINALS.format(
             count=originals, where=" (inside the encrypted container)" if encrypted else " (`corpus/originals/`)")
             if originals else ""),
@@ -855,6 +897,9 @@ def build_package(
     originals: list | None = None,
     documents: set[str] | None = None,
     scope: dict | None = None,
+    package: dict | None = None,
+    changes_md: str = "",
+    changes_md_public: str = "",
 ) -> PackageResult:
     """Assemble the hostable package for a built corpus and archive it.
 
@@ -873,6 +918,10 @@ def build_package(
     ``documents`` (``smart_brain.scope.resolve``) keeps only those document ids: the passages, their vectors, a BM25
     index recomputed over them, their parsed sources and originals; ``scope`` describes the choice (manifest,
     README, ``rag_info``). None = every document.
+
+    ``package`` (``package_meta.make_record``) is the version record: inside the manifest with its document list,
+    as a name-free ``package.json`` beside the corpus, and ``CHANGES.md`` (``changes_md``; an encrypted package gets
+    ``changes_md_public``, without document names, in plaintext and the full one inside the container).
     """
     import pandas as pd  # local import: only needed at export time
 
@@ -899,6 +948,8 @@ def build_package(
     if identity:   # inside the manifest, so an encrypted package keeps it encrypted
         manifest["identity"] = dict(identity)
     keep = set(documents) if documents is not None else None
+    if package:
+        manifest["package"] = dict(package)
     ship_originals = [o for o in (originals or []) if keep is None or o.document_id in keep] \
         if cfg.include_originals else []
     manifest["original_files"] = len(ship_originals)
@@ -979,6 +1030,8 @@ def build_package(
             for f in source_files:
                 with open(f, "rb") as fp:
                     cw.add(f"sources/{f.relative_to(corpus / 'sources').as_posix()}", fp)
+            if changes_md:
+                cw.add("CHANGES.md", changes_md.encode("utf-8"))
             if ship_originals:
                 cw.add(ORIGINALS_INDEX, _originals_index(ship_originals))
                 for o in ship_originals:
@@ -1026,13 +1079,17 @@ def build_package(
                        _mcp_config_example(f"{slug}" if encrypted else f"{slug}-brain",
                                            root, encrypted))
         for sh, body in (("install.sh", _INSTALL_SH), ("run-http.sh", _RUN_HTTP_SH),
-                         ("run-mcp.sh", _RUN_MCP_SH), ("setup.sh", _SETUP_SH)):
+                         ("run-mcp.sh", _RUN_MCP_SH), ("setup.sh", _SETUP_SH), ("update.sh", _UPDATE_SH)):
             sink.add_bytes(f"{root}/{sh}", body, 0o755)
+        if package:
+            from .package_meta import public_record
+            sink.add_bytes(f"{root}/package.json", json.dumps(public_record(package), indent=2) + "\n")
+            sink.add_bytes(f"{root}/CHANGES.md", (changes_md_public if encrypted else changes_md) or changes_md)
         sink.add_bytes(f"{root}/README.md", _readme(
             title=title, slug=slug, embed_model=embed_model,
             encrypted=encrypted, models=models, cfg=cfg,
             bundled_embedder=emb_src is not None, bundled_reranker=rr_src is not None,
-            originals=len(ship_originals), scope=manifest["scope"]))
+            originals=len(ship_originals), scope=manifest["scope"], package=package))
         sink.close()
         part.replace(out)
         ok = True

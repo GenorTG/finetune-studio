@@ -389,6 +389,32 @@
         <input id="mcp-topk" type="number" min="1" max="100" class="input" value="10">
       </div>
     </div>
+    <fieldset class="brain-layers mb-2" id="mcp-versioning">
+      <legend class="text-xs font-semibold">Version</legend>
+      <div class="grid grid-12 gap-3 items-end">
+        <div class="col-span-8">
+          <label class="block text-xs muted mb-1" for="mcp-base">Package</label>
+          <select id="mcp-base" class="select" title="A new package gets a new id at version 1.0.0. A new version keeps the package's id, bumps its version and lists what changed since then (CHANGES.md, the Package page). A running copy is updated with its update.sh.">
+            <option value="">A new package (version 1.0.0)</option>
+          </select>
+        </div>
+        <div class="col-span-4">
+          <label class="block text-xs muted mb-1" for="mcp-version">Version (blank = automatic)</label>
+          <input id="mcp-version" type="text" class="input" placeholder="1.0.0" autocomplete="off">
+        </div>
+      </div>
+      <details class="text-xs mt-2" id="mcp-base-upload-box"><summary>Use an exported package file as the base</summary>
+        <div class="grid grid-12 gap-3 items-end mt-2">
+          <div class="col-span-5"><label class="block text-xs muted mb-1" for="mcp-base-file">Package archive</label>
+            <input id="mcp-base-file" type="file" accept=".tar.gz,.tgz,.tar,.zip" class="input"></div>
+          <div class="col-span-5"><label class="block text-xs muted mb-1" for="mcp-base-pass">Its passphrase</label>
+            <input id="mcp-base-pass" type="password" autocomplete="off" class="input"></div>
+          <div class="col-span-2"><button class="btn w-full" type="button" id="mcp-base-upload" onclick="uploadPackageBase()">Read it</button></div>
+        </div>
+        <p class="dim mt-1">Only its id, version and document list are read (to compare against); nothing else is kept.</p>
+      </details>
+      <div class="text-xs mt-2" id="mcp-version-note" role="status" aria-live="polite"></div>
+    </fieldset>
     <fieldset class="brain-layers mb-2" id="mcp-scope">
       <legend class="text-xs font-semibold">Documents in the package</legend>
       <p class="text-xs dim mb-2">A package for a public chatbot can carry only part of the index (for example the
@@ -495,15 +521,17 @@
 <details class="card mb-4" id="brain-import-panel">
   <summary class="card-head">
     <div>
-      <div class="card-title">Import an index from another studio</div>
+      <div class="card-title">Import an index or open a package</div>
       <div class="card-sub">Load an encrypted <code>.ftsrag</code> bundle someone exported from their Smart Brain
-        (or a legacy .tar/.zip). It brings the passages, vectors and keyword index; the original files stay with the
-        exporting project, so a later rebuild here indexes this project's own files instead.</div>
+        (or a legacy .tar/.zip): it brings the passages, vectors and keyword index. Or <b>open an exported package</b>
+        (<code>.tar.gz</code> / <code>.zip</code> with its passphrase) to edit it: its index becomes this project's,
+        its original files (when it ships them) come back into Files in their folders, and the next export can be
+        a new version of it.</div>
     </div>
   </summary>
   <div class="grid grid-12 gap-3 items-end mb-2">
     <div class="col-span-5">
-      <label class="block text-xs muted mb-1" for="bundle-import-file">Bundle file (.ftsrag, or legacy .tar/.zip)</label>
+      <label class="block text-xs muted mb-1" for="bundle-import-file">Bundle (.ftsrag) or package (.tar.gz / .zip)</label>
       <input id="bundle-import-file" type="file" accept=".ftsrag,.tar,.tar.gz,.tgz,.zip" class="input">
     </div>
     <div class="col-span-5">
@@ -1214,7 +1242,9 @@
       const d = await api().post('/api/projects/' + PID + '/brain/import?overwrite=true', fd);
       document.getElementById('bundle-import-pass').value = '';
       status.textContent = 'Imported “' + (d.imported_from || f.name) + '”: ' + (d.documents || 0) + ' documents, '
-        + (d.chunks || 0) + ' passages. Reloading…';
+        + (d.chunks || 0) + ' passages'
+        + (d.package ? ', package v' + d.package.version + ', ' + d.package.restored_files + ' original file(s) back in Files'
+           + (d.package.note ? ' (' + d.package.note + ')' : '') : '') + '. Reloading…';
       notify('Index imported', 'success');
       setTimeout(() => window.location.reload(), 900);
     } catch (e) {
@@ -1245,8 +1275,51 @@
       llm_connection: g('mcp-llm-conn').value || null,
       include_originals: g('mcp-originals').checked,
       scope: mcpScope(),
+      new_version_of: document.getElementById('mcp-base').value || null,
+      version: document.getElementById('mcp-version').value.trim() || null,
     };
   }
+
+  // Versions: this project's package history feeds the "New version of" list.
+  var pkgHistory = [];
+  function syncVersion() {
+    var id = document.getElementById('mcp-base').value, note = document.getElementById('mcp-version-note');
+    var p = pkgHistory.find(function (x) { return x.package_id === id; });
+    var parts = p ? p.latest.split('.').map(Number) : null;
+    var next = p ? parts[0] + '.' + ((parts[1] || 0) + 1) + '.0' : '1.0.0';
+    document.getElementById('mcp-version').placeholder = next;
+    note.textContent = p ? 'Same package id (' + id + '), version ' + p.latest + ' \u2192 ' + next
+      + ': the export lists the documents added, changed and removed since ' + p.latest + '.'
+      : 'A new package id; its later exports can be new versions of it.';
+  }
+  window.loadPackageHistory = async function (select) {
+    try {
+      var r = await fetch('/api/projects/' + PID + '/brain/packages');
+      if (!r.ok) return;
+      pkgHistory = (await r.json()).packages || [];
+      var sel = document.getElementById('mcp-base'), keep = select || sel.value;
+      while (sel.options.length > 1) sel.remove(1);
+      pkgHistory.forEach(function (p) {
+        sel.add(new Option('New version of ' + (p.name || p.package_id) + ' \u2014 v' + p.latest + ' (' + p.package_id + ')', p.package_id));
+      });
+      if (keep && pkgHistory.some(function (p) { return p.package_id === keep; })) sel.value = keep;
+    } catch (e) { /* no history: a new package */ }
+    syncVersion();
+  };
+  window.uploadPackageBase = async function () {
+    var f = document.getElementById('mcp-base-file').files[0], note = document.getElementById('mcp-version-note');
+    if (!f) { note.textContent = 'Choose the exported package archive first.'; return; }
+    var fd = new FormData(); fd.append('file', f); fd.append('passphrase', document.getElementById('mcp-base-pass').value);
+    note.textContent = 'Reading the package\u2026';
+    try {
+      var r = await fetch('/api/projects/' + PID + '/brain/package-base', { method: 'POST', body: fd });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.detail || ('HTTP ' + r.status));
+      document.getElementById('mcp-base-pass').value = '';
+      await loadPackageHistory(d.package_id);
+    } catch (e) { note.textContent = 'Could not read it: ' + (e.message || e); }
+  };
+  document.getElementById('mcp-base').addEventListener('change', syncVersion);
 
   // Audience scope: which documents go in the package. The same rule as smart_brain/scope.py: a document is in when
   // it matches any chosen folder, tag or single document (nothing chosen = all).
@@ -1406,6 +1479,7 @@
     syncLayers();
     loadLlmConnections();
     loadScopeDocs();
+    loadPackageHistory();
   };
 
   window.saveMcpDefaults = async function (scope) {
@@ -1443,6 +1517,17 @@
       var d = await api().post('/api/projects/' + PID + '/brain/standalone', body);
       passEl.value = '';
       showPassphrase(d.passphrase);
+      if (d.package) {
+        var ch = d.changes || {};
+        var built = 'Built version ' + d.package.version
+          + (d.package.parent_version ? ' (after ' + d.package.parent_version + '): ' + (ch.added || []).length + ' added, '
+             + (ch.changed || []).length + ' changed, ' + (ch.removed || []).length + ' removed.' : ' (first version).');
+        document.getElementById('mcp-version').value = '';
+        loadPackageHistory(d.package.package_id).then(function () {   // the next export defaults to its next version
+          var vn = document.getElementById('mcp-version-note');
+          vn.textContent = built + ' Next export: ' + vn.textContent;
+        });
+      }
       if (note) note.textContent = (d.encrypted ? 'Encrypted package ' : 'PLAINTEXT package ')
         + d.filename + ' (' + humanBytes(d.size) + ') ready \u2014 downloading.'
         + (d.identity ? ' Identity included.' : ' No identity set.')

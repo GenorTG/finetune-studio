@@ -15,6 +15,7 @@ Take a finished run out of the studio: GGUF for llama.cpp, Ollama and LM Studio;
 5. **Importance matrix (imatrix)**: before quantizing, the app measures which weights the run's own training data relies on (llama-imatrix, up to 128 chunks of 512 tokens) and keeps those more precise. Same file size, better q4/q3/q2 quality, a few minutes extra. The files land in the run's `gguf-imatrix/` folder beside the plain `gguf/` ones; f16 and q8_0 are written without it, so tick at least one smaller quant.
 
 ## Key controls
+- `#package-versions` — the project's Smart Brain packages: each package id with its versions (date, documents, what changed since the parent) and the latest version's change report. New versions are built on the Smart Brain page's export card ("New version of …").
 - `#export-runs` — training runs to choose from.
 - `#gguf-quants` — quantization check boxes.
 - `#gguf-imatrix` — quantize with an importance matrix measured on the training data.
