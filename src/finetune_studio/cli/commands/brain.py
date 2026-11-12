@@ -181,7 +181,7 @@ def _export(args: argparse.Namespace) -> None:
         "semantic_search": args.semantic, "keyword_search": args.keyword, "reranker_enabled": args.reranker,
         "answer_enabled": args.answer, "llm_base_url": args.llm_base_url, "llm_model": args.llm_model,
         "llm_provider": args.llm_provider,
-        "llm_connection": args.llm_connection,
+        "llm_connection": args.llm_connection, "include_originals": args.originals,
         "top_k": args.top_k, "port": args.port, "host": args.host, "device": args.device,
     }.items() if v is not None}
     conn = patch.pop("llm_connection", None)
@@ -213,9 +213,13 @@ def _export(args: argparse.Namespace) -> None:
     ext = "zip" if cfg.archive_format == "zip" else cfg.archive_format
     out = out_dir / (f"{safe}-smart-brain{'-with-models' if cfg.include_models else ''}"
                      f"{'' if cfg.encrypt else '-PLAINTEXT'}.{ext}")
+    from finetune_studio.smart_brain import originals as brain_originals
+
+    originals = (brain_originals.collect(corpus, resolve_project(args.project)["id"] if args.project else None)
+                 if cfg.include_originals else [])
     try:
         result = build_package(corpus, out, name=title, config=cfg, passphrase=passphrase,
-                               identity=_identity_for(args, package=True))
+                               identity=_identity_for(args, package=True), originals=originals)
     except (FileNotFoundError, ValueError) as e:
         _die(str(e))
     from finetune_studio.smart_brain.server_package import (
@@ -223,7 +227,8 @@ def _export(args: argparse.Namespace) -> None:
         verify_package,
     )
 
-    verified = verify_package(result.path, result.passphrase or passphrase, studio_models=studio_models_for(corpus))
+    verified = verify_package(result.path, result.passphrase or passphrase, studio_models=studio_models_for(corpus),
+                              expected_originals={o.document_id: o.sha256 for o in originals})
     if args.project:
         from finetune_studio.cli.commands.dataset import resolve_project
         from finetune_studio.knowledge.readiness import record_package
@@ -231,7 +236,7 @@ def _export(args: argparse.Namespace) -> None:
         record_package(resolve_project(args.project)["id"], filename=result.path.name, size=result.size,
                        encrypted=result.encrypted, identity=bool(_identity_for(args)), verified=verified)
     print(json.dumps({"path": str(result.path), "size": result.size, "encrypted": result.encrypted,
-                      "verified": verified, "layers": result.layers,
+                      "verified": verified, "layers": result.layers, "original_files": len(originals),
                       "pipeline": pipeline_text(cfg, bundled_reranker=result.layers.get("reranker", False)),
                       **({"passphrase": result.passphrase, "note": "shown once: store it now, it is not saved"}
                          if result.passphrase else {})}, indent=2))
@@ -470,6 +475,9 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     sp.add_argument("--models", action=bo, default=None,
                     help="bundle the embedder (+ reranker) for offline use (~2 GB, not encrypted)")
     sp.add_argument("--encrypt", action=bo, default=None, help="encrypt the corpus (default on)")
+    sp.add_argument("--originals", action=bo, default=None,
+                    help="ship the original uploaded files (encrypted with the corpus); anyone who can reach the "
+                         "server can download them: leave off for a public bot (default off)")
     sp.add_argument("--passphrase-file", help="file holding the passphrase (default: generate one, printed once)")
     sp.add_argument("--format", choices=["tar.gz", "tar", "zip"])
     sp.add_argument("--top-k", type=int)

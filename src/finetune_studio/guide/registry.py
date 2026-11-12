@@ -141,6 +141,7 @@ def _controls() -> dict[str, Control]:
         ("brain.export_answer", "brain", "#mcp-answer", "Export: answer generation (LLM)"),
         ("brain.export_answer_preset", "brain", "#mcp-llm-preset", "Export: answer API preset (OpenAI, Claude, local)"),
         ("brain.export_pipeline", "brain", "#mcp-pipeline", "Export: pipeline summary"),
+        ("brain.export_originals", "brain", "#mcp-originals", "Export: include original files (downloadable)"),
         # training
         ("training.usecases", "training", "#uc-card", "Start from a use case"),
         ("training.usecase_new", "training", "#uc-new", "New use case form"),

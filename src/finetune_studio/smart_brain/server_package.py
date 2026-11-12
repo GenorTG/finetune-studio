@@ -58,6 +58,8 @@ _HERE = Path(__file__).parent
 _SERVER_SRC = _HERE / "standalone_server.py"
 _CONTAINER_SRC = _HERE / "brain_container.py"
 ENC_NAME = "corpus.enc"
+ORIGINALS_INDEX = "originals.json"
+ORIGINALS_DIR = "originals"
 MIN_PASSPHRASE_LEN = 8
 NEUTRAL_ROOT = "rag-pack"          # encrypted packs never put names in paths
 _COPY_BUF = 1024 * 1024
@@ -690,9 +692,25 @@ curl "http://127.0.0.1:8899/ask?q=your+question"
 """
 
 
+def _originals_index(rows: list) -> bytes:
+    return json.dumps([o.entry() for o in rows], ensure_ascii=False, indent=1).encode("utf-8")
+
+
+_README_ORIGINALS = """## Original files
+
+This package holds the {count} original file(s) the documents were read from{where}. **Anyone who can reach this
+server can download them**: over MCP with `rag_get_document(document_id | filename)` (an embedded resource; files over
+`file_inline_max_mb`, default 20 MB, come back as a link) and over HTTP at `GET /files/<document_id>` (same access
+token as the other routes). `rag_list_documents` lists every document, and search hits carry `document_id` and
+`original: true`. The chat page shows a download link under each source. Do not serve this package as a public bot
+unless every file in it may be public.
+
+"""
+
+
 def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool,
             models: bool, cfg: BrainExportConfig, bundled_embedder: bool = False,
-            bundled_reranker: bool = False) -> str:
+            bundled_reranker: bool = False, originals: int = 0) -> str:
     mcp_snippet = _mcp_config_example(slug if encrypted else f"{slug}-brain",
                                       NEUTRAL_ROOT if encrypted else f"{slug}-brain",
                                       encrypted).rstrip("\n")
@@ -706,7 +724,9 @@ def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool,
         enc_note=" (**encrypted** in `corpus/corpus.enc`)" if encrypted else "",
         container_note=("; `brain_container.py` next to it opens the encrypted corpus"
                         if encrypted else ""),
-        security_section=_SECURITY_ENCRYPTED if encrypted else _SECURITY_PLAIN,
+        security_section=(_SECURITY_ENCRYPTED if encrypted else _SECURITY_PLAIN) + (_README_ORIGINALS.format(
+            count=originals, where=" (inside the encrypted container)" if encrypted else " (`corpus/originals/`)")
+            if originals else ""),
         curl_hint='curl "http://127.0.0.1:8899/search?q=your+question&top_k=5"'
                   + ('   # add -H "Authorization: Bearer $TOKEN" if a token is set'),
         host=cfg.host, port=cfg.port, top_k=cfg.top_k, device=cfg.device,
@@ -717,8 +737,9 @@ def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool,
         embed_section=embed_section.format(embed_model=embed_model),
         mcp_snippet=mcp_snippet, mcp_enc_note=mcp_enc_note,
         layers_section=_layers_section(cfg, bundled_embedder=bundled_embedder, bundled_reranker=bundled_reranker),
-        tools=("`rag_search(query, top_k)`, `rag_profile()`, `rag_info()` and `rag_answer(question)`" if cfg.answer_enabled
-               else "`rag_search(query, top_k)`, `rag_profile()` and `rag_info()`"),
+        tools=", ".join(["`rag_search(query, top_k)`", "`rag_profile()`", "`rag_info()`", "`rag_list_documents()`"]
+                        + (["`rag_get_document(document_id)`"] if originals else [])
+                        + (["`rag_answer(question)`"] if cfg.answer_enabled else [])),
         sources_note=("the original documents are inside `corpus.enc` "
                       "(read lazily, in memory)." if encrypted else
                       "`corpus/sources/` keeps the parsed text of every document."),
@@ -775,6 +796,7 @@ def build_package(
     encrypt: bool | None = None,
     passphrase: str | None = None,
     identity: dict | None = None,
+    originals: list | None = None,
 ) -> PackageResult:
     """Assemble the hostable package for a built corpus and archive it.
 
@@ -786,6 +808,9 @@ def build_package(
     ``include_models`` / ``encrypt`` arguments override it.  With encryption on
     (the default) ``passphrase`` is used, or a strong one is generated and
     returned once in the result.  The key is never written anywhere.
+
+    ``originals`` (``smart_brain.originals.collect``) are the uploaded files; they ship only with
+    ``config.include_originals``, inside the encrypted container when the package is encrypted.
     """
     import pandas as pd  # local import: only needed at export time
 
@@ -811,6 +836,8 @@ def build_package(
     manifest["search_layers"] = search_layers(cfg)
     if identity:   # inside the manifest, so an encrypted package keeps it encrypted
         manifest["identity"] = dict(identity)
+    ship_originals = list(originals or []) if cfg.include_originals else []
+    manifest["original_files"] = len(ship_originals)
     title = name or manifest.get("name") or corpus.name
     if encrypted:  # nothing derived from the project/document names in paths/README
         title, slug, root = "Portable RAG pack", NEUTRAL_ROOT, NEUTRAL_ROOT
@@ -879,6 +906,11 @@ def build_package(
             for f in source_files:
                 with open(f, "rb") as fp:
                     cw.add(f"sources/{f.relative_to(corpus / 'sources').as_posix()}", fp)
+            if ship_originals:
+                cw.add(ORIGINALS_INDEX, _originals_index(ship_originals))
+                for o in ship_originals:
+                    with open(o.path, "rb") as fp:
+                        cw.add(f"{ORIGINALS_DIR}/{o.document_id}", fp)
             cw.close()
             size = spool.tell()
             spool.seek(0)
@@ -891,6 +923,10 @@ def build_package(
             for f in source_files:
                 sink.add_file(
                     f"{root}/corpus/sources/{f.relative_to(corpus / 'sources').as_posix()}", f)
+            if ship_originals:
+                sink.add_bytes(f"{root}/corpus/{ORIGINALS_INDEX}", _originals_index(ship_originals))
+                for o in ship_originals:
+                    sink.add_file(f"{root}/corpus/{ORIGINALS_DIR}/{o.document_id}", o.path)
         del chunks_jsonl, manifest_json
 
         # ---- models (public weights; streamed, never staged) -----------
@@ -919,7 +955,8 @@ def build_package(
         sink.add_bytes(f"{root}/README.md", _readme(
             title=title, slug=slug, embed_model=embed_model,
             encrypted=encrypted, models=models, cfg=cfg,
-            bundled_embedder=emb_src is not None, bundled_reranker=rr_src is not None))
+            bundled_embedder=emb_src is not None, bundled_reranker=rr_src is not None,
+            originals=len(ship_originals)))
         sink.close()
         part.replace(out)
         ok = True
@@ -946,14 +983,16 @@ def studio_models_for(corpus_dir: str | Path) -> dict[str, Path]:
 
 
 def verify_package(archive: str | Path, passphrase: str | None, *, studio_models: dict[str, Path] | None = None,
-                   embed_base_url: str | None = None) -> dict:
+                   embed_base_url: str | None = None, expected_originals: dict[str, str] | None = None) -> dict:
     """Open a finished package the way a customer would: unpack it, start its server, ask it something over MCP.
 
     Every search layer the package ships is exercised: meaning search, word search, their fusion and a bundled reranker.
     A package without its embedder inside needs one where it runs (RAG_EMBED_BASE_URL); ``studio_models`` lends the
     studio's copy of the same model for the check, so its vectors are still tested; ``embed_base_url`` points the check
     at an embedding endpoint instead. Then the package's HTTP server is
-    started and its chat page and MCP-over-HTTP endpoint are checked. Temporary files sit next to the archive and are
+    started and its chat page and MCP-over-HTTP endpoint are checked. A package with original files has one fetched
+    over MCP (``rag_get_document``) and over HTTP (``/files/<id>``), its sha256 compared with ``expected_originals``
+    (``document_id -> sha256`` of the studio's file; else the package's own record). Temporary files sit next to the archive and are
     removed. Returns a per-layer report.
     """
     started = time.monotonic()
@@ -1008,7 +1047,11 @@ def verify_package(archive: str | Path, passphrase: str | None, *, studio_models
         if shipped_semantic and "semantic" not in active:
             active.add("semantic")        # vectors are in the package but nothing could embed the question: a failure
         missing = sorted(layer for layer in active if not exercised.get(layer, False))
-        http = _check_http(root, env)
+        original = None
+        if int(info.get("original_files") or 0):
+            original = _check_original_mcp(root, env, requests[0], expected_originals or {})
+            out["original"] = original
+        http = _check_http(root, env, original if original and original.get("ok") else None)
         out["http"] = http
         if lent:
             out["lent"] = {"embedder": "meaning search ran with the studio's copy of the embedder: it is not inside "
@@ -1016,12 +1059,14 @@ def verify_package(archive: str | Path, passphrase: str | None, *, studio_models
                                        "Include models"}
         out.update(hits=count, identity=bool(profile.get("instructions")),
                    exercised={layer: exercised.get(layer, False) for layer in sorted(active)},
-                   ok=count > 0 and bool(active) and not missing and http["ok"],
+                   ok=(count > 0 and bool(active) and not missing and http["ok"]
+                       and (original is None or bool(original.get("ok")))),
                    detail=(f"opened it, exercised {', '.join(sorted(active))} search and found {count} passages"
                            if count and not missing else
                            f"search did not exercise available layer(s): {', '.join(missing)}"
                            if missing else "the server opened it but a search found nothing")
-                   + ("" if http["ok"] else f"; HTTP server: {http['detail']}"))
+                   + ("" if http["ok"] else f"; HTTP server: {http['detail']}")
+                   + ("" if original is None else f"; original file: {original['detail']}"))
     except (OSError, subprocess.SubprocessError, ValueError, tarfile.TarError, zipfile.BadZipFile) as e:
         out["detail"] = f"could not open the package: {type(e).__name__}: {str(e)[:200]}"
     finally:
@@ -1060,7 +1105,34 @@ def _run_mcp(root: Path, env: dict, requests: list[dict]) -> dict:
     return {r.get("id"): r for r in replies}
 
 
-def _check_http(root: Path, env: dict) -> dict:
+def _check_original_mcp(root: Path, env: dict, init: dict, expected: dict[str, str]) -> dict:
+    """Fetch the smallest original file over MCP and compare its sha256 with the studio's file."""
+    import base64
+    import hashlib
+
+    listed = _tool_json(_run_mcp(root, env, [init, {"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {
+        "name": "rag_list_documents", "arguments": {}}}]).get(5)) or []
+    shipped = sorted((d for d in listed if d.get("original")), key=lambda d: int(d.get("size") or 0))
+    if not shipped:
+        return {"ok": False, "detail": "rag_list_documents lists no original file"}
+    doc = shipped[0]
+    reply = _run_mcp(root, env, [init, {"jsonrpc": "2.0", "id": 6, "method": "tools/call", "params": {
+        "name": "rag_get_document", "arguments": {"document_id": doc["document_id"]}}}]).get(6) or {}
+    content = (reply.get("result") or {}).get("content") or []
+    try:
+        meta = json.loads(content[0]["text"])
+        blob = next(c["resource"]["blob"] for c in content if c.get("type") == "resource")
+    except (IndexError, KeyError, ValueError, StopIteration, TypeError):
+        return {"ok": False, "detail": f"rag_get_document returned no file for {doc.get('filename')!r}"}
+    got = hashlib.sha256(base64.b64decode(blob)).hexdigest()
+    want = expected.get(doc["document_id"]) or meta.get("sha256")
+    ok = got == want
+    return {"ok": ok, "document_id": doc["document_id"], "filename": doc.get("filename"), "sha256": got,
+            "detail": (f"{doc.get('filename')} came back over MCP unchanged (sha256 matches)" if ok else
+                       f"{doc.get('filename')} over MCP differs from the source (sha256 {got[:12]} != {str(want)[:12]})")}
+
+
+def _check_http(root: Path, env: dict, original: dict | None = None) -> dict:
     """Start the package's HTTP server on a free loopback port: the chat page loads and MCP over HTTP answers."""
     import socket
     import urllib.error
@@ -1099,6 +1171,14 @@ def _check_http(root: Path, env: dict) -> dict:
             found = json.loads(r.read())
         if "2026-07-28" not in (found.get("result") or {}).get("supportedVersions", []):
             return {"ok": False, "detail": "MCP over HTTP did not answer server/discover"}
+        if original:
+            import hashlib
+            with urllib.request.urlopen(f"{base}/files/{original['document_id']}", timeout=30) as r:
+                got = hashlib.sha256(r.read()).hexdigest()
+                attached = "attachment" in (r.headers.get("Content-Disposition") or "")
+            if got != original["sha256"] or not attached:
+                return {"ok": False, "detail": f"GET /files/{original['document_id']} did not return the original file"}
+            return {"ok": True, "detail": "chat page, MCP over HTTP and the original-file download answer"}
         return {"ok": True, "detail": "chat page and MCP over HTTP answer"}
     except (urllib.error.URLError, OSError, ValueError) as e:
         return {"ok": False, "detail": f"{type(e).__name__}: {str(e)[:160]}"}

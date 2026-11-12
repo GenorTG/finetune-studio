@@ -14,10 +14,12 @@ Modes
     --http [PORT]   GET /  chat page (bring an OpenAI / Claude / compatible API, or the package's own connection)
                     POST /mcp  MCP over HTTP (streamable HTTP; legacy and 2026-07-28 clients)
                     REST API:   GET /health   GET /profile   GET /search?q=...&top_k=5[&source_prefix=pl-]
+                                GET /files/<document_id>  (an original file, when the package ships them)
                     Binds 127.0.0.1 by default.  A non-loopback --host
                     REQUIRES an auth token (Authorization: Bearer ...).
     --mcp           MCP stdio server (JSON-RPC 2.0 over stdin/stdout).
-                    Exposes rag_search(query, top_k), rag_profile() and rag_info().
+                    Exposes rag_search(query, top_k), rag_profile(), rag_info(), rag_list_documents() and,
+                    with original files inside, rag_get_document(document_id | filename).
     --query TEXT    one search, JSON on stdout.
     --print-config  show the effective merged config (secrets redacted).
     --save-config   persist the given flags into rag.config.json.
@@ -29,6 +31,7 @@ Configuration precedence:  CLI flags > env (RAG_*) > rag.config.json > defaults.
     query_prefix/RAG_QUERY_PREFIX (prepended to the embedded query; Qwen3: "Instruct: ...\\nQuery:")
     dense_extra/RAG_DENSE_EXTRA (also return the N best passages by meaning alone)
     follow_up/RAG_FOLLOW_UP (answers: follow-up searches the answer model may ask for, 0 = off; default 1)
+    file_inline_max_mb/RAG_FILE_INLINE_MAX_MB (rag_get_document: larger files come back as a /files/ link; 20)
     config path: --config / RAG_CONFIG / <this dir>/rag.config.json
 
 Embedding, best available source first:
@@ -64,6 +67,9 @@ HERE = Path(__file__).resolve().parent
 CORPUS_DIR = HERE / "corpus"
 ENC_NAME = "corpus.enc"
 CONFIG_NAME = "rag.config.json"
+ORIGINALS_INDEX = "originals.json"
+ORIGINALS_DIR = "originals"
+_SAFE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 _TOKEN_RE = re.compile(r"[A-Za-z0-9]+(?:[\-'][A-Za-z0-9]+)*|[\u00A0-\uFFFF]+", re.UNICODE)
 # MCP: the 2026-07-28 revision is stateless (version in each request's _meta, server/discover); older clients open
 # with initialize. This server answers both ("dual-era").
@@ -83,7 +89,7 @@ DEFAULT_CONFIG: dict = {
     "embed_base_url": "", "embed_api_key": "", "query_prefix": "", "dense_extra": 0,
     "semantic": True, "keyword": True, "answer": False,
     "llm_base_url": "", "llm_model": "", "llm_api_key": "", "answer_max_tokens": 512,
-    "llm_headers": {}, "llm_body": {}, "follow_up": 1, "provider": "openai",
+    "llm_headers": {}, "llm_body": {}, "follow_up": 1, "provider": "openai", "file_inline_max_mb": 20,
 }
 ENV_KEYS = {
     "host": "RAG_HOST", "port": "RAG_PORT", "top_k": "RAG_TOP_K",
@@ -95,7 +101,7 @@ ENV_KEYS = {
     "llm_base_url": "RAG_LLM_BASE_URL", "llm_model": "RAG_LLM_MODEL", "llm_api_key": "RAG_LLM_API_KEY",
     "answer_max_tokens": "RAG_ANSWER_MAX_TOKENS",
     "llm_headers": "RAG_LLM_HEADERS", "llm_body": "RAG_LLM_BODY", "follow_up": "RAG_FOLLOW_UP",
-    "provider": "RAG_LLM_PROVIDER",
+    "provider": "RAG_LLM_PROVIDER", "file_inline_max_mb": "RAG_FILE_INLINE_MAX_MB",
 }
 SECRET_KEYS = frozenset({"auth_token", "embed_api_key", "llm_api_key"})
 BOOL_KEYS = frozenset({"reranker", "semantic", "keyword", "answer"})
@@ -171,7 +177,7 @@ class ConfigError(Exception):
 
 def _coerce(key: str, value: object) -> object:
     try:
-        if key in ("port", "top_k", "dense_extra", "answer_max_tokens", "follow_up"):
+        if key in ("port", "top_k", "dense_extra", "answer_max_tokens", "follow_up", "file_inline_max_mb"):
             return int(value)  # type: ignore[call-overload]
         if key == "query_prefix":   # "\n" in an env value / unit file = a newline (Qwen3: "Instruct: …\nQuery:")
             return str(value).replace("\\n", "\n")
@@ -225,6 +231,8 @@ def resolve_config(flags: Mapping[str, object], env: Mapping[str, str],
         raise ConfigError("answer_max_tokens must be 16..32768")
     if not 0 <= cfg["follow_up"] <= MAX_FOLLOW_UPS:
         raise ConfigError(f"follow_up must be 0..{MAX_FOLLOW_UPS}")
+    if not 1 <= cfg["file_inline_max_mb"] <= 512:
+        raise ConfigError("file_inline_max_mb must be 1..512")
     if not (cfg["semantic"] or cfg["keyword"]):
         raise ConfigError("meaning search and word search are both off: turn on at least one")
     cfg["llm_base_url"] = str(cfg["llm_base_url"]).rstrip("/")
@@ -357,6 +365,13 @@ class Corpus:
             if line.strip()
         ]
         self.identity = dict(self.manifest.get("identity") or {})   # who it speaks for and how it answers (studio)
+        # Original files ("Include original files" at export): originals.json lists them, originals/<id> holds each.
+        self.originals: dict[str, dict] = {}
+        if has(ORIGINALS_INDEX):
+            for row in json.loads(read(ORIGINALS_INDEX).decode("utf-8")):
+                if isinstance(row, dict) and _SAFE_ID.fullmatch(str(row.get("document_id") or "")):
+                    self.originals[str(row["document_id"])] = row
+        self._read = read
         self.chunk_ids = [c["id"] for c in self.chunks]
         self.idx_map = {cid: i for i, cid in enumerate(self.chunk_ids)}
         # Search layers: a layer runs when the package ships its files AND the config leaves it on. A flag can turn
@@ -401,6 +416,65 @@ class Corpus:
             # Meaning search alone with nothing to embed the question: every search would come back empty.
             raise ConfigError("meaning search is the only layer on, but there is no bundled embedder and no "
                               "RAG_EMBED_BASE_URL to embed questions with")
+
+    def original_for(self, document_id: str) -> dict | None:
+        """The original-file row of a document (a fact-card row ``<id>~facts`` shares its file's), or None."""
+        return self.originals.get(str(document_id or "").split("~", 1)[0])
+
+    def find_original(self, document_id: str = "", filename: str = "") -> dict | None:
+        """By id, else by file name (exact, then case-insensitive, then a unique partial match)."""
+        if document_id:
+            return self.original_for(document_id)
+        name = (filename or "").strip()
+        if not name:
+            return None
+        indexed = {d["document_id"]: d["filename"] for d in self.documents(limit=1 << 30)}
+        rows = [(r, {r["filename"], indexed.get(r["document_id"], r["filename"])}) for r in self.originals.values()]
+        for test in (lambda n: n == name, lambda n: n.lower() == name.lower()):
+            found = [r for r, names in rows if any(test(n) for n in names)]
+            if found:
+                return found[0]
+        partial = [r for r, names in rows if any(name.lower() in n.lower() for n in names)]
+        return partial[0] if len(partial) == 1 else None
+
+    def read_original(self, document_id: str) -> bytes:
+        """The original file's bytes (decrypted in memory for an encrypted package). KeyError when there is none."""
+        row = self.original_for(document_id)
+        if row is None:
+            raise KeyError(document_id)
+        return self._read(f"{ORIGINALS_DIR}/{row['document_id']}")
+
+    def documents(self, name_contains: str = "", about: str = "", limit: int = 200) -> list[dict]:
+        """The documents in this package: id, file name, type, size, date, whether the original file is inside.
+
+        ``name_contains`` filters by file name; ``about`` keeps the documents whose passages a search for it finds,
+        best first ("which files do you have about X")."""
+        rows: dict[str, dict] = {}
+        for meta in (self.manifest.get("extra") or {}).get("documents_meta") or []:
+            did = str(meta.get("document_id") or "").split("~", 1)[0]
+            if did and did not in rows:
+                rows[did] = {"document_id": did, "filename": str(meta.get("filename") or "")}
+        for c in self.chunks:
+            did = str(c.get("document_id") or "").split("~", 1)[0]
+            if did and did not in rows:
+                rows[did] = {"document_id": did, "filename": c.get("filename") or c.get("source") or ""}
+        for did, row in rows.items():
+            orig = self.originals.get(did)
+            if orig and orig.get("filename") and orig["filename"] != row["filename"]:
+                row["original_filename"] = orig["filename"]
+            row.update({"type": (orig or {}).get("mime_type") or _guess_type(row["filename"]),
+                        "size": (orig or {}).get("size"), "date": (orig or {}).get("date"),
+                        "original": orig is not None})
+        found = list(rows.values())
+        if name_contains:
+            needle = name_contains.lower()
+            found = [r for r in found if needle in r["filename"].lower()]
+        if about:
+            order: dict[str, int] = {}
+            for h in self.search(about, MAX_TOP_K):
+                order.setdefault(str(h.get("document_id") or "").split("~", 1)[0], len(order))
+            found = sorted((r for r in found if r["document_id"] in order), key=lambda r: order[r["document_id"]])
+        return found[: max(1, int(limit))]
 
     def read_source(self, name: str) -> str:
         """Lazily decrypt one original document (``sources/<name>``)."""
@@ -579,6 +653,8 @@ class Corpus:
                 "document_id": c.get("document_id", ""),
                 "chunk_index": c.get("chunk_index", 0),
             }
+            if self.original_for(hit["document_id"]) is not None:
+                hit["original"] = True
             if dense_scores is not None:
                 hit["dense_score"] = round(float(dense_scores[i]), 6)
             if bm25 is not None:
@@ -612,6 +688,8 @@ class Corpus:
                              "dense_score": round(float(dense_scores[i]), 6)}
                 if bm25 is not None:
                     extra_hit["bm25_score"] = round(float(bm25[i]), 6)
+                if self.original_for(extra_hit["document_id"]) is not None:
+                    extra_hit["original"] = True
                 hits.append(extra_hit)
                 extra -= 1
         for rank, h in enumerate(hits, start=1):
@@ -655,6 +733,7 @@ class Corpus:
             "layers": lay,
             "embed_endpoint": self.embed_base or "(not set)",
             "identity": self.identity.get("name") or ("set" if self.identity else "none"),
+            "original_files": len(self.originals),
             "answer_connection": {
                 "configured": bool(self.cfg["answer"] and self.cfg["llm_base_url"] and self.cfg["llm_model"]),
                 "provider": self.cfg["provider"], "base_url": self.cfg["llm_base_url"], "model": self.cfg["llm_model"],
@@ -686,6 +765,7 @@ class Corpus:
                                         follow_ups=int(self.cfg["follow_up"]),
                                         system_prompt=self.identity.get("system_prompt", ""), history=history)
         sources = [{"rank": h["rank"], "filename": h["filename"], "chunk_id": h["chunk_id"],
+                    "document_id": h.get("document_id", ""), "original": bool(h.get("original")),
                     "preview": str(h.get("text") or "")[:600]} for h in result["hits"]]
         return {"question": question, "answer": result["answer"], "sources": sources, "weak": weak,
                 "model": (provider or {}).get("llm_model", self.cfg["llm_model"]),
@@ -816,6 +896,19 @@ def answer_with_follow_ups(question: str, hits: list[dict], search, chat, *, fol
     return {"answer": reply, "hits": hits, "follow_up_searches": asked}
 
 
+def _guess_type(filename: str) -> str:
+    import mimetypes
+    return mimetypes.guess_type(filename or "")[0] or "application/octet-stream"
+
+
+def _disposition(filename: str) -> str:
+    """``attachment`` with an ASCII fallback name and the real one RFC 5987-encoded."""
+    from urllib.parse import quote
+    name = (filename or "document").replace("\\", "_").replace("/", "_")
+    ascii_name = re.sub(r'[^A-Za-z0-9._ -]', "_", name).strip() or "document"
+    return f'attachment; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(name, safe="")}'
+
+
 def weak_match(query: str, hits: list[dict]) -> bool:
     """True when the passages cover too few of the question's content words (the studio's answer-gate check)."""
     terms = {w for w in re.findall(r"[a-z0-9]{4,}", query.lower()) if w not in _STOP}
@@ -882,6 +975,8 @@ def make_handler(corpus: Corpus, token: str = ""):
                 self._json({"ok": True, **corpus.info()})
             elif u.path == "/profile":
                 self._json(corpus.profile())
+            elif u.path.startswith("/files/"):
+                self._file(u.path[len("/files/"):])
             elif u.path == "/ask":
                 q = (parse_qs(u.query).get("q") or [""])[0]
                 self._answer(q, None)
@@ -896,7 +991,28 @@ def make_handler(corpus: Corpus, token: str = ""):
                 except ValueError as e:
                     self._json({"error": str(e)}, 400)
             else:
-                self._json({"error": "not found — try /, /health, /profile, /search?q=..., /ask?q=... or POST /mcp"}, 404)
+                self._json({"error": "not found — try /, /health, /profile, /search?q=..., /ask?q=..., /files/<id> "
+                                     "or POST /mcp"}, 404)
+
+        def _file(self, document_id: str):
+            """GET /files/<document_id>: an original file, as a download. Ids come from the package's own list only."""
+            row = corpus.original_for(document_id) if _SAFE_ID.fullmatch(document_id) else None
+            if row is None:
+                self._json({"error": "no original file with that id in this package"}, 404)
+                return
+            try:
+                data = corpus.read_original(row["document_id"])
+            except (KeyError, OSError) as e:
+                self._json({"error": f"original file unreadable: {e}"}, 500)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", row.get("mime_type") or "application/octet-stream")
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Content-Disposition", _disposition(row.get("filename") or ""))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            self.wfile.write(data)
 
         def _static(self, text: str, kind: str):
             data = text.encode()
@@ -934,7 +1050,7 @@ def make_handler(corpus: Corpus, token: str = ""):
                 reply({"jsonrpc": "2.0", "id": body.get("id"), "error": {
                     "code": -32600, "message": "HeaderMismatch: MCP-Protocol-Version differs from the request _meta"}}, 400)
                 return
-            out = mcp_responder(corpus)(body)
+            out = mcp_responder(corpus, base_url=f"http://{self.headers.get('Host') or 'localhost'}")(body)
             if out is None:
                 self.send_response(202)
                 self.send_header("Content-Length", "0")
@@ -1078,6 +1194,38 @@ _TOOLS = [{
     "annotations": {"title": "Knowledge base stats", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True,
                     "openWorldHint": False},
 }]
+_LIST_TOOL = {
+    "name": "rag_list_documents",
+    "description": ("The documents in this knowledge base: file name, id, type, size, date, and whether the original "
+                    "file can be downloaded (rag_get_document). Filter by file name, or ask which files are about a "
+                    "topic."),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "name_contains": {"type": "string", "description": "Only files whose name contains this (optional)."},
+            "about": {"type": "string",
+                      "description": "Only files with passages about this, best match first (optional)."},
+            "limit": {"type": "integer", "description": "At most this many (default 200)."},
+        },
+    },
+    "annotations": {"title": "List the documents", "readOnlyHint": True, "destructiveHint": False,
+                    "idempotentHint": True, "openWorldHint": False},
+}
+_GET_TOOL = {
+    "name": "rag_get_document",
+    "description": ("Get one original file of this knowledge base (the PDF, spreadsheet, … that was uploaded), by "
+                    "document_id (from rag_search or rag_list_documents) or file name. Returned as an embedded "
+                    "resource; a file over the size limit comes back as a download link instead."),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "document_id": {"type": "string", "description": "The document's id (preferred)."},
+            "filename": {"type": "string", "description": "The file name, when the id is not known."},
+        },
+    },
+    "annotations": {"title": "Get an original file", "readOnlyHint": True, "destructiveHint": False,
+                    "idempotentHint": True, "openWorldHint": False},
+}
 _ANSWER_TOOL = {
     "name": "rag_answer",
     "description": ("Answer a question from this corpus: searches it, then a language model writes the answer "
@@ -1138,7 +1286,41 @@ def _ready(corpus, wait: float | None = None):
 INSTRUCTIONS_WAIT = 2.0
 
 
-def mcp_responder(corpus: Corpus | LoadingCorpus):
+def _tools_for(corpus) -> list[dict]:
+    """The tool list: rag_get_document only when the package ships original files (known once the corpus is open)."""
+    tools = list(_TOOLS) + [_LIST_TOOL]
+    opened = _ready(corpus, INSTRUCTIONS_WAIT)
+    if opened is not None and opened.originals:
+        tools.append(_GET_TOOL)
+    return tools + ([_ANSWER_TOOL] if corpus.cfg["answer"] else [])
+
+
+def _get_document(corpus: Corpus, args: dict, base_url: str) -> list[dict]:
+    """rag_get_document's MCP content: the file's details as text, then the file as an embedded resource (or the
+    /files/ link when it is over the size limit)."""
+    import base64
+    row = corpus.find_original(str(args.get("document_id") or ""), str(args.get("filename") or ""))
+    if row is None:
+        raise ValueError("no original file matches; rag_list_documents shows what is available")
+    did = row["document_id"]
+    path = f"/files/{did}"
+    meta = {k: row.get(k) for k in ("document_id", "filename", "mime_type", "size", "sha256", "date")}
+    meta["url"] = (base_url.rstrip("/") + path) if base_url else path
+    cap = int(corpus.cfg.get("file_inline_max_mb") or 20) * 1024 * 1024
+    if int(row.get("size") or 0) > cap:
+        meta["inline"] = False
+        meta["note"] = (f"larger than the {cap // (1024 * 1024)} MB inline limit: download it from the url "
+                        "(HTTP server, same access token)")
+        return [{"type": "text", "text": json.dumps(meta, ensure_ascii=False)}]
+    data = corpus.read_original(did)
+    meta["inline"] = True
+    return [{"type": "text", "text": json.dumps(meta, ensure_ascii=False)},
+            {"type": "resource", "resource": {"uri": f"brain://files/{did}", "mimeType": meta["mime_type"]
+                                              or "application/octet-stream",
+                                              "blob": base64.b64encode(data).decode("ascii")}}]
+
+
+def mcp_responder(corpus: Corpus | LoadingCorpus, base_url: str = ""):
     """One JSON-RPC message in, its reply (or None for a notification) out; transport-free, used by stdio and HTTP.
 
     Modern requests (2026-07-28) carry their version in ``params._meta``; their results get ``resultType`` and the
@@ -1188,7 +1370,7 @@ def mcp_responder(corpus: Corpus | LoadingCorpus):
         if method == "ping":
             return ok({})
         if method == "tools/list":
-            tools = _TOOLS + ([_ANSWER_TOOL] if corpus.cfg["answer"] else [])
+            tools = _tools_for(corpus)
             return ok({"tools": tools, **({"ttlMs": 60000, "cacheScope": "private"} if modern else {})})
         if method == "tools/call":
             name = params.get("name")
@@ -1204,6 +1386,11 @@ def mcp_responder(corpus: Corpus | LoadingCorpus):
                     out = corpus_now.info()
                 elif name == "rag_profile":
                     out = corpus_now.profile()
+                elif name == "rag_list_documents":
+                    out = corpus_now.documents(str(args.get("name_contains") or ""), str(args.get("about") or ""),
+                                               int(args["limit"]) if args.get("limit") is not None else 200)
+                elif name == "rag_get_document" and corpus_now.originals:
+                    return ok({"content": _get_document(corpus_now, args, base_url), "isError": False})
                 elif name == "rag_answer" and corpus.cfg["answer"]:
                     out = corpus_now.answer(str(args.get("question", "")),
                                         int(args["top_k"]) if args.get("top_k") is not None else None)
@@ -1365,7 +1552,7 @@ textarea{min-height:76px;resize:vertical}.row{display:grid;grid-template-columns
 button{background:var(--accent);color:#10201e;font-weight:700;border:0;border-radius:9px;padding:10px 18px;cursor:pointer}button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
 button:disabled{opacity:.6;cursor:wait}#chat{display:grid;gap:12px;margin:14px 0}.turn{border:1px solid var(--line);border-radius:14px;padding:14px;white-space:pre-wrap;line-height:1.55;overflow-wrap:anywhere}
 .user{background:#1d2f31;border-color:#537d77;justify-self:end;max-width:90%}.bot{background:var(--panel)}.err{border-color:var(--err);color:var(--err)}
-.src{margin-top:10px;font-size:13px;color:var(--muted)}.src details{margin-top:4px}.src pre{white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;margin:6px 0 0;padding:8px;border-left:2px solid var(--line)}
+.src{margin-top:10px;font-size:13px;color:var(--muted)}.src a.dl{display:inline-block;margin:2px 0 4px;color:var(--accent)}.src details{margin-top:4px}.src pre{white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;margin:6px 0 0;padding:8px;border-left:2px solid var(--line)}
 .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}@media(max-width:600px){.row{grid-template-columns:1fr}}
 </style><main>
 <h1 id="title">Smart Brain</h1><p class="muted" id="about">Ask the documents in this package. Every answer lists the files it came from.</p>
@@ -1448,14 +1635,31 @@ function sources(box, list) {
   if (!list || !list.length) return;
   const wrap = document.createElement('div'); wrap.className = 'src'; wrap.textContent = 'Sources';
   const seen = new Map();
-  for (const s of list) { if (!seen.has(s.filename)) seen.set(s.filename, []); seen.get(s.filename).push(s.preview || ''); }
-  for (const [name, parts] of seen) {
+  for (const s of list) {
+    if (!seen.has(s.filename)) seen.set(s.filename, { parts: [], doc: '' });
+    const e = seen.get(s.filename); e.parts.push(s.preview || '');
+    if (s.original && s.document_id) e.doc = s.document_id.split('~')[0];
+  }
+  for (const [name, { parts, doc }] of seen) {
     const d = document.createElement('details'), sum = document.createElement('summary');
     sum.textContent = `${name} · ${parts.length} passage${parts.length === 1 ? '' : 's'}`; d.append(sum);
     for (const t of parts) { const pre = document.createElement('pre'); pre.textContent = t; d.append(pre); }
     wrap.append(d);
+    if (doc) {   // the package ships the original file: download it with the server's token
+      const a = document.createElement('a'); a.href = '#'; a.className = 'dl'; a.textContent = '⬇ Download ' + name;
+      a.addEventListener('click', (ev) => { ev.preventDefault(); download(doc, name); }); wrap.append(a);
+    }
   }
   box.append(wrap);
+}
+async function download(id, name) {
+  try {
+    const r = await fetch('/files/' + encodeURIComponent(id), { headers: headers() });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || `download failed (${r.status})`);
+    const url = URL.createObjectURL(await r.blob()), a = document.createElement('a');
+    a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch (e) { $('status').textContent = 'Download failed: ' + e.message; }
 }
 $('kind').addEventListener('change', () => { syncKind(true); remember(); });
 for (const id of ['base', 'model', 'key', 'keep']) $(id).addEventListener('change', () => { remember(); syncKind(false); });

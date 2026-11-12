@@ -451,6 +451,10 @@
       <label class="flex items-center gap-2" title="Ship the embedding model (for meaning search) and the reranker inside, for fully offline use (about 0.2 GB with the small MiniLM models, about 4.5 GB with e5-large and bge-reranker-v2-m3). Model weights are public and are NOT encrypted."><input id="mcp-models" type="checkbox"> Include models (not encrypted)</label>
       <label class="flex items-center gap-2 brain-plaintext-opt" title="Off the default path. Documents and index become plain files in the archive."><input id="mcp-noenc" type="checkbox"> Export WITHOUT encryption (plaintext)</label>
     </div>
+    <div class="mb-2 text-xs" id="mcp-originals-row">
+      <label class="flex items-center gap-2" title="Ship the uploaded files themselves (PDF, spreadsheet, …), encrypted with the corpus. Agents get them with the MCP tool rag_get_document, browsers at /files/&lt;id&gt; and the chat page shows a download link per source."><input id="mcp-originals" type="checkbox"> Include original files</label>
+      <p class="dim mt-1" id="mcp-originals-note">Anyone with access to the package server can download them. Leave this off for a public bot.</p>
+    </div>
     <div class="flex gap-2 items-center">
       <button class="btn primary" type="button" id="mcp-pkg-btn" onclick="startMcpPackage()"
               title="Build the standalone package with the options above, then download it.">&#11015; Build &amp; download standalone server</button>
@@ -1221,6 +1225,7 @@
       llm_model: g('mcp-llm-model').value.trim(),
       llm_provider: g('mcp-llm-provider').value || 'openai',
       llm_connection: g('mcp-llm-conn').value || null,
+      include_originals: g('mcp-originals').checked,
     };
   }
 
@@ -1311,6 +1316,7 @@
     g('mcp-rerank').checked = !!c.reranker_enabled; g('mcp-noenc').checked = !c.encrypt;
     g('mcp-sem').checked = c.semantic_search !== false; g('mcp-kw').checked = c.keyword_search !== false;
     g('mcp-answer').checked = !!c.answer_enabled;
+    g('mcp-originals').checked = !!c.include_originals;
     g('mcp-llm-url').value = c.llm_base_url || ''; g('mcp-llm-model').value = c.llm_model || '';
     g('mcp-llm-provider').value = c.llm_provider || 'openai';
     var pre = [].find.call(g('mcp-llm-preset').options, function (o) { return o.value && o.dataset.url && o.dataset.url === c.llm_base_url; });
@@ -1365,6 +1371,7 @@
       if (note) note.textContent = (d.encrypted ? 'Encrypted package ' : 'PLAINTEXT package ')
         + d.filename + ' (' + humanBytes(d.size) + ') ready \u2014 downloading.'
         + (d.identity ? ' Identity included.' : ' No identity set.')
+        + (d.original_files ? ' ' + d.original_files + ' original file' + (d.original_files === 1 ? '' : 's') + ' inside.' : '')
         + (d.verified && d.verified.ok === true ? ' Self-test passed: ' + d.verified.detail + '.'
            : d.verified && d.verified.ok === false ? ' SELF-TEST FAILED: ' + d.verified.detail + '.'
            : d.verified ? ' Not self-tested: ' + d.verified.detail + '.' : '');

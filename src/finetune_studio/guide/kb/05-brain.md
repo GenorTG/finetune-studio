@@ -47,6 +47,7 @@ While it builds, the bar shows the passages embedded, the time taken and the tim
 - `#mcp-answer` — answer generation (the "G" in RAG) with an LLM endpoint.
 - `#mcp-llm-preset` — fills the answer endpoint and API kind for OpenAI, Claude, OpenRouter or a local server.
 - `#mcp-pipeline` — how a question travels through the package.
+- `#mcp-originals` — Include original files: the uploaded files themselves ship in the package (encrypted with the corpus). Agents fetch one with the MCP tool `rag_get_document` (embedded file, up to 20 MB inline; larger ones come back as a link), `rag_list_documents` answers "which files do you have about X", browsers download at `GET /files/<id>`, and the package's chat page shows a download link under each source. Anyone with access to the server can download them: leave it off for a public bot. Off by default. CLI: `fts brain export --originals`.
 
 ## What to check
 The top panel says *Ready*; documents and passages counters after build; the search test returns the correct passage with a source filename. The exported bundle (.ftsrag) and the standalone server package are AES-256-GCM encrypted by default.

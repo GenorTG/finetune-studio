@@ -238,6 +238,8 @@ class ExportConfigPatch(BaseModel):
     llm_model: str | None = None
     llm_headers: dict[str, str] | None = None
     llm_body: dict[str, Any] | None = None
+    include_originals: bool | None = None
+    originals_inline_max_mb: int | None = None
     llm_connection: str | None = None   # copy endpoint, model, headers and body from a Settings connection (no key)
 
 
@@ -373,10 +375,13 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
     plain = "" if cfg.encrypt else "-PLAINTEXT"
     ext = "zip" if cfg.archive_format == "zip" else cfg.archive_format
     out_path = out_dir / f"{safe}-smart-brain{suffix}{plain}.{ext}"
+    from finetune_studio.smart_brain import originals as brain_originals
+
+    originals = await asyncio.to_thread(brain_originals.collect, corpus, pid) if cfg.include_originals else []
     try:
         result = await asyncio.to_thread(
             build_package, corpus, out_path, name=title, config=cfg,
-            passphrase=(req.passphrase or None), identity=brain_identity.package_record(pid))
+            passphrase=(req.passphrase or None), identity=brain_identity.package_record(pid), originals=originals)
     except FileNotFoundError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except ValueError as e:
@@ -393,7 +398,8 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
     )
 
     verified = await asyncio.to_thread(verify_package, result.path, result.passphrase or req.passphrase or None,
-                                       studio_models=studio_models_for(corpus))
+                                       studio_models=studio_models_for(corpus),
+                                       expected_originals={o.document_id: o.sha256 for o in originals})
     await asyncio.to_thread(record_package, pid, filename=result.path.name, size=result.size, encrypted=result.encrypted,
                             identity=brain_identity.is_set(brain_identity.load(pid)), verified=verified)
     return JSONResponse(
@@ -407,6 +413,7 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
             "passphrase": result.passphrase,
             "config": cfg.model_dump(),
             "layers": result.layers,
+            "original_files": len(originals),
             "identity": brain_identity.is_set(brain_identity.load(pid)),
         },
         headers={"Cache-Control": "no-store"},
