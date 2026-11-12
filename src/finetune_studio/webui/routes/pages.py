@@ -271,12 +271,16 @@ def export_page(pid: str, request: Request):
     project["runs"] = annotate_runs_for_export(db.list_runs(pid))
     project["models"] = _scan_run_models(project["runs"])
     caps = cached_export_capabilities()
+    from finetune_studio.data.fs.paths import brain_index_dir
+
+    has_index = (brain_index_dir(pid) / "manifest.json").is_file()
     # The readiness checklist (it runs the knowledge check) loads from GET …/brain/readiness after the page shows.
     return templates.TemplateResponse(
         request,
         "export_models.html",
         {
             "request": request,
+            "has_index": has_index,
             "project": project,
             "pid": pid,
             "runs_by_id": runs_by_id(project["runs"]),

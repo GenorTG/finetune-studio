@@ -11,6 +11,17 @@ turns that section into the release's notes.
 
 - Training: a run that stopped or failed before saving a checkpoint no longer offers Set production, Open in inference
   or Export; the buttons are off and the row says why. A stopped run that did save an adapter stays usable.
+- The Package page now holds the package form: who it is for, which documents go in, original files and file names,
+  answers, version, then Build & download; server and search tuning fold under Advanced. Before the first Smart Brain
+  build it says to build it first, and a blocking knowledge-check finding is shown next to the button with a link. The
+  Smart Brain page keeps only "Copy this index to another studio" (`.ftsrag`).
+- Packages get a name and an audience (your team / customers; customers also hides file names and leaves the original
+  files out). Package versions shows each package's name, audience, scope, document count and id, and per version
+  the original files and file-name setting; "New version of this" picks it in the form.
+
+- Settings → Apply update finds `uv` where it was installed (Linuxbrew, `~/.local/bin`, `~/.cargo/bin` or the path the
+  installer recorded) instead of failing every dependency step, and an update whose dependency sync or build fails
+  now stops before the restart with the failed steps as its reason instead of ending "Update complete".
 
 - The Package page opens at once: its checklist loads after the page, and the knowledge check behind it is kept until a
   file or the index changes (a 120-file project took 4 s per visit, now 0.2 s). The status pills sit next to each step

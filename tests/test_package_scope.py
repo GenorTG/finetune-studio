@@ -137,7 +137,7 @@ def test_route_and_ui_drive_the_scope(client, export_env) -> None:
     assert j["verified"]["ok"] is True and j["verified"]["scope"]["ok"] is True, j["verified"]
     none = client.post(f"/api/projects/{pid}/brain/standalone", json={"passphrase": PASS, "scope": {"tags": ["zzz"]}})
     assert none.status_code == 422 and "no document matches" in none.json()["detail"]
-    page = client.get(f"/projects/{pid}/brain").text
+    page = client.get(f"/projects/{pid}/export").text
     for marker in ('id="mcp-scope"', 'id="mcp-scope-summary"', 'id="mcp-scope-folders"',
                    "/brain/package-documents", "scope: mcpScope()", "' of ' + scopeDocs.length + ' documents"):
         assert marker in page

@@ -245,7 +245,7 @@ def test_fts_brain_export_takes_the_layer_flags(corpus_dir: Path, tmp_path: Path
 
 
 def test_export_card_has_one_switch_per_layer_and_sends_them() -> None:
-    html = (TEMPLATES / "brain.html").read_text(encoding="utf-8")
+    html = (TEMPLATES / "export_models.html").read_text(encoding="utf-8")
     for el in ('id="mcp-sem"', 'id="mcp-kw"', 'id="mcp-fusion"', 'id="mcp-rerank"', 'id="mcp-answer"',
                'id="mcp-llm-url"', 'id="mcp-llm-model"', 'id="mcp-pipeline"'):
         assert el in html, el

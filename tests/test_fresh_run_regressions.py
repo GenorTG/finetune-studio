@@ -207,9 +207,10 @@ def test_testing_page_empty_state_links_to_export(client):
 
 def test_brain_page_passphrase_reveal_is_conspicuous(client):
     pid = client.post("/api/projects", json={"name": "P"}).json()["id"]
-    html = client.get(f"/projects/{pid}/brain").text
-    assert "box.scrollIntoView" in html
-    assert html.count("showPassphrase(d.passphrase)") == 2
+    html = client.get(f"/projects/{pid}/brain").text      # the .ftsrag copy
+    assert "box.scrollIntoView" in html and html.count("showPassphrase(d.passphrase)") == 1
+    package = client.get(f"/projects/{pid}/export").text  # the package form
+    assert "box.scrollIntoView" in package and package.count("showPassphrase(d.passphrase)") == 1
 
 
 def test_data_page_upload_empty_click_and_parse_poll(client):

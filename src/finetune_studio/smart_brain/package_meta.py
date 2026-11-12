@@ -186,7 +186,11 @@ def packages(package_dir: Path) -> list[dict[str, Any]]:
     for pid_, rows in by_id.items():
         rows.sort(key=lambda r: _version_key(r.get("version") or "0"), reverse=True)
         out.append({"package_id": pid_, "name": rows[0].get("name") or "", "latest": rows[0]["version"],
+                    "audience": rows[0].get("audience") or "", "scope": rows[0].get("scope") or "",
+                    "documents": len(rows[0].get("documents") or []),
                     "versions": [{k: r.get(k) for k in ("version", "parent_version", "created", "filename", "origin",
-                                                         "scope", "changes")} | {"documents": len(r.get("documents") or [])}
+                                                         "scope", "changes", "audience", "originals",
+                                                         "hide_file_names", "encrypted")}
+                                 | {"documents": len(r.get("documents") or [])}
                                  for r in rows]})
     return sorted(out, key=lambda p: p["versions"][0].get("created") or "", reverse=True)
