@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-12
+
 The knowledge-package beta. A project now goes **files → Smart Brain → test → package**: upload your documents, let
 the knowledge check find what is wrong with them, say who the answers speak for, test the answers on a quiz written
 from your own files, and export one encrypted package that any model can use over MCP or HTTP. Training a LoRA
@@ -180,5 +182,6 @@ numbered `0.1.0.N`, one per commit.
   CLI called them (project files go through Files & Knowledge and Data prep; `fts analyze` / `fts validate-hallucination`
   are unchanged). Unused code: `templates.TemplateManager`, `HallucinationGuardrail` and a few helpers nothing called.
 
-[Unreleased]: https://github.com/GenorTG/finetune-studio/compare/v0.2.0...dev
+[Unreleased]: https://github.com/GenorTG/finetune-studio/compare/v0.3.0...dev
+[0.3.0]: https://github.com/GenorTG/finetune-studio/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/GenorTG/finetune-studio/releases/tag/v0.2.0
