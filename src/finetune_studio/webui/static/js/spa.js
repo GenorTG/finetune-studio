@@ -241,8 +241,8 @@
       // Re-mount sprites & animations for the new page
       window.spritesInit && window.spritesInit();
       renderedKey = pageKey();
-      // Scroll to top on new page, or to the link's #target (Package → "Build the package" lands on the Smart
-      // Brain's export panel: the page script opens it, and scrolling to the top here used to undo its scroll).
+      // Scroll to top on new page, or to the link's #target (a "Build the package" link lands on the Package page's
+      // form; a folded <details> target is opened, and scrolling to the top here used to undo its scroll).
       c.scrollTo({ top: 0, behavior: "instant" });
       window.scrollTo({ top: 0, behavior: "instant" });   // the page scrolls on the window: keep no stale offset
       let target = null;
