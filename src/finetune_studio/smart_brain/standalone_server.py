@@ -34,6 +34,8 @@ Configuration precedence:  CLI flags > env (RAG_*) > rag.config.json > defaults.
     dense_extra/RAG_DENSE_EXTRA (also return the N best passages by meaning alone)
     follow_up/RAG_FOLLOW_UP (answers: follow-up searches the answer model may ask for, 0 = off; default 1)
     file_inline_max_mb/RAG_FILE_INLINE_MAX_MB (rag_get_document: larger files come back as a /files/ link; 20)
+    retry_missing/RAG_RETRY_MISSING (answers: when the answer says part of the question is not stated, search once
+        more for that part and answer again; needs follow_up >= 1; default on)
     max_per_document/RAG_MAX_PER_DOCUMENT (passages of one document in a search's top results before others get a
         turn: -1 = the index setting, default 3; 0 = no cap)
     config path: --config / RAG_CONFIG / <this dir>/rag.config.json
