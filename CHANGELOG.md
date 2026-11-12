@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Training: a run that stopped or failed before saving a checkpoint no longer offers Set production, Open in inference
+  or Export; the buttons are off and the row says why. A stopped run that did save an adapter stays usable.
 - When an answer says part of it is missing, the retry searches the cited document(s) first before falling back to
   the whole knowledge base.
 - Pages, styles and scripts are sent gzipped and versioned styles and scripts are cached by the browser, so a first

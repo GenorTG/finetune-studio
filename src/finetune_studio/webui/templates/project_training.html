@@ -98,7 +98,7 @@
   <div class="flex gap-2 mt-4 wrap">
     <a class="btn sm" href="/projects/{{ pid }}/training?run={{ detail_run.id }}" data-link>Refresh</a>
     <button type="button" class="btn sm primary js-open-inf" data-path="{{ detail_run.output_path or '' }}"
-            {% if not (detail_run.status == 'done' and detail_run.output_path) %}disabled title="No finished output path"{% else %}title="Load this run's model (its merged copy, else the adapter) and open Inference"{% endif %}>▶ Open in inference</button>
+            {% if not detail_run.usable %}disabled title="{{ detail_run.usable_reason or 'No model saved by this run.' }}"{% else %}title="Load this run's model (its merged copy, else the adapter) and open Inference"{% endif %}>▶ Open in inference</button>
     <button class="btn sm danger"
             data-action="/api/projects/{{ pid }}/runs/{{ detail_run.id }}"
             data-method="DELETE"
@@ -521,17 +521,19 @@
         <td class="num mono">{{ '%.4f'|format(run.final_loss) if run.final_loss else '—' }}</td>
         <td><div class="flex gap-1 wrap">
           <a class="btn sm" href="/projects/{{ pid }}/training?run={{ run.id }}" data-link>Details</a>
-          {% set can_act = run.status == 'done' and run.output_path %}
+          {% set can_act = run.usable %}
+          {% set why = run.usable_reason or "No model saved by this run." %}
           <button type="button" class="btn sm js-set-prod"
                   data-run-id="{{ run.id }}" data-run-name="{{ run.name }}"
-                  {% if not can_act %}disabled title="Only finished runs with an output path can be production"{% else %}title="Set as production run"{% endif %}>⭐ Set production</button>
+                  {% if not can_act %}disabled title="{{ why }}"{% else %}title="Set as production run"{% endif %}>⭐ Set production</button>
           <button type="button" class="btn sm js-open-inf"
                   data-path="{{ run.output_path or '' }}"
-                  {% if not can_act %}disabled title="No finished output path"{% else %}title="Load this run's model (its merged copy, else the adapter) and open Inference"{% endif %}>▶ Open in inference</button>
+                  {% if not can_act %}disabled title="{{ why }}"{% else %}title="Load this run's model (its merged copy, else the adapter) and open Inference"{% endif %}>▶ Open in inference</button>
           {% if can_act %}
           <a class="btn sm" href="/projects/{{ pid }}/export?run={{ run.id }}" data-link title="Export this run">⬇ Export</a>
           {% else %}
-          <a class="btn sm is-disabled" href="#" aria-disabled="true" tabindex="-1" title="Export requires a finished run with output">⬇ Export</a>
+          <a class="btn sm is-disabled" href="#" aria-disabled="true" tabindex="-1" title="{{ why }}">⬇ Export</a>
+          <span class="text-xs dim run-no-model">{{ why }}</span>
           {% endif %}
         </div></td>
       </tr>
@@ -1036,18 +1038,21 @@
       const out = run.output_path || "";
       const err = run.error || "";
       const isProd = productionRunId && productionRunId === id;
-      const canAct = status === "done" && !!out;
+      // The server says whether the run's folder holds a model (GET …/runs: usable / usable_reason).
+      const canAct = run.usable === undefined ? (status === "done" && !!out) : !!run.usable;
+      const why = run.usable_reason || "No model saved by this run.";
       const prodMark = isProd ? ' <span class="pill solid-green prod-pill">⭐ production</span>' : "";
       const errLine = (status === "failed" && err)
         ? '<details class="run-err run-err-cell text-xs"><summary title="' + esc(err) + '">' +
           esc(err.length > 120 ? err.slice(0, 120) + "…" : err) + '</summary><pre class="mono">' + esc(err) + "</pre></details>"
         : "";
-      const setProdDisabled = canAct ? "" : " disabled title=\"Only finished runs with an output path can be production\"";
-      const infDisabled = canAct ? "" : " disabled title=\"No finished output path\"";
+      const setProdDisabled = canAct ? "" : ' disabled title="' + esc(why) + '"';
+      const infDisabled = canAct ? "" : ' disabled title="' + esc(why) + '"';
       const exportBtn = canAct
         ? '<a class="btn sm" href="/projects/' + esc(PID) + "/export?run=" + esc(id) +
           '" data-link title="Export this run">⬇ Export</a>'
-        : '<a class="btn sm is-disabled" href="#" aria-disabled="true" tabindex="-1" title="Export requires a finished run with output">⬇ Export</a>';
+        : '<a class="btn sm is-disabled" href="#" aria-disabled="true" tabindex="-1" title="' + esc(why) + '">⬇ Export</a>'
+          + '<span class="text-xs dim run-no-model">' + esc(why) + '</span>';
       const active = DETAIL_RUN_ID && DETAIL_RUN_ID === id ? " row-active" : "";
       return (
         '<tr class="row-hover' + active + '" data-run-id="' + esc(id) + '" data-run-name="' + esc(name) + '"' +
