@@ -13,22 +13,16 @@
   <div class="sub"><b>Step 4.</b> Everything your models need about you in one encrypted package: your documents, who it speaks for and how to answer. Any model can use it over MCP or HTTP.</div>
 </div>
 
-<div class="card mb-4" id="package-readiness">
+<div class="card mb-4" id="package-readiness" aria-busy="true">
   <div class="card-head">
     <div>
-      <div class="card-title">{% if package_state.ready %}Ready to package{% else %}Not ready yet{% endif %}</div>
+      <div class="card-title" id="package-ready-title">Checking your knowledge…</div>
       <div class="card-sub">Each step from your files to the package.</div>
     </div>
     <a class="btn primary" id="package-build-link" href="/projects/{{ pid }}/brain#brain-export-panel" data-link>Build the package</a>
   </div>
-  <ol class="package-steps">
-    {% for step in package_state.steps %}
-    <li class="package-step is-{{ step.state }}">
-      <a href="/projects/{{ pid }}{{ step.href }}" data-link><b>{{ step.label }}</b></a>
-      <span class="pill text-xs {{ {'done':'solid-green','review':'solid-amber','problem':'solid-rose'}.get(step.state, 'outline') }}">{{ {'done':'Done','review':'Review','problem':'Fix this','todo':'To do'}[step.state] }}</span>
-      <div class="text-xs dim">{{ step.detail }}</div>
-    </li>
-    {% endfor %}
+  <ol class="package-steps" id="package-steps" aria-live="polite">
+    <li class="package-step is-loading"><div class="package-step-head"><b>Reading the project…</b></div></li>
   </ol>
   <div class="flex gap-2 wrap mt-2">
     <a class="btn" href="/projects/{{ pid }}/brain" data-link>Ask your documents</a>
@@ -371,6 +365,32 @@
 </div>
 
 <script>
+// Readiness checklist: loaded after the page shows (it runs the knowledge check; GET /brain/readiness).
+(function () {
+  const PID = {{ pid|tojson }};
+  const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  const PILL = {done: ['solid-green', 'Done'], review: ['solid-amber', 'Review'], problem: ['solid-rose', 'Fix this'], todo: ['outline', 'To do']};
+  const card = document.getElementById('package-readiness');
+  const list = document.getElementById('package-steps');
+  fetch('/api/projects/' + encodeURIComponent(PID) + '/brain/readiness').then((r) => {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then((d) => {
+    document.getElementById('package-ready-title').textContent = d.ready ? 'Ready to package' : 'Not ready yet';
+    list.innerHTML = (d.steps || []).map((st) => {
+      const pill = PILL[st.state] || PILL.todo;
+      return '<li class="package-step is-' + esc(st.state) + '"><div class="package-step-head">'
+        + '<a href="/projects/' + encodeURIComponent(PID) + esc(st.href) + '" data-link><b>' + esc(st.label) + '</b></a>'
+        + '<span class="pill ' + pill[0] + '">' + pill[1] + '</span></div>'
+        + '<div class="package-step-detail">' + esc(st.detail) + '</div></li>';
+    }).join('');
+  }).catch((e) => {
+    document.getElementById('package-ready-title').textContent = 'Could not check the project';
+    list.innerHTML = '<li class="package-step is-problem"><div class="package-step-detail">' + esc(e.message || e)
+      + ' Reload the page; if it stays, open the Smart Brain page and run the knowledge check there.</div></li>';
+  }).finally(() => card.removeAttribute('aria-busy'));
+})();
+
 // Package versions: the project's package history (GET /brain/packages).
 (function () {
   const PID = {{ pid|tojson }};

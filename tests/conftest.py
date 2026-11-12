@@ -256,6 +256,19 @@ def project_env(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _fresh_knowledge_check_cache():
+    """The knowledge check keeps its text checks per project id, and the Package page its export tool probe for 30 s;
+    tests reuse ids with other files and patch the probe."""
+    from finetune_studio.knowledge import lint as _lint
+    from finetune_studio.training import export_capabilities as _caps
+    _lint.forget_cached()
+    _caps.forget_cached_capabilities()
+    yield
+    _lint.forget_cached()
+    _caps.forget_cached_capabilities()
+
+
+@pytest.fixture(autouse=True)
 def _testclient_host_is_local(monkeypatch):
     """TestClient sends ``Host: testserver``; the DNS-rebinding guard only lets loopback names through while the
     app listens on this computer only. Count it as one here (tests/test_access.py checks the guard itself)."""

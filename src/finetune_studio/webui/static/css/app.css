@@ -5454,5 +5454,8 @@ html { scroll-padding-top: calc(var(--session-bar-h, 104px) + 8px); }
 .brain-lint-title { font-size: .9rem; font-weight: 600; overflow-wrap: anywhere; }
 
 .package-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: .4rem; }
-.package-step { display: grid; grid-template-columns: 1fr auto; gap: 0 .75rem; padding: .45rem .7rem; background: var(--bg-panel-2); border-radius: var(--radius-sm); }
-.package-step .text-xs { grid-column: 1 / -1; overflow-wrap: anywhere; }
+.package-step { display: block; padding: .45rem .7rem; background: var(--bg-panel-2); border-radius: var(--radius-sm); }
+.package-step-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.package-step-head .pill { flex: none; font-size: .72rem; }
+.package-step-detail { margin-top: .15rem; font-size: .75rem; color: var(--text-muted); overflow-wrap: anywhere; }
+.package-step.is-loading { opacity: .7; }
