@@ -188,12 +188,30 @@ def test_open_an_encrypted_package_with_originals_and_export_its_next_version(
     assert set(j["changes"]) == {"added", "changed", "removed"}
     unknown = client.post(f"/api/projects/{pid}/brain/standalone", json={"passphrase": PASS, "new_version_of": "nope"})
     assert unknown.status_code == 404
+    # Two NEW packages of one project (a public bot, an internal one) are both 1.0.0: each keeps its own file.
+    first, second = (client.post(f"/api/projects/{pid}/brain/standalone",
+                                 json={"semantic_search": False, "passphrase": PASS}).json() for _ in range(2))
+    assert first["package"]["version"] == second["package"]["version"] == "1.0.0"
+    assert len({first["filename"], second["filename"], j["filename"]}) == 3
+    files_on_disk = {r["filename"] for p in client.get(f"/api/projects/{pid}/brain/packages").json()["packages"]
+                     for r in p["versions"] if r.get("origin") == "exported"}
+    assert files_on_disk == {first["filename"], second["filename"], j["filename"]}
+    assert all((pm.package_dir(pid) / f).is_file() for f in files_on_disk)
     page = client.get(f"/projects/{pid}/export").text
     assert 'id="package-versions"' in page and "/brain/packages" in page and 'id="package-changes"' in page
     brain = client.get(f"/projects/{pid}/brain").text
     for marker in ('id="mcp-base"', 'id="mcp-version"', 'id="mcp-base-upload"', "new_version_of: document.getElementById",
                    "/brain/package-base", "open an exported package"):
         assert marker in brain
+
+
+def test_the_file_name_carries_the_package_id() -> None:
+    rec = {"package_id": "6684261babf54d16", "version": "1.2.0"}
+    assert pm.package_filename("Acme docs!", rec, ext="tar.gz") == "Acme-docs-smart-brain-6684261b-v1.2.0.tar.gz"
+    assert pm.package_filename("", rec, ext="zip", models=True, encrypted=False) == \
+        "package-smart-brain-6684261b-v1.2.0-with-models-PLAINTEXT.zip"
+    other = pm.package_filename("Acme docs!", {**rec, "package_id": "b4b04a7db42a4c7a"}, ext="tar.gz")
+    assert other != pm.package_filename("Acme docs!", rec, ext="tar.gz")
 
 
 def test_upload_an_archive_as_the_base(client, tmp_path: Path, monkeypatch, corpus_dir: Path) -> None:  # noqa: F811

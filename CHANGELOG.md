@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Two packages of one project no longer share a file: the archive name now carries the package id (`<name>-smart-brain-<id>-v1.0.0.tar.gz`). Before, exporting a second new package (say the internal one after a public-folder bot) overwrote the first one's file while Package versions still listed both, so downloading the public one could hand out the other.
+
 - Public bots can hide file names: Export → *Hide file names in answers* (`fts brain export --hide-file-names`, `RAG_HIDE_FILE_NAMES=1` where it runs; off by default). The package's answers then cite no `[file.docx]` (the answer model sees passages by number only and any file name it writes is removed) and its chat page shows no source list; your own tools still get the sources with `POST /ask {"sources": true}` or `rag_answer` with `include_sources`.
 
 - Folders nest: upload a whole folder (Files → *or a whole folder*, drag and drop a folder, `POST …/files/upload` with `folder_path` / `paths`, or `fts files upload DIR [--folder public]`) and its sub-folders are kept (`public/faq/returns.md` lands in `public/faq`). ＋ Folder takes a path, the folder chips show sub-folders under their parent, picking a folder also lists its sub-folders' files, and renaming or deleting a folder takes its sub-folders along. The Smart Brain index, the Export card's "Documents in the package" (any depth: `public/` or `public/faq/`), package manifests and the originals restored when a package is opened keep the full path. Existing one-level folders keep working unchanged.
