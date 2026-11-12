@@ -389,6 +389,24 @@
         <input id="mcp-topk" type="number" min="1" max="100" class="input" value="10">
       </div>
     </div>
+    <fieldset class="brain-layers mb-2" id="mcp-scope">
+      <legend class="text-xs font-semibold">Documents in the package</legend>
+      <p class="text-xs dim mb-2">A package for a public chatbot can carry only part of the index (for example the
+        <code>public/</code> folder); the rest is not inside at all, so it cannot be found or read through it.</p>
+      <label class="brain-layer"><input type="radio" name="mcp-scope-mode" id="mcp-scope-all" value="all" checked>
+        <span><b>All documents</b></span></label>
+      <label class="brain-layer"><input type="radio" name="mcp-scope-mode" id="mcp-scope-some" value="some">
+        <span><b>Only these</b> <span class="dim">folders, tags or single documents</span></span></label>
+      <div id="mcp-scope-pick" class="mt-2" hidden>
+        <div class="text-xs muted mb-1">Folders</div>
+        <div id="mcp-scope-folders" class="flex gap-4 wrap text-xs mb-2"></div>
+        <div class="text-xs muted mb-1" id="mcp-scope-tags-label" hidden>Tags</div>
+        <div id="mcp-scope-tags" class="flex gap-4 wrap text-xs mb-2"></div>
+        <details class="text-xs" id="mcp-scope-docs-more"><summary>Single documents</summary>
+          <div id="mcp-scope-docs" class="mt-1"></div></details>
+      </div>
+      <div class="text-xs mt-2" id="mcp-scope-summary" role="status" aria-live="polite"></div>
+    </fieldset>
     <fieldset class="brain-layers mb-2" id="mcp-layers">
       <legend class="text-xs font-semibold">Search layers in the package</legend>
       <p class="text-xs dim mb-2">Each layer is separate. The package ships only the files the layers you keep need, and
@@ -1226,8 +1244,64 @@
       llm_provider: g('mcp-llm-provider').value || 'openai',
       llm_connection: g('mcp-llm-conn').value || null,
       include_originals: g('mcp-originals').checked,
+      scope: mcpScope(),
     };
   }
+
+  // Audience scope: which documents go in the package. The same rule as smart_brain/scope.py: a document is in when
+  // it matches any chosen folder, tag or single document (nothing chosen = all).
+  var scopeDocs = [];
+  function scopeChecked(box) {
+    return [].slice.call(document.querySelectorAll('#' + box + ' input:checked')).map(function (el) { return el.value; });
+  }
+  function mcpScope() {
+    if (!document.getElementById('mcp-scope-some').checked) return null;
+    return { include: scopeChecked('mcp-scope-folders'), tags: scopeChecked('mcp-scope-tags'),
+             document_ids: scopeChecked('mcp-scope-docs') };
+  }
+  function scopeSelected(sc, d) {
+    if (!sc || !(sc.include.length || sc.tags.length || sc.document_ids.length)) return true;
+    var path = d.path.toLowerCase();
+    return sc.include.some(function (p) { return path.indexOf(p.toLowerCase()) === 0; })
+      || d.tags.some(function (t) { return sc.tags.indexOf(t) >= 0; })
+      || sc.document_ids.indexOf(d.document_id) >= 0;
+  }
+  function syncScope() {
+    var some = document.getElementById('mcp-scope-some').checked, sc = mcpScope();
+    document.getElementById('mcp-scope-pick').hidden = !some;
+    var n = scopeDocs.filter(function (d) { return scopeSelected(sc, d); }).length;
+    var out = document.getElementById('mcp-scope-summary');
+    out.textContent = scopeDocs.length ? n + ' of ' + scopeDocs.length + ' documents go in the package' : '';
+    out.classList.toggle('err', some && n === 0);
+    var btn = document.getElementById('mcp-pkg-btn');
+    if (some && n === 0) { if (btn) btn.disabled = true; } else syncLayers();
+  }
+  function scopeBox(value, label, kind) {
+    var l = document.createElement('label'); l.className = 'flex items-center gap-2';
+    var i = document.createElement('input'); i.type = 'checkbox'; i.value = value; i.dataset.kind = kind;
+    i.addEventListener('change', syncScope);
+    l.append(i, document.createTextNode(label)); return l;
+  }
+  window.loadScopeDocs = async function () {
+    try {
+      var r = await fetch('/api/projects/' + PID + '/brain/package-documents');
+      if (!r.ok) return;
+      var d = await r.json();
+      scopeDocs = d.documents || [];
+      var f = document.getElementById('mcp-scope-folders'), t = document.getElementById('mcp-scope-tags'),
+        docs = document.getElementById('mcp-scope-docs');
+      f.innerHTML = ''; t.innerHTML = ''; docs.innerHTML = '';
+      (d.folders || []).forEach(function (x) { if (x.prefix) f.append(scopeBox(x.prefix, x.label + ' (' + x.count + ')', 'folder')); });
+      if (!f.children.length) f.textContent = 'No folders: put files in folders on the Files page to choose by folder.';
+      (d.tags || []).forEach(function (x) { t.append(scopeBox(x.tag, x.tag + ' (' + x.count + ')', 'tag')); });
+      document.getElementById('mcp-scope-tags-label').hidden = !(d.tags || []).length;
+      scopeDocs.forEach(function (x) { docs.append(scopeBox(x.document_id, x.path, 'doc')); });
+    } catch (e) { /* the picker stays empty: All documents still works */ }
+    syncScope();
+  };
+  ['mcp-scope-all', 'mcp-scope-some'].forEach(function (id) {
+    document.getElementById(id).addEventListener('change', syncScope);
+  });
 
   // API connections from Settings → AI assistant: picking one fills endpoint + model; the server side copies its
   // headers and request settings (never the key) into the package.
@@ -1331,6 +1405,7 @@
     } catch (e) { /* defaults stay as rendered */ }
     syncLayers();
     loadLlmConnections();
+    loadScopeDocs();
   };
 
   window.saveMcpDefaults = async function (scope) {
@@ -1371,6 +1446,7 @@
       if (note) note.textContent = (d.encrypted ? 'Encrypted package ' : 'PLAINTEXT package ')
         + d.filename + ' (' + humanBytes(d.size) + ') ready \u2014 downloading.'
         + (d.identity ? ' Identity included.' : ' No identity set.')
+        + (d.scope && d.scope.label !== 'all documents' ? ' Scope: ' + d.scope.documents + ' of ' + d.scope.of + ' documents (' + d.scope.label + ').' : '')
         + (d.original_files ? ' ' + d.original_files + ' original file' + (d.original_files === 1 ? '' : 's') + ' inside.' : '')
         + (d.verified && d.verified.ok === true ? ' Self-test passed: ' + d.verified.detail + '.'
            : d.verified && d.verified.ok === false ? ' SELF-TEST FAILED: ' + d.verified.detail + '.'

@@ -25,6 +25,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from finetune_studio.data.fs.paths import brain_index_dir, project_dir
+from finetune_studio.smart_brain.scope import DocumentScope
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -254,10 +255,11 @@ class StandaloneRequest(ExportConfigPatch):
 
     name: str | None = None
     passphrase: str | None = Field(default=None, repr=False)
+    scope: DocumentScope | None = None    # which documents go in (default: all)
 
 
 def _patch_values(p: ExportConfigPatch) -> dict[str, Any]:
-    values = {k: v for k, v in p.model_dump().items() if v is not None}
+    values = {k: v for k, v in p.model_dump().items() if v is not None and k not in ("scope", "name", "passphrase")}
     conn = values.pop("llm_connection", None)
     if conn:
         values = {**connection_llm_settings(conn), **values}   # a typed endpoint or model wins
@@ -321,6 +323,19 @@ async def brain_export_config_save(pid: str, body: ExportConfigSave) -> dict[str
     return _export_config_payload(pid)
 
 
+@router.get("/{pid}/brain/package-documents")
+def brain_package_documents(pid: str) -> dict[str, Any]:
+    """The index's documents with their folder path and tags, folders and tags with counts: the Export card's
+    picker for a package's audience scope."""
+    from finetune_studio.smart_brain import scope as brain_scope
+
+    _require_project(pid)
+    corpus = _corpus_dir(pid)
+    if not (corpus / "manifest.json").is_file():
+        raise HTTPException(status_code=404, detail="no index yet")
+    return brain_scope.overview(brain_scope.documents(corpus, pid))
+
+
 def _package_dir(pid: str) -> Path:
     return Path("output") / "projects" / pid / "brain-packages"
 
@@ -376,12 +391,21 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
     ext = "zip" if cfg.archive_format == "zip" else cfg.archive_format
     out_path = out_dir / f"{safe}-smart-brain{suffix}{plain}.{ext}"
     from finetune_studio.smart_brain import originals as brain_originals
+    from finetune_studio.smart_brain import scope as brain_scope
 
+    docs = await asyncio.to_thread(brain_scope.documents, corpus, pid)
+    try:
+        keep, scope_record = brain_scope.resolve(req.scope, docs)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    probes = (await asyncio.to_thread(brain_scope.probe_queries, corpus, {d.document_id for d in docs} - keep)
+              if keep is not None else {})
     originals = await asyncio.to_thread(brain_originals.collect, corpus, pid) if cfg.include_originals else []
     try:
         result = await asyncio.to_thread(
             build_package, corpus, out_path, name=title, config=cfg,
-            passphrase=(req.passphrase or None), identity=brain_identity.package_record(pid), originals=originals)
+            passphrase=(req.passphrase or None), identity=brain_identity.package_record(pid), originals=originals,
+            documents=keep, scope=scope_record)
     except FileNotFoundError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except ValueError as e:
@@ -399,7 +423,8 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
 
     verified = await asyncio.to_thread(verify_package, result.path, result.passphrase or req.passphrase or None,
                                        studio_models=studio_models_for(corpus),
-                                       expected_originals={o.document_id: o.sha256 for o in originals})
+                                       expected_originals={o.document_id: o.sha256 for o in originals},
+                                       out_of_scope=probes)
     await asyncio.to_thread(record_package, pid, filename=result.path.name, size=result.size, encrypted=result.encrypted,
                             identity=brain_identity.is_set(brain_identity.load(pid)), verified=verified)
     return JSONResponse(
@@ -413,7 +438,8 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
             "passphrase": result.passphrase,
             "config": cfg.model_dump(),
             "layers": result.layers,
-            "original_files": len(originals),
+            "original_files": sum(1 for o in originals if keep is None or o.document_id in keep),
+            "scope": scope_record,
             "identity": brain_identity.is_set(brain_identity.load(pid)),
         },
         headers={"Cache-Control": "no-store"},

@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- A Smart Brain package can carry only part of the index: on the Export card pick "Only these" folders, file tags or single documents ("12 of 80 documents"), or `fts brain export --include public/ --exclude PREFIX --tag TAG`. The package holds only those documents' passages, vectors, a word index recomputed over them and their files; its README and `rag_info` state the scope, and the self-test checks that nothing outside it can be found. Build a public chatbot from `public/` and an internal assistant from everything.
+
 - Smart Brain packages can ship the original files (Export → "Include original files", `fts brain export --originals`; off by default, encrypted with the corpus): agents fetch one with the new MCP tool `rag_get_document`, ask "which files do you have about X" with `rag_list_documents`, browsers download at `GET /files/<id>`, and the package's chat page links each source's file. The package self-test fetches one file over MCP and HTTP and checks it is unchanged.
 
 - Smart Brain packages now stop on unreviewed superseded-document warnings, so obsolete facts cannot silently ship.
