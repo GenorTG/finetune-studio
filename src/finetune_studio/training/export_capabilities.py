@@ -7,6 +7,8 @@ fake success). Always-available formats: ``merged``, ``abliterated``.
 
 from __future__ import annotations
 
+import threading
+import time
 from dataclasses import asdict, dataclass
 from typing import Any
 
@@ -57,6 +59,29 @@ def probe_export_capabilities() -> ExportCapabilities:
         heretic_hint=heretic.hint,
         heretic_version=heretic.version,
     )
+
+
+_CACHED: dict[str, Any] = {"at": 0.0, "caps": None}
+_CACHED_LOCK = threading.Lock()
+CACHE_SECONDS = 30.0
+
+
+def cached_export_capabilities(max_age: float = CACHE_SECONDS) -> ExportCapabilities:
+    """``probe_export_capabilities`` reused for ``max_age`` seconds: the probe runs Heretic's ``--help`` and version
+    subprocesses (~0.3 s), once per Package page load before. A Heretic install shows within half a minute."""
+    with _CACHED_LOCK:
+        caps, at = _CACHED["caps"], float(_CACHED["at"])
+    if caps is not None and time.monotonic() - at < max_age:
+        return caps
+    caps = probe_export_capabilities()
+    with _CACHED_LOCK:
+        _CACHED.update(at=time.monotonic(), caps=caps)
+    return caps
+
+
+def forget_cached_capabilities() -> None:
+    with _CACHED_LOCK:
+        _CACHED.update(at=0.0, caps=None)
 
 
 def _probe_heretic() -> Any:

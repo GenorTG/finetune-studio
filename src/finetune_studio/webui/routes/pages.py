@@ -258,7 +258,7 @@ def export_page(pid: str, request: Request):
     """
     from finetune_studio import db
     from finetune_studio.training.export_capabilities import (
-        probe_export_capabilities,
+        cached_export_capabilities,
     )
     from finetune_studio.webui.routes.project_export import (
         annotate_runs_for_export,
@@ -270,15 +270,12 @@ def export_page(pid: str, request: Request):
         raise HTTPException(status_code=404, detail="Project not found")
     project["runs"] = annotate_runs_for_export(db.list_runs(pid))
     project["models"] = _scan_run_models(project["runs"])
-    caps = probe_export_capabilities()
-    from finetune_studio.knowledge.readiness import readiness
-
-    package_state = readiness(pid)
+    caps = cached_export_capabilities()
+    # The readiness checklist (it runs the knowledge check) loads from GET …/brain/readiness after the page shows.
     return templates.TemplateResponse(
         request,
         "export_models.html",
         {
-            "package_state": package_state,
             "request": request,
             "project": project,
             "pid": pid,

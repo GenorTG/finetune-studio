@@ -63,6 +63,13 @@ def heretic_upstream() -> dict[str, Any]:
     }
 
 
+def _forget_export_caps() -> None:
+    """The Package page caches the export tool probe for 30 s: show an install or removal at once."""
+    from finetune_studio.training.export_capabilities import forget_cached_capabilities
+
+    forget_cached_capabilities()
+
+
 @router.post("/api/system/heretic/install")
 def heretic_install(body: InstallIn | None = None) -> dict[str, Any]:
     """Install or re-install the tool into ``$FTS_ROOT/heretic``.
@@ -78,6 +85,8 @@ def heretic_install(body: InstallIn | None = None) -> dict[str, Any]:
     except heretic_tool.HereticError as e:
         log.warning("heretic install failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e)) from e
+    finally:
+        _forget_export_caps()
     return {"ok": True, **status.as_dict()}
 
 
@@ -86,4 +95,5 @@ def heretic_uninstall() -> dict[str, Any]:
     """Remove the checkout and its environment (never the app's own venv)."""
     _refuse_while_exporting("remove")
     heretic_tool.uninstall()
+    _forget_export_caps()
     return {"ok": True, **heretic_tool.probe().as_dict()}

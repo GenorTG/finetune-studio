@@ -192,6 +192,6 @@ def test_unreviewed_superseded_documents_block_package_build(monkeypatch, client
 
 def test_the_package_page_shows_the_list(client, project: str) -> None:
     body = client.get(f"/projects/{project}/export").text
-    assert 'id="package-readiness"' in body and "<h1>Package</h1>" in body and "Not ready yet" in body
+    assert 'id="package-readiness"' in body and "<h1>Package</h1>" in body and 'id="package-ready-title"' in body
     assert 'id="package-build-link"' in body and "Trained models" in body
     assert ">4 package<" in body

@@ -7,12 +7,15 @@ project and survives a re-run, keyed on the finding's rule and files.
 """
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import os
 import re
+import threading
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -243,8 +246,12 @@ def _check_versions(sources: list[Source], texts: dict[str, str]) -> tuple[list[
     return out, pairs
 
 
-def _labelled_values(text: str) -> dict[str, set[tuple[str, str]]]:
-    """Extract a label, value and nearby unit; values in unlike units are not conflicts."""
+@lru_cache(maxsize=8192)
+def _labelled_values(text: str) -> dict[str, frozenset[tuple[str, str]]]:
+    """Extract a label, value and nearby unit; values in unlike units are not conflicts.
+
+    Cached per passage text: the conflict check compares every similar pair of passages, and re-reading the same
+    passage for each pair cost ~4 s on a 512-passage index (Package page render). Callers only read the result."""
     out: dict[str, set[tuple[str, str]]] = defaultdict(set)
     for match in _LABELLED_VALUE.finditer(text):
         words = match.group(1).lower().split()
@@ -259,7 +266,7 @@ def _labelled_values(text: str) -> dict[str, set[tuple[str, str]]]:
         currency = currency or ("eur" if "€" in prefix else "usd" if "$" in prefix else "")
         unit = unit or currency.lower()
         out[" ".join(words)].add((match.group(2).rstrip(".,").replace(",", ""), unit))
-    return out
+    return {label: frozenset(found) for label, found in out.items()}
 
 
 def _template_labels(texts: list[str], docs: list[str]) -> set[tuple[str, str]]:
@@ -424,17 +431,56 @@ def excluded_documents(pid: str) -> dict[str, str]:
     return out
 
 
+# The text checks (names, versions, duplicates, conflicts) depend only on the sources' parsed text, the index files and
+# the ignored findings: they are kept per project until one of those changes (the Package page and the Smart Brain page
+# both run the check on every load; 120 files took 4 s).
+_TEXT_CHECKS: dict[str, tuple[tuple, list[Finding]]] = {}
+_CACHE_LOCK = threading.Lock()
+_INDEX_FILES = ("vectors.npy", "chunks.parquet", "vectors.idx.json", "manifest.json")
+
+
+def _stamp(path: Path) -> tuple[int, int]:
+    try:
+        st = path.stat()
+        return st.st_mtime_ns, st.st_size
+    except OSError:
+        return 0, 0
+
+
+def _fingerprint(pid: str, sources: list[Source], ignored: set[str]) -> tuple:
+    corpus = brain_index_dir(pid)
+    return (tuple((s.id, s.file_id, s.filename, s.status, s.text_sha, s.chunk_count, s.edited_at, s.size_bytes)
+                  for s in sources),
+            tuple(_stamp(corpus / name) for name in _INDEX_FILES), tuple(sorted(ignored)))
+
+
+def forget_cached(pid: str | None = None) -> None:
+    """Drop the cached text checks (tests; a caller that changed text outside the sources' own records)."""
+    with _CACHE_LOCK:
+        if pid is None:
+            _TEXT_CHECKS.clear()
+        else:
+            _TEXT_CHECKS.pop(pid, None)
+
+
 def lint(pid: str) -> dict[str, Any]:
     """Run every check. Blocking (reads every parsed file): async callers use a thread."""
     sources = [s for s in list_sources(pid) if not s.deleted]
-    texts = {s.id: parsed_text(pid, s) for s in sources if s.ready}
     ignored = ignored_keys(pid)
-    version_findings, pairs = _check_versions(sources, texts)
-    file_findings = _check_files(sources, texts, pairs)
-    outdated = {f["id"] for x in file_findings if x.rule == "old_version" and x.key not in ignored for f in x.files}
-    findings = [*file_findings, *version_findings, *_check_conflicts(pid, sources, outdated, pairs),
-                *_check_pictures(pid, sources),
-                *_check_index(pid, sources)]
+    key = _fingerprint(pid, sources, ignored)
+    with _CACHE_LOCK:
+        hit = _TEXT_CHECKS.get(pid)
+    if hit and hit[0] == key:
+        text_findings = [copy.deepcopy(f) for f in hit[1]]
+    else:
+        texts = {s.id: parsed_text(pid, s) for s in sources if s.ready}
+        version_findings, pairs = _check_versions(sources, texts)
+        file_findings = _check_files(sources, texts, pairs)
+        outdated = {f["id"] for x in file_findings if x.rule == "old_version" and x.key not in ignored for f in x.files}
+        text_findings = [*file_findings, *version_findings, *_check_conflicts(pid, sources, outdated, pairs)]
+        with _CACHE_LOCK:
+            _TEXT_CHECKS[pid] = (key, [copy.deepcopy(f) for f in text_findings])
+    findings = [*text_findings, *_check_pictures(pid, sources), *_check_index(pid, sources)]
     for f in findings:
         f.ignored = f.key in ignored
     findings.sort(key=lambda f: (f.ignored, {"error": 0, "warning": 1}.get(f.severity, 2), f.rule))
