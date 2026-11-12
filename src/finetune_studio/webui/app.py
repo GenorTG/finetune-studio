@@ -435,6 +435,11 @@ def _apply_hosting_middleware() -> list[str]:
 
 _cors_origins = _apply_hosting_middleware()
 
+# Gzip for pages, styles, scripts and JSON (never streams or downloads): inside the access check.
+from finetune_studio.webui.compression import CompressionMiddleware
+
+app.add_middleware(CompressionMiddleware)
+
 # Outermost: who may reach the app at all (password / API tokens / cross-site and DNS-rebinding guards).
 from finetune_studio.access.middleware import AccessMiddleware
 
@@ -450,18 +455,26 @@ static_dir.mkdir(parents=True, exist_ok=True)
 (static_dir / "css").mkdir(exist_ok=True)
 (static_dir / "js").mkdir(exist_ok=True)
 
+IMMUTABLE = "public, max-age=31536000, immutable"
+
+
 class _NoCacheStatic(StaticFiles):
-    """Static files with no-cache headers for css/js so deploys apply instantly.
+    """Static files: css/js linked with a version (``app.css?v=136``) are cached for a year, since a change bumps the
+    version in the page; an unversioned css/js URL is revalidated on every use so a deploy applies at once.
 
     Images/fonts keep default caching (file lookup is cheap).
     """
 
     async def get_response(self, path, scope):
         resp = await super().get_response(path, scope)
-        if path.endswith((".css", ".js")):
-            resp.headers["Cache-Control"] = "no-cache, must-revalidate"
-            resp.headers["Pragma"] = "no-cache"
-            resp.headers["Expires"] = "0"
+        if path.endswith((".css", ".js")) and resp.status_code == 200:
+            query = scope.get("query_string", b"").decode("latin-1")
+            if any(part.startswith("v=") and len(part) > 2 for part in query.split("&")):
+                resp.headers["Cache-Control"] = IMMUTABLE
+            else:
+                resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+                resp.headers["Pragma"] = "no-cache"
+                resp.headers["Expires"] = "0"
         return resp
 
 

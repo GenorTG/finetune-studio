@@ -9,6 +9,9 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Pages, styles and scripts are sent gzipped and versioned styles and scripts are cached by the browser, so a first
+  visit moves about a fifth of the bytes and later pages load from cache (streams and downloads are never compressed).
+
 - The Package page now holds the package form: who it is for, which documents go in, original files and file names,
   answers, version, then Build & download; server and search tuning fold under Advanced. Before the first Smart Brain
   build it says to build it first, and a blocking knowledge-check finding is shown next to the button with a link. The
