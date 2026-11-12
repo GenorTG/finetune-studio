@@ -36,6 +36,19 @@
   </div>
 </div>
 
+<div class="card mb-4" id="package-versions">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Package versions</div>
+      <div class="card-sub">Every exported package keeps its id; a new version of it lists the documents added, changed
+        and removed since the last one. A running copy updates in place with <code>bash update.sh NEW.tar.gz</code>.</div>
+    </div>
+  </div>
+  <div id="package-versions-list" class="text-sm">No package exported yet.</div>
+  <details class="mt-2" id="package-changes-box" hidden><summary class="text-sm" id="package-changes-title">Changes in the latest version</summary>
+    <pre class="mono text-xs mt-2" id="package-changes"></pre></details>
+</div>
+
 <h2 class="brain-section-label">Trained models</h2>
 <p class="text-sm dim mb-3">Take a finished training run out of the studio: <b>GGUF</b> to run it in llama.cpp / LM Studio / Ollama, or
   <b>abliterated</b> for an uncensored variant. Adapter-only runs are merged onto their base automatically at export time.</p>
@@ -358,6 +371,31 @@
 </div>
 
 <script>
+// Package versions: the project's package history (GET /brain/packages).
+(function () {
+  const PID = {{ pid|tojson }};
+  const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  fetch('/api/projects/' + encodeURIComponent(PID) + '/brain/packages').then((r) => r.ok ? r.json() : null).then((d) => {
+    if (!d || !d.packages.length) return;
+    document.getElementById('package-versions-list').innerHTML = d.packages.map((p) =>
+      '<div class="mb-2"><b>' + esc(p.name || p.package_id) + '</b> <span class="dim mono text-xs">' + esc(p.package_id) + '</span>'
+      + '<table class="ref-table mt-1"><thead><tr><th>Version</th><th>Built</th><th>Documents</th><th>Changes</th><th>From</th></tr></thead><tbody>'
+      + p.versions.map((v) => {
+          const c = v.changes || {};
+          const ch = v.parent_version ? (c.added || []).length + ' added, ' + (c.changed || []).length + ' changed, '
+            + (c.removed || []).length + ' removed since ' + v.parent_version : 'first version';
+          return '<tr><td class="mono">' + esc(v.version) + '</td><td class="mono">' + esc((v.created || '').slice(0, 16).replace('T', ' '))
+            + '</td><td>' + esc(v.documents) + '</td><td>' + esc(ch) + '</td><td class="text-xs">' + esc(v.origin === 'exported'
+              ? v.filename : (v.origin || '') + ' ' + (v.filename || '')) + '</td></tr>';
+        }).join('') + '</tbody></table></div>').join('');
+    if (d.latest && d.latest.changes_md) {
+      document.getElementById('package-changes-box').hidden = false;
+      document.getElementById('package-changes-title').textContent = 'Changes in version ' + d.latest.version;
+      document.getElementById('package-changes').textContent = d.latest.changes_md;
+    }
+  });
+})();
+
 // Enable export button when a run is selected; prefill base_model.
 document.querySelectorAll('.export-run-radio').forEach(r => {
   r.addEventListener('change', () => {

@@ -209,10 +209,25 @@ def _export(args: argparse.Namespace) -> None:
             out_dir = Path(args.out or ".")
     except (ValidationError, ValueError) as e:
         _die(str(e))
+    from finetune_studio.smart_brain import package_meta as pm
+
+    history_dir = pm.package_dir(resolve_project(args.project)["id"]) if args.project else out_dir
+    base = None
+    if args.base:
+        from finetune_studio.smart_brain import package_import
+
+        try:
+            base = package_import.read_record(args.base, _read_pass(args.base_passphrase_file), out_dir)
+        except Exception as e:  # noqa: BLE001 - wrong passphrase / not a package: the reason is the message
+            _die(f"cannot read {args.base}: {e}")
+        pm.add_history(history_dir, {**base, "origin": "uploaded", "filename": Path(args.base).name,
+                                     "name": Path(args.base).name})
+    elif args.new_version_of:
+        base = pm.latest(history_dir, args.new_version_of)
+        if base is None:
+            _die(f"no package {args.new_version_of!r} in {pm.history_path(history_dir)}")
     safe = "".join(c if c.isalnum() or c in "._-" else "-" for c in title).strip(".-")[:48] or "brain"
     ext = "zip" if cfg.archive_format == "zip" else cfg.archive_format
-    out = out_dir / (f"{safe}-smart-brain{'-with-models' if cfg.include_models else ''}"
-                     f"{'' if cfg.encrypt else '-PLAINTEXT'}.{ext}")
     from finetune_studio.smart_brain import originals as brain_originals
     from finetune_studio.smart_brain import scope as brain_scope
 
@@ -224,11 +239,22 @@ def _export(args: argparse.Namespace) -> None:
     except ValueError as e:
         _die(str(e))
     probes = brain_scope.probe_queries(corpus, {d.document_id for d in docs} - keep) if keep is not None else {}
+    doc_rows = pm.document_manifest(corpus, pid, keep)
+    try:
+        record = pm.make_record(base=base, documents=doc_rows, version=args.version)
+    except ValueError as e:
+        _die(str(e))
+    diff = pm.changes(base["documents"] if base else None, doc_rows)
+    record["changes"] = pm.summary(diff)
+    changes_md = pm.changes_markdown(record, diff)
+    out = out_dir / (f"{safe}-smart-brain-v{record['version']}{'-with-models' if cfg.include_models else ''}"
+                     f"{'' if cfg.encrypt else '-PLAINTEXT'}.{ext}")
     originals = brain_originals.collect(corpus, pid) if cfg.include_originals else []
     try:
         result = build_package(corpus, out, name=title, config=cfg, passphrase=passphrase,
                                identity=_identity_for(args, package=True), originals=originals,
-                               documents=keep, scope=scope_record)
+                               documents=keep, scope=scope_record, package=record, changes_md=changes_md,
+                               changes_md_public=pm.changes_markdown(record, diff, names=False))
     except (FileNotFoundError, ValueError) as e:
         _die(str(e))
     from finetune_studio.smart_brain.server_package import (
@@ -238,6 +264,8 @@ def _export(args: argparse.Namespace) -> None:
 
     verified = verify_package(result.path, result.passphrase or passphrase, studio_models=studio_models_for(corpus),
                               expected_originals={o.document_id: o.sha256 for o in originals}, out_of_scope=probes)
+    pm.add_history(history_dir, {**record, "origin": "exported", "filename": result.path.name, "name": title,
+                                 "scope": scope_record["label"], "encrypted": result.encrypted, "changes_md": changes_md})
     if args.project:
         from finetune_studio.cli.commands.dataset import resolve_project
         from finetune_studio.knowledge.readiness import record_package
@@ -248,6 +276,8 @@ def _export(args: argparse.Namespace) -> None:
                       "verified": verified, "layers": result.layers,
                       "original_files": sum(1 for o in originals if keep is None or o.document_id in keep),
                       "scope": scope_record,
+                      "package": {k: record[k] for k in ("package_id", "version", "parent_version", "created")},
+                      "changes": record["changes"],
                       "pipeline": pipeline_text(cfg, bundled_reranker=result.layers.get("reranker", False)),
                       **({"passphrase": result.passphrase, "note": "shown once: store it now, it is not saved"}
                          if result.passphrase else {})}, indent=2))
@@ -385,8 +415,13 @@ def _import(args: argparse.Namespace) -> None:
     target = BrainIndex(_corpus(args))
     if target.exists() and not args.replace:
         _die("this project already has an index: add --replace to replace it with the bundle's")
+    from finetune_studio.smart_brain import package_import
+
+    opened = None
     try:
-        if src.name.lower().endswith(sb.BUNDLE_EXT):
+        if not src.name.lower().endswith(sb.BUNDLE_EXT) and package_import.is_server_package(src):
+            opened = package_import.import_package(pid, src, _read_pass(args.passphrase_file), overwrite=True)
+        elif src.name.lower().endswith(sb.BUNDLE_EXT):
             passphrase = _read_pass(args.passphrase_file)
             if not passphrase:
                 _die("this bundle is encrypted: give --passphrase-file")
@@ -399,7 +434,7 @@ def _import(args: argparse.Namespace) -> None:
     from finetune_studio.smart_brain import identity as brain_identity
 
     brain_identity.adopt_imported(pid, target.dir)
-    print(json.dumps(stats, indent=2))
+    print(json.dumps({**stats, **({"package": opened} if opened else {})}, indent=2))
 
 
 _HANDLERS = {"build": _build, "search": _search, "ask": _ask, "eval": _eval, "rebuild-vectors": _rebuild_vectors,
@@ -486,6 +521,12 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     sp.add_argument("--models", action=bo, default=None,
                     help="bundle the embedder (+ reranker) for offline use (~2 GB, not encrypted)")
     sp.add_argument("--encrypt", action=bo, default=None, help="encrypt the corpus (default on)")
+    sp.add_argument("--new-version-of", metavar="PACKAGE_ID",
+                    help="a new version of a package in this project's history: same id, next version, change report")
+    sp.add_argument("--base", metavar="ARCHIVE",
+                    help="a new version of this exported package archive (add --base-passphrase-file if encrypted)")
+    sp.add_argument("--base-passphrase-file", help="passphrase of the --base archive")
+    sp.add_argument("--version", help="version to give the package (default: 1.0.0, or the base's next minor)")
     sp.add_argument("--include", action="append", metavar="PREFIX",
                     help="only documents whose path (folder/file name) starts with PREFIX, e.g. public/ (repeatable)")
     sp.add_argument("--exclude", action="append", metavar="PREFIX",
@@ -523,6 +564,7 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     sp.add_argument("--out", help="output directory (default: the current one)")
 
     sp = target(brain.add_parser("import", help="Load a .ftsrag (or legacy .tar/.zip) bundle as a project's index"))
-    sp.add_argument("bundle", help="the bundle file")
+    sp.add_argument("bundle", help="the bundle file (.ftsrag), or an exported Smart Brain package (.tar.gz/.zip): "
+                                   "its index and original files become this project's starting point")
     sp.add_argument("--passphrase-file", help="file holding the passphrase (encrypted .ftsrag bundles)")
     sp.add_argument("--replace", action="store_true", help="replace the project's existing index")

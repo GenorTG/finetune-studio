@@ -143,6 +143,9 @@ def _controls() -> dict[str, Control]:
         ("brain.export_pipeline", "brain", "#mcp-pipeline", "Export: pipeline summary"),
         ("brain.export_scope", "brain", "#mcp-scope", "Export: which documents go in the package (audience scope)"),
         ("brain.export_scope_summary", "brain", "#mcp-scope-summary", "Export: N of M documents in the package"),
+        ("brain.export_version", "brain", "#mcp-versioning", "Export: new package or new version of one"),
+        ("brain.export_base", "brain", "#mcp-base", "Export: which package this is a new version of"),
+        ("brain.export_base_upload", "brain", "#mcp-base-upload", "Export: read an exported package as the base"),
         ("brain.export_originals", "brain", "#mcp-originals", "Export: include original files (downloadable)"),
         # training
         ("training.usecases", "training", "#uc-card", "Start from a use case"),
@@ -197,6 +200,7 @@ def _controls() -> dict[str, Control]:
         ("benchmarks.base_row", "benchmarks", "#bench-base-row", "Base-model benchmark row"),
         ("benchmarks.compare", "benchmarks", "#cmp-run-btn", "Run comparison"),
         # export
+        ("export.package_versions", "export", "#package-versions", "Package versions and their changes"),
         ("export.runs", "export", "#export-runs", "Training runs"),
         ("export.gguf_quants", "export", "#gguf-quants", "GGUF quantizations"),
         ("export.gguf_imatrix", "export", "#gguf-imatrix", "Importance matrix (imatrix)"),

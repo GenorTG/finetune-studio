@@ -22,6 +22,8 @@ Modes
                     with original files inside, rag_get_document(document_id | filename).
     --query TEXT    one search, JSON on stdout.
     --print-config  show the effective merged config (secrets redacted).
+    --update ARCHIVE  replace this package's corpus and server with a newer version of the same package
+                    (keeps rag.config.json edits and the keyfile; --force for a different package id).
     --save-config   persist the given flags into rag.config.json.
 
 Configuration precedence:  CLI flags > env (RAG_*) > rag.config.json > defaults.
@@ -735,6 +737,7 @@ class Corpus:
             "identity": self.identity.get("name") or ("set" if self.identity else "none"),
             "original_files": len(self.originals),
             "scope": self.manifest.get("scope") or {"label": "all documents"},
+            "package": self.manifest.get("package") or {},
             "answer_connection": {
                 "configured": bool(self.cfg["answer"] and self.cfg["llm_base_url"] and self.cfg["llm_model"]),
                 "provider": self.cfg["provider"], "base_url": self.cfg["llm_base_url"], "model": self.cfg["llm_model"],
@@ -1424,6 +1427,109 @@ def serve_mcp(corpus: Corpus | LoadingCorpus) -> None:
             sys.stdout.flush()
 
 
+#: Never replaced by an update: local settings, the venv and what setup.sh wrote.
+UPDATE_KEEP = frozenset({CONFIG_NAME, ".venv", "MCP-ENTRY.txt", "rag-server.log", "rag-server.pid"})
+
+
+def _version_key(version) -> tuple:
+    return tuple(int(x) for x in re.findall(r"\d+", str(version or "0").split("-")[0])[:3])
+
+
+def _read_package_json(root: Path) -> dict:
+    try:
+        data = json.loads((root / "package.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _extract_archive(archive: Path, dest: Path) -> Path:
+    """Unpack a package archive (no absolute paths, no ``..``, no links); return the folder holding server.py."""
+    import tarfile
+    import zipfile
+
+    def safe(name: str) -> bool:
+        parts = Path(name).parts
+        return bool(parts) and not name.startswith(("/", "\\")) and ".." not in parts
+    if zipfile.is_zipfile(archive):
+        with zipfile.ZipFile(archive) as zf:
+            zf.extractall(dest, [n for n in zf.namelist() if safe(n)])
+    else:
+        with tarfile.open(archive) as tf:
+            members = [m for m in tf.getmembers() if safe(m.name) and (m.isfile() or m.isdir())]
+            tf.extractall(dest, members=members)
+    server = sorted(dest.rglob("server.py"), key=lambda p: len(p.parts))
+    if not server:
+        raise ConfigError(f"{archive} is not a Smart Brain package (no server.py inside)")
+    return server[0].parent
+
+
+def apply_update(pkg_dir: Path, archive: str | Path, *, force: bool = False, passphrase: str | None = None) -> dict:
+    """Replace this package with a newer version of it, in place.
+
+    The new archive's corpus, server and scripts replace the old ones; ``rag.config.json`` keeps every local value
+    (keys the new version adds are filled in), and the venv, the keyfile and anything else not in the archive stay.
+    A different ``package_id``, or a version not newer than the installed one, is refused unless ``force``; with ``passphrase`` the new corpus is opened first, so a
+    wrong passphrase never replaces a working package. Returns ``{"from", "to", "package_id", ...}``."""
+    import shutil
+    import tempfile
+
+    pkg_dir, archive = Path(pkg_dir).resolve(), Path(archive).resolve()
+    if not archive.is_file():
+        raise ConfigError(f"no such archive: {archive}")
+    current = _read_package_json(pkg_dir)
+    stage = Path(tempfile.mkdtemp(prefix=".update-", dir=pkg_dir))
+    try:
+        new_root = _extract_archive(archive, stage)
+        new = _read_package_json(new_root)
+        if not new.get("package_id"):
+            raise ConfigError("the new archive has no package.json: it was exported before package versions")
+        if not force:
+            if not current.get("package_id"):
+                raise ConfigError("this package has no package id (exported before package versions): "
+                                  "add --force to replace it anyway")
+            if new["package_id"] != current["package_id"]:
+                raise ConfigError(f"the archive is another package ({new['package_id']}, this one is "
+                                  f"{current['package_id']}): add --force to replace it anyway")
+            if _version_key(new.get("version")) <= _version_key(current.get("version")):
+                raise ConfigError(f"the archive is version {new.get('version')}, not newer than the installed "
+                                  f"{current.get('version')}: add --force to install it anyway")
+        enc = new_root / "corpus" / ENC_NAME
+        if passphrase and enc.is_file():
+            try:
+                _load_container_module().ContainerReader(enc, passphrase).close()
+            except Exception as e:  # wrong passphrase or a damaged file: keep the working package
+                raise ConfigError(f"the new corpus does not open with this passphrase ({e}); nothing was changed") from e
+        old_req = (pkg_dir / "requirements.txt").read_text(encoding="utf-8") \
+            if (pkg_dir / "requirements.txt").is_file() else ""
+        local_cfg = {}
+        if (pkg_dir / CONFIG_NAME).is_file():
+            local_cfg = json.loads((pkg_dir / CONFIG_NAME).read_text(encoding="utf-8"))
+        new_cfg = {}
+        if (new_root / CONFIG_NAME).is_file():
+            new_cfg = json.loads((new_root / CONFIG_NAME).read_text(encoding="utf-8"))
+        replaced = []
+        for item in sorted(new_root.iterdir()):
+            if item.name in UPDATE_KEEP:
+                continue
+            target = pkg_dir / item.name
+            if target.is_dir() and not target.is_symlink():
+                shutil.rmtree(target)
+            elif target.exists() or target.is_symlink():
+                target.unlink()
+            os.replace(item, target)     # a running update.sh keeps reading its old copy (new inode)
+            replaced.append(item.name)
+        merged = {**new_cfg, **local_cfg}
+        (pkg_dir / CONFIG_NAME).write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
+        new_req = (pkg_dir / "requirements.txt").read_text(encoding="utf-8") \
+            if (pkg_dir / "requirements.txt").is_file() else ""
+        return {"package_id": new["package_id"], "from": current.get("version"), "to": new.get("version"),
+                "replaced": replaced, "kept_config": sorted(local_cfg),
+                "added_config": sorted(set(new_cfg) - set(local_cfg)), "requirements_changed": old_req != new_req}
+    finally:
+        shutil.rmtree(stage, ignore_errors=True)
+
+
 def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         description="Standalone Finetune-Studio RAG corpus server "
@@ -1468,6 +1574,9 @@ def build_parser() -> argparse.ArgumentParser:
                     help="show the effective merged config (secrets redacted) and exit")
     ap.add_argument("--save-config", action="store_true",
                     help="write the given flags into rag.config.json and exit")
+    ap.add_argument("--update", metavar="ARCHIVE",
+                    help="replace this package with a newer version of it (keeps rag.config.json and the keyfile)")
+    ap.add_argument("--force", action="store_true", help="with --update: accept another package id")
     return ap
 
 
@@ -1481,6 +1590,19 @@ def main(argv: list[str] | None = None) -> int:
     if args.http:  # --http PORT
         flags["port"] = args.http
     env = os.environ
+    if args.update:
+        try:
+            pw = None
+            if args.keyfile or env.get("RAG_PASSPHRASE") or env.get("RAG_KEYFILE"):
+                pw = read_passphrase(args.keyfile, env)
+            done = apply_update(HERE, args.update, force=args.force, passphrase=pw)
+        except ConfigError as e:
+            print(f"update refused: {e}", file=sys.stderr)
+            return 2
+        print(json.dumps(done, indent=2))
+        print(f"updated package {done['package_id']}: version {done['from'] or '(none)'} -> {done['to']}",
+              file=sys.stderr)
+        return 0
     try:
         file_cfg, cfg_path = load_config_file(args.config, env)
         cfg, origin = resolve_config(flags, env, file_cfg)
