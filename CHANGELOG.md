@@ -9,6 +9,9 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- The host resources card (RAM and VRAM bars) is only on the dashboard, Training, Inference and My models, below the page
+  title and smaller on phones; the knowledge pages open on their title and next step (the top bar keeps the VRAM pill).
+
 - The Package page opens at once: its checklist loads after the page, and the knowledge check behind it is kept until a
   file or the index changes (a 120-file project took 4 s per visit, now 0.2 s). The status pills sit next to each step
   instead of stretching across it.
