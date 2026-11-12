@@ -5459,3 +5459,6 @@ html { scroll-padding-top: calc(var(--session-bar-h, 104px) + 8px); }
 .package-step-head .pill { flex: none; font-size: .72rem; }
 .package-step-detail { margin-top: .15rem; font-size: .75rem; color: var(--text-muted); overflow-wrap: anywhere; }
 .package-step.is-loading { opacity: .7; }
+
+/* New project: the chosen template reads as chosen (it had no style, so all four looked alike). */
+.template-btn.active, .template-btn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
