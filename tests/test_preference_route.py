@@ -24,7 +24,7 @@ def api() -> TestClient:
 
 def _use_model(monkeypatch: pytest.MonkeyPatch, fake) -> None:
     monkeypatch.setattr("finetune_studio.data.prep.generator.resolve_generator",
-                        lambda: lambda messages, **kw: fake(messages[-1]["content"]))
+                        lambda *_a, **_k: lambda messages, **kw: fake(messages[-1]["content"]))
 
 
 def _url(pid: str, tail: str = "") -> str:
@@ -67,7 +67,7 @@ def test_no_approved_pairs_is_409(api, monkeypatch) -> None:
 
 def test_no_loaded_model_is_409_not_a_fabricated_dataset(api, monkeypatch) -> None:
     proj = seed_project()
-    monkeypatch.setattr("finetune_studio.data.prep.generator.resolve_generator", lambda: None)
+    monkeypatch.setattr("finetune_studio.data.prep.generator.resolve_generator", lambda *_a, **_k: None)
     r = api.post(_url(proj["id"]), json={})
     assert r.status_code == 409 and r.json()["code"] == "no_model" and r.json()["detail"]
     assert list_datasets(proj["id"]) == []
@@ -117,7 +117,7 @@ def test_build_runs_off_the_event_loop_and_reports_progress(monkeypatch) -> None
             time.sleep(0.05)
         return fake(messages[-1]["content"])
 
-    monkeypatch.setattr("finetune_studio.data.prep.generator.resolve_generator", lambda: slow)
+    monkeypatch.setattr("finetune_studio.data.prep.generator.resolve_generator", lambda *_a, **_k: slow)
     app = FastAPI()
     app.include_router(route.router, prefix="/api")
 

@@ -54,7 +54,7 @@ def test_base_workspace_label_and_aria_current() -> None:
     base = _BASE.read_text(encoding="utf-8")
     assert 'class="ws-label"' in base
     assert 'aria-label="Project flow"' in base
-    assert "1 Files &amp; Knowledge" in base and "2 Smart Brain" in base and "2 train" in base
+    assert ">1 files<" in base and ">2 Smart Brain<" in base and "Train a model" in base and ">train<" in base
 
 
 def test_project_file_page_points_to_the_next_workflow_step(client: TestClient) -> None:
@@ -211,6 +211,7 @@ def test_load_success_requires_model_object(
     engine.load = MagicMock()
     monkeypatch.setattr("finetune_studio.webui.app.inference_engine", engine)
 
+    (tmp_path / "config.json").write_text("{}", encoding="utf-8")
     r = client.post("/api/models/load", json={"path": str(tmp_path)})
     assert r.status_code == 500, r.text
     data = r.json()
@@ -228,6 +229,7 @@ def test_load_success_payload_when_model_held(
     engine.load = MagicMock()
     monkeypatch.setattr("finetune_studio.webui.app.inference_engine", engine)
 
+    (tmp_path / "config.json").write_text("{}", encoding="utf-8")
     r = client.post("/api/models/load", json={"path": str(tmp_path)})
     assert r.status_code == 200, r.text
     data = r.json()
@@ -330,9 +332,9 @@ def test_card_head_stacks_below_700() -> None:
 
 def test_css_cache_bust_bumped() -> None:
     base = _BASE.read_text(encoding="utf-8")
-    assert "app.css?v=119" in base
+    assert "app.css?v=135" in base
     assert "sprites.js?v=20" in base
-    assert "nav_overflow.js?v=2" in base
+    assert "nav_overflow.js?v=3" in base
 
 
 def test_data_prep_styles_live_in_versioned_stylesheet() -> None:
@@ -341,7 +343,7 @@ def test_data_prep_styles_live_in_versioned_stylesheet() -> None:
     base = _BASE.read_text(encoding="utf-8")
     assert "<style>" not in template
     assert ".dp-review-toolbar" in css and ".dp-points-col" in css and ".fl-tree" in css
-    assert "app.css?v=119" in base
+    assert "app.css?v=135" in base
 
 
 def test_testing_page_styles_live_in_versioned_stylesheet() -> None:
@@ -350,8 +352,8 @@ def test_testing_page_styles_live_in_versioned_stylesheet() -> None:
     base = _BASE.read_text(encoding="utf-8")
     assert "<style>" not in template
     assert ".tp-seg" in css and ".tp-runs" in css and ".rv-main" in css
-    assert 'app.css?v=119' in base
-    assert "spa.js?v=20" in base
+    assert 'app.css?v=135' in base
+    assert "spa.js?v=21" in base
 
 
 def test_workflow_steps_vertical_at_desktop() -> None:
@@ -407,14 +409,14 @@ def test_brain_docs_table_scroll_and_column_classes() -> None:
 
 
 def test_brain_ia_workflow_and_cta(client: TestClient) -> None:
-    """Smart Brain page explains where it sits (Files & Knowledge → build → test) and has no upload of its own."""
+    """Smart Brain page: says the state and next action first, the answers next, the rest folded under Manage."""
     pid = _project(client)
     r = client.get(f"/projects/{pid}/brain")
     assert r.status_code == 200, r.text
     body = r.text
-    assert '<details class="card mb-4" id="brain-workflow">' in body
     assert '<summary class="card-head">' in body
-    assert "Upload" in body and "parsed on arrival" in body and "Build" in body and "Test" in body
+    assert 'id="brain-hero"' in body and 'id="brain-upload"' in body and 'id="brain-upload-input"' in body
+    assert body.index('id="brain-hero"') < body.index('id="brain-chat"') < body.index('id="brain-docs-panel"')
     assert 'id="brain-cta-data"' in body and f'href="/projects/{pid}/data"' in body
     assert "Files &amp; Knowledge" in body
     assert "Methods:" not in body
@@ -423,25 +425,24 @@ def test_brain_ia_workflow_and_cta(client: TestClient) -> None:
     assert "<h1>🧠 Smart Brain</h1>" in body and "RAG index" not in body
     assert "Build with AI" not in body
     assert "agentic" not in body.lower()
-    assert "Upload new files on the files page" in body
     assert body.count('id="quick-index-btn"') == 1
-    assert body.index('id="quick-index-btn"') < body.index('id="brain-workflow"')
-    assert "Use Quick index above" in body
+    assert body.index('id="quick-index-btn"') < body.index('id="brain-chat"')
+    assert "Build Smart Brain" in body
     assert "model weights" in body.lower()
     assert "No documents indexed yet" in body
     # Numbered sections are unique and sequential
     for title in (
-        "1. Index status",
-        "2. Build the index",
-        "3. Search settings",
-        "4. Documents in the index",
-        "5. Search test",
-        "6. Ask the model (grounded)",
-        "7. Download / export the index",
-        "8. Shared search models",
+        "Ask your documents",
+        "Documents in the index",
+        "Test a search",
+        "Search settings",
+        "Build options",
+        "Build the package",
+        "Shared search models",
+        "Index details",
     ):
         assert title in body, title
-    assert body.count("5. Search test") == 1
+    assert body.count("Test a search") == 1
     assert "Chat with RAG" not in body
     assert '<details class="card mb-4" id="brain-search-settings" data-needs-index>' in body
     assert '<details class="card mb-4" id="brain-docs-panel" data-needs-index>' in body
@@ -449,6 +450,7 @@ def test_brain_ia_workflow_and_cta(client: TestClient) -> None:
     assert '<details class="card mb-4" id="brain-shared-models">' in body
     # Without an index, the index-only sections fold into one note (the JS toggles both on d.exists).
     assert 'id="brain-search" data-needs-index' in body and 'id="brain-chat" data-needs-index' in body
+    assert '<h2 class="brain-section-label">Manage</h2>' in body
     assert 'id="brain-needs-index-note" hidden' in body
     assert "querySelectorAll('[data-needs-index]')" in body
 
@@ -491,7 +493,7 @@ def test_brain_is_marked_here_in_the_flow_bar(client: TestClient) -> None:
     bar = r.text.split('id="workspace-subnav"', 1)[1].split("</nav>", 1)[0]
     assert "ws-switch" not in bar                                   # no model/RAG workspace switch any more
     here = bar.split('data-tab="brain"', 1)[1].split(">", 1)[0]
-    assert "here" in here and "2 Smart Brain" in bar and "2 train" in bar
+    assert "here" in here and "2 Smart Brain" in bar and ">train<" in bar
 
 
 def test_sprites_brain_caption_not_embedding_corpus() -> None:

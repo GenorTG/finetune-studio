@@ -85,6 +85,13 @@ def test_benchmarks_template_has_no_judge_ui_only_exact_scoring() -> None:
     assert "/testing" in html  # points project quizzes at the Testing page
 
 
+def test_benchmarks_points_project_quizzes_to_testing_step_three() -> None:
+    html = _BENCH.read_text(encoding="utf-8")
+
+    assert 'data-link>testing (step 3)</a>' in html
+    assert 'data-link>testing (step 4)</a>' not in html
+
+
 def test_case_results_table_is_horizontally_scrollable() -> None:
     """Long question/expected must not clip verdict/time at ~930px viewports."""
     long_q = "Q" * 400

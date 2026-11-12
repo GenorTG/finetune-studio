@@ -8,6 +8,7 @@ no-cache static mount, and every router include. Also owns the process-wide
 that route modules import lazily from here.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -21,6 +22,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from finetune_studio import (
+    __version__,
     db,
     logsetup,
 )
@@ -185,7 +187,7 @@ async def lifespan(app: FastAPI):
         reaper.cancel()
         watcher.cancel()
 
-app = FastAPI(title="Finetune Studio", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Finetune Studio", version=__version__, lifespan=lifespan)  # /openapi.json reports the build
 
 from finetune_studio.webui import errors as _errors
 
@@ -215,7 +217,7 @@ def _activity_kind(path: str) -> str:
         return "brain_query"
     if "/upload" in p or "/promote" in p or p.endswith("/sources"):
         return "upload"
-    if "/testing/" in p or p.endswith("/testing"):
+    if "/testing/" in p or p.endswith("/testing") or p.startswith("/api/compare/"):
         return "testing"
     if "/benchmark" in p or "/run-suite" in p:
         return "benchmark"
@@ -223,7 +225,8 @@ def _activity_kind(path: str) -> str:
         return "export"
     if p.endswith("/start") and ("/runs" in p or "/training/" in p):
         return "training"
-    if p.startswith("/api/hf/"):
+    # Deleting a downloaded model is not a download: it falls through to "operation".
+    if p.startswith("/api/hf/") and not p.startswith("/api/hf/local/"):
         return "download"
     if "/chat" in p and "/data-prep" in p:
         return "data_prep"
@@ -232,6 +235,20 @@ def _activity_kind(path: str) -> str:
     if "/system-update" in p or "/system/" in p:
         return "system_update"
     return "operation"
+
+
+@app.middleware("http")
+async def refresh_invalidated_model_registry(request: Request, call_next):
+    """Observe CLI-originated model-list changes before any route renders models."""
+    from finetune_studio.models.registry_invalidation import read_generation
+    from finetune_studio.webui.routes import models as model_routes
+
+    if read_generation() > model_routes._registry_generation:
+        try:
+            await asyncio.to_thread(model_routes.refresh_model_registry_if_invalidated)
+        except Exception:  # noqa: BLE001 — a stale model list must not take down unrelated routes
+            _log.exception("Model registry refresh after external invalidation failed")
+    return await call_next(request)
 
 
 @app.middleware("http")
@@ -304,8 +321,6 @@ def _activity_summary(path: str, method: str, http_status: int = 200, error_deta
             return "Exclude a data point"
         if "/mining/" in path and path.endswith("/reset"):
             return "Reset a mined file"
-        if "/data-prep/chat" in path:
-            return "Agent mining question"
         if "/data-prep/qa/bulk" in path:
             return "Bulk-approve/reject Q&A"
         if "/data-prep/export" in path:
@@ -318,31 +333,66 @@ def _activity_summary(path: str, method: str, http_status: int = 200, error_deta
             return "Start training run"
         if "/run-suite" in path:
             return "Run test suite"
-        if any(x in path for x in ("/export-gguf", "/quantize", "/export")):
+        if any(x in path for x in ("/export-gguf", "/export")):
             return "Export model"
         if "/load" in path and "models" in path:
             return "Load model"
         if "/unload" in path:
             return "Unload model"
-        if "/download/start" in path or path.startswith("/api/hf/"):
-            return "HF download"
+        if path.startswith("/api/compare/"):
+            if path.endswith("/runs"):
+                return "Run comparison"
+            if path.endswith("/judge"):
+                return "Judge comparison"
+            if path.endswith("/cancel"):
+                return "Stop comparison"
+            if method.upper() == "DELETE":
+                return "Delete comparison"
+        # The download itself has its own Activity row (hf_downloads); this one is the request that started it.
+        if path == "/api/hf/download/cancel":
+            return "Cancel HF download"
+        if path in ("/api/hf/download", "/api/hf/download/start"):
+            return "Start HF download"
+        if path.startswith("/api/hf/local/") and method.upper() == "DELETE":
+            return "Delete downloaded model " + path.removeprefix("/api/hf/local/")
         if method.upper() == "POST" and path.rstrip("/") == "/api/projects":
             return "Create project"
-        verb = {
-            "POST": "Create", "PUT": "Update", "PATCH": "Update",
-            "DELETE": "Delete",
-        }.get(method.upper(), "Operation")
-        return verb
+        from finetune_studio.webui.activity_names import describe
+
+        return describe(path, method)
     except Exception:  # noqa: BLE001 — summary must never break recording
         return "Operation"
+
+
+def _activity_project_id(path: str) -> str:
+    """The project a request acts on: ``/api/projects/{pid}/...`` or ``/api/<area>/projects/{pid}/...`` (testing,
+    compare, benchmarks, chat, data editor), so the Activity row sits under its project instead of "system"."""
+    parts = path.strip("/").split("/")
+    for i in (1, 2):
+        if len(parts) > i + 1 and parts[0] == "api" and parts[i] == "projects":
+            return parts[i + 1]
+    return ""
 
 
 def _record_activity_event(request: Request, started: float, http_status: int, error_detail: str = "") -> None:
     """Best-effort event write; logging must never break the API response."""
     try:
-        parts = request.url.path.strip("/").split("/")
-        project_id = parts[2] if len(parts) > 2 and parts[:2] == ["api", "projects"] else ""
+        # The path names the project, or the route does (``request.state.activity_project_id``: body or new id).
+        project_id = _activity_project_id(request.url.path) or str(
+            getattr(request.state, "activity_project_id", "") or "")
+        if project_id and db.get_project(project_id) is None:
+            project_id = ""   # the request deleted it (or it never existed): a row under a missing project is hidden
         status = "done" if http_status < 400 else "error"
+        message = _activity_summary(
+            request.url.path,
+            request.method,
+            http_status,
+            error_detail or getattr(request.state, "activity_error", ""),
+        )
+        # A route may name what the request acted on when the path does not say it (the repo of a download).
+        subject = str(getattr(request.state, "activity_subject", "") or "")
+        if subject and http_status < 400:
+            message = f"{message} · {subject}"
         db.record_activity_event(
             kind=_activity_kind(request.url.path),
             operation=request.url.path,
@@ -351,12 +401,7 @@ def _record_activity_event(request: Request, started: float, http_status: int, e
             project_id=project_id,
             status=status,
             http_status=http_status,
-            message=_activity_summary(
-                request.url.path,
-                request.method,
-                http_status,
-                error_detail or getattr(request.state, "activity_error", ""),
-            ),
+            message=message,
             started_at=started,
             finished_at=time.time(),
         )
@@ -437,7 +482,6 @@ from finetune_studio.webui.routes import (
     comparison,
     data_editor,
     data_prep,
-    data_prep_chat,
     data_prep_preference,
     data_prep_study,
     guide_chat,
@@ -449,6 +493,7 @@ from finetune_studio.webui.routes import (
     projects,
     system,
     testing,
+    testing_brain_quiz,
     testing_reworded,
     training,
     usecases,
@@ -466,11 +511,14 @@ app.include_router(benchmarks.router, prefix="/api/benchmarks", tags=["benchmark
 app.include_router(data_editor.router, prefix="/api/data-editor", tags=["data-editor"])  # type: ignore[has-type]
 app.include_router(chat_v2.router, prefix="/api/chat-v2", tags=["chat-v2"])  # type: ignore[has-type]
 app.include_router(data_prep.router, prefix="/api", tags=["data-prep"])  # type: ignore[has-type]  # /api/projects/{pid}/data-prep/*
-app.include_router(data_prep_chat.router, prefix="/api", tags=["data-prep-chat"])  # type: ignore[has-type]  # /api/projects/{pid}/data-prep/chat*
 app.include_router(mining.router, tags=["mining"])  # type: ignore[has-type]  # /api/projects/{pid}/mining/*
 app.include_router(data_prep_preference.router, prefix="/api", tags=["data-prep-preference"])  # type: ignore[has-type]  # /api/projects/{pid}/data-prep/preference*
 app.include_router(data_prep_study.router, prefix="/api", tags=["data-prep-study"])  # type: ignore[has-type]  # /api/projects/{pid}/data-prep/study*
+app.include_router(testing_brain_quiz.router, prefix="/api", tags=["testing"])
 app.include_router(testing_reworded.router, prefix="/api", tags=["testing"])  # /api/projects/{pid}/testing/reworded-quiz*
+from finetune_studio.webui.routes import usecase_drafts as _usecase_drafts
+
+app.include_router(_usecase_drafts.router, prefix="/api", tags=["usecases"])  # /api/projects/{pid}/usecases/drafts* (before {uid})
 app.include_router(usecases.router, prefix="/api", tags=["usecases"])  # /api/usecases/templates + /api/projects/{pid}/usecases*
 app.include_router(guide_chat.router, prefix="/api", tags=["guide"])  # type: ignore[has-type]  # /api/guide/* (SSE chat + KB)
 app.include_router(data_prep._pages)  # type: ignore[has-type]  # HTML page /projects/{pid}/data-prep
@@ -506,15 +554,23 @@ app.include_router(_access.router)  # /login, /api/auth/*, /api/settings/securit
 
 from finetune_studio.webui.routes import helper_settings as _helper_settings
 
-app.include_router(_helper_settings.router)  # type: ignore[has-type]  # /api/settings/helper* (local GGUF or API provider)
+app.include_router(_helper_settings.router)  # type: ignore[has-type]  # /api/settings/helper* (the local model)
+
+from finetune_studio.webui.routes import assistant_settings as _assistant_settings
+
+app.include_router(_assistant_settings.router)  # /api/settings/assistant*, /api/settings/connections* (AI assistant)
 
 from finetune_studio.webui.routes import vision_settings as _vision_settings
 
-app.include_router(_vision_settings.router)  # /api/settings/vision* (Vision reader: off, local GGUF + mmproj, API)
+app.include_router(_vision_settings.router)  # /api/settings/vision/test (the "Reading pictures" job)
 
 from finetune_studio.webui.routes import compute_device as _compute_device
 
 app.include_router(_compute_device.router)  # /api/system/compute-device
+
+from finetune_studio.webui.routes import heretic as _heretic
+
+app.include_router(_heretic.router)  # /api/system/heretic*: the optional Heretic (abliteration) tool
 
 from finetune_studio.webui.routes import service as _service
 

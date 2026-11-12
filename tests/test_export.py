@@ -470,7 +470,7 @@ class TestExportRoute:
                 f.write(b"\x00" * size)
             files.append(p)
 
-        def fake_export_trained_run(run, *, fmt, quants, force, base_model):
+        def fake_export_trained_run(run, *, fmt, quants, force, base_model, imatrix=False):
             return {
                 "ok": True,
                 "status": "exported",

@@ -17,7 +17,10 @@ Step 1 · Files & Knowledge: upload documents, organise them in folders, and che
 ## Key controls
 - `#fb-upload-toggle` — shows/hides the upload card.
 - `#fb-upload-input` — file picker (txt, md, docx, doc, pdf, html, csv, xlsx, xls, pptx, rtf).
-- `#fb-upload-form` — the upload form; its Upload button actually sends.
+- `#fb-upload-form` — the upload form; its Upload button actually sends. Drop files **or folders** on it: a dropped folder keeps its sub-folders.
+- `#fb-upload-folder-input` — upload a whole folder: its tree is kept (`public/faq/returns.md` lands in the folder `public/faq`).
+- `#fb-upload-into` — the folder to upload into (`public/faq`, created with the folders above it when missing); empty = the folder chosen in the filter, or none.
+- Folders nest: a folder's name is its path (`public/faq`); the chips show sub-folders under their parent, picking a folder also shows its sub-folders' files, ＋ Folder takes a path, and renaming or deleting a folder takes its sub-folders along (files are never deleted). The Smart Brain index, the Export card's "Documents in the package" (choose `public/` or `public/faq/` at any depth), package manifests and an opened package's restored originals all keep the full path. API: `POST …/files/upload` with `folder_path` and one `paths` entry per file (or a file name with `/`); CLI: `fts files upload DIR --project P [--folder public]` keeps the directory tree.
 - `#fb-files-table` — the library table (type, size, parse status).
 - `#fb-bulk-reparse` — re-run the parser on the selected rows.
 - `#fb-search` — search the file names.

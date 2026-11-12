@@ -186,8 +186,8 @@ def test_export_blocks_until_every_file_is_complete(client_and_db) -> None:
     assert body["incomplete_files"][0]["filename"] == "notes.txt" and body["incomplete_files"][0]["counts"]["open"] == 1
 
 
-def test_export_without_approved_still_empty_or_empty_file(client_and_db) -> None:
-    """Pending-only projects must not silently populate Training."""
+def test_export_without_approved_pairs_returns_actionable_error(client_and_db) -> None:
+    """Pending-only projects must not register an empty training dataset."""
     client, _db_path, projects = client_and_db
     pid = _create_project(client)
     _seed_pending_pair(pid, projects)
@@ -196,14 +196,20 @@ def test_export_without_approved_still_empty_or_empty_file(client_and_db) -> Non
         f"/api/projects/{pid}/data-prep/export",
         params={"fmt": "sharegpt", "only": "approved"},
     )
-    assert exp.status_code == 200
-    # Empty approved set → empty body; registry may still create a 0-pair file.
-    body = exp.text.strip()
-    assert body == "" or all("conversations" not in ln for ln in body.splitlines())
+    assert exp.status_code == 400, exp.text
+    assert "no approved q&a pairs" in exp.json()["detail"].lower()
+    assert client.get(f"/api/projects/{pid}/datasets").json()["datasets"] == []
 
-    datasets = client.get(f"/api/projects/{pid}/datasets").json()["datasets"]
-    if datasets:
-        assert all(int(d.get("qa_count") or 0) == 0 for d in datasets)
+
+def test_export_with_no_pairs_does_not_register_empty_dataset(client_and_db) -> None:
+    client, _db_path, _projects = client_and_db
+    pid = _create_project(client)
+
+    exp = client.get(f"/api/projects/{pid}/data-prep/export")
+
+    assert exp.status_code == 400, exp.text
+    assert "no approved q&a pairs" in exp.json()["detail"].lower()
+    assert client.get(f"/api/projects/{pid}/datasets").json()["datasets"] == []
 
 
 def test_approve_all_pending_follows_the_file_filter_and_asks_first() -> None:

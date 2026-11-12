@@ -32,7 +32,7 @@ def fake_mgr():
 def test_chat_local_passes_gen_to_manager(fake_mgr):
     """_chat_local must forward the gen dict (clamped/defaulted) to the
     ModelManager.generate() call. The fallback chat() uses the same gen."""
-    from finetune_studio.webui.routes.data_prep_chat import _chat_local
+    from finetune_studio.webui.chat_backend import _chat_local
     backend = {"kind": "provider", "pid": "fake", "provider_id": "p1",
                "manager": fake_mgr}
     msgs = [{"role": "user", "content": "hi"}]
@@ -50,7 +50,7 @@ def test_chat_local_clamps_out_of_range_gen(fake_mgr):
     before reaching the manager. The route handler clamps in the route
     body — we exercise the clamping branch by passing values that would
     crash llama_cpp without guards."""
-    from finetune_studio.webui.routes.data_prep_chat import _chat_local
+    from finetune_studio.webui.chat_backend import _chat_local
     backend = {"kind": "provider", "pid": "fake", "provider_id": "p1",
                "manager": fake_mgr}
     # The clamping happens in the route, but _chat_local is the helper

@@ -39,8 +39,8 @@ class TeacherReport:
 
 def open_teacher(provider_id: str) -> tuple[ChatFn, str]:
     """(chat callable, model id) for an API provider row; :class:`TeacherUnavailable` otherwise."""
-    from finetune_studio.models.manager import ModelManager, get_manager
-    from finetune_studio.models.providers import ProviderConfig, build_provider
+    from finetune_studio.models.assistant import connection_client, instruct
+    from finetune_studio.models.manager import get_manager
 
     row = get_manager().get_provider(provider_id)
     if row is None:
@@ -48,14 +48,11 @@ def open_teacher(provider_id: str) -> tuple[ChatFn, str]:
     if row.get("kind") != "openai_compat":
         raise TeacherUnavailable("the teacher must be an API provider (a local GGUF would replace the model on the "
                                  "card); or put the teacher's answers in the file as teacher_answer")
-    provider = build_provider(ProviderConfig(
-        id=row["id"], name=row.get("name") or row["id"], kind="openai_compat", model_id=row.get("model_id") or "",
-        base_url=row.get("base_url") or "", api_key=ModelManager._api_key_for(row["id"]),
-        extra=dict(row.get("extra") or {})))
-    provider.load()
+    client = connection_client(provider_id)
 
     def chat(messages: list[dict[str, str]]) -> str:
-        return provider.chat(messages, max_tokens=TEACHER_MAX_TOKENS, temperature=TEACHER_TEMPERATURE)
+        return client.chat(instruct("teacher", messages), max_tokens=TEACHER_MAX_TOKENS,
+                           temperature=TEACHER_TEMPERATURE)
 
     return chat, str(row.get("model_id") or row.get("name") or provider_id)
 

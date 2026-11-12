@@ -36,7 +36,7 @@
   <div class="setup-card-head">
     <div>
       <h2 id="project-checklist-title">Project checklist</h2>
-      <p class="text-dim">Track the adapter path. You can use Smart Brain on its own at any time.</p>
+      <p class="text-dim">From your files to answers with sources. No training needed.</p>
     </div>
     <a class="btn primary" id="project-next-action"
        href="/projects/{{ pid }}{{ setup_checklist['next'].href }}" data-link>
@@ -54,8 +54,8 @@
     </li>
     {% endfor %}
   </ol>
-  <p class="setup-brain-link">Need document-grounded answers without training?
-    <a href="/projects/{{ pid }}/brain" data-link>Open Smart Brain →</a>
+  <p class="setup-brain-link">Want a model that answers in your tone or format?
+    <a href="/projects/{{ pid }}/training" data-link>Train a model →</a> (optional; for facts, the Smart Brain is more accurate)
   </p>
 </section>
 
@@ -66,10 +66,10 @@
     <div class="value cyan">{{ stats.files }}</div>
     <div class="delta">in library</div>
   </a>
-  <a class="stat hover" href="/projects/{{ pid }}/training" data-link>
-    <div class="label">Datasets</div>
-    <div class="value violet">{{ stats.datasets }}</div>
-    <div class="delta">registered</div>
+  <a class="stat hover" href="/projects/{{ pid }}/brain" data-link>
+    <div class="label">Smart Brain</div>
+    <div class="value violet">{% if brain.built %}{{ brain.chunks }}{% else %}—{% endif %}</div>
+    <div class="delta">{% if brain.built %}passages from {{ brain.documents }} document{{ '' if brain.documents == 1 else 's' }}{% else %}not built yet{% endif %}</div>
   </a>
   <a class="stat hover" href="/projects/{{ pid }}/training" data-link>
     <div class="label">Runs</div>
@@ -83,6 +83,9 @@
   </a>
 </div>
 
+{% if stats.runs or stats.models %}
+<details class="mb-4" id="project-trained"{% if not brain.built %} open{% endif %}>
+  <summary class="brain-section-label">Trained models · {{ stats.runs }} run{{ '' if stats.runs == 1 else 's' }} · {{ stats.models }} export{{ '' if stats.models == 1 else 's' }}</summary>
 {# ── D. Recent training ── #}
 <div class="card mb-4">
   <div class="card-head">
@@ -182,6 +185,8 @@
   <div class="empty">No exports yet. Finish a training run to produce adapters / GGUF / merged checkpoints.</div>
   {% endif %}
 </div>
+</details>
+{% endif %}
 
 {# ── F. Recent files ── #}
 <div class="card mb-4">
@@ -201,7 +206,7 @@
         <th>Size</th>
         <th>Version</th>
         <th>Uploaded</th>
-        <th title="Uploaded after the last training run">Changed since training</th>
+        {% if stats.runs %}<th title="Uploaded after the last training run">Changed since training</th>{% endif %}
         <th></th>
       </tr>
     </thead>
@@ -246,7 +251,7 @@
       <button class="btn ghost icon ml-auto" onclick="document.getElementById('settings-modal').hidden=true">✕</button>
     </div>
     <div class="modal-body">
-      <form id="settings-form" data-api="/api/projects/{{ project.id }}" data-reload="true">
+      <form id="settings-form" data-api="/api/projects/{{ project.id }}" data-method="PATCH" data-reload="true">
         <label class="block mb-3">
           <span class="muted text-xs">Name</span>
           <input class="input" name="name" value="{{ project.name }}">
@@ -324,12 +329,8 @@
     else console.log(msg);
   }
 
-  window.dashCopyPath = function (path) {
-    navigator.clipboard.writeText(path).then(
-      () => notify('Path copied', 'success'),
-      () => notify('Copy failed', 'error')
-    );
-  };
+  // The shared helper falls back when the Clipboard API is missing (plain HTTP from another machine) or refused.
+  window.dashCopyPath = function (path) { return window.ftsCopyText(path); };
 
   window.dashPromote = async function (runId) {
     try {
@@ -478,7 +479,7 @@
           '<td class="num mono">' + formatBytes(f.size_bytes) + '</td>' +
           '<td class="meta mono">v' + (f.current_version || 1) + '</td>' +
           '<td class="meta mono">' + relativeTime(f.uploaded_at) + '</td>' +
-          '<td>' + driftBadge(f) + '</td>' +
+          ({{ 'true' if stats.runs else 'false' }} ? '<td>' + driftBadge(f) + '</td>' : '') +
           '<td>' + actions + '</td>' +
           '</tr>';
       }).join('');

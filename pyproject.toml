@@ -1,7 +1,7 @@
 [project]
 name = "finetune-studio"
-version = "0.2.0"
-description = "Full-featured model training app with WebUI"
+version = "0.3.0"
+description = "Prepare, lint and test your knowledge, then export it as one encrypted package for local models. WebUI and CLI."
 license = {file = "LICENSE"}
 classifiers = ["License :: Other/Proprietary License"]
 requires-python = ">=3.12,<3.14"
@@ -18,10 +18,8 @@ dependencies = [
     "accelerate>=1.0.0",
     "safetensors>=0.4.0",
     "huggingface-hub>=0.27.0",
-    "rich>=13.0.0",
     "pydantic>=2.0.0",
     "cryptography>=42",  # RAG export: AES-256-GCM encrypted-at-rest packages
-    "aiosqlite>=0.20.0",
     "sentence-transformers>=3.0.0,<6.0.0",
     "sentencepiece>=0.2.0",
     "tiktoken>=0.7.0",
@@ -96,3 +94,6 @@ exclude = ["**/__pycache__"]
 # A runtime `datasets/` directory sits in the repo root on dev boxes (gitignored) and would make
 # ruff classify the HF `datasets` package as first-party there but third-party in a fresh clone / CI.
 known-third-party = ["datasets"]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"

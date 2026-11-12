@@ -109,7 +109,7 @@ def test_seat_validation(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
     assert vision.get_seat() == vision.Seat("local", str(gguf))
     with pytest.raises(ValueError):
         vision.set_seat(vision.Seat("sideways", ""))
-    with pytest.raises(vision.VisionError, match="no Vision reader"):
+    with pytest.raises(vision.VisionError, match="reading pictures is off"):
         vision.Reader(vision.Seat("off"))
 
 
@@ -159,37 +159,58 @@ def vgateway():
     srv.shutdown()
 
 
-def test_vision_settings_default_off_and_api_seat_key_write_only(client: Any, vgateway: dict) -> None:
-    st = client.get("/api/settings/vision").json()
-    assert st["mode"] == "off" and st["label"] == "Off (OCR only)" and isinstance(st["local_candidates"], list)
-    r = client.put("/api/settings/vision", json={"mode": "api"})
-    assert r.status_code == 400 and "enter the API vision model" in r.json()["detail"]
-    r = client.put("/api/settings/vision", json={"mode": "api", "base_url": vgateway["url"], "model": "vl-1",
-                                                 "api_key": VKEY})
+def _vision_connection(client: Any, vgateway: dict) -> str:
+    r = client.post("/api/settings/connections", json={"name": "Vision API", "base_url": vgateway["url"],
+                                                        "model": "vl-1", "api_key": VKEY})
     assert r.status_code == 200, r.text
-    st = r.json()
-    assert st["mode"] == "api" and st["api"]["key_set"] and st["label"] == "API · vl-1"
-    for url in ("/api/settings/vision", "/api/providers", "/api/settings/helper"):
+    return r.json()["id"]
+
+
+def test_reading_pictures_is_off_by_default_and_runs_on_a_chosen_connection(client: Any, vgateway: dict,
+                                                                           tmp_path: Path) -> None:
+    from finetune_studio.models.manager import get_manager
+    blind = tmp_path / "blind.gguf"                 # a local assistant without an mmproj next to it
+    blind.write_bytes(b"GGUF")
+    get_manager().upsert_provider(id="local-default", name="Blind", kind="local_gguf", model_id=str(blind))
+    st = client.get("/api/settings/assistant").json()
+    job = next(j for j in st["jobs"] if j["id"] == "vision")
+    assert job["setting"] == "off" and job["provider_label"] == "Off (OCR only)"
+    assert isinstance(st["vision_candidates"], list)
+    pid = _vision_connection(client, vgateway)
+    r = client.put("/api/settings/assistant/jobs/vision", json={"provider_id": pid})
+    assert r.status_code == 200, r.text
+    job = next(j for j in r.json()["jobs"] if j["id"] == "vision")
+    assert job["setting"] == pid and job["provider_label"] == "API · Vision API · vl-1"
+    for url in ("/api/settings/assistant", "/api/providers"):
         assert VKEY not in client.get(url).text
-    assert client.put("/api/settings/vision", json={"mode": "nope"}).status_code == 400
-    assert client.put("/api/settings/vision", json={"mode": "local", "local_model": "/no/such.gguf"}).status_code == 400
+    r = client.put("/api/settings/assistant/jobs/vision", json={"provider_id": "local-file", "local_model": "/no/such.gguf"})
+    assert r.status_code == 400
+    # The main assistant is the local GGUF, and it has no mmproj next to it: refused with the reason, not saved.
+    r = client.put("/api/settings/assistant/jobs/vision", json={"provider_id": ""})
+    assert r.status_code == 400 and "mmproj" in r.json()["detail"]
+    assert next(j for j in client.get("/api/settings/assistant").json()["jobs"] if j["id"] == "vision")["setting"] == pid
+    client.delete(f"/api/settings/connections/{pid}")        # its connection removed: back to off, never another one
+    assert next(j for j in client.get("/api/settings/assistant").json()["jobs"] if j["id"] == "vision")["setting"] == "off"
 
 
 def test_vision_test_route_sends_the_picture_and_checks_the_code(client: Any, vgateway: dict,
                                                                  monkeypatch: pytest.MonkeyPatch) -> None:
     from finetune_studio.webui.routes import vision_settings
 
-    client.put("/api/settings/vision", json={"mode": "api", "base_url": vgateway["url"], "model": "vl-1",
-                                             "api_key": VKEY})
+    pid = _vision_connection(client, vgateway)
+    client.put("/api/settings/assistant/jobs/vision", json={"provider_id": pid,
+                                                             "instructions": "Keep table headers."})
     monkeypatch.setattr(vision_settings.random, "randint", lambda a, b: 424242)
     r = client.post("/api/settings/vision/test")
     assert r.status_code == 200 and r.json()["ok"], r.text
-    content = vgateway["seen"][-1]["body"]["messages"][0]["content"]
+    messages = vgateway["seen"][-1]["body"]["messages"]
+    assert messages[0]["role"] == "system" and "Keep table headers." in messages[0]["content"]
+    content = messages[-1]["content"]
     assert content[0]["image_url"]["url"].startswith("data:image/png;base64,") and vgateway["seen"][-1]["body"]["model"] == "vl-1"
     vgateway["reply"]["text"] = "I see a white rectangle."
     r = client.post("/api/settings/vision/test")
     assert r.status_code == 502 and "did not read the code" in r.json()["detail"]
-    client.put("/api/settings/vision", json={"mode": "off"})
+    client.put("/api/settings/assistant/jobs/vision", json={"provider_id": "off"})
     assert client.post("/api/settings/vision/test").status_code == 400
 
 

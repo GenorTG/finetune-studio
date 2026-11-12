@@ -1,21 +1,57 @@
 {% extends "base.html" %}
-{% block title %}Export — {{ project.name }}{% endblock %}
+{% block title %}Package — {{ project.name }}{% endblock %}
 {% block nav_project_export %}active{% endblock %}
 {% block sb_path %}~ / projects / {{ project.name }} / export{% endblock %}
-{% block breadcrumb_tab %}export{% endblock %}
+{% block breadcrumb_tab %}package{% endblock %}
 
 {% block content %}
 {% set res_compact = true %}
 {% include "_resources.html" %}
 
 <div class="page-head">
-  <h1>Export models</h1>
-  <div class="sub"><b>Step 4 · Use it.</b> Take a finished training run out of the
-    studio: <b>GGUF</b> to run it in llama.cpp / LM Studio / Ollama, or
-    <b>abliterated</b> for an uncensored variant. Adapter-only
-    runs are merged onto their base automatically at export time.
-    Want to talk to it instead? <a href="/projects/{{ pid }}/chat" data-link>Open chat</a>.</div>
+  <h1>Package</h1>
+  <div class="sub"><b>Step 4.</b> Everything your models need about you in one encrypted package: your documents, who it speaks for and how to answer. Any model can use it over MCP or HTTP.</div>
 </div>
+
+<div class="card mb-4" id="package-readiness">
+  <div class="card-head">
+    <div>
+      <div class="card-title">{% if package_state.ready %}Ready to package{% else %}Not ready yet{% endif %}</div>
+      <div class="card-sub">Each step from your files to the package.</div>
+    </div>
+    <a class="btn primary" id="package-build-link" href="/projects/{{ pid }}/brain#brain-export-panel" data-link>Build the package</a>
+  </div>
+  <ol class="package-steps">
+    {% for step in package_state.steps %}
+    <li class="package-step is-{{ step.state }}">
+      <a href="/projects/{{ pid }}{{ step.href }}" data-link><b>{{ step.label }}</b></a>
+      <span class="pill text-xs {{ {'done':'solid-green','review':'solid-amber','problem':'solid-rose'}.get(step.state, 'outline') }}">{{ {'done':'Done','review':'Review','problem':'Fix this','todo':'To do'}[step.state] }}</span>
+      <div class="text-xs dim">{{ step.detail }}</div>
+    </li>
+    {% endfor %}
+  </ol>
+  <div class="flex gap-2 wrap mt-2">
+    <a class="btn" href="/projects/{{ pid }}/brain" data-link>Ask your documents</a>
+    <a class="btn ghost" href="/projects/{{ pid }}/chat" data-link>Open chat</a>
+  </div>
+</div>
+
+<div class="card mb-4" id="package-versions">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Package versions</div>
+      <div class="card-sub">Every exported package keeps its id; a new version of it lists the documents added, changed
+        and removed since the last one. A running copy updates in place with <code>bash update.sh NEW.tar.gz</code>.</div>
+    </div>
+  </div>
+  <div id="package-versions-list" class="text-sm">No package exported yet.</div>
+  <details class="mt-2" id="package-changes-box" hidden><summary class="text-sm" id="package-changes-title">Changes in the latest version</summary>
+    <pre class="mono text-xs mt-2" id="package-changes"></pre></details>
+</div>
+
+<h2 class="brain-section-label">Trained models</h2>
+<p class="text-sm dim mb-3">Take a finished training run out of the studio: <b>GGUF</b> to run it in llama.cpp / LM Studio / Ollama, or
+  <b>abliterated</b> for an uncensored variant. Adapter-only runs are merged onto their base automatically at export time.</p>
 
 {# ── Available runs to export ─────────────────────────────────────── #}
 <div class="card mb-4">
@@ -90,9 +126,15 @@
   </div>
   <div id="export-caps" class="p-2 pt-0 text-xs"
        data-gguf="{{ '1' if caps.gguf else '0' }}"
+       data-heretic="{{ '1' if caps.heretic else '0' }}"
        {% if not caps.gguf %}role="status"{% endif %}>
     {% if not caps.gguf %}
     <div class="err mb-1" id="export-gguf-unavailable">GGUF unavailable — {{ caps.gguf_hint }}</div>
+    {% endif %}
+    {% if caps.heretic %}
+    <div class="dim mb-1" id="export-heretic-ready">Heretic {{ caps.heretic_version }} is installed — it searches the abliteration parameters itself instead of using one fixed strength.</div>
+    {% else %}
+    <div class="dim mb-1" id="export-heretic-hint">Heretic (optional tool) — {{ caps.heretic_hint }}</div>
     {% endif %}
   </div>
   <div class="grid grid-2 gap-3 p-2">
@@ -119,6 +161,14 @@
         <div class="text-xs dim">Full safetensors merge (no quantization).</div>
       </div>
     </label>
+    <label class="flex items-start gap-2 p-2 export-opt{% if not caps.heretic %} is-unavailable{% endif %}">
+      <input type="checkbox" name="export-format" value="heretic" class="mt-1" id="export-format-heretic"
+             {% if not caps.heretic %}disabled title="{{ caps.heretic_hint }}"{% endif %}>
+      <div>
+        <div class="text-sm font-bold">Heretic{% if not caps.heretic %} <span class="pill outline">optional tool</span>{% endif %}</div>
+        <div class="text-xs dim">Removes the model&rsquo;s refusals with Heretic, which searches the abliteration parameters and keeps the model&rsquo;s own behaviour as close to the original as it can (full model, safetensors). Needs more GPU time than Abliterated. Warning: the result will comply with requests the original model refused.</div>
+      </div>
+    </label>
   </div>
 
   {# GGUF quant options — only shown when GGUF is selected and available #}
@@ -142,6 +192,13 @@
       </label>
       {% endfor %}
     </div>
+    <label class="flex items-start gap-1 mt-2 text-xs" for="gguf-imatrix">
+      <input type="checkbox" id="gguf-imatrix" class="mt-1" {% if not caps.imatrix %}disabled title="{{ caps.imatrix_hint }}"{% endif %}>
+      <span><b>Importance matrix (imatrix)</b>{% if not caps.imatrix %} <span class="pill outline">unavailable</span>{% endif %}
+        <span class="dim">— before quantizing, measure which weights this run&rsquo;s training data relies on and keep
+        those more precise: better q4/q3/q2 quality at the same file size, a few minutes extra. The files go to
+        <code>gguf-imatrix/</code> beside the plain ones; f16 and q8_0 are written without it.</span></span>
+    </label>
   </div>
 
   <div class="p-2 pt-0 flex items-center gap-2">
@@ -199,7 +256,7 @@
   .export-detail-inner .files-list .sz { color: var(--muted); }
 </style>
 
-<div class="card">
+<div class="card" id="trained-exports-card">
   <div class="card-head">
     <div>
       <div class="card-title">Trained exports</div>
@@ -314,6 +371,31 @@
 </div>
 
 <script>
+// Package versions: the project's package history (GET /brain/packages).
+(function () {
+  const PID = {{ pid|tojson }};
+  const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  fetch('/api/projects/' + encodeURIComponent(PID) + '/brain/packages').then((r) => r.ok ? r.json() : null).then((d) => {
+    if (!d || !d.packages.length) return;
+    document.getElementById('package-versions-list').innerHTML = d.packages.map((p) =>
+      '<div class="mb-2"><b>' + esc(p.name || p.package_id) + '</b> <span class="dim mono text-xs">' + esc(p.package_id) + '</span>'
+      + '<table class="ref-table mt-1"><thead><tr><th>Version</th><th>Built</th><th>Documents</th><th>Changes</th><th>From</th></tr></thead><tbody>'
+      + p.versions.map((v) => {
+          const c = v.changes || {};
+          const ch = v.parent_version ? (c.added || []).length + ' added, ' + (c.changed || []).length + ' changed, '
+            + (c.removed || []).length + ' removed since ' + v.parent_version : 'first version';
+          return '<tr><td class="mono">' + esc(v.version) + '</td><td class="mono">' + esc((v.created || '').slice(0, 16).replace('T', ' '))
+            + '</td><td>' + esc(v.documents) + '</td><td>' + esc(ch) + '</td><td class="text-xs">' + esc(v.origin === 'exported'
+              ? v.filename : (v.origin || '') + ' ' + (v.filename || '')) + '</td></tr>';
+        }).join('') + '</tbody></table></div>').join('');
+    if (d.latest && d.latest.changes_md) {
+      document.getElementById('package-changes-box').hidden = false;
+      document.getElementById('package-changes-title').textContent = 'Changes in version ' + d.latest.version;
+      document.getElementById('package-changes').textContent = d.latest.changes_md;
+    }
+  });
+})();
+
 // Enable export button when a run is selected; prefill base_model.
 document.querySelectorAll('.export-run-radio').forEach(r => {
   r.addEventListener('change', () => {
@@ -386,7 +468,7 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
   // ── controls ──
   const lockable = () => Array.from(document.querySelectorAll(
     '#export-btn, #export-force, #export-base-model, input[name="export-run"], ' +
-    'input[name="export-format"], input[name="gguf-quant"]'));
+    'input[name="export-format"], input[name="gguf-quant"], #gguf-imatrix'));
   function setLocked(locked, hint) {
     lockable().forEach((el) => {
       if (locked && !el.disabled) { el.disabled = true; el.dataset.jobLock = '1'; }
@@ -439,6 +521,7 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
     const detail = row.phase_detail ? ' — ' + row.phase_detail : '';
     $('export-job-detail').textContent = terminal && !failed && row.status === 'done'
       ? 'Finished' + (row.size_human ? ' · ' + row.size_human : '') + (row.output_path ? ' · ' + row.output_path : '')
+        + (row.phase_detail ? ' — ' + row.phase_detail : '')
       : (PHASE_LABEL[phase] || phase) + detail;
     const bar = $('export-job-bar');
     bar.className = 'fill' + (terminal ? (failed ? ' err' : ' ok') : ' indeterminate');
@@ -518,14 +601,14 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
 
   // Re-render the "Trained exports" table from a fresh copy of this page (server-rendered rows, same markup).
   async function refreshTrainedExports() {
-    const box = $('trained-exports-table-scroll');
-    if (!box) return;
+    const card = $('trained-exports-card');
+    if (!card) return;
     try {
       const r = await fetch(location.pathname + location.search, { cache: 'no-store', credentials: 'same-origin' });
       if (!r.ok) return;
       const doc = new DOMParser().parseFromString(await r.text(), 'text/html');
-      const fresh = doc.getElementById('trained-exports-table-scroll');
-      if (fresh) box.replaceWith(document.importNode(fresh, true));
+      const fresh = doc.getElementById('trained-exports-card');
+      if (fresh) card.replaceWith(document.importNode(fresh, true));
     } catch (e) { /* the list stays as it was; the result card above already names the file */ }
   }
 
@@ -594,11 +677,19 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
       notify((($('export-gguf-unavailable') || {}).textContent) || 'GGUF converter unavailable', 'error');
       return;
     }
+    const hereticOk = !capsEl || capsEl.getAttribute('data-heretic') === '1';
+    if (formats.includes('heretic') && !hereticOk) {
+      notify((($('export-heretic-hint') || {}).textContent) || 'Heretic is not installed', 'error');
+      return;
+    }
     const quants = Array.from(document.querySelectorAll('input[name="gguf-quant"]:checked')).map((cb) => cb.value);
     const force = $('export-force').checked;
     const queue = formats.map((fmt) => {
       const body = { format: fmt, force };
-      if (fmt === 'gguf') body.quants = quants;
+      if (fmt === 'gguf') {
+        body.quants = quants;
+        if ($('gguf-imatrix').checked) body.imatrix = true;   // server refuses with the reason if no quant uses it
+      }
       if (baseModel) body.base_model = baseModel;
       return { format: fmt, body };
     });
@@ -719,6 +810,12 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
         if (data.truncated) {
           list.innerHTML += '<li class="dim">…truncated</li>';
         }
+      }
+      if (data.note) {   // what the export concluded (Heretic: the kept trial, its refusals and KL)
+        const li = document.createElement("li");
+        li.className = "dim";
+        li.textContent = data.note;
+        list.prepend(li);
       }
       list.dataset.loaded = "1";
     } catch (e) {

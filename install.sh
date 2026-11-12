@@ -4,8 +4,8 @@
 # Default:
 #   1. Detects the accelerator (NVIDIA CUDA / AMD ROCm / Intel XPU / Apple Metal;
 #      CPU only when NO GPU of any vendor is found). Detection + every wheel/index/
-#      CMake choice lives in scripts/accel_plan.py (shared with update.sh and the
-#      Windows installers) -- never hard-code a CUDA/ROCm tag here.
+#      CMake choice lives in scripts/accel_plan.py (shared with update.sh)
+#      -- never hard-code a CUDA/ROCm tag here.
 #   2. Python 3.12+ required
 #   3. Creates .venv + installs the newest PyTorch the driver/GPU supports
 #   4. Installs llama-cpp-python with GPU offload (prebuilt wheel, else source
@@ -41,8 +41,6 @@ set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")"
 
 PYTHON_VERSION="${PYTHON_VERSION:-}"
-USE_CONDA="${USE_CONDA:-0}"
-CONDA_ENV="${CONDA_ENV:-chris-ai}"
 VENV_DIR="${VENV_DIR:-.venv}"
 # llama.cpp lives inside the project, NOT in $HOME. Boxed-in so the install
 # is reproducible and self-contained — nothing references external paths.
@@ -127,8 +125,7 @@ fi
 log "OS: $DISTRO_ID ($(uname -srm))"
 
 # ── GPU detection (delegated to scripts/accel_plan.py) ──
-# One implementation for install.sh / update.sh / install.ps1 / install.bat /
-# install_diagnose.py --repair: it probes nvidia-smi, rocm-smi/rocminfo//opt/rocm,
+# One implementation for install.sh / update.sh / install_diagnose.py --repair: it probes nvidia-smi, rocm-smi/rocminfo//opt/rocm,
 # xpu-smi/sycl-ls/clinfo, sysfs PCI and lspci, so a GPU with a missing driver
 # still gets GPU wheels plus an actionable hint instead of a silent CPU install.
 # A forced accelerator (--cpu / --gpu / FTS_FORCE_VENDOR) is this install's choice. It is kept in the venv so a
@@ -178,16 +175,16 @@ load_plan() {
     fi
 }
 
-# ── Find Python 3.12+ ──
+# ── Find a supported Python (pyproject: >=3.12,<3.14), only for when uv cannot provide one ──
 pick_python() {
     local cmds=()
     [ -n "$PYTHON_VERSION" ] && cmds+=("python${PYTHON_VERSION}")
-    cmds+=(python3.13 python3.12 python3 python)
+    cmds+=(python3.12 python3.13 python3 python)
     for cmd in "${cmds[@]}"; do
         command -v "$cmd" >/dev/null 2>&1 || continue
         local v
         v="$("$cmd" -c 'import sys;print(f"{sys.version_info.major}.{sys.version_info.minor}")' 2>/dev/null || echo "")"
-        case "$v" in 3.1[2-9]) echo "$cmd"; return 0 ;; esac
+        case "$v" in 3.12|3.13) echo "$cmd"; return 0 ;; esac
     done
     return 1
 }
@@ -262,14 +259,6 @@ case "$MODE" in
 esac
 
 load_plan
-[ -z "$PYTHON_CMD" ] && die "Python 3.12+ not found. Install:
-  Debian/Ubuntu:  sudo apt-get install -y python3.12 python3.12-venv python3.12-dev
-  Fedora:         sudo dnf install -y python3.12 python3.12-devel
-  Arch/Garuda:    sudo pacman -S python312
-  macOS:          brew install python@3.12"
-PYTHON_VER="$("$PYTHON_CMD" -c 'import sys;print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
-log "Python: $PYTHON_CMD ($PYTHON_VER)"
-
 # ── Bootstrap uv ──
 if ! command -v uv >/dev/null 2>&1; then
     log "Installing uv..."
@@ -281,31 +270,23 @@ fi
 log "uv: $(uv --version)"
 
 # ── Create venv ──
-if [ "$USE_CONDA" = "1" ]; then
-    CONDA_BASE=""
-    for cb in "$HOME/miniconda3" "$HOME/anaconda3" "/opt/conda" "/usr/local/miniconda3"; do
-        [ -x "$cb/bin/conda" ] && CONDA_BASE="$cb" && break
-    done
-    [ -n "$CONDA_BASE" ] || die "conda not found."
-    # shellcheck disable=SC1090
-    source "$CONDA_BASE/etc/profile.d/conda.sh"
-    if ! conda env list | awk '{print $1}' | grep -qx "$CONDA_ENV"; then
-        log "Creating conda env '$CONDA_ENV'..."
-        conda create -n "$CONDA_ENV" "python=${PYTHON_VER}" -y
+if [ ! -d "$VENV_DIR" ]; then
+    # uv's own CPython first, whatever else is on PATH: a Homebrew/Linuxbrew Python links Homebrew's glibc, cannot load
+    # the system's libcuda ("Found no NVIDIA driver") and no prebuilt wheel exists for a too-new one.
+    log "Creating venv at $VENV_DIR (Python ${PYTHON_VERSION:-3.12} from uv)..."
+    if ! uv venv "$VENV_DIR" --python "${PYTHON_VERSION:-3.12}" --python-preference only-managed; then
+        [ -n "$PYTHON_CMD" ] || die "Python 3.12 or 3.13 not found and uv could not download one. Install:
+  Debian/Ubuntu:  sudo apt-get install -y python3.12 python3.12-venv python3.12-dev
+  Fedora:         sudo dnf install -y python3.12 python3.12-devel
+  Arch/Garuda:    sudo pacman -S python312"
+        warn "uv could not provide Python; using $PYTHON_CMD."
+        uv venv "$VENV_DIR" --python "$PYTHON_CMD" || die "could not create the venv with $PYTHON_CMD"
     fi
-    conda activate "$CONDA_ENV"
-    PYTHON_CMD="$(command -v python)"
-    ACTIVATE_HINT="conda activate $CONDA_ENV"
-else
-    if [ ! -d "$VENV_DIR" ]; then
-        log "Creating venv at $VENV_DIR..."
-        "$PYTHON_CMD" -m venv "$VENV_DIR" || uv venv "$VENV_DIR" --python "$PYTHON_CMD"
-    fi
-    PYTHON_CMD="$PWD/$VENV_DIR/bin/python"
-    [ -x "$PYTHON_CMD" ] || die "venv broken: $PYTHON_CMD not executable"
-    ACTIVATE_HINT="source $VENV_DIR/bin/activate"
-    if [ -n "$FORCED_VENDOR" ]; then echo "$FORCED_VENDOR" > "$VENDOR_FILE"; fi
 fi
+PYTHON_CMD="$PWD/$VENV_DIR/bin/python"
+[ -x "$PYTHON_CMD" ] || die "venv broken: $PYTHON_CMD not executable"
+ACTIVATE_HINT="source $VENV_DIR/bin/activate"
+if [ -n "$FORCED_VENDOR" ]; then echo "$FORCED_VENDOR" > "$VENDOR_FILE"; fi
 log "venv python: $PYTHON_CMD"
 
 # ── pip helper: uv-created venvs have NO pip module (2026-09-25: the dev box
@@ -418,6 +399,7 @@ fi
 "$PYTHON_CMD" -c "import bitsandbytes as b; print(f'  bitsandbytes {b.__version__}')" 2>/dev/null | sed 's/^/[install]   /' || true
 [ -x "$LLAMA_CPP_DIR/build/bin/llama-quantize" ] && log "  llama.cpp CLI: $LLAMA_CPP_DIR (backend: $(cat "$LLAMA_CPP_DIR/build/.fts-backend" 2>/dev/null || echo unknown))" || true
 uv pip check --python "$PYTHON_CMD" 2>&1 | sed 's/^/[install]   check: /' | head -8 || true
+"$PYTHON_CMD" scripts/pin_versions.py check --venv "$VENV_DIR" 2>&1 | sed 's/^/[install]   pins: /' | head -12 || true
 
 # ── Post-install health check (autodetect broken installs) ──
 # The deep diagnostic catches issues the surface checks miss
@@ -469,7 +451,7 @@ if [ -n "$INSTALL_CONFIG" ]; then
 elif [ -t 0 ] && [ -t 1 ] && [ ! -f "$STATE_ROOT/server.json" ] && [ ! -f "$STATE_ROOT/auth/auth.json" ]; then
     "${FTS_CLI[@]}" auth setup || warn "access setup skipped; change it later in Settings -> Security or with fts auth"
 fi
-WEB_ADDR="$("${FTS_CLI[@]}" server show 2>/dev/null | cut -d' ' -f1 || echo 127.0.0.1:7860)"
+WEB_ADDR="$("${FTS_CLI[@]}" server show 2>/dev/null | head -1 | cut -d' ' -f1 || echo 127.0.0.1:7860)"
 case "$WEB_ADDR" in 0.0.0.0:*|"[::]":*|:::*) WEB_URL="http://<this machine's address>:${WEB_ADDR##*:}" ;;
                     127.*|localhost:*) WEB_URL="http://localhost:${WEB_ADDR##*:}" ;;
                     *) WEB_URL="http://$WEB_ADDR" ;; esac
@@ -484,10 +466,7 @@ log "✓ Install complete."
 echo ""
 echo "Activate:"
 echo "  bash/zsh:  $ACTIVATE_HINT"
-case "$ACTIVATE_HINT" in
-    *"conda activate"*) echo "  fish:      conda activate $CONDA_ENV" ;;
-    *"source "*)        echo "  fish:      source $VENV_DIR/bin/activate.fish" ;;
-esac
+echo "  fish:      source $VENV_DIR/bin/activate.fish"
 echo ""
 echo "Run:           $PYTHON_CMD -m finetune_studio --help"
 echo "WebUI:         bash run.sh            ($WEB_URL)"

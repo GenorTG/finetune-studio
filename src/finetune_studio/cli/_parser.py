@@ -24,6 +24,51 @@ def build_parser() -> argparse.ArgumentParser:
     p_models = sub.add_parser("models", help="List discovered models")
     p_models.add_argument("--dirs", nargs="*", help="Extra directories to scan")
     p_models.add_argument("--json", action="store_true", help="Output as JSON")
+    models_sub = p_models.add_subparsers(dest="models_action")
+    p_model_search = models_sub.add_parser("search", help="Search Hugging Face for models")
+    p_model_search.add_argument("query", nargs="?", default="", help="Search terms (optional)")
+    p_model_search.add_argument("--task", default="text-generation", help="Hugging Face task filter (default: text-generation; empty for any)")
+    p_model_search.add_argument("--library", help="Hugging Face library tag filter")
+    p_model_search.add_argument("--sort", choices=("downloads", "likes", "trending"), default="downloads")
+    p_model_search.add_argument("--limit", type=int, default=24, choices=range(1, 101))
+    p_model_search.add_argument("--json", action="store_true", help="Output as JSON")
+    p_model_local = models_sub.add_parser("local", help="List downloaded Hugging Face models")
+    p_model_local.add_argument("--json", action="store_true", help="Output as JSON")
+    p_model_download = models_sub.add_parser("download", help="Download a Hugging Face model in the background")
+    p_model_download.add_argument("repo_id", help="Hugging Face repository id, for example Org/Model")
+    p_model_download.add_argument("--file", help="Download one file instead of the full repository")
+    p_model_download.add_argument("--revision", default="main", help="Repository revision (default: main)")
+    p_model_download.add_argument("--json", action="store_true", help="Output the job id as JSON")
+    for action, help_text in (("download-status", "Show a download's progress"),
+                              ("cancel-download", "Cancel a running model download")):
+        p_model_job = models_sub.add_parser(action, help=help_text)
+        p_model_job.add_argument("job_id", help="Download job id")
+        p_model_job.add_argument("--json", action="store_true", help="Output as JSON")
+    p_model_delete = models_sub.add_parser("delete", help="Delete one downloaded Hugging Face model")
+    p_model_delete.add_argument("repo_id", help="Downloaded repository id from `fts models local`")
+    p_model_delete.add_argument("--yes", action="store_true", help="Confirm deletion without prompting")
+    p_model_delete.add_argument("--json", action="store_true", help="Output as JSON")
+
+    # ── projects (list, inspect, create and delete local projects) ──
+    p_projects = sub.add_parser("projects", help="List, inspect, create or delete projects")
+    projects_sub = p_projects.add_subparsers(dest="projects_action", required=True)
+    p_projects_list = projects_sub.add_parser("list", help="List projects")
+    p_projects_list.add_argument("--json", action="store_true", help="Output as JSON")
+    p_projects_show = projects_sub.add_parser("show", help="Show a project by id or name")
+    p_projects_show.add_argument("project", help="Project id or exact name")
+    p_projects_show.add_argument("--json", action="store_true", help="Output as JSON")
+    p_projects_create = projects_sub.add_parser("create", help="Create a project")
+    p_projects_create.add_argument("--name", required=True, help="Project name")
+    p_projects_create.add_argument("--description", default="", help="Optional project description")
+    p_projects_create.add_argument("--base-model", default="", help="Optional base model path or id")
+    p_projects_create.add_argument("--system-prompt", default="", help="Optional project system prompt")
+    p_projects_create.add_argument("--allow-duplicate", action="store_true",
+                                   help="Allow another project with the same name")
+    p_projects_create.add_argument("--json", action="store_true", help="Output as JSON")
+    p_projects_delete = projects_sub.add_parser("delete", help="Delete a project and all of its stored data")
+    p_projects_delete.add_argument("project", help="Project id or name")
+    p_projects_delete.add_argument("--yes", action="store_true", help="Confirm deletion without prompting")
+    p_projects_delete.add_argument("--json", action="store_true", help="Output as JSON")
 
     # ── train ──
     p_train = sub.add_parser("train", help="Start training")
@@ -53,7 +98,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_suite.add_argument("--out", help="Write the transcripts (one JSON object per line) to this file")
     p_suite.add_argument(
         "--judge", nargs="?", const="", default=None, metavar="PROVIDER_ID",
-        help="Afterwards let an AI judge read the answers (provider row id; default: the configured judge / helper seat)",
+        help="Afterwards let an AI judge read the answers (provider row id; default: the AI assistant's Test judge job)",
     )
 
     # ── validate ──
@@ -110,6 +155,31 @@ def build_parser() -> argparse.ArgumentParser:
     p_jg.add_argument("-n", "--lines", type=int, default=100)
     p_jobs.set_defaults(all=False)
 
+    # ── trained model exports: the same supervised queue as the Export page ──
+    p_export = sub.add_parser("export", help="Export a finished training run and inspect its job")
+    export_sub = p_export.add_subparsers(dest="export_action", required=True)
+    p_export_start = export_sub.add_parser("start", help="Queue GGUF, merged, Abliterated or Heretic export")
+    p_export_start.add_argument("run_id", help="Training run id")
+    p_export_start.add_argument("--project", required=True, help="Owning project id or name")
+    p_export_start.add_argument("--format", default="gguf", help="gguf, merged, abliterated or heretic")
+    quant_options = p_export_start.add_mutually_exclusive_group()
+    quant_options.add_argument("--quant", help="One GGUF quant (default Q4_K_M)")
+    quant_options.add_argument("--quants", nargs="+", help="One or more GGUF quants for a multi-quant job")
+    p_export_start.add_argument("--imatrix", action="store_true", help="Measure importance on the run's training text")
+    p_export_start.add_argument("--base-model", help="Compatible base model for merge-at-export")
+    p_export_start.add_argument("--force", action="store_true", help="Overwrite existing export files")
+    p_export_start.add_argument("--no-auto-merge", action="store_true", help="Refuse if the run has no merged model")
+    p_export_start.add_argument("--json", action="store_true", help="Output the queue result as JSON")
+    p_export_list = export_sub.add_parser("list", help="List this project's export records")
+    p_export_list.add_argument("--project", required=True, help="Project id or name")
+    p_export_list.add_argument("--limit", type=int, default=100, help="Maximum records (1-1000; default 100)")
+    p_export_list.add_argument("--json", action="store_true", help="Output as JSON")
+    for action, help_text in (("status", "Show an export's phase and result"), ("cancel", "Stop an active export")):
+        p_export_job = export_sub.add_parser(action, help=help_text)
+        p_export_job.add_argument("export_id", help="Export id")
+        p_export_job.add_argument("--project", required=True, help="Owning project id or name")
+        p_export_job.add_argument("--json", action="store_true", help="Output as JSON")
+
     # ── access: password, API tokens, sessions, listen address ──
     p_auth = sub.add_parser("auth", help="Password, API tokens and browser sessions (who may use the web UI)")
     auth_sub = p_auth.add_subparsers(dest="auth_action", required=True)
@@ -150,6 +220,10 @@ def build_parser() -> argparse.ArgumentParser:
     from finetune_studio.cli.commands.brain import add_parser as add_brain_parser
     add_brain_parser(sub)
 
+    # ── heretic (optional external tool: removes a model's refusals) ──
+    from finetune_studio.cli.commands.heretic import add_parser as add_heretic_parser
+    add_heretic_parser(sub)
+
     # ── compare ──
     p_cmp = sub.add_parser("compare", help="Ask several models the same questions and show the answers side by side (judging is a separate step)")
     p_cmp.add_argument("--models", nargs="+", required=True, help="Model paths (name=path format)")
@@ -160,7 +234,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_cmp.add_argument("--report", help="Save the answers (and verdicts, with --judge) as JSON to this file")
     p_cmp.add_argument(
         "--judge", nargs="?", const="", default=None, metavar="PROVIDER_ID",
-        help="Afterwards let an AI judge read every answer (provider row id; default: the configured judge / helper seat)",
+        help="Afterwards let an AI judge read every answer (provider row id; default: the AI assistant's Test judge job)",
     )
 
     # ── benchmark ──
@@ -191,7 +265,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_analyze.add_argument("--json", action="store_true")
 
     # ── validate-hallucination ──
-    p_val_h = sub.add_parser("validate-hallucination", help="Check training data for hallucination risks")
+    p_val_h = sub.add_parser("validate-hallucination", help="Count training answers with dates, figures, URLs or e-mails to check by hand (a pattern scan, not a fact check)")
     p_val_h.add_argument("data", help="Path to training data (JSONL)")
     p_val_h.add_argument("--json", action="store_true")
 
@@ -225,9 +299,32 @@ def build_parser() -> argparse.ArgumentParser:
     p_vram_profile.add_argument("--steps", type=int, default=5)
     p_vram_profile.add_argument("--json", action="store_true")
 
-    # ── files (project file library housekeeping) ──
-    p_files = sub.add_parser("files", help="Manage the per-project file library (trash, etc.)")
+    # ── files (project file library) ──
+    p_files = sub.add_parser("files", help="Upload, inspect, parse or clean up project files")
     files_sub = p_files.add_subparsers(dest="files_command")
+    p_files_upload = files_sub.add_parser("upload", help="Upload one or more files into a project")
+    p_files_upload.add_argument("paths", nargs="+",
+                                help="Local files or folders to upload; a folder keeps its tree (folder/sub/file)")
+    p_files_upload.add_argument("--project", required=True, help="Project id or name")
+    p_files_upload.add_argument("--folder", help="Project folder to put them in, e.g. public/faq (created if missing)")
+    p_files_upload.add_argument("--json", action="store_true", help="Output the upload report as JSON")
+    p_files_list = files_sub.add_parser("list", help="List files in a project")
+    p_files_list.add_argument("--project", required=True, help="Project id or name")
+    p_files_list.add_argument("--search", help="Filter by file name")
+    p_files_list.add_argument("--mime", help="Filter by MIME type prefix, e.g. text/")
+    p_files_list.add_argument("--include-deleted", action="store_true", help="Include files in trash")
+    p_files_list.add_argument("--json", action="store_true", help="Output as JSON")
+    p_files_show = files_sub.add_parser("show", help="Show one file by id or name")
+    p_files_show.add_argument("file", help="File id or exact name")
+    p_files_show.add_argument("--project", required=True, help="Project id or name")
+    p_files_show.add_argument("--include-deleted", action="store_true", help="Allow a file in trash")
+    p_files_show.add_argument("--json", action="store_true", help="Output as JSON")
+    p_files_parse = files_sub.add_parser("parse", help="Parse a file into readable text and passages")
+    p_files_parse.add_argument("file", help="File id or exact name")
+    p_files_parse.add_argument("--project", required=True, help="Project id or name")
+    p_files_parse.add_argument("--reparse", action="store_true",
+                               help="Discard any hand-edited parsed text and parse the original file again")
+    p_files_parse.add_argument("--json", action="store_true", help="Output as JSON")
     p_files_trash = files_sub.add_parser("trash", help="List or purge trashed files")
     p_files_trash.add_argument("--list", action="store_true",
                                 help="List trashed files instead of purging")
@@ -238,6 +335,210 @@ def build_parser() -> argparse.ArgumentParser:
     p_files_trash.add_argument("--project-id", help="Restrict to a single project")
     p_files_trash.add_argument("--dry-run", action="store_true",
                                 help="Show what would be purged, do not delete")
+
+    # ── mining jobs (persistent per-file helper work) ──
+    p_mining = sub.add_parser("mining", help="Queue and inspect persistent per-file Mining jobs")
+    mining_sub = p_mining.add_subparsers(dest="mining_action", required=True)
+    p_mining_start = mining_sub.add_parser("start", help="Mine files or fill gaps in their Q&A coverage")
+    p_mining_start.add_argument("files", nargs="+", help="Parsed file ids or names")
+    p_mining_start.add_argument("--project", required=True, help="Project id or name")
+    p_mining_start.add_argument("--kind", choices=("mine", "fill"), default="mine",
+                                 help="mine builds the inventory; fill revisits open data points")
+    p_mining_start.add_argument("--json", action="store_true", help="Output queued jobs as JSON")
+    p_mining_list = mining_sub.add_parser("list", help="List Mining jobs in a project")
+    p_mining_list.add_argument("--project", required=True, help="Project id or name")
+    p_mining_list.add_argument("--source-id", help="Filter by parsed source id")
+    p_mining_list.add_argument("--active", action="store_true", help="Show only queued and running jobs")
+    p_mining_list.add_argument("--limit", type=int, default=100, help="Maximum jobs to show (default: 100)")
+    p_mining_list.add_argument("--json", action="store_true", help="Output jobs and helper settings as JSON")
+    for action, help_text in (("status", "Show one job's progress"), ("cancel", "Cancel or stop a Mining job")):
+        p_mining_job = mining_sub.add_parser(action, help=help_text)
+        p_mining_job.add_argument("job_id", help="Mining job id")
+        p_mining_job.add_argument("--project", required=True, help="Owning project id or name")
+        p_mining_job.add_argument("--json", action="store_true", help="Output as JSON")
+
+    # ── qa review ──
+    p_qa = sub.add_parser("qa", help="Review mined Q&A pairs and inspect their status")
+    qa_sub = p_qa.add_subparsers(dest="qa_action", required=True)
+    p_qa_list = qa_sub.add_parser("list", help="List the review queue")
+    p_qa_list.add_argument("--project", required=True, help="Project id or name")
+    p_qa_list.add_argument("--status", choices=("pending", "approved", "rejected"), help="Filter by review status")
+    p_qa_list.add_argument("--source", help="Filter by source id or parsed file name")
+    p_qa_list.add_argument("--search", default="", help="Search question and answer text")
+    p_qa_list.add_argument("--offset", type=int, default=0, help="Skip this many matching pairs")
+    p_qa_list.add_argument("--limit", type=int, default=200, help="Maximum pairs to show (default: 200)")
+    p_qa_list.add_argument("--json", action="store_true", help="Output the queue page and counts as JSON")
+    for action, help_text in (("approve", "Approve Q&A pairs for export"), ("reject", "Reject Q&A pairs")):
+        p_qa_review = qa_sub.add_parser(action, help=help_text)
+        p_qa_review.add_argument("ids", nargs="+", help="Q&A pair ids")
+        p_qa_review.add_argument("--project", required=True, help="Project id or name")
+        p_qa_review.add_argument("--note", help="Optional reviewer note")
+        if action == "reject":
+            p_qa_review.add_argument("--yes", action="store_true",
+                                     help="Confirm rejection that would leave mined facts uncovered")
+        p_qa_review.add_argument("--json", action="store_true", help="Output counts and updated pairs as JSON")
+
+    # ── versions (project snapshots and lineage) ──
+    p_versions = sub.add_parser("versions", help="Pin and inspect project snapshots and their lineage")
+    versions_sub = p_versions.add_subparsers(dest="versions_action", required=True)
+    p_versions_list = versions_sub.add_parser("list", help="List pinned project versions")
+    p_versions_list.add_argument("--project", required=True, help="Project id or name")
+    p_versions_list.add_argument("--json", action="store_true", help="Output versions and manifests as JSON")
+    p_versions_pin = versions_sub.add_parser("pin", help="Pin current datasets, runs and Smart Brain build")
+    p_versions_pin.add_argument("--project", required=True, help="Project id or name")
+    p_versions_pin.add_argument("--label", default="", help="Optional version label")
+    p_versions_pin.add_argument("--notes", default="", help="Optional snapshot notes")
+    pin_parent = p_versions_pin.add_mutually_exclusive_group()
+    pin_parent.add_argument("--parent", help="Build on this version id (default: latest version)")
+    pin_parent.add_argument("--root", action="store_true", help="Start a new lineage instead of using the latest")
+    p_versions_pin.add_argument("--json", action="store_true", help="Output the pinned version as JSON")
+    for action, help_text in (("show", "Show one version and its manifest"),
+                              ("lineage", "Show the root-to-version history"),
+                              ("delete", "Delete a version record only")):
+        p_version = versions_sub.add_parser(action, help=help_text)
+        p_version.add_argument("version_id", help="Version id from `fts versions list`")
+        p_version.add_argument("--project", required=True, help="Owning project id or name")
+        if action == "delete":
+            p_version.add_argument("--yes", action="store_true", help="Confirm deleting only the version record")
+        p_version.add_argument("--json", action="store_true", help="Output the result as JSON")
+
+    # ── use cases (shared template, dataset and held-out evaluation pipeline) ──
+    p_usecases = sub.add_parser("usecases", help="Build and evaluate template-based training use cases")
+    usecases_sub = p_usecases.add_subparsers(dest="usecases_action", required=True)
+    p_uc_templates = usecases_sub.add_parser("templates", help="List templates, row shapes and data requirements")
+    p_uc_templates.add_argument("--json", action="store_true", help="Output templates as JSON")
+    p_uc_build = usecases_sub.add_parser("build", help="Validate examples and build a dataset plus held-out suite")
+    p_uc_build.add_argument("--project", required=True, help="Project id or name")
+    p_uc_build.add_argument("--template", required=True, choices=("extraction", "classification", "style", "distillation"))
+    p_uc_build.add_argument("--file", required=True, help="JSON, JSONL, or a JSON object containing rows/examples")
+    p_uc_build.add_argument("--name", default="", help="Optional use-case name")
+    p_uc_build.add_argument("--instruction", default="", help="System instruction shared by base, training and test")
+    p_uc_build.add_argument("--schema", help="JSON Schema file (extraction template only)")
+    p_uc_build.add_argument("--labels", help="Comma-separated classification labels; default: inferred")
+    p_uc_build.add_argument("--style-guide", default="", help="House-style reference (style template)")
+    p_uc_build.add_argument("--teacher", default="", help="Recorded teacher model name")
+    p_uc_build.add_argument("--teacher-provider", default="", help="API provider id to answer distillation prompts")
+    p_uc_build.add_argument("--seed", type=int, default=42, help="Seed for the held-out split (default: 42)")
+    p_uc_build.add_argument("--json", action="store_true", help="Output the created manifest as JSON")
+    p_uc_list = usecases_sub.add_parser("list", help="List use cases in a project")
+    p_uc_list.add_argument("--project", required=True, help="Project id or name")
+    p_uc_list.add_argument("--json", action="store_true", help="Output manifests as JSON")
+    p_uc_show = usecases_sub.add_parser("show", help="Show one use case and its evaluations")
+    p_uc_show.add_argument("usecase_id", help="Use-case id from `fts usecases list`")
+    p_uc_show.add_argument("--project", required=True, help="Owning project id or name")
+    p_uc_show.add_argument("--json", action="store_true", help="Output the manifest as JSON")
+    p_uc_delete = usecases_sub.add_parser("delete", help="Delete the use-case record and held-out suite")
+    p_uc_delete.add_argument("usecase_id", help="Use-case id from `fts usecases list`")
+    p_uc_delete.add_argument("--project", required=True, help="Owning project id or name")
+    p_uc_delete.add_argument("--yes", action="store_true", help="Confirm; the training dataset is kept")
+    p_uc_delete.add_argument("--json", action="store_true", help="Output the deletion result as JSON")
+    p_uc_eval = usecases_sub.add_parser("evaluate", help="Compare a trained run with its base on held-out questions")
+    p_uc_eval.add_argument("usecase_id", help="Use-case id")
+    p_uc_eval.add_argument("run_id", help="Completed training run id")
+    p_uc_eval.add_argument("--project", required=True, help="Owning project id or name")
+    p_uc_eval.add_argument("--judge-provider", default="", help="AI judge provider id (distillation template)")
+    p_uc_eval.add_argument("--json", action="store_true", help="Output the persistent evaluation record as JSON")
+    p_uc_report = usecases_sub.add_parser("report", help="Show evaluation progress and paired results")
+    p_uc_report.add_argument("usecase_id", help="Use-case id")
+    p_uc_report.add_argument("group_id", help="Evaluation group id returned by `evaluate`")
+    p_uc_report.add_argument("--project", required=True, help="Owning project id or name")
+    p_uc_report.add_argument("--json", action="store_true", help="Output the report as JSON")
+    p_uc_ab = usecases_sub.add_parser("ab", help="Run the blind style A/B judge for a finished evaluation")
+    p_uc_ab.add_argument("usecase_id", help="Style use-case id")
+    p_uc_ab.add_argument("group_id", help="Evaluation group id returned by `evaluate`")
+    p_uc_ab.add_argument("--project", required=True, help="Owning project id or name")
+    p_uc_ab.add_argument("--judge-provider", default="", help="Judge provider id; defaults to Testing settings")
+    p_uc_ab.add_argument("--json", action="store_true", help="Output A/B job state as JSON")
+
+    # ── compute device ──
+    p_compute = sub.add_parser("compute-device", help="Show or save the device used at the next app start")
+    compute_sub = p_compute.add_subparsers(dest="compute_device_action", required=True)
+    p_compute_show = compute_sub.add_parser("show", help="Show detected devices and the saved/effective choice")
+    p_compute_show.add_argument("--json", action="store_true", help="Output the device report as JSON")
+    p_compute_set = compute_sub.add_parser("set", help="Save auto, CPU, or one GPU for the next app start")
+    p_compute_set.add_argument("mode", choices=("auto", "cpu", "gpu"))
+    p_compute_set.add_argument("--device-id", help="GPU id from `fts compute-device show` (required for gpu)")
+    p_compute_set.add_argument("--json", action="store_true", help="Output the saved device report as JSON")
+
+    # ── application updates ──
+    p_update = sub.add_parser("update", help="Check, apply or repair this Finetune Studio install")
+    update_sub = p_update.add_subparsers(dest="update_action", required=True)
+    for action, help_text in (("check", "Check for updates and run the health check (no install changes)"),
+                              ("apply", "Install the latest code and dependencies, then restart"),
+                              ("repair", "Recreate the Python environment, then restart")):
+        command = update_sub.add_parser(action, help=help_text)
+        command.add_argument("--no-pull", action="store_true", help="Skip fetching/pulling code")
+        command.add_argument("--no-llama", action="store_true", help="Skip llama.cpp CLI setup")
+        command.add_argument("--no-restart", action="store_true", help="Do not restart the service")
+        command.add_argument("--yes", action="store_true", help="Confirm apply/repair without prompting")
+        command.add_argument("--json", action="store_true", help="Output the final durable update record as JSON")
+    p_update_history = update_sub.add_parser("history", help="List recent update attempts")
+    p_update_history.add_argument("--limit", type=int, default=10, choices=range(1, 51))
+    p_update_history.add_argument("--json", action="store_true", help="Output history as JSON")
+    p_update_status = update_sub.add_parser("status", help="Show one update attempt and its log")
+    p_update_status.add_argument("update_id", help="Update id from the command or history")
+    p_update_status.add_argument("--full", action="store_true", help="Show the full saved log")
+    p_update_status.add_argument("--json", action="store_true", help="Output the update record as JSON")
+
+    # ── assistant settings ──
+    p_assistant = sub.add_parser("assistant", help="Manage AI connections, the main assistant and job routing")
+    assistant_sub = p_assistant.add_subparsers(dest="assistant_action", required=True)
+    p_assistant_show = assistant_sub.add_parser("show", help="Show the main assistant, API connections and jobs")
+    p_assistant_show.add_argument("--json", action="store_true", help="Output settings as JSON")
+    p_assistant_main = assistant_sub.add_parser("main", help="Choose the main assistant connection")
+    p_assistant_main.add_argument("connection", help="Connection id from assistant connections list")
+    p_assistant_main.add_argument("--json", action="store_true", help="Output the result as JSON")
+
+    assistant_jobs = assistant_sub.add_parser("jobs", help="List or configure per-job connections")
+    jobs_sub = assistant_jobs.add_subparsers(dest="jobs_action", required=True)
+    p_jobs_list = jobs_sub.add_parser("list", help="List assistant jobs and their current connection")
+    p_jobs_list.add_argument("--json", action="store_true", help="Output jobs as JSON")
+    p_jobs_set = jobs_sub.add_parser("set", help="Set a job's connection and/or extra instructions")
+    p_jobs_set.add_argument("job_id", help="Job id shown by assistant jobs list")
+    p_jobs_set.add_argument("--connection", help="'main', 'off' (vision only), or a connection id")
+    p_jobs_set.add_argument("--instructions", help="Extra system instructions; an empty value clears them")
+    p_jobs_set.add_argument("--local-model", help="Vision GGUF path when --connection local-file")
+    p_jobs_set.add_argument("--json", action="store_true", help="Output the result as JSON")
+
+    assistant_connections = assistant_sub.add_parser("connections", help="List, add, update or delete API connections")
+    connections_sub = assistant_connections.add_subparsers(dest="connections_action", required=True)
+    p_connections_list = connections_sub.add_parser("list", help="List API connections without revealing keys")
+    p_connections_list.add_argument("--json", action="store_true", help="Output connections as JSON")
+    def add_connection_fields(command: argparse.ArgumentParser, *, partial: bool) -> None:
+        command.add_argument("--name", required=not partial, help="Connection name")
+        command.add_argument("--base-url", required=not partial, help="OpenAI-compatible API base URL")
+        command.add_argument("--model", required=not partial, help="Provider model id")
+        command.add_argument("--preset", default=None if partial else "custom", help="Provider preset id (default: custom)")
+        command.add_argument("--reasoning-effort", choices=("none", "minimal", "low", "medium", "high"))
+        command.add_argument("--concurrency", type=int)
+        keys = command.add_mutually_exclusive_group()
+        keys.add_argument("--key-file", help="Read the API key from an owner-only file (mode 600)")
+        keys.add_argument("--key-stdin", action="store_true", help="Read the API key from stdin")
+        keys.add_argument("--prompt-key", action="store_true", help="Prompt for a replacement API key without echo")
+        if partial:
+            command.add_argument("--clear-key", action="store_true", help="Remove the saved key (not allowed on the main assistant)")
+        command.add_argument("--json", action="store_true", help="Output the result as JSON")
+    p_connections_add = connections_sub.add_parser("add", help="Add an encrypted API connection")
+    add_connection_fields(p_connections_add, partial=False)
+    p_connections_update = connections_sub.add_parser("update", help="Update connection settings; omitted values stay unchanged")
+    p_connections_update.add_argument("connection", help="API connection id")
+    add_connection_fields(p_connections_update, partial=True)
+    p_connections_delete = connections_sub.add_parser("delete", help="Delete a connection and reset jobs that used it")
+    p_connections_delete.add_argument("connection", help="API connection id")
+    p_connections_delete.add_argument("--yes", action="store_true", help="Confirm deletion without prompting")
+    p_connections_delete.add_argument("--json", action="store_true", help="Output the result as JSON")
+
+    for action, help_text in (("test", "Send one pong request to test a connection"),
+                              ("models", "List models offered by an API connection")):
+        p_connection_probe = assistant_sub.add_parser(action, help=help_text)
+        p_connection_probe.add_argument("connection", nargs="?", help="Saved API connection id")
+        p_connection_probe.add_argument("--base-url", help="Override the saved base URL")
+        p_connection_probe.add_argument("--model", help="Override the saved model id")
+        p_connection_probe.add_argument("--preset", help="Provider preset id")
+        p_connection_probe.add_argument("--reasoning-effort", choices=("none", "minimal", "low", "medium", "high"))
+        p_connection_probe.add_argument("--key-file", help="Read an API key from an owner-only file (mode 600)")
+        p_connection_probe.add_argument("--key-stdin", action="store_true", help="Read an API key from stdin")
+        p_connection_probe.add_argument("--json", action="store_true", help="Output the result as JSON")
 
     # ── dataset (build a training dataset from a project's Q&A pairs) ──
     p_dataset = sub.add_parser("dataset", help="Build training datasets from a project")

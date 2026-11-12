@@ -279,7 +279,7 @@ def build_study_rows(items: list[dict[str, Any]], generate: GenerateFn, opts: St
                 except (ValueError, json.JSONDecodeError):
                     report.drop("unparseable_reply")
             if consecutive >= _MAX_CONSECUTIVE_ERRORS and not any(report.kept.values()):
-                raise NoUsableRows(f"The helper failed {consecutive} calls in a row; nothing was generated.", report)
+                raise NoUsableRows(f"The assistant failed {consecutive} calls in a row; nothing was generated.", report)
             report.pairs_without_new_row += not new
             rows += [_row(item["question"], item["answer"], item, "original"), *new]
             if progress:
@@ -331,14 +331,14 @@ def build_study_dataset(pid: str, opts: StudyOptions, *, generate: GenerateFn | 
         from finetune_studio.data.prep.generator import helper_resolution_error
         from finetune_studio.data.prep.preference import NoGenerator, helper_generate
 
-        generate = helper_generate(max_tokens=1200, temperature=0.7)
+        generate = helper_generate(max_tokens=1200, temperature=0.7, job="study")
         if generate is None:
-            raise NoGenerator(helper_resolution_error())
-        workers = workers or int(helper_info().get("concurrency") or 1)
+            raise NoGenerator(helper_resolution_error("study"))
+        workers = workers or int(helper_info("study").get("concurrency") or 1)
     rows, report = build_study_rows(items, generate, opts, avoid_questions=heldout_questions(pid),
                                     workers=workers or 1, progress=progress)
     if not any(report.kept.values()):
-        raise NoUsableRows("The helper's texts did not pass a single quality check, so no study rows were added.", report)
+        raise NoUsableRows("The assistant's texts did not pass a single quality check, so no study rows were added.", report)
     body = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in rows)
     name = (db.get_project(pid) or {}).get("name") or pid
     persisted = register_dataset_file(pid, f"{pid}-study.jsonl", body, f"{name} · study set · {{rows}} rows",

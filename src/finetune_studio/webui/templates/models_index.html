@@ -6,8 +6,15 @@
 {% include "_resources.html" %}
 
 <div class="page-head">
-  <h1>Local models</h1>
-  <div class="sub">All models discovered on disk — trained exports, base models, downloaded HF repos, local helpers.</div>
+  <div>
+    <h1>Local models</h1>
+    <div class="sub">All models discovered on disk — trained exports, base models, downloaded HF repos, local helpers.</div>
+  </div>
+  <div class="actions flex gap-2 wrap">
+    <button type="button" class="btn sm" id="models-rescan"
+            title="Scan the model folders again (models/, output/, the Hugging Face cache, and the HF Explorer and shared-model folders) and list what is on disk now. Use it after copying or deleting a model by hand.">⟳ Rescan folders</button>
+    <span id="models-rescan-status" class="text-xs dim self-center" role="status" aria-live="polite"></span>
+  </div>
 </div>
 
 {# Category filter pills — wrap + scroll so nothing is silently clipped at 375px #}
@@ -70,6 +77,25 @@
 </div>
 
 <script>
+// Rescan the model folders (a model copied in by hand appears without restarting the app), then show the new list.
+(function () {
+  const btn = document.getElementById('models-rescan');
+  const status = document.getElementById('models-rescan-status');
+  if (!btn || !status) return;
+  btn.addEventListener('click', async function () {
+    btn.disabled = true;
+    status.textContent = 'Scanning the model folders…';
+    try {
+      const d = await api.post('/api/models/refresh');
+      status.textContent = d.count + ' model' + (d.count === 1 ? '' : 's') + ' found. Reloading…';
+      setTimeout(() => location.reload(), 600);
+    } catch (e) {
+      status.textContent = 'Rescan failed: ' + ((e && e.message) || e);
+      btn.disabled = false;
+    }
+  });
+})();
+
 function filterModels(cat, btn) {
   document.querySelectorAll('#models-index-filters .btn[data-filter]').forEach(b => b.classList.remove('active'));
   if (btn) btn.classList.add('active');

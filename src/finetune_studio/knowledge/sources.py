@@ -211,6 +211,12 @@ def parse(pid: str, source_id: str, *, force: bool = False) -> Source:
         why = "; ".join(str(w) for w in (meta.get("warnings") or []) if w)
         return _fail(pid, s, "the parser found no text" + (f" ({why})" if why else ""),
                      parser=str(meta.get("parser") or ""))
+    from finetune_studio.knowledge.pictures import parse_warning
+
+    note = parse_warning(text)
+    if note:     # the parse result says when pictures were read by OCR only (or are queued for the Vision reader)
+        meta = result.setdefault("metadata", {})
+        meta["warnings"] = [*(meta.get("warnings") or []), note]
     d = source_dir(pid, s)
     (d / "parsed.json").write_text(json.dumps(result, indent=2, ensure_ascii=False, default=str), encoding="utf-8")
     return _write_text(pid, s, text, parser=str(meta.get("parser") or ""), edited=False)

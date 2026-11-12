@@ -133,6 +133,27 @@ async def test_a_failing_generation_is_recorded_on_the_case_and_the_run_still_fi
 
 
 @pytest.mark.asyncio
+async def test_run_fails_and_skips_auto_judge_when_every_generation_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pid, _rid = make_project_run()
+
+    def fail_generation(_question: str) -> str:
+        raise RuntimeError("CUDA out of memory")
+
+    engine = install_engine(monkeypatch, FakeEngine(fail_generation))
+    asked = install_judge(monkeypatch)
+
+    row = await start_run_job(_spec(pid, 3, auto_judge=True))
+    done = await await_finished(row["id"])
+
+    assert done["status"] == "failed"
+    assert "all 3 test cases failed" in done["error"] and "CUDA out of memory" in done["error"]
+    assert all(c["error"] and not c["verdict"] for c in db.list_cases(row["id"]))
+    assert done["judge_status"] == "" and asked == [] and engine.asked == ["Q0", "Q1", "Q2"]
+
+
+@pytest.mark.asyncio
 async def test_brain_run_saves_retrieval_provenance_next_to_each_case_and_no_verdict(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -219,7 +240,7 @@ async def test_an_auto_judge_that_cannot_start_is_recorded_not_swallowed(monkeyp
     install_engine(monkeypatch)
     install_judge(monkeypatch)
     row = await start_run_job(_spec(pid, 2, auto_judge=True, judge_provider_id="no-such-provider"))
-    done = await await_finished(row["id"])
+    done = await await_finished(row["id"], judge=True)
     assert done["status"] == "done" and done["progress_done"] == 2  # the run itself is complete and saved
     assert done["judge_status"] == "failed" and "no-such-provider" in done["judge_error"]
 

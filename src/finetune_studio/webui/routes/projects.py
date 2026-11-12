@@ -76,6 +76,7 @@ async def create_project(request: Request):
         base_model=body.get("base_model", ""),
         system_prompt=body.get("system_prompt", ""),
     )
+    request.state.activity_project_id = str(p.get("id") or "")
     return p
 
 
@@ -120,7 +121,7 @@ async def update_project(pid: str, request: Request):
 
 
 @router.delete("/{pid}")
-async def delete_project(pid: str):
+async def delete_project(pid: str, request: Request):
     """Delete a project's DB rows and every on-disk tree that stores its data.
 
     Audit fix (2026-10-01): this previously only called ``db.delete_project``
@@ -132,29 +133,17 @@ async def delete_project(pid: str):
     leaving the actual data behind — found while a 121GB cleanup turned up
     three "deleted" projects whose files were all still resident.
     """
+    from finetune_studio.project_lifecycle import delete_project as delete_project_data
+
+    # Validate the path resource before any other work; missing projects are 404.
     missing = _project_404(pid)
     if missing is not None:
         return missing
-    db.delete_project(pid)
-
-    import shutil
-    from pathlib import Path
-
-    from finetune_studio.config import settings
-    from finetune_studio.data.fs.paths import brain_index_dir
-    from finetune_studio.data.fs.paths import root as fts_root
-
-    def _remove_dirs() -> None:
-        for project_dir in (
-            fts_root() / "projects" / pid,
-            Path(settings.db_path).parent / "projects" / pid,
-            Path("output") / "projects" / pid,
-            brain_index_dir(pid),
-        ):
-            shutil.rmtree(project_dir, ignore_errors=True)
-
-    # Project dirs can hold gigabytes of weights: never rmtree on the loop.
-    await asyncio.to_thread(_remove_dirs)
+    # The Activity row of this delete outlives the project: name it, and file it under "system" (see app.py).
+    request.state.activity_subject = str((db.get_project(pid) or {}).get("name") or pid)
+    deleted = await asyncio.to_thread(delete_project_data, pid)
+    if not deleted:
+        return _project_404(pid)
 
     # The deleted project's trained exports stay in the model registry (and the
     # model pickers) until the next rescan — drop them now.
@@ -369,7 +358,14 @@ async def import_project(request: Request):
                 migrate_project(new_id)   # an archive from before 2026-10-14 still carries qa/sources/
                 return {"ok": True, "imported": [{"old_id": old_id, "new_id": new_id, "name": proj_name}],
                         "count": 1}
-        except (tarfile.TarError, EOFError) as e:
+        except tarfile.ReadError:
+            # tarfile's own text lists every decompressor it tried ("method gz: ReadError('not a gzip file') …").
+            return JSONResponse({"detail": "This file is not a readable project archive. Choose the .tar.gz that "
+                                           "Export (in a project's Settings) downloads."}, status_code=400)
+        except EOFError:
+            return JSONResponse({"detail": "This project archive is incomplete (the file ends early). Download the "
+                                           "export again and import the new file."}, status_code=400)
+        except tarfile.TarError as e:
             return bad(str(e))
 
     return await asyncio.to_thread(_restore)

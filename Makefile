@@ -1,10 +1,9 @@
-.PHONY: help install install-cpu install-conda install-llama check update run webui test lint codemap codemap-check hooks clean release-status release-prepare release-finish
+.PHONY: pins help install install-cpu install-llama check update run webui test lint codemap codemap-check hooks clean release-status release-prepare release-finish
 
 help:
 	@echo "Finetune Studio — common targets:"
 	@echo "  make install         install into ./.venv + llama-cpp-python"
 	@echo "  make install-cpu     CPU-only install (skip GPU wheel selection)"
-	@echo "  make install-conda   install into conda env CONDA_ENV=chris-ai"
 	@echo "  make install-llama   build project-local .llama.cpp CLI (convert_hf_to_gguf + llama-quantize)"
 	@echo "  make check           verify install + llama.cpp CLI"
 	@echo "  make update          self-healing: pull + sync deps + llama.cpp + restart"
@@ -25,9 +24,6 @@ install:
 install-cpu:
 	bash install.sh --cpu
 
-install-conda:
-	USE_CONDA=1 bash install.sh
-
 install-llama:
 	bash install.sh --llama-cpp-only
 
@@ -47,6 +43,9 @@ test:
 
 lint:
 	.venv/bin/python -m ruff check src/ || true
+
+pins:  ## Record this checkout's tested stack in pins/ (see CONTRIBUTING.md)
+	.venv/bin/python scripts/pin_versions.py write
 
 codemap:
 	.venv/bin/python scripts/codemap.py

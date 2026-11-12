@@ -131,3 +131,28 @@ def test_missing_binary_error_is_actionable(monkeypatch: pytest.MonkeyPatch) -> 
     assert any(verb in msg for verb in ("brew install", "sudo apt", "sudo pacman", "sudo dnf")), (
         "missing-binary error should include a platform-correct install command; got: " + msg
     )
+
+
+def test_ocr_image_runs_tesseract_single_threaded(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Parallel parses each start a tesseract: with OpenMP's default (a thread per core) they starve each other
+    (one small photo took 137 s instead of 1.7 s), so every call is limited to one thread unless the user set it."""
+    import subprocess
+
+    from finetune_studio.data import ocr
+
+    seen: list[dict] = []
+
+    def fake_run(cmd, **kw):
+        seen.append(kw["env"])
+        Path(str(cmd[2]) + ".txt").write_text("ok")
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(ocr, "_tesseract_cmd", lambda: ["tesseract"])
+    monkeypatch.setattr(ocr, "_ensure_tessdata", lambda languages: None)
+    monkeypatch.setattr(ocr.subprocess, "run", fake_run)
+    monkeypatch.delenv("OMP_THREAD_LIMIT", raising=False)
+    assert ocr.ocr_image(tmp_path / "x.png") == "ok"
+    assert seen[-1]["OMP_THREAD_LIMIT"] == "1"
+    monkeypatch.setenv("OMP_THREAD_LIMIT", "3")
+    ocr.ocr_image(tmp_path / "x.png")
+    assert seen[-1]["OMP_THREAD_LIMIT"] == "3"

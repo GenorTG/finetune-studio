@@ -149,7 +149,7 @@ def test_rebuild_vectors_is_a_build_job_that_keeps_the_documents(client, monkeyp
                                                       "extra": {"fact_cards": False}}))
             return {"documents": len(docs), "chunks": 3, "vector_dim": 8, "skipped": 0}
 
-        def rebuild_vectors(self, embedder: str | None = None, device: str = "auto") -> dict:
+        def rebuild_vectors(self, embedder: str | None = None, device: str = "auto", **_kw: object) -> dict:
             calls.append(embedder)
             return {"chunks": 3, "vector_dim": 16, "embedder": embedder or "settings-embedder"}
 
@@ -245,10 +245,11 @@ def test_quick_rejected_for_a_busy_gpu_says_why_once(client, gated, monkeypatch)
     assert "the GPU is busy with training job t-1" in r.json()["detail"]
 
 
-def test_quick_index_status_is_shown_next_to_its_button() -> None:
+def test_quick_index_status_is_in_the_same_panel_as_its_button() -> None:
     from pathlib import Path
 
     page = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/brain.html").read_text()
-    actions = page.split('id="quick-index-btn"', 1)[1].split("</div>", 1)[0]
-    assert 'id="quick-index-status"' in actions
-    assert "getElementById('quick-index-status')" in page
+    # One status line in the panel the button sits in (it used to be repeated next to the button).
+    hero = page.split('id="brain-hero"', 1)[1].split("</section>", 1)[0]
+    assert 'id="quick-index-btn"' in hero and 'id="build-status"' in hero
+    assert "quick-index-status" not in page

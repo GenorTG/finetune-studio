@@ -31,6 +31,7 @@ KINDS: dict[str, str] = {
     "mining": "finetune_studio.jobs.kinds.mining:run",
     "download": "finetune_studio.jobs.kinds.download:run",
     "brain_build": "finetune_studio.jobs.kinds.brain_build:run",
+    "pictures": "finetune_studio.jobs.kinds.pictures:run",
 }
 
 EXIT_DONE, EXIT_FAILED, EXIT_BAD_SPEC, EXIT_STOPPED = 0, 1, 2, 3
@@ -134,5 +135,25 @@ def execute(ctx: JobContext, fn: Any = None) -> int:
                                    "ran_s": round(time.time() - started, 1)}, overwrite=True)
         return EXIT_FAILED
 
+def _leave(code: int) -> None:
+    """End the job process with ``code`` once its exit record is written.
+
+    A stopped or failed kind can leave non-daemon threads behind: a stopped download's Hugging Face call runs on
+    ``snapshot_download``'s executor threads, and a normal exit joins them, so the process kept downloading the
+    whole repository after the row said cancelled. Those threads hold nothing the record depends on: leave now."""
+    if code == EXIT_DONE:
+        sys.exit(code)
+    logging.shutdown()
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(code)
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    # Run the package module, not this ``__main__`` copy: a kind imports ``finetune_studio.jobs.runner`` and raises
+    # its ``Stopped``, which ``execute`` here would not catch (two classes of one name), so a stop ended 'failed'.
+    from finetune_studio.jobs import (
+        runner as _runner,  # noqa: PLW0406 - the package copy, on purpose (above)
+    )
+
+    _runner._leave(_runner.main())

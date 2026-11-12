@@ -92,7 +92,7 @@ def test_helper_is_loaded_then_unloaded_when_none_is_resident(monkeypatch) -> No
     events: list[str] = []
     state = {"resident": False}
 
-    def fake_generate():
+    def fake_generate(**_k):
         return (lambda prompt: "x") if state["resident"] else None
 
     class Mgr:
@@ -111,7 +111,7 @@ def test_helper_is_loaded_then_unloaded_when_none_is_resident(monkeypatch) -> No
 
 def test_an_already_resident_helper_is_used_and_left_loaded(monkeypatch) -> None:
     events: list[str] = []
-    monkeypatch.setattr(pref, "helper_generate", lambda: (lambda prompt: "y"))
+    monkeypatch.setattr(pref, "helper_generate", lambda *_a, **_k: (lambda prompt: "y"))
     monkeypatch.setattr("finetune_studio.models.llama_loader.unload_all_models", lambda: events.append("unload"))
     with pref.helper_loaded_for_cli() as generate:
         assert generate("q") == "y"
@@ -119,7 +119,7 @@ def test_an_already_resident_helper_is_used_and_left_loaded(monkeypatch) -> None
 
 
 def test_missing_helper_gguf_is_an_honest_error(monkeypatch) -> None:
-    monkeypatch.setattr(pref, "helper_generate", lambda: None)
+    monkeypatch.setattr(pref, "helper_generate", lambda *_a, **_k: None)
     monkeypatch.setattr("finetune_studio.models.helper.missing_gguf_for_provider", lambda pid: "/nope/h.gguf")
     with pytest.raises(pref.NoGenerator, match="h.gguf"), pref.helper_loaded_for_cli():
         pass

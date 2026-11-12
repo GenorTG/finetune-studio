@@ -1,0 +1,390 @@
+"""Chat backends for the Guide: pick the model a chat turn runs on and make one blocking call to it.
+
+``resolve_chat_backend`` chooses an explicit ModelManager provider, an OpenAI-compatible API, or the job's
+configured assistant connection (never a silent switch to another loaded model); ``make_chat_fn`` turns that
+choice into a ``messages -> reply`` function the Guide loop (``finetune_studio.guide.loop``) calls each round.
+External APIs get the native ``tools`` parameter; local models are prompted to emit ``<tool_call>`` blocks.
+"""
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+from collections.abc import Callable
+from typing import Any
+
+from fastapi.responses import JSONResponse
+
+from finetune_studio.guide.tools import TOOLS_CATALOG
+
+log = logging.getLogger(__name__)
+MAX_TOOL_ROUNDS = 8
+
+
+def _messages_to_prompt(messages: list[dict]) -> tuple[str, list[dict]]:
+    """Flatten OpenAI-style messages into a single prompt string for local
+    models that don't take a structured messages list. Returns
+    (system_prefix, rendered_messages) — we keep the system separate so
+    the chat endpoint can prepend it without re-rendering user msgs."""
+    sys_prefix = ""
+    rendered: list[dict] = []
+    for m in messages:
+        role = m.get("role", "user")
+        content = m.get("content", "")
+        if role == "system":
+            sys_prefix += content + "\n\n"
+        else:
+            rendered.append({"role": role, "content": content})
+    return sys_prefix.strip(), rendered
+
+
+def parse_gen(body: dict) -> dict[str, Any]:
+    """Generation kwargs from a request body (``gen{}`` or top-level keys), clamped to llama-safe ranges."""
+    gen_raw: dict[str, Any] = dict(body.get("gen") or {})
+    for k in ("temperature", "max_tokens", "top_p", "top_k", "repeat_penalty"):
+        if k in body and k not in gen_raw:
+            gen_raw[k] = body[k]
+    gen: dict[str, Any] = {}
+    if "temperature" in gen_raw:
+        try:
+            gen["temperature"] = max(0.0, min(2.0, float(gen_raw["temperature"])))
+        except (TypeError, ValueError):
+            pass
+    if "max_tokens" in gen_raw:
+        try:
+            gen["max_tokens"] = max(32, min(16384, int(gen_raw["max_tokens"])))
+        except (TypeError, ValueError):
+            pass
+    if "top_p" in gen_raw:
+        try:
+            gen["top_p"] = max(0.0, min(1.0, float(gen_raw["top_p"])))
+        except (TypeError, ValueError):
+            pass
+    if "top_k" in gen_raw:
+        try:
+            gen["top_k"] = max(0, int(gen_raw["top_k"]))
+        except (TypeError, ValueError):
+            pass
+    if "repeat_penalty" in gen_raw:
+        try:
+            gen["repeat_penalty"] = max(0.5, min(2.0, float(gen_raw["repeat_penalty"])))
+        except (TypeError, ValueError):
+            pass
+    gen.setdefault("temperature", 0.2)
+    gen.setdefault("max_tokens", 4096)
+    return gen
+
+
+async def resolve_chat_backend(
+    provider_id: str | None, external: dict | None, job: str = "guide"
+) -> tuple[dict | None, JSONResponse | None]:
+    """Pick the chat backend (explicit provider, external API, or ``job``'s connection: the main assistant unless the
+    job names its own).
+
+    Returns ``(backend, None)`` or ``(None, error_response)``. Never silently reuses a model that
+    is not the configured helper. An API connection gets its own client: the model on the card is left alone.
+    """
+    backend: dict | None = None
+    if external:
+        try:
+            import httpx  # noqa: F401
+        except ImportError:
+            return None, JSONResponse({"detail": "external_api requires httpx (install httpx)"}, status_code=500)
+        backend = {
+            "kind": "external",
+            "base_url": (external.get("base_url") or "").rstrip("/"),
+            "api_key": external.get("api_key") or "",
+            "model_id": external.get("model_id") or "",
+        }
+        if not backend["base_url"] or not backend["model_id"]:
+            return None, JSONResponse({"detail": "external_api.base_url and model_id required"}, status_code=400)
+    elif provider_id:
+        # Explicit provider_id — only path that may call manager.load().
+        # Lazy import: `inference_engine` is created when app.py is imported, and app.py imports the
+        # routes that import this module; a top-level import would hit a partial module.
+        from finetune_studio.models.manager import get_manager
+        from finetune_studio.webui.app import inference_engine
+
+        mgr = get_manager()
+        cfg = mgr.get_provider(provider_id)
+        if not cfg:
+            return None, JSONResponse({"detail": f"unknown provider {provider_id}"}, status_code=404)
+        if cfg.get("kind") == "openai_compat":
+            from finetune_studio.models.assistant import connection_client
+
+            try:
+                client = await asyncio.to_thread(connection_client, provider_id)
+            except ValueError as e:
+                return None, JSONResponse({"detail": str(e)}, status_code=409)
+            return {"kind": "provider", "manager": client, "provider_id": provider_id}, None
+
+        # Fast path: the global inference engine already holds THIS model.
+        # Use it directly to avoid a duplicate Llama() instance racing with
+        # mmap on the same GGUF file. The manager load() can wedge a busy
+        # host in that scenario (CPU pinned, status API hangs).
+        # NOTE: provider config uses `model_id` as the field name, not
+        # `model_path`. The provider's value is usually absolute; the
+        # engine's value is whatever was passed to chat-v2/load (often
+        # relative). Normalise both to absolute before comparing.
+        import os
+        engine_path = getattr(inference_engine, "model_path", None) or ""
+        provider_path = cfg.get("model_id") or cfg.get("model_path") or ""
+
+        def _abs(p: str) -> str:
+            if not p:
+                return ""
+            if os.path.isabs(p):
+                return os.path.normpath(p)
+            # Resolve relative to the project root (cwd of the uvicorn process).
+            return os.path.normpath(os.path.join(os.getcwd(), p))
+
+        engine_abs = _abs(engine_path)
+        provider_abs = _abs(provider_path)
+        if (
+            getattr(inference_engine, "model", None) is not None
+            and engine_abs
+            and engine_abs == provider_abs
+        ):
+            log.info(
+                "data-prep chat: using global engine for provider %s "
+                "(path=%s); skipping manager load to avoid duplicate Llama",
+                provider_id, engine_abs,
+            )
+            backend = {
+                "kind": "global",
+                "engine": inference_engine,
+                "provider_id": provider_id,
+            }
+        else:
+            log.info(
+                "data-prep chat: engine_path=%s != provider_path=%s; "
+                "falling through to manager.load",
+                engine_abs, provider_abs,
+            )
+            # The engine holds a DIFFERENT model than the provider wants —
+            # free it first. Otherwise it stays resident alongside whatever
+            # manager.load() below loads, both competing for VRAM.
+            if getattr(inference_engine, "model", None) is not None:
+                await asyncio.to_thread(inference_engine.unload)
+            try:
+                await asyncio.to_thread(mgr.load, provider_id)
+            except Exception as e:
+                log.exception("failed to load provider %s", provider_id)
+                return None, JSONResponse({"detail": f"failed to load provider: {e}"}, status_code=500)
+            backend = {"kind": "provider", "manager": mgr, "provider_id": provider_id}
+    else:
+        # No provider_id: require the configured GGUF helper — never
+        # silently reuse a different Inference/manager model (e.g. a merged
+        # project LoRA). Explicit provider_id / external_api remain allowed.
+        from finetune_studio.data.prep.generator import (
+            helper_resolution_error,
+            resolve_helper_backend,
+        )
+
+        loaded = await asyncio.to_thread(resolve_helper_backend, job)
+        if loaded is None:
+            return None, JSONResponse({"detail": helper_resolution_error(job)}, status_code=409)
+        backend = dict(loaded)
+        log.info(
+            "data-prep chat: provider_id omitted; using helper %s backend (%s)",
+            backend.get("helper_label"),
+            backend.get("kind"),
+        )
+    return backend, None
+
+
+def make_chat_fn(backend: dict, gen: dict) -> Callable[[list[dict]], str]:
+    """One blocking model call for the resolved backend."""
+    if backend["kind"] == "external":
+        return lambda msgs: _chat_external(backend, msgs, gen)
+    if backend["kind"] == "global":
+        return lambda msgs: _chat_global_engine(backend, msgs, gen)
+    # raise_errors: a dead helper must surface as an error, not as an empty reply
+    return lambda msgs: _chat_local(backend, msgs, gen, raise_errors=True)
+
+
+def _chat_external(backend: dict, messages: list[dict], gen: dict | None = None) -> str:
+    """One round of chat via an OpenAI-compatible HTTP endpoint.
+
+    We use the native `tools` parameter so the model returns structured
+    tool_calls; the message we build for the next round mirrors what the
+    OpenAI SDK does.
+    """
+    import httpx
+    base = backend["base_url"]
+    url = base + "/chat/completions"
+    g = gen or {}
+    payload = {
+        "model": backend["model_id"],
+        "messages": messages,
+        "tools": [{"type": "function", "function": t} for t in TOOLS_CATALOG],
+        "tool_choice": "auto",
+        "temperature": g.get("temperature", 0.2),
+        "max_tokens": g.get("max_tokens", 4096),
+        "top_p": g.get("top_p", 0.9),
+    }
+    headers = {"Content-Type": "application/json"}
+    if backend["api_key"]:
+        headers["Authorization"] = f"Bearer {backend['api_key']}"
+    resp = httpx.post(url, json=payload, headers=headers, timeout=120.0)
+    if resp.status_code >= 400:
+        raise RuntimeError(f"external api {resp.status_code}: {resp.text[:300]}")
+    data = resp.json()
+    choice = (data.get("choices") or [{}])[0]
+    msg = choice.get("message") or {}
+    # If the model returned native tool_calls, synthesize a `<tool_call>` block
+    # so the rest of the loop (parsing + execution) is backend-agnostic.
+    if msg.get("tool_calls"):
+        for tc in msg["tool_calls"]:
+            fn = tc.get("function") or {}
+            name = fn.get("name", "")
+            try:
+                args = json.loads(fn.get("arguments") or "{}")
+            except json.JSONDecodeError:
+                args = {}
+            block = json.dumps({"name": name, "arguments": args})
+            return f"<tool_call>{block}</tool_call>"
+    return msg.get("content") or ""
+
+
+def _chat_global_engine(backend: dict, messages: list[dict], gen: dict | None = None) -> str:
+    """One round of chat via the global inference engine (the single
+    Llama() instance the app keeps loaded at any time).
+
+    Used when the manager would otherwise create a duplicate Llama on the
+    same GGUF path — that path wedges the service in mmap. The global
+    engine already holds the model; we just call its create_chat_completion
+    with the same gen params a manager provider would.
+
+    The global engine uses llama-cpp-python's auto chat-template (chatml
+    for Qwen3, etc.), so we hand it the messages as-is including the
+    leading system prompt — no manual fold-in needed.
+    """
+    engine = backend["engine"]
+    model = getattr(engine, "model", None)
+    if model is None:
+        raise RuntimeError("global engine has no model loaded")
+
+    g = gen or {}
+    kwargs: dict = {
+        "messages": messages,
+        "temperature": g.get("temperature", 0.2),
+        "max_tokens": g.get("max_tokens", 4096),
+        "top_p": g.get("top_p", 0.9),
+    }
+    # Optional gen params that llama-cpp-python accepts.
+    for k in ("top_k", "repeat_penalty", "stop", "seed", "stream"):
+        if k in g:
+            kwargs[k] = g[k]
+
+    resp = model.create_chat_completion(**kwargs)
+    # llama-cpp-python returns a dict with 'choices': [{'message': {'content': ...}}]
+    try:
+        return resp["choices"][0]["message"]["content"] or ""
+    except (KeyError, IndexError, TypeError):
+        # Defensive: if the schema is unusual, return the raw dict string.
+        return str(resp)
+
+
+def _chat_local(backend: dict, messages: list[dict], gen: dict | None = None, *, raise_errors: bool = False) -> str:
+    """One round of chat via the local ModelManager provider.
+
+    Uses `mgr.chat()` (which calls llama_cpp.create_chat_completion) so the
+    model's proper chat template is applied. This is critical for Qwen-style
+    instruct models: a manually-rendered prompt (role.upper() + colons) often
+    produces empty output because the model expects its ChatML tokens. Falling
+    back to generate() for any provider that doesn't expose chat().
+    """
+    mgr = backend["manager"]
+    g = gen or {}
+    _temp = g.get("temperature", 0.2)
+    _max  = g.get("max_tokens", 4096)
+    _topp = g.get("top_p", 0.9)
+    # Build the messages list we send to llama_cpp: drop the leading system
+    # message because llama_cpp.create_chat_completion takes it via the
+    # `messages` array (system role is supported there). For local chat models
+    # we also rely on the system prompt's instruction to emit
+    # <tool_call>{...}</tool_call> blocks when the model wants to act; the
+    # native tool-call API is only used for external OpenAI-compat backends.
+    chat_messages: list[dict] = []
+    for m in messages:
+        role = m.get("role", "user")
+        content = m.get("content", "")
+        if not content:
+            continue
+        # Local chat templates usually require assistant / user roles only —
+        # system messages get folded into the first user turn's prefix so
+        # models that don't grok the system role (older GGUF quants) still
+        # see the rules.
+        if role == "system" and not chat_messages:
+            chat_messages.append({"role": "user", "content": content})
+            continue
+        if role == "system":
+            # Append to last user message as a "system reminder".
+            for j in range(len(chat_messages) - 1, -1, -1):
+                if chat_messages[j].get("role") == "user":
+                    chat_messages[j] = {
+                        **chat_messages[j],
+                        "content": chat_messages[j]["content"] + "\n\n" + content,
+                    }
+                    break
+            else:
+                chat_messages.append({"role": "user", "content": content})
+            continue
+        chat_messages.append({"role": role, "content": content})
+
+    # Drop trailing duplicate user / empty assistant turns that llama_cpp
+    # may reject.
+    cleaned: list[dict] = []
+    for m in chat_messages:
+        if not m.get("content"):
+            continue
+        cleaned.append(m)
+    if not cleaned:
+        return ""
+
+    # Ensure conversation starts with a user turn (required by most chat
+    # templates).
+    if cleaned[0]["role"] != "user":
+        cleaned = [{"role": "user", "content": "(start)"}] + cleaned
+
+    # Append a final nudge so instruction-tuned models actually produce a
+    # reply (some chat templates leave the model hanging after tool
+    # descriptions otherwise).
+    if cleaned[-1]["role"] == "assistant":
+        cleaned.append({"role": "user", "content": "(continue)"})
+    # An API helper gets the tools declared natively (see OpenAICompatProvider); local GGUFs use the text protocol.
+    native = {"tools": TOOLS_CATALOG} if (mgr.active() or {}).get("kind") == "openai_compat" else {}
+    try:
+        text = mgr.chat(
+            cleaned,
+            max_tokens=_max,
+            temperature=_temp,
+            top_p=_topp,
+            **native,
+        )
+    except Exception as chat_error:
+        # Fall back to generate() with a flattened prompt for providers that
+        # only support raw text-completion (rare).
+        log.exception("manager.chat failed; falling back to generate()")
+        sys_prefix, rendered = _messages_to_prompt(messages)
+        parts = []
+        if sys_prefix:
+            parts.append(sys_prefix)
+        for m in rendered:
+            parts.append(f"{m['role'].upper()}: {m['content']}")
+        parts.append("ASSISTANT:")
+        prompt = "\n\n".join(parts)
+        try:
+            text = mgr.generate(
+                prompt,
+                max_tokens=_max,
+                temperature=_temp,
+                top_p=_topp,
+            )
+        except Exception:
+            log.exception("manager.generate fallback also failed")
+            if raise_errors:
+                raise chat_error from None   # the first failure is the real cause
+            text = ""
+    return text or ""

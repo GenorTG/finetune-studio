@@ -6,7 +6,7 @@ and hits the documented endpoints directly:
 
   POST /api/training/start          → start training, returns run_id
   GET  /api/training/status         → poll progress
-  GET  /api/benchmarks/suites       → list suites
+  _discover_suites() (in-process)   → list suites
   POST /api/projects/{pid}/runs/{rid}/run → run benchmark on a run
 
 Loads browser context ONLY for screenshots; never relies on UI form
@@ -81,10 +81,9 @@ def get(path: str, timeout: float = 15) -> tuple[int, object]:
 
 
 def get_suites() -> list[dict]:
-    code, body = get("/api/benchmarks/suites")
-    if code == 200 and isinstance(body, list):
-        return body
-    return []
+    from finetune_studio.webui.routes.benchmarks import _discover_suites
+
+    return _discover_suites(PROJECT_ID)
 
 
 def get_status() -> dict:
@@ -302,12 +301,13 @@ def main() -> int:
                 summary["screenshots_benchmark"].append(str(bench_result_shot))
                 bench_result["result_shot"] = str(bench_result_shot)
 
-                # History fetch
-                code, hist = get(f"/api/benchmarks/projects/{PROJECT_ID}/runs/{target_run_id}/history")
+                # Latest score of the run
+                code, runs = get(f"/api/benchmarks/projects/{PROJECT_ID}/runs")
                 bench_result["history_code"] = code
-                bench_result["history"] = hist
-                if isinstance(hist, list) and hist:
-                    latest = hist[0]
+                mine = [r for r in runs if r.get("id") == target_run_id] if isinstance(runs, list) else []
+                latest = mine[0].get("latest_benchmark") if mine else None
+                bench_result["history"] = latest
+                if latest:
                     print(f"  benchmark scores: {latest.get('scores')}")
                     print(f"  duration_ms: {latest.get('duration_ms')}")
                 elif "error" not in bench_result:

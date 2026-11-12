@@ -23,7 +23,7 @@
       <div class="card-sub">Pick a template to pre-fill common settings, or start from scratch.</div>
     </div>
   </div>
-  <form id="np-form" data-api="/api/projects" data-reload="true">
+  <form id="np-form" data-api="/api/projects" data-redirect="/projects/{id}" data-reload="true">
     <div class="mb-4">
       <span class="muted text-xs">Template</span>
       <div class="flex gap-2 mt-1" id="np-templates">
@@ -59,7 +59,7 @@
     </div>
     <div class="flex gap-2 mt-4">
       <button type="submit" class="btn primary">Create</button>
-      <button type="button" class="btn ghost" onclick="document.getElementById('new-project').hidden=true">Cancel</button>
+      <button type="button" class="btn ghost" onclick="resetNewProjectForm()">Cancel</button>
     </div>
   </form>
 </div>
@@ -106,7 +106,7 @@
               aria-label="Delete {{ p.name|e }}">✕</button>
       <button type="button" class="proj-work"
               onclick="event.preventDefault(); event.stopPropagation(); window.location='/projects/{{ p.id }}/wizard';"
-              title="One page: train a model or build the Smart Brain from your files">⚡ quick work</button>
+              title="One page: build the Smart Brain from your files, and optionally train a model">⚡ quick work</button>
       <div class="ph-icon lg">
         {{ p.name[0]|upper }}
       </div>
@@ -233,7 +233,7 @@ fts.api.get('/api/models/list').then(models => {
   });
 });
 
-const _projSelected = new Set();
+var _projSelected = new Set();
 
 function toggleSelect(pid, checked) {
   if (checked) _projSelected.add(pid); else _projSelected.delete(pid);
@@ -321,23 +321,42 @@ async function doDelete(ids) {
 }
 
 // Project templates
-const _TEMPLATES = {
+var _TEMPLATES = {
   blank:      { tags: '',    system_prompt: 'You are a helpful assistant.' },
   chat:       { tags: 'chat', system_prompt: 'You are a friendly and knowledgeable assistant. Be concise and helpful.' },
   // Baked into every training row: it must match short, exact, source-bound answers (a tutor persona did not).
   training:   { tags: 'training', system_prompt: 'You answer questions about this project\'s documents. Be exact and brief; say so when the documents do not cover a question.' },
   brain:      { tags: 'smart-brain', system_prompt: 'You are a research assistant. Answer based on the provided context. If you don\'t know, say so.' },
 };
+var _npTemplateDirty = new Set();
+function initTemplateDirtyTracking() {
+  const form = document.getElementById('np-form');
+  if (!form || form.dataset.templateTracking === '1') return;
+  form.dataset.templateTracking = '1';
+  form.querySelectorAll('[name=tags], [name=system_prompt]').forEach(field => {
+    field.addEventListener('input', () => _npTemplateDirty.add(field.name));
+  });
+}
 function selectTemplate(name) {
-  document.querySelectorAll('.template-btn').forEach(b => b.classList.toggle('active', b.dataset.template === name));
   const t = _TEMPLATES[name];
   if (!t) return;
+  document.querySelectorAll('.template-btn').forEach(b => b.classList.toggle('active', b.dataset.template === name));
+  initTemplateDirtyTracking();
   const form = document.getElementById('np-form');
   const tags = form.querySelector('[name=tags]');
   const sp = form.querySelector('[name=system_prompt]');
-  if (tags && !tags.value) tags.value = t.tags;
-  if (sp && !sp.value) sp.value = t.system_prompt;
+  if (tags && !_npTemplateDirty.has('tags')) tags.value = t.tags;
+  if (sp && !_npTemplateDirty.has('system_prompt')) sp.value = t.system_prompt;
 }
+function resetNewProjectForm() {
+  const form = document.getElementById('np-form');
+  if (form) form.reset();
+  _npTemplateDirty.clear();
+  document.querySelectorAll('.template-btn').forEach(b => b.classList.toggle('active', b.dataset.template === 'blank'));
+  const card = document.getElementById('new-project');
+  if (card) card.hidden = true;
+}
+initTemplateDirtyTracking();
 
 function bulkDelete() {
   if (_projSelected.size === 0) return;

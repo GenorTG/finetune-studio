@@ -22,8 +22,8 @@ def test_kb_loads_one_entry_per_page_or_feature() -> None:
     assert len(kb) >= 18
     # Every page that has user-facing workflow is covered by at least one entry.
     covered = {e.page for e in kb.values()}
-    required = {"projects", "files", "pairs", "brain", "training", "testing", "benchmarks", "export",
-                "chat", "models_library", "inference", "settings", "wizard", "overview"}
+    required = {"dashboard", "projects", "files", "pairs", "brain", "training", "testing", "benchmarks", "export",
+                "chat", "models_library", "inference", "settings", "wizard", "overview", "project_settings"}
     assert required <= covered
 
 
@@ -66,6 +66,7 @@ QUESTIONS = [
     ("what does held-out evaluation measure", {"testing"}),
     ("difference between from memory and with context scores", {"testing"}),
     ("which gguf quant should I export", {"export"}),
+    ("can I compare models without any project exports", {"compare"}),
     ("how do I make good question answer pairs", {"dataset-quality", "pairs"}),
     ("upload a pdf and check it parsed", {"files"}),
     ("what is rag and how do I build an index", {"brain"}),
@@ -76,6 +77,10 @@ QUESTIONS = [
     ("what is the helper model", {"helper-model"}),
     ("how do I load a model and set the context length", {"inference"}),
     ("what does the quick work wizard do", {"wizard"}),
+    ("how do I pin or inspect project versions from the terminal", {"wizard"}),
+    ("what does the dashboard show", {"dashboard"}),
+    ("how do I use Claude and Heretic from Settings", {"settings"}),
+    ("what does project settings change and where can I see the app log", {"project-settings"}),
 ]
 
 
@@ -95,6 +100,47 @@ def test_app_help_results_are_bounded_and_unique() -> None:
     assert len(hits) <= 5
     assert len({h["entry"] for h in hits}) == len(hits)
     assert all(len(h["text"]) <= 1200 for h in hits)
+
+
+def test_app_help_prefers_the_named_current_page() -> None:
+    from finetune_studio.guide.tools import ToolContext, run_tool
+
+    result = run_tool(
+        ToolContext(pid="project-1", page="testing"),
+        "app_help",
+        {"query": "testing step order workflow why can I run a test yet"},
+    )
+
+    assert result["results"][0]["entry"] == "testing"
+
+
+def test_projects_guide_explains_permanent_data_deletion() -> None:
+    workflow = load_kb()["projects"].sections["What to check"]
+    assert "Deleting a project is permanent" in workflow
+    assert "file library, datasets, Smart Brain index" in workflow
+
+
+def test_pairs_guide_links_terminal_review_and_export_commands() -> None:
+    common_mistakes = load_kb()["pairs"].sections["Common mistakes"]
+    assert "fts qa list" in common_mistakes
+    assert "fts qa approve" in common_mistakes and "fts qa reject" in common_mistakes
+    assert "fts mining" in common_mistakes and "fts dataset build" in common_mistakes
+
+
+def test_wizard_guide_links_terminal_version_history() -> None:
+    common_mistakes = load_kb()["wizard"].sections["Common mistakes"]
+    assert "fts versions" in common_mistakes
+    workflow = load_kb()["wizard"].sections["Workflow"]
+    assert "--root" in workflow and "lineage" in workflow
+
+
+def test_compare_kb_and_ui_allow_installed_models_without_project_exports() -> None:
+    workflow = load_kb()["compare"].sections["Workflow"]
+    template = _template_text("compare")
+
+    assert "any installed model from the **Model library**" in workflow
+    assert "no project exports does not block a comparison" in workflow
+    assert "Model library (other installed models" in template
 
 
 def test_kb_claims_match_the_preset_advisor() -> None:

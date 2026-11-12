@@ -82,23 +82,24 @@ def test_missing_user_message_is_400(client) -> None:
 
 def test_context_cap_follows_the_loaded_window_not_a_fixed_4000_chars(client) -> None:
     """The old cap fed a 32k-token model ~1.3k tokens (2 of 5 chunks); the budget is derived from n_ctx."""
+    from finetune_studio.smart_brain import standalone_server as srv
     from finetune_studio.webui import app as webapp
 
     pid = _project(client)
     fake_q = MagicMock()
     fake_q.search.return_value = HITS
-    fake_q.format_context.return_value = "ctx"
     fake_rag = MagicMock()
     fake_rag.exists.return_value = True
     fake_rag.load.return_value = fake_q
     with patch("finetune_studio.smart_brain.BrainIndex", return_value=fake_rag), \
          patch.object(webapp.inference_engine, "model", object()), \
          patch.object(webapp.inference_engine, "n_ctx", 262144), \
-         patch.object(webapp.inference_engine, "generate", return_value="ok"):
+         patch.object(webapp.inference_engine, "generate", return_value="ok"), \
+         patch.object(srv, "answer_with_follow_ups", wraps=srv.answer_with_follow_ups) as loop:
         r = client.post(f"/api/projects/{pid}/brain/chat",
                         json={"messages": [{"role": "user", "content": "q"}], "max_tokens": 512})
     assert r.status_code == 200, r.text
-    cap = fake_q.format_context.call_args.kwargs["max_chars"]
+    cap = loop.call_args.kwargs["max_chars"]
     assert cap == (262144 - 512 - 1024) * 3          # one-character history costs 0 tokens
 
 
@@ -138,5 +139,35 @@ def test_build_status_says_a_gpu_build_unloads_the_chat_model() -> None:
     from pathlib import Path
 
     page = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/brain.html").read_text()
-    assert "function gpuNote(r)" in page and "r.gpu ?" in page
-    assert page.count("+ note;") == 4          # Quick index running + done, Build running + done
+    assert "function gpuNote(r)" in page and "if (r.gpu)" in page
+    assert page.count("+ note;") == 6          # Quick index, Build and Re-embed: running + done each
+
+
+def test_chat_system_turn_is_the_grounded_training_rows_layout(client) -> None:
+    """Training rows (data/prep/grounding.py) teach a model the chat's system turn; with the follow-up offer off
+    the chat must send exactly what a row carries (built by smart_brain.prompt, nowhere else)."""
+    from finetune_studio.smart_brain import prompt
+
+    _, sent = _chat(client, {"messages": [{"role": "user", "content": "How long is the warranty?"}], "follow_up": 0})
+    row_system = prompt.build_system_prompt(prompt.format_context_blocks(HITS))
+    assert sent[0] == {"role": "system", "content": row_system}
+
+
+def test_follow_up_offer_is_the_one_declared_extra_part(client) -> None:
+    from finetune_studio.smart_brain import prompt
+    from finetune_studio.smart_brain import standalone_server as srv
+
+    _, sent = _chat(client, {"messages": [{"role": "user", "content": "How long is the warranty?"}], "follow_up": 1})
+    expected = prompt.build_system_prompt(prompt.format_context_blocks(HITS), "", srv.FOLLOW_UP_INSTRUCTION)
+    assert sent[0]["content"] == expected
+    assert expected == prompt.build_system_prompt(prompt.format_context_blocks(HITS)).replace(
+        prompt.DEFAULT_SYSTEM_PROMPT, f"{prompt.DEFAULT_SYSTEM_PROMPT} {srv.FOLLOW_UP_INSTRUCTION}", 1)
+
+
+def test_chat_uses_the_studio_prompt_builder_not_the_package_copy(client) -> None:
+    """The chat's system turn comes from smart_brain.prompt even if the package's copy drifts."""
+    from finetune_studio.smart_brain import standalone_server as srv
+
+    with patch.object(srv, "build_system_prompt", side_effect=AssertionError("package copy used")):
+        _, sent = _chat(client, {"messages": [{"role": "user", "content": "How long is the warranty?"}]})
+    assert sent[0]["role"] == "system"

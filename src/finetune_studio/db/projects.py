@@ -54,7 +54,9 @@ def update_project(pid: str, **fields: Any) -> dict | None:
 
 
 def delete_project(pid: str) -> bool:
+    """Delete the project row and its Activity rows (the feed hides rows of missing projects; they only piled up)."""
     with cursor() as c:
+        c.execute("DELETE FROM activity_events WHERE project_id = ?", (pid,))
         c.execute("DELETE FROM projects WHERE id = ?", (pid,))
     return True
 

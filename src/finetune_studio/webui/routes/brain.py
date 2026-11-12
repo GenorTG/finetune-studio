@@ -25,10 +25,11 @@ import logging
 import re
 import time
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from finetune_studio.data.fs.paths import brain_index_dir
 from finetune_studio.knowledge.errors import KnowledgeError
@@ -67,6 +68,7 @@ class SearchRequest(BaseModel):
     hybrid: bool | None = None
     rerank: bool | None = None
     rerank_top_n: int | None = None
+    max_per_document: int | None = Field(default=None, ge=0, le=100)   # None = the index setting
 
 
 class ChatRequest(BaseModel):
@@ -75,6 +77,14 @@ class ChatRequest(BaseModel):
     top_k: int = DEFAULT_TOP_K
     temperature: float = 0.0
     max_tokens: int = 400
+    # Follow-up searches the model may ask for before answering (a question that reaches its answer through another
+    # item: the site of an asset, then that site's manager). 0 = one search, answer from it.
+    follow_up: int = Field(default=1, ge=0, le=3)
+    # The answer says part of the question is not stated: search once more for that part and answer again.
+    retry_missing: bool = True
+    # "model": the chat model loaded from the top-bar pill. "assistant": the AI assistant's "Smart Brain chat" job
+    # (Settings -> AI assistant; an API connection), so grounded chat works without loading a local model.
+    answer_with: Literal["model", "assistant"] = "model"
 
 
 class BuildRequest(BaseModel):
@@ -94,6 +104,7 @@ class SettingsPatch(BaseModel):
     rerank_top_n: int | None = None
     hybrid_enabled: bool | None = None
     rrf_k: int | None = None
+    max_per_document: int | None = Field(default=None, ge=0, le=100)
 
 
 # ── Routes ──────────────────────────────────────────────────────────────
@@ -104,14 +115,18 @@ async def brain_status(pid: str):
     if missing is not None:
         return missing
     from finetune_studio.knowledge import index as knowledge_index
+    from finetune_studio.knowledge.sources import list_sources
     from finetune_studio.smart_brain import BrainIndex
     state = knowledge_index.state(pid).as_dict()
+    sources = list_sources(pid)
+    files = {"total": len(sources), "ready": sum(1 for s in sources if s.ready)}   # what the page offers to build
     if not BrainIndex(_corpus_dir(pid)).exists():
-        return {"exists": False, "corpus_dir": str(_corpus_dir(pid)), "state": state}
+        return {"exists": False, "corpus_dir": str(_corpus_dir(pid)), "state": state, "files": files}
     m = json.loads((_corpus_dir(pid) / "manifest.json").read_text())
     return {
         "exists": True,
         "corpus_dir": str(_corpus_dir(pid)),
+        "files": files,
         "name": m["name"],
         "documents": m["documents"],
         "chunks": m["chunks"],
@@ -122,10 +137,107 @@ async def brain_status(pid: str):
         "rerank_top_n": m["rag_settings"]["rerank_top_n"],
         "hybrid_enabled": m["rag_settings"]["hybrid_enabled"],
         "rrf_k": m["rag_settings"]["rrf_k"],
+        "max_per_document": m["rag_settings"].get("max_per_document", 3),
         "created_at": m["created_at"],
         "updated_at": m["updated_at"],
         "state": state,
     }
+
+
+@router.get("/{pid}/brain/identity")
+def brain_identity_get(pid: str):
+    """Who this Smart Brain speaks for, how it sounds and how it answers; ``instructions`` is what the model gets."""
+    from finetune_studio.smart_brain import identity as brain_identity
+
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    saved = brain_identity.load(pid)
+    return {**saved, "is_set": brain_identity.is_set(saved), "instructions": brain_identity.compose(saved),
+            "limits": brain_identity.LIMITS}
+
+
+@router.put("/{pid}/brain/identity")
+def brain_identity_put(pid: str, body: dict):
+    """Replace the identity. It applies to the next answer; the index does not need a rebuild."""
+    from finetune_studio.smart_brain import identity as brain_identity
+
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    try:
+        saved = brain_identity.save(pid, body)
+    except brain_identity.IdentityError as e:
+        raise ApiError(422, str(e), code="invalid_identity") from None
+    return {**saved, "is_set": brain_identity.is_set(saved), "instructions": brain_identity.compose(saved)}
+
+
+@router.get("/{pid}/brain/lint")
+def brain_lint(pid: str):
+    """Knowledge check of the project's documents (``knowledge.lint``): no model, a second or two."""
+    from finetune_studio.knowledge import lint as knowledge_lint
+
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    return knowledge_lint.lint(pid)
+
+
+class LintIgnoreRequest(BaseModel):
+    key: str = Field(min_length=1, max_length=64)
+    ignored: bool = True
+
+
+@router.post("/{pid}/brain/lint/ignore")
+def brain_lint_ignore(pid: str, req: LintIgnoreRequest):
+    """Ignore a finding ("we keep both on purpose"), or stop ignoring it."""
+    from finetune_studio.knowledge import lint as knowledge_lint
+
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    knowledge_lint.set_ignored(pid, req.key, req.ignored)
+    return {"ok": True}
+
+
+@router.get("/{pid}/brain/pictures")
+def brain_pictures(pid: str):
+    """Pictures in the project's documents: how many only OCR read, the Vision reader seat, the latest pictures job."""
+    from finetune_studio.knowledge import pictures
+
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    return pictures.project_status(pid)
+
+
+class PicturesReadRequest(BaseModel):
+    file_ids: list[str] = Field(default_factory=list, max_length=5000)
+
+
+@router.post("/{pid}/brain/pictures/read", status_code=202)
+def brain_pictures_read(pid: str, req: PicturesReadRequest | None = None):
+    """Read the OCR-only figures with the Vision reader (the ``pictures`` job); 400 when no reader is set."""
+    from finetune_studio.knowledge import pictures
+
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    try:
+        return pictures.start(pid, file_ids=(req.file_ids if req else None) or None)
+    except pictures.PicturesError as e:
+        raise ApiError(e.status, str(e), code="pictures") from None
+
+
+@router.get("/{pid}/brain/readiness")
+def brain_readiness(pid: str):
+    """Is this knowledge ready to ship? Each step's live state (``knowledge.readiness``)."""
+    from finetune_studio.knowledge.readiness import readiness
+
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    return readiness(pid)
 
 
 @router.get("/{pid}/brain/settings")
@@ -133,8 +245,10 @@ async def brain_get_settings(pid: str):
     from finetune_studio.smart_brain import BrainIndex
     index = BrainIndex(_corpus_dir(pid))
     if not index.exists():
-        # Not an error: the page asks before any index exists.
-        return {"exists": False}
+        # Not an error: the page asks before any index exists. The reranker a first build will get depends on the
+        # machine (GPU: bge-reranker-v2-m3, CPU only: MiniLM), so the form shows that one.
+        from finetune_studio.smart_brain.rerankers import default_reranker
+        return {"exists": False, "default_reranker": await asyncio.to_thread(default_reranker)}
     m = await asyncio.to_thread(index.read_manifest)
     return {
         "exists": True,
@@ -144,6 +258,7 @@ async def brain_get_settings(pid: str):
         "rerank_top_n": m.rag_settings.rerank_top_n,
         "hybrid_enabled": m.rag_settings.hybrid_enabled,
         "rrf_k": m.rag_settings.rrf_k,
+        "max_per_document": m.rag_settings.max_per_document,
         "chunk_settings": {
             "size": m.chunk_settings.size,
             "overlap": m.chunk_settings.overlap,
@@ -178,6 +293,8 @@ async def brain_patch_settings(pid: str, req: SettingsPatch):
         m.rag_settings.hybrid_enabled = req.hybrid_enabled
     if req.rrf_k is not None:
         m.rag_settings.rrf_k = req.rrf_k
+    if req.max_per_document is not None:
+        m.rag_settings.max_per_document = req.max_per_document
     m.updated_at = time.time()
     write_json(_corpus_dir(pid) / "manifest.json", m.to_json())
     return {"ok": True, "updated": req.model_dump(exclude_none=True)}
@@ -279,6 +396,14 @@ async def brain_quick(pid: str, req: QuickRequest):
         "ok": True, "pending_parses": body["pending_parses"], "build": body, "build_id": body["build_id"]})
 
 
+def _epoch(value: object) -> float:
+    """A build row timestamp (epoch seconds; ``brain_builds``) as a float, now when unreadable."""
+    try:
+        return float(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return time.time()
+
+
 def _build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
     """One progress snapshot for SSE frames and the /build/status poll, from the project's latest build row.
 
@@ -303,12 +428,18 @@ def _build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
     active = brain_build_jobs.active_build(pid)
     latest = active or db.brain_builds.latest_for_project(pid)
     message = ""
+    passages_done = passages_total = 0
     if active is not None:
         phase = "queued" if active.get("status") == "queued" else "embedding"
         files_done = chunks_count = 0
-        parsing = (brain_build_jobs.status(pid, active["id"]) or {}).get("parsing")
-        if parsing:
-            phase, files_done, total_files = "parsing", int(parsing["done"]), int(parsing["total"])
+        st = brain_build_jobs.status(pid, active["id"]) or {}
+        if st.get("parsing"):
+            phase, files_done, total_files = "parsing", int(st["parsing"]["done"]), int(st["parsing"]["total"])
+        elif st.get("embedding"):
+            passages_done, passages_total = int(st["embedding"]["done"]), int(st["embedding"]["total"])
+        started = active.get("started_at") or active.get("created_at")
+        if started:
+            elapsed_s = max(0, int(time.time() - _epoch(started)))
     elif latest is not None and latest.get("status") in ("error", "failed"):
         phase, message = "error", str(latest.get("error") or "the index build failed")
     elif manifest.exists():
@@ -320,6 +451,8 @@ def _build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
         "files_done": files_done,
         "files_total": total_files,
         "chunks": chunks_count,
+        "passages_done": passages_done,
+        "passages_total": passages_total,
         "elapsed_s": elapsed_s,
         "build_id": (latest or {}).get("id"),
     }
@@ -357,8 +490,7 @@ async def brain_build_progress(pid: str):
         deadline = start + 600  # 10 min
         try:
             while asyncio.get_event_loop().time() < deadline:
-                elapsed = int(asyncio.get_event_loop().time() - start)
-                payload = await asyncio.to_thread(_build_snapshot, pid, elapsed_s=elapsed)
+                payload = await asyncio.to_thread(_build_snapshot, pid)
                 yield sse_data(payload)
                 if payload["phase"] in ("done", "error", "idle"):
                     return
@@ -374,6 +506,21 @@ async def brain_build_progress(pid: str):
             return
 
     return sse_response(gen())
+
+
+@router.post("/{pid}/brain/build/stop")
+async def brain_build_stop(pid: str):
+    """Stop the project's running build (the page's Stop button). It ends at the next embedded batch, a few seconds,
+    and the index stays as it was before the build. 404 unknown project, 409 no build is running."""
+    from finetune_studio.webui import brain_build_jobs
+
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    out = await asyncio.to_thread(brain_build_jobs.stop, pid)
+    if out is None:
+        raise ApiError(409, "no index build is running", code="no_build_running")
+    return out
 
 
 @router.post("/{pid}/brain/rebuild-vectors")
@@ -417,7 +564,7 @@ async def brain_search(pid: str, req: SearchRequest):
         return JSONResponse({"detail": f"load failed: {e}"}, status_code=500)
     hits = await asyncio.to_thread(q.search, req.query, top_k=req.top_k,
                                    hybrid=req.hybrid, rerank=req.rerank,
-                                   rerank_top_n=req.rerank_top_n)
+                                   rerank_top_n=req.rerank_top_n, max_per_document=req.max_per_document)
     weak = weak_match(req.query, hits)
     return {"hits": hits, "count": len(hits), "query": req.query, "weak": weak,
             "note": "These passages share few words with your question; the corpus may not cover it." if weak else ""}
@@ -434,11 +581,35 @@ def _active_n_ctx() -> int:
 # A GPU job (an index build whose embedder runs on the GPU, training, an export) unloads the chat model first: say so,
 # a bare "no model loaded" right after a Quick index read like a broken chat.
 NO_CHAT_MODEL = ("No chat model is loaded. A GPU job (an index build on the GPU, training or an export) unloads it: "
-                 "load a model from the model pill in the top bar, then ask again.")
+                 "load a model in Inference or from the model pill in the top bar, then ask again. Or choose the AI "
+                 "assistant under Answer with: that sends the question and the retrieved passages to its provider.")
 
 
 class _NoChatModel(Exception):
     pass
+
+
+class _AssistantFailed(Exception):
+    """The API connection answering a Smart Brain chat raised (network, auth, provider error)."""
+
+
+NO_API_ASSISTANT = ("The Smart Brain chat job of the AI assistant has no API connection: add one in Settings -> AI "
+                    "assistant (or pick one for the Smart Brain chat job there), or answer with the loaded model.")
+
+
+def _assistant_chat_client():
+    """The API connection the AI assistant's ``brain`` job runs on (Settings -> AI assistant), ready to chat.
+
+    Raises ApiError 409 ``no_api_assistant`` when that job resolves to the local model: the local model is what
+    "answer with the loaded model" already uses, and loading it here would replace the model on the card."""
+    from finetune_studio.models import assistant
+    from finetune_studio.models.manager import get_manager
+
+    pid = assistant.job_provider_id("brain")
+    row = get_manager().get_provider(pid)
+    if not row or row.get("kind") != "openai_compat":
+        raise ApiError(409, NO_API_ASSISTANT, code="no_api_assistant")
+    return assistant.connection_client(pid)
 
 
 def _chat_model_loaded() -> bool:
@@ -450,16 +621,14 @@ def _chat_model_loaded() -> bool:
 
 @router.post("/{pid}/brain/chat")
 async def brain_chat(pid: str, req: ChatRequest):
-    """RAG-augmented chat. Retrieves top-k from project corpus, prepends to
-    the conversation, runs the loaded model.
+    """RAG-augmented chat using the loaded model or configured API assistant.
 
-    Returns: {reply, sources: [{filename, score, chunk_text}], messages_full}
+    Retrieves top-k from the project corpus and answers with those passages
+    and the prior conversation. Returns the reply, cited sources, and follow-up searches.
     """
-    from finetune_studio.smart_brain import BrainIndex
-    from finetune_studio.smart_brain.prompt import (
-        build_messages,
-        context_char_budget,
-    )
+    from finetune_studio.smart_brain import BrainIndex, prompt
+    from finetune_studio.smart_brain import identity as brain_identity
+    from finetune_studio.smart_brain.standalone_server import answer_with_follow_ups
     from finetune_studio.webui.app import inference_engine
 
     index = BrainIndex(_corpus_dir(pid))
@@ -469,7 +638,10 @@ async def brain_chat(pid: str, req: ChatRequest):
     user_messages = [m for m in req.messages if m.get("role") == "user"]
     if not user_messages:
         return JSONResponse({"detail": "no user message to search for"}, status_code=400)
-    if not await asyncio.to_thread(_chat_model_loaded):   # before the embedder load + search it would waste
+    assistant_client = None
+    if req.answer_with == "assistant":
+        assistant_client = await asyncio.to_thread(_assistant_chat_client)
+    elif not await asyncio.to_thread(_chat_model_loaded):   # before the embedder load + search it would waste
         raise ApiError(409, NO_CHAT_MODEL, code="no_model")
     last_user = user_messages[-1]["content"]
     try:
@@ -478,16 +650,22 @@ async def brain_chat(pid: str, req: ChatRequest):
         return JSONResponse({"detail": f"load failed: {e}"}, status_code=500)
 
     hits = await asyncio.to_thread(q.search, last_user, top_k=req.top_k)
-    n_ctx = inference_engine.n_ctx if inference_engine.model is not None else (_active_n_ctx() or None)
-    history_chars = sum(len(str(m.get("content", ""))) for m in req.messages) + len(req.system_prompt or "")
-    context = q.format_context(hits, max_chars=context_char_budget(
-        n_ctx, max_new_tokens=req.max_tokens, history_chars=history_chars))
+    n_ctx = None if assistant_client is not None else (
+        inference_engine.n_ctx if inference_engine.model is not None else (_active_n_ctx() or None))
+    system_prompt = req.system_prompt or await asyncio.to_thread(brain_identity.system_prompt, pid)
+    history_chars = sum(len(str(m.get("content", ""))) for m in req.messages) + len(system_prompt)
+    budget = prompt.context_char_budget(n_ctx, max_new_tokens=req.max_tokens, history_chars=history_chars)
+    last_index = max(i for i, m in enumerate(req.messages) if m.get("role") == "user")
+    history = [{"role": m["role"], "content": m["content"]} for m in req.messages[:last_index]]
 
-    # Layout lives in smart_brain.prompt — shared with the context-grounded
-    # training rows (data/prep/grounding.py); do not inline it here again.
-    msgs = build_messages(req.messages, context, req.system_prompt)
-
-    def _generate() -> str:
+    def _generate(msgs: list[dict]) -> str:
+        if assistant_client is not None:
+            from finetune_studio.models.assistant import instruct
+            try:
+                return assistant_client.chat(instruct("brain", msgs), max_tokens=req.max_tokens,
+                                             temperature=req.temperature).strip()
+            except Exception as e:   # any provider failure is the API's answer, reported as 502
+                raise _AssistantFailed(str(e) or type(e).__name__) from e
         if inference_engine.model is not None:
             return inference_engine.generate(
                 msgs, max_tokens=req.max_tokens,
@@ -502,18 +680,41 @@ async def brain_chat(pid: str, req: ChatRequest):
             temperature=req.temperature, top_p=0.9,
         ).strip()
 
+    from finetune_studio.webui.thinking import split_thinking
+    raw: list[str] = []
+
+    def _answer() -> dict:
+        def chat(msgs: list[dict]) -> str:
+            raw.append(_generate(msgs))
+            parts = split_thinking(raw[-1])
+            return parts["response"].strip() if parts.get("response") else raw[-1]
+        # The prompt layout is smart_brain.prompt's (the context-grounded training rows use it too); the follow-up
+        # loop is the standalone server's /ask, so the studio and an exported package answer the same way.
+        # The system turn is smart_brain.prompt's, so with no follow-up offer it is byte-identical to a
+        # context-grounded training row's; the follow-up offer is its declared extra_instructions part.
+        return answer_with_follow_ups(
+            last_user, hits, lambda query: q.search(query, top_k=req.top_k), chat,
+            follow_ups=req.follow_up, max_chars=budget, system_prompt=system_prompt, history=history,
+            missing_part_retry=req.retry_missing,
+            system_turn=lambda h, chars, system, extra: prompt.build_system_prompt(
+                prompt.format_context_blocks(h, max_chars=chars), system, extra))
+
     try:
-        async with ENGINE_LOCK:
-            reply = await asyncio.to_thread(_generate)
+        if assistant_client is not None:   # an API answer never touches the local engine: no reason to block it
+            result = await asyncio.to_thread(_answer)
+        else:
+            async with ENGINE_LOCK:
+                result = await asyncio.to_thread(_answer)
     except _NoChatModel:
         raise ApiError(409, NO_CHAT_MODEL, code="no_model") from None   # unloaded while the search ran
+    except _AssistantFailed as e:
+        raise ApiError(502, f"The AI assistant's API connection failed: {e}", code="assistant_failed") from None
     except ValueError as e:
         return JSONResponse({"detail": str(e)}, status_code=400)
 
-    # Strip thinking block for UI
-    from finetune_studio.webui.thinking import split_thinking
-    parts = split_thinking(reply)
-    clean = parts["response"].strip() if parts.get("response") else reply
+    clean = result["answer"]
+    hits = result["hits"]
+    parts = split_thinking(raw[-1]) if raw else {}
 
     sources = [{
         "filename": h["filename"], "source": h["source"],
@@ -522,6 +723,8 @@ async def brain_chat(pid: str, req: ChatRequest):
     } for h in hits]
     return {"reply": clean, "sources": sources,
             "raw_reply_thinking": parts.get("thinking", ""),
+            "follow_up_searches": result["follow_up_searches"],
+            "followup": result.get("followup"),
             "hits": hits}
 
 

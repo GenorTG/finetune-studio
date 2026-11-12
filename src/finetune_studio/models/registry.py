@@ -49,6 +49,10 @@ _SKIP_ARCHES = {
     "ClipVisionModel", "CLIPVisionModel",
     "SiglipVisionModel", "MultiModalProjector",
 }
+# Task heads that never generate text: a cross-encoder reranker (bge-reranker-v2-m3 is
+# XLMRobertaForSequenceClassification), a reward model or a tagger. Smart Brain downloads such a
+# reranker into the Hugging Face cache, where it was offered as a base model to train and a model to test.
+_SKIP_ARCH_SUFFIXES = ("ForSequenceClassification", "ForTokenClassification", "ForQuestionAnswering")
 # File patterns that indicate non-model files
 _SKIP_GGUF_PATTERNS = ("mmproj", "projector", "vision")
 
@@ -191,7 +195,7 @@ def _safe_model_name(root: str, cfg: dict, project_name: str = "") -> str:
                 dirname = f"{org}/{repo}"
     # If dirname is a generic export dir, use project name + dirname for context
     generic_dirs = {
-        "merged", "abliterated", "gguf", "gptq", "adapter",
+        "merged", "abliterated", "heretic", "gguf", "gptq", "adapter",
         "checkpoint-0", "checkpoint-1",
     }
     if dirname.lower() in generic_dirs:
@@ -336,7 +340,8 @@ def scan_models(directories: list) -> list:
                 # Skip non-chat models (embeddings, vision encoders, projectors). Sentence-transformers packaging marks an
                 # embedder whose config still names a causal LM (Qwen3-Embedding: Qwen3ForCausalLM), which the
                 # architecture list misses: it was offered as a model to chat with and compare (beta audit 2026-10-22).
-                if arch in _SKIP_ARCHES or "config_sentence_transformers.json" in files \
+                if arch in _SKIP_ARCHES or arch.endswith(_SKIP_ARCH_SUFFIXES) \
+                        or "config_sentence_transformers.json" in files \
                         or any(sub.endswith("_Pooling") for sub in dirs):
                     dirs.clear()
                     continue
@@ -379,7 +384,7 @@ def scan_models(directories: list) -> list:
                         # Non-standard layout: fall back to the DB walk-up.
                         proj_id, proj_name = _lookup_project_name(root)
                         if proj_name and (
-                            name.lower() in ("merged", "abliterated", "gguf", "adapter", "gptq")
+                            name.lower() in ("merged", "abliterated", "heretic", "gguf", "adapter", "gptq")
                             or "/" in name
                         ):
                             name = f"{proj_name} ({name})"
@@ -395,4 +400,19 @@ def scan_models(directories: list) -> list:
                     category=cat, project_id=proj_id, run_id=run_id,
                 ))
                 dirs.clear()
+    return _disambiguate_run_names(models)
+
+
+def _disambiguate_run_names(models: list) -> list:
+    """Tag exports whose readable name repeats with their run id, so a picker never offers two identical labels.
+
+    Two unpinned runs of one project on one base both read ``<project> · <base> · merged``; only the run tells them
+    apart. Unique names stay clean (the loaded-model label never shows a hash).
+    """
+    counts: dict[str, int] = {}
+    for m in models:
+        counts[m.name] = counts.get(m.name, 0) + 1
+    for m in models:
+        if counts[m.name] > 1 and m.run_id:
+            m.name = f"{m.name} · run {m.run_id[:8]}"
     return models

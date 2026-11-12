@@ -16,7 +16,7 @@ import json
 import logging
 import re
 from collections.abc import Callable, Iterator
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -300,11 +300,14 @@ def list_judge_providers() -> list[dict[str, Any]]:
 
 
 def default_judge_provider_id() -> str:
-    """The configured default judge, else the helper seat."""
+    """The judge job's connection (Settings -> AI assistant -> Jobs), else the main assistant.
+
+    A judge saved by an older version (testing settings) moves into the judge job first, so it is never skipped."""
     from finetune_studio.models.helper import get_helper_provider_id
     from finetune_studio.webui.routes.settings import get_test_settings
 
-    return get_test_settings()["judge_provider_id"] or get_helper_provider_id()
+    get_test_settings()
+    return get_helper_provider_id("judge")
 
 
 @contextmanager
@@ -314,6 +317,7 @@ def open_judge(provider_id: str) -> Iterator[LoadedJudge]:
     A local GGUF judge replaces whatever model is resident (the one under test was already run and saved), so run
     and judge never compete for the card; an API provider uses no VRAM and leaves resident models alone.
     """
+    from finetune_studio.models.assistant import connection_client, instruct
     from finetune_studio.models.helper import (
         annotate_provider,
         missing_gguf_for_provider,
@@ -326,6 +330,18 @@ def open_judge(provider_id: str) -> Iterator[LoadedJudge]:
         raise JudgeUnavailable(f"unknown provider '{provider_id}'")
     row = annotate_provider(row)
     local = row.get("kind") == "local_gguf"
+    if row.get("kind") == "openai_compat":
+        # An API judge has its own client: nothing is loaded and the model on the card stays where it is.
+        try:
+            client = connection_client(provider_id)
+        except ValueError as exc:
+            raise JudgeUnavailable(str(exc)) from exc
+        yield LoadedJudge(
+            chat=lambda messages: client.chat(instruct("judge", messages), max_tokens=JUDGE_MAX_TOKENS,
+                                              temperature=0.0, timeout=JUDGE_TIMEOUT_S),
+            provider_id=provider_id, model=str(row.get("model_id") or row.get("name") or provider_id),
+            label=str(row.get("label") or provider_id), concurrent=True)
+        return
     if local:
         missing = missing_gguf_for_provider(provider_id)
         if missing:
@@ -341,8 +357,8 @@ def open_judge(provider_id: str) -> Iterator[LoadedJudge]:
         raise JudgeUnavailable(f"could not load judge '{row.get('label') or provider_id}': {exc}") from exc
     try:
         yield LoadedJudge(
-            chat=lambda messages: mgr.chat(messages, max_tokens=JUDGE_MAX_TOKENS, temperature=0.0,
-                                           timeout=JUDGE_TIMEOUT_S),
+            chat=lambda messages: mgr.chat(instruct("judge", messages), max_tokens=JUDGE_MAX_TOKENS,
+                                           temperature=0.0, timeout=JUDGE_TIMEOUT_S),
             provider_id=provider_id,
             model=str(row.get("model_id") or row.get("name") or provider_id),
             label=str(row.get("label") or provider_id),
@@ -374,12 +390,25 @@ def judge_many(
             done += 1
         return done
     with ThreadPoolExecutor(max_workers=JUDGE_PARALLEL_API, thread_name_prefix="fts-judge") as pool:
-        for start in range(0, len(items), JUDGE_PARALLEL_API * 4):
-            if should_stop():
-                break
-            batch = items[start:start + JUDGE_PARALLEL_API * 4]
-            futures = [(key, pool.submit(judge_one, judge.chat, case)) for key, case in batch]
-            for key, fut in futures:
-                on_result(key, fut.result())
+        pending = iter(items)
+        futures = {}
+
+        def submit_available() -> None:
+            while len(futures) < JUDGE_PARALLEL_API and not should_stop():
+                try:
+                    key, case = next(pending)
+                except StopIteration:
+                    return
+                futures[pool.submit(judge_one, judge.chat, case)] = key
+
+        submit_available()
+        while futures:
+            completed, _ = wait(futures, return_when=FIRST_COMPLETED)
+            for future in completed:
+                key = futures.pop(future)
+                on_result(key, future.result())
                 done += 1
+            # Keep concurrency full while running, but never queue more requests than workers:
+            # after Stop, already in-flight calls are kept and drained, and no new calls start.
+            submit_available()
     return done

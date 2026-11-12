@@ -49,7 +49,7 @@ def test_training_dataset_option_states_the_row_count_once() -> None:
 
 
 def test_training_template_prompt_matches_short_exact_answers() -> None:
-    assert "expert tutor" not in _r("templates/projects.html").split("const _TEMPLATES", 1)[1].split("};", 1)[0]
+    assert "expert tutor" not in _r("templates/projects.html").split("var _TEMPLATES", 1)[1].split("};", 1)[0]
 
 
 def test_testing_start_message_is_not_replaced_by_ready() -> None:

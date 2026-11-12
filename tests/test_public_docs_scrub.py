@@ -106,6 +106,6 @@ def test_tutorial_distinguishes_adapter_learning_from_smart_brain_retrieval() ->
         _ROOT / "src" / "finetune_studio" / "webui" / "static" / "js" / "tutorial.js"
     ).read_text(encoding="utf-8")
 
-    assert "Smart Brain retrieves answers with sources" in tutorial
-    assert "Adapter learns response style and format" in tutorial
+    assert "Smart Brain that answers questions with their sources" in tutorial
+    assert "teaches a model your tone or" in tutorial and "recalls facts" in tutorial
     assert "Turn your own documents into an AI that knows them" not in tutorial

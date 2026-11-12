@@ -1,4 +1,4 @@
-"""Benchmarks subpackage — public benchmark suites and scoring.
+"""Benchmarks subpackage — public benchmark suites (exact scoring lives in ``testing.strict_scoring``).
 
 The actual benchmark execution paths used by the live app are:
   - ``finetune_studio.benchmarks.real_benchmarks`` — official HuggingFace
@@ -7,8 +7,6 @@ The actual benchmark execution paths used by the live app are:
     ``offline_fixture_data`` — synthetic offline fixtures.
   - ``finetune_studio.benchmarks.suite_defs`` — suite discovery
     (``discover_suites``) used by the WebUI benchmark routes.
-  - ``finetune_studio.benchmarks.scoring`` — exact-match scoring for the
-    public multiple-choice / numeric suites.
 
 Side-by-side model comparison lives in ``finetune_studio.compare`` (run, then judge).
 

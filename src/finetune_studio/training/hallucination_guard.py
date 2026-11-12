@@ -1,38 +1,15 @@
-"""Detect training examples that may cause hallucination.
+"""Flag training answers that contain claims worth checking by hand (`fts validate-hallucination`).
 
-WHAT THIS FILE DOES
-==================
-Identifies training examples that could teach the model to make
-things up:
-  - Factual claims without context
-  - Made-up numbers or statistics
-  - Confident assertions about uncertain topics
-  - Examples that contradict known facts
-
-KEY CONCEPTS
-============
-- Hallucination: when a model states false information confidently.
-  This is a major problem in production LLMs.
-- Training data origin: where did this example come from? If it's
-  from a synthetic source, double-check the facts.
-- Confidence calibration: examples with high model confidence during
-  initial testing might be hallucinated.
+A pattern scan, not a fact check: it counts answers with an ISO date, a "N.N million/billion" figure, a
+"according to" / "study shows" citation, a URL or an e-mail address, so a reviewer knows where to look. It
+cannot tell a true value from an invented one; a dataset of real company facts is full of dates and
+scores high on purpose. Whether a model learned or invents facts is measured on the Testing page.
 """
-
-"""Hallucination guardrails — detect and prevent model hallucinations."""
 import re
-from dataclasses import dataclass, field
-
-
-@dataclass
-class GuardrailResult:
-    passed: bool
-    issues: list = field(default_factory=list)
-    suggestions: list = field(default_factory=list)
 
 
 class TrainingDataValidator:
-    """Validate training data for hallucination risks."""
+    """Count checkable claims (dates, figures, citations, URLs, e-mails) in assistant answers."""
 
     def __init__(self):
         self.risky_patterns = [
@@ -76,7 +53,7 @@ class TrainingDataValidator:
             return "Empty dataset"
         ratio = risks / total
         if ratio > 0.3:
-            return "HIGH risk — review responses for fabricated content"
+            return "MANY answers with dates, figures, citations, URLs or e-mails: check them against the sources"
         if ratio > 0.1:
-            return "MODERATE risk — verify specific claims in responses"
-        return "LOW risk — dataset looks clean"
+            return "SOME answers with dates, figures, citations, URLs or e-mails: spot-check them"
+        return "FEW answers with checkable claims (this is a pattern scan, not a fact check)"

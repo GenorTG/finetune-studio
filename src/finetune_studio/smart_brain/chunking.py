@@ -11,7 +11,9 @@ erased every newline: the last cell of one row ended up next to the first cell o
 * when a table has a header (the CSV parser writes ``header`` + ``--- | ---``), the header is repeated at the top of each
   continuation chunk, so a row is still read with its column names;
 * a prose line longer than the budget is cut on word boundaries into overlapping windows (the old behaviour, now only for
-  lines that really are too long); short prose lines are packed whole, with whole lines as overlap.
+  lines that really are too long); short prose lines are packed whole, with whole lines as overlap;
+* a structured record (a repeated XML element, a JSON object, a YAML list item: ``data.records.record_ranges``, the rule
+  Files & Knowledge passages use) that fits the budget is one unit, so it is never cut between two passages.
 
 Size is measured in tokens. ``count_tokens`` is the embedder's own tokenizer when the caller has one
 (``get_embedder`` exposes it as ``encode.count_tokens``); without it ``estimate_tokens`` assumes
@@ -25,6 +27,8 @@ import re
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
+
+from finetune_studio.data.records import record_ranges
 
 if TYPE_CHECKING:
     from finetune_studio.smart_brain.schema import IndexDocument
@@ -90,7 +94,20 @@ def _build_units(lines: list[str], size: int, overlap: int, count: TokenCounter)
     headers: dict[int, tuple[_Unit, ...]] = {}
     table = -1
     prev_row = False
+    records = record_ranges(lines)
+    skip_to = -1
     for i, raw in enumerate(lines):
+        if i <= skip_to:
+            continue
+        end = records.get(i, i)
+        if end > i:
+            block = "\n".join(x.rstrip() for x in lines[i:end + 1]).strip("\n")
+            block_tokens = max(1, count(block))
+            if block_tokens <= size and not any(is_table_row(x.rstrip()) for x in lines[i:end + 1]):
+                units.append(_Unit(block, block_tokens))   # a whole record, never split across passages
+                skip_to = end
+                prev_row = False
+                continue
         line = raw.rstrip()
         if not line.strip():
             if units and units[-1].text:          # one blank line = paragraph break; runs of blanks collapse

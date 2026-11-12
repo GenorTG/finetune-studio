@@ -36,6 +36,7 @@ _HF_CACHE_RE = re.compile(r"models--([^/\\]+)--([^/\\]+)")
 _GENERIC_KINDS = {
     "merged": "merged",
     "abliterated": "merged",
+    "heretic": "Heretic",
     "adapter": "LoRA adapter",
     "gguf": "GGUF",
     "gptq": "GPTQ",

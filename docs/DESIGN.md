@@ -11,13 +11,13 @@ RAG) — plus testing, export and chat. This page is the public map; install and
 upload ─► file library (bytes, versions, folders, trash)
            │ parsed ONCE ─► knowledge.sources: parsed text + passages (+ Vision readings, hand edits)
            ▼
-  mining ─► Q&A pairs ─► dataset ─► 2 train: LoRA adapter / merged model ─► 3 test ─► 4 use it
-  passages ─► 2 Smart Brain index (semantic + keyword search, rank fusion, reranking) ─► chat with sources,
-              encrypted bundle, standalone MCP + HTTP server
+  passages ─► 2 Smart Brain index (semantic + keyword search, rank fusion, reranking) ─► ask with sources ─► 3 test ─►
+              4 package: encrypted bundle, standalone MCP + HTTP server
+  optional:  mining ─► Q&A pairs ─► dataset ─► train: LoRA adapter / merged model ─► 3 test ─► 4 package
 ```
 
-Every project page shows one flow bar: `1 Files & Knowledge (files · pairs) → 2 train | 2 Smart Brain → 3 test →
-4 use it`.
+Every project page shows one flow bar: `1 files → 2 Smart Brain → 3 test → 4 package`, then the optional `Train a model`
+group (quick work, pairs, train, compare, benchmarks).
 
 ## Layout
 

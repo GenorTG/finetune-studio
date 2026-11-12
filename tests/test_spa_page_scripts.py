@@ -47,6 +47,15 @@ def test_spa_js_references_page_scripts_and_rewrites_decls() -> None:
     assert 'addEventListener("error"' in js or "addEventListener('error'" in js
 
 
+def test_projects_page_globals_can_be_reexecuted_after_a_full_load() -> None:
+    """The initial full load creates global bindings; SPA's const→var rewrite cannot replace a prior const."""
+    page = (_TEMPLATES / "projects.html").read_text(encoding="utf-8")
+    scripts = page.split("{% block scripts %}", 1)[1].split("{% endblock %}", 1)[0]
+    assert re.search(r"(?m)^var _projSelected = new Set\(\);$", scripts)
+    assert re.search(r"(?m)^var _TEMPLATES = \{$", scripts)
+    assert not re.search(r"(?m)^(?:const|let) (_projSelected|_TEMPLATES)\b", scripts)
+
+
 def test_projects_page_puts_selectTemplate_in_page_scripts(client) -> None:
     r = client.get("/projects")
     assert r.status_code == 200
@@ -59,6 +68,19 @@ def test_projects_page_puts_selectTemplate_in_page_scripts(client) -> None:
     # selectTemplate lives in {% block scripts %}, which must render inside page-scripts
     assert "function selectTemplate" in html[scripts_pos:]
     assert "function selectTemplate" not in html[content_pos:scripts_pos]
+
+
+def test_project_template_switches_replace_defaults_and_cancel_resets() -> None:
+    page = (_TEMPLATES / "projects.html").read_text(encoding="utf-8")
+    assert 'onclick="resetNewProjectForm()"' in page
+    scripts = page.split("{% block scripts %}", 1)[1].split("{% endblock %}", 1)[0]
+    select = scripts[scripts.index("function selectTemplate("):]
+    select = select[: select.index("function bulkDelete(")]
+    assert "if (tags && !_npTemplateDirty.has('tags')) tags.value = t.tags;" in select
+    assert "if (sp && !_npTemplateDirty.has('system_prompt')) sp.value = t.system_prompt;" in select
+    assert 'function resetNewProjectForm()' in select
+    assert 'form.reset();' in select
+    assert '_npTemplateDirty.clear();' in select
 
 
 def test_spa_navigate_updates_the_url_before_page_scripts_run() -> None:

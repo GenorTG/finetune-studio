@@ -13,7 +13,6 @@ PROJECT-SCOPED PAGES (/projects/{pid}/...)
   Data, Training, Testing, Models — only accessible inside a project.
 """
 
-import platform
 import re
 from pathlib import Path
 
@@ -23,6 +22,7 @@ from fastapi.templating import Jinja2Templates
 
 from finetune_studio import __release_channel__ as RELEASE_CHANNEL
 from finetune_studio import __version__ as APP_VERSION
+from finetune_studio.webui.flow_next import brain_built as flow_brain_built
 from finetune_studio.webui.flow_next import flow_next_step
 from finetune_studio.webui.model_labels import model_label as _model_label
 
@@ -54,6 +54,7 @@ def _require_project(pid: str):
 _EXPORT_FORMATS = {
     "merged": "safetensors",
     "abliterated": "safetensors",
+    "heretic": "safetensors",
     "gguf": "gguf",
 }
 
@@ -75,7 +76,7 @@ def _scan_run_models(runs: list[dict]) -> list[dict]:
     """Find exported models on disk for a project's training runs.
 
     Each run writes its exports into subdirectories of its output_path
-    (merged/, gguf/, abliterated/). Only non-empty directories that
+    (merged/, gguf/, abliterated/, heretic/). Only non-empty directories that
     exist are reported.
     """
     import os
@@ -92,6 +93,9 @@ def _scan_run_models(runs: list[dict]) -> list[dict]:
                 continue
             try:
                 if not os.listdir(path):
+                    continue
+                # A cancelled Heretic search leaves its study checkpoint (.study) and no model.
+                if subdir == "heretic" and not os.path.isfile(os.path.join(path, "config.json")):
                     continue
                 created = os.path.getmtime(path)
             except OSError:
@@ -156,7 +160,8 @@ async def index(request: Request):
     """Home page — project list + system overview."""
     from finetune_studio import db
     from finetune_studio.webui.app import discovered_models, training_engine
-    projects = db.list_projects()
+    from finetune_studio.webui.project_dashboard import brain_summary
+    projects = [{**p, "brain": brain_summary(p["id"])} for p in db.list_projects()]
     return templates.TemplateResponse(
         request,
         "index.html",
@@ -245,8 +250,12 @@ async def hf_models_alias(request: Request):
 
 
 @router.get("/projects/{pid}/export", response_class=HTMLResponse)
-async def export_page(pid: str, request: Request):
-    """Model export page — choose format, quant, and browse trained exports."""
+def export_page(pid: str, request: Request):
+    """Model export page — choose format, quant, and browse trained exports.
+
+    A plain ``def``: ``probe_export_capabilities`` runs Heretic's ``--help`` and
+    version subprocesses, which must not block the event loop.
+    """
     from finetune_studio import db
     from finetune_studio.training.export_capabilities import (
         probe_export_capabilities,
@@ -262,10 +271,14 @@ async def export_page(pid: str, request: Request):
     project["runs"] = annotate_runs_for_export(db.list_runs(pid))
     project["models"] = _scan_run_models(project["runs"])
     caps = probe_export_capabilities()
+    from finetune_studio.knowledge.readiness import readiness
+
+    package_state = readiness(pid)
     return templates.TemplateResponse(
         request,
         "export_models.html",
         {
+            "package_state": package_state,
             "request": request,
             "project": project,
             "pid": pid,
@@ -293,21 +306,26 @@ async def projects_page(request: Request):
 
 @router.get("/projects/{pid}/overview", response_class=HTMLResponse)
 async def project_overview_alias(request: Request, pid: str):
-    """Alias used by the sticky breadcrumb (QABUG-009)."""
+    """Bookmark alias for the project overview (nothing in the app links here any more)."""
     return RedirectResponse(url=f"/projects/{pid}", status_code=302)
 
 
 @router.get("/projects/{pid}", response_class=HTMLResponse)
 async def project_detail_page(request: Request, pid: str):
     """Project overview dashboard — stats, recent runs/models/files, activity."""
+    from finetune_studio import db
     from finetune_studio.data.fs import file_library as fl
-    from finetune_studio.webui.project_dashboard import build_dashboard_ctx
+    from finetune_studio.webui.project_dashboard import (
+        brain_summary,
+        build_dashboard_ctx,
+    )
 
     ctx = _project_ctx(pid)
     if not ctx:
         raise HTTPException(status_code=404, detail="Project not found")
     files = fl.list_files(pid)
-    dash = build_dashboard_ctx(ctx["project"], pid, files=files)
+    tested = any(b.get("kind") == "brain" and b.get("status") == "done" for b in db.list_benchmarks_for_project(pid))
+    dash = build_dashboard_ctx(ctx["project"], pid, files=files, brain=brain_summary(pid), brain_tested=tested)
     return templates.TemplateResponse(
         request,
         "project.html",
@@ -404,12 +422,13 @@ async def project_testing_page(request: Request, pid: str):
     )
     from finetune_studio.webui.routes.settings import get_test_settings
 
-    helper = get_configured_helper_provider()
+    helper = get_configured_helper_provider("quiz")
     training_datasets = datasets_db.list_datasets(pid)
     return templates.TemplateResponse(
         request,
         "project_testing.html",
         {
+            "brain_built": flow_brain_built(pid),
             **ctx,
             "models": models,
             "library_models": library_models_for_testing(models),
@@ -422,7 +441,7 @@ async def project_testing_page(request: Request, pid: str):
             "default_judge_provider_id": default_judge_provider_id(),
             "training_datasets": training_datasets,
             "helper_label": (helper or {}).get("label") or DEFAULT_HELPER_LABEL,
-            "helper_provider_id": get_helper_provider_id(),
+            "helper_provider_id": get_helper_provider_id("quiz"),
         },
     )
 
@@ -676,7 +695,6 @@ async def settings_page(request: Request):
             "request": request,
             "app_version": APP_VERSION,
             "release_channel": RELEASE_CHANNEL,
-            "update_supported": platform.system() != "Windows",
         },
     )
 

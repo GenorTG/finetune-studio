@@ -130,11 +130,13 @@
 
   const api = {
     get: (url) => fetch(url).then(_ok),
-    post: (url, body) => fetch(url, {
-      method: "POST",
+    request: (url, method, body) => fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body || {}),
     }).then(_ok),
+    post: (url, body) => api.request(url, "POST", body),
+    patch: (url, body) => api.request(url, "PATCH", body),
     upload: (url, file) => {
       const fd = new FormData();
       fd.append("file", file);
@@ -175,7 +177,10 @@
    *
    * @param {string} url SSE endpoint
    * @param {(data: object) => void} onEvent called with parsed JSON payloads
-   * @param {{ pollUrl?: string, fallbackMs?: number, onError?: Function }} [opts]
+   * @param {{ pollUrl?: string, fallbackMs?: number, onError?: Function, persistent?: boolean }} [opts]
+   *   A stream belongs to the page that opened it and closes when the SPA leaves that page; ``persistent: true``
+   *   keeps it for the whole document (the activity drawer). A page's stream left open holds one of the browser's
+   *   six connections to the app: a few in-app visits to such a page used to stall every request of the tab.
    * @returns {() => void} unsubscribe / close
    */
   function subscribe(url, onEvent, opts) {
@@ -240,11 +245,13 @@
       startFallback();
     }
 
-    return function unsubscribe() {
+    function unsubscribe() {
       closed = true;
       closeEs();
       stopFallback();
-    };
+    }
+    if (!opts.persistent) document.addEventListener("fts:beforeNavigate", unsubscribe, { once: true });
+    return unsubscribe;
   }
 
   // ── Delegation: form data-api / button data-action / data-confirm ──
@@ -265,6 +272,28 @@
       form.dataset.ftsBound = "1";
       form.addEventListener("submit", (ev) => {
         ev.preventDefault();
+        // A request can run for minutes (a benchmark answers every question before it returns): show it is working and
+        // refuse a second submit, which would start the same job twice.
+        if (form.dataset.ftsBusy === "1") return;
+        const btn = ev.submitter || form.querySelector('[type="submit"]');
+        const btnHtml = btn ? btn.innerHTML : "";
+        form.dataset.ftsBusy = "1";
+        if (btn) {
+          btn.disabled = true;
+          const spin = document.createElement("span");
+          spin.className = "spinner";
+          btn.replaceChildren(spin, document.createTextNode(" " + (form.dataset.busy || "Working…")));
+        }
+        const done = () => {
+          delete form.dataset.ftsBusy;
+          if (btn && document.contains(btn)) { btn.disabled = false; btn.innerHTML = btnHtml; }
+        };
+        // data-redirect="/projects/{id}": open what was just created (New project used to leave you on the list).
+        const openCreated = (f, d) => {
+          if (!f.dataset.redirect || !d || !d.id) return false;
+          setTimeout(() => location.assign(f.dataset.redirect.replace("{id}", encodeURIComponent(d.id))), 400);
+          return true;
+        };
         const url = form.getAttribute("data-api");
         // If the form has file inputs, submit as multipart; otherwise JSON
         const hasFiles = form.querySelector('input[type="file"]');
@@ -280,15 +309,16 @@
             }
             else notify("Upload done", "success");
             if (form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
-          }).catch((err) => notify(err.message || "Upload failed", "error"));
+          }).catch((err) => notify(err.message || "Upload failed", "error")).finally(done);
         } else {
           const data = Object.fromEntries(new FormData(form));
-          api.post(url, data).then((d) => {
+          api.request(url, form.dataset.method || "POST", data).then((d) => {
             if (d && d.run_id) { notify("Training started · run " + d.run_id.slice(0, 8), "success"); surfaceRun(); }
             else notify("Done", "success");
-            if (form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
+            if (!openCreated(form, d) && form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
           })
-          .catch((err) => notify(err.message || "Request failed", "error"));
+          .catch((err) => notify(err.message || "Request failed", "error"))
+          .finally(done);
         }
       });
     });
@@ -536,11 +566,53 @@
     box.append(label, ' ', target, ' ', why);
   }
 
+  // A job that runs on the LOCAL assistant needs its GGUF loaded first: the server never loads one implicitly, so a
+  // page that got a 409 ``no_model`` offers this on the user's click. Resolves to the connection's label; an API
+  // connection needs nothing (it answers without a load).
+  async function loadAssistant(job) {
+    const providers = await window.api.get('/api/providers');
+    const j = (providers.jobs || {})[job] || {};
+    const id = j.provider_id || providers.helper_provider_id;
+    if (!id) throw new Error('no assistant connection is set (Settings → AI assistant)');
+    if (j.kind !== 'openai_compat') {
+      const active = providers.active || null;
+      if (!(active && active.loaded && active.id === id)) {
+        await window.api.post('/api/providers/' + encodeURIComponent(id) + '/load', {});
+      }
+    }
+    return j.label || id;
+  }
+
+  // Shows "Load the assistant and retry" in ``box`` after a 409 no_model; on click loads it, then calls ``retry``.
+  function offerAssistantLoad(box, job, retry) {
+    if (!box) return;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn sm primary ml-2';
+    btn.dataset.loadAssistant = job;
+    btn.textContent = 'Load the assistant and retry';
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = 'Loading the assistant… (a local 12B takes about a minute)';
+      try {
+        const label = await loadAssistant(job);
+        notify('Loaded ' + label, 'success');
+        btn.remove();
+        retry();
+      } catch (e) {
+        btn.disabled = false;
+        btn.textContent = 'Load the assistant and retry';
+        notify('Could not load the assistant: ' + ((e && e.message) || e), 'error');
+      }
+    });
+    box.appendChild(btn);
+  }
+
   // Page-swap hook called from spa.js after each navigation
   window.fts = {
     notify, api, poll, subscribe, confirm: confirmDialog, prompt: promptDialog, init: delegate, formatJsTime,
     conn: { check: connCheck, start: connStart, stop: connStop },
-    themeToggle, fileTypeLabel, refreshFlowNext,
+    themeToggle, fileTypeLabel, refreshFlowNext, loadAssistant, offerAssistantLoad,
   };
 
   // Run the formatter on full load + after every SPA swap

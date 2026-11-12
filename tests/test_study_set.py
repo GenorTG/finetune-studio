@@ -143,7 +143,7 @@ def test_cli_build_study_registers_the_dataset(monkeypatch, capsys) -> None:
     qa_fs.write_qa_pair(proj["id"], {**PAIR, "status": "approved"})
 
     @contextmanager
-    def loaded():
+    def loaded(*_a, **_k):
         yield None
 
     reply = _reply(questions=["Under which reference number is Amendment No. 2 filed?"])

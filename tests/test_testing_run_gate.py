@@ -27,6 +27,14 @@ def test_testing_template_disables_run_until_suite() -> None:
     assert "JSON.stringify(scores" not in html
 
 
+def test_dataset_check_requires_a_model_and_project_dataset() -> None:
+    html = _TESTING.read_text(encoding="utf-8")
+    assert "const modelOk = !!sel.value || Number(sel.dataset.exports || 0) > 0;" in html
+    assert "const datasetOk = m !== 'dataset' || $('t-train-ds').options.length > 1;" in html
+    assert "const ready = modelOk && suiteOk && datasetOk;" in html
+    assert "No training dataset yet" in html
+
+
 def test_testing_page_run_starts_disabled(client) -> None:
     pid = client.post("/api/projects", json={"name": "Testing Run Gate"}).json()["id"]
     body = client.get(f"/projects/{pid}/testing").text

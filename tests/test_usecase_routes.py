@@ -40,7 +40,7 @@ def test_build_registers_the_dataset_writes_the_suite_and_the_manifest(client: T
     assert r.status_code == 201, r.text
     m = r.json()
     assert m["template"] == "classification" and m["train_rows"] == 70 and m["heldout"] == 20
-    assert m["train_url"] == f"/projects/{pid}/training?dataset={m['dataset']['id']}"
+    assert m["train_url"] == f"/projects/{pid}/training?usecase={m['id']}"
     ds = db.get_dataset(m["dataset"]["id"])
     assert ds["project_id"] == pid and ds["qa_count"] == 70 and ds["source"] == "usecase"
     rows = [json.loads(line) for line in Path(m["dataset"]["path"]).read_text().splitlines()]

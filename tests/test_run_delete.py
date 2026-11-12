@@ -32,8 +32,11 @@ def _run_with_output(tmp_path: Path, pid: str, *, shared: bool = False) -> tuple
 
 @pytest.fixture
 def cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    """Training writes ``output/`` relative to the cwd: the test's cwd is a temp dir, never the repo."""
+    """Training writes ``output/`` relative to the app's checkout: here a temp dir (also the cwd), never the repo."""
+    from finetune_studio import app_paths
+
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(app_paths, "APP_ROOT", tmp_path)
     return tmp_path
 
 
@@ -81,7 +84,7 @@ def test_a_shared_or_foreign_output_dir_is_kept_and_said_so(client, cwd: Path) -
     assert out.is_dir(), "a directory that is not named after the run may hold other runs' weights"
     assert db.get_run(rid) is None
 
-    # A path outside output/ (``set-output`` accepts any path) is never removed, even when named after the run.
+    # A path outside output/ (an older output_dir setting could point anywhere) is never removed, even when named after the run.
     rid2 = db.create_run(project_id=pid, name="elsewhere", settings_obj={})["id"]
     elsewhere = cwd / "models" / rid2
     elsewhere.mkdir(parents=True)
@@ -134,3 +137,20 @@ def test_run_dir_to_remove_rules(cwd: Path) -> None:
     f = own / "file.bin"
     f.write_bytes(b"1")
     assert "not a directory" in run_delete.run_dir_to_remove("file.bin", str(f))[1]
+
+
+def test_a_relative_run_path_resolves_against_the_checkout_not_the_cwd(tmp_path: Path,
+                                                                       monkeypatch: pytest.MonkeyPatch) -> None:
+    """``fts runs delete`` from another directory resolved ``output/...`` against its own cwd: nothing matched, the
+    row was deleted and the weights stayed (same bug #81 fixed for project delete)."""
+    from finetune_studio import app_paths
+
+    checkout, elsewhere = tmp_path / "checkout", tmp_path / "elsewhere"
+    own = checkout / "output" / "projects" / "p1" / "runs" / "r1"
+    own.mkdir(parents=True)
+    elsewhere.mkdir()
+    monkeypatch.setattr(app_paths, "APP_ROOT", checkout)
+    monkeypatch.chdir(elsewhere)
+    assert run_delete.run_dir_to_remove("r1", "output/projects/p1/runs/r1") == (own.resolve(), "")
+    (elsewhere / "output" / "projects" / "p1" / "runs" / "r1").mkdir(parents=True)   # a stray cwd copy is not it
+    assert run_delete.run_dir_to_remove("r1", "output/projects/p1/runs/r1") == (own.resolve(), "")

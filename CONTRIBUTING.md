@@ -52,8 +52,27 @@ gh pr create --base dev --fill
 gh pr merge --squash --delete-branch        # after ci-ok and branch-policy are green
 ```
 
+**A feature ships with its UI.** An HTTP route, CLI command, MCP tool or any other programmatic entry point lands
+in the same PR as the web UI that drives it (and its Guide registry + KB entry). An API-only feature is not done.
+
 Commit messages: imperative, saying what changed and why, one logical change each.
 CHANGELOG lines are for users: what they can now do, or what no longer breaks.
+
+## Dependency versions
+
+`pyproject.toml` says what the app can run on; `pins/` says what it was tested on, and is what installs, Repair and CI
+get: `app.txt` (Python packages), `torch.txt`, `llama-cpp.txt` (the llama.cpp commit), `heretic.txt` (Heretic's own packages).
+`scripts/pin_versions.py` writes them; never edit them by hand.
+
+Newer versions are tested on a branch before they are pinned:
+
+1. `git switch dev && git pull --ff-only && git switch -c build/<what>`
+2. `FTS_UNPINNED=1 bash update.sh --repair` builds on the newest releases (add `FTS_REBUILD_LLAMA_CPP=1` for llama.cpp, and
+   `fts heretic install` with `FTS_UNPINNED=1` for Heretic's packages).
+3. Test the real thing: every model family through training, merge and Heretic, the core flow, the control sweep.
+4. `make pins`, PR with what was tested in its description.
+
+A PR that only adds a dependency to `pyproject.toml` fails CI until `pins/app.txt` has it.
 
 ## Versions and releases
 

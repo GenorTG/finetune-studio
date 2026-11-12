@@ -21,7 +21,7 @@
       <div class="card-sub text-dim">Name, base model, description, tags, notes, and system prompt.</div>
     </div>
   </div>
-  <form id="settings-form" data-api="/api/projects/{{ project.id }}" data-reload="true">
+  <form id="settings-form" data-api="/api/projects/{{ project.id }}" data-method="PATCH" data-reload="true">
     <label class="block mb-3">
       <span class="muted text-xs">Name</span>
       <input class="input" name="name" value="{{ project.name }}">

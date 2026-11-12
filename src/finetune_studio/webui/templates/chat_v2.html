@@ -129,8 +129,8 @@
   <div class="flex gap-3 mt-2 wrap chat-params">
     <label class="flex items-center gap-1" title="Temperature: randomness of the reply. Higher (e.g. 1.0) = more varied and creative; lower (e.g. 0.2) = more focused and repeatable.">
       <span class="dim">Temp</span>
-      <input type="range" id="chat-temperature" min="0" max="2" step="0.1" value="0.7" class="chat-range" oninput="document.getElementById('chat-temp-val').textContent=parseFloat(this.value).toFixed(1)">
-      <span class="mono" id="chat-temp-val">0.7</span>
+      <input type="range" id="chat-temperature" min="0" max="2" step="0.1" value="0.3" class="chat-range" oninput="document.getElementById('chat-temp-val').textContent=parseFloat(this.value).toFixed(1)">
+      <span class="mono" id="chat-temp-val">0.3</span>
     </label>
     <label class="flex items-center gap-1" title="Top-p: only pick from the most likely words whose probabilities add up to this share. Lower = safer, more predictable wording; 1.0 = no limit.">
       <span class="dim">Top-p</span>
@@ -574,14 +574,21 @@ async function chatSend() {
       reply: b.response || b.reply || '',
       sources: b.sources || [],
       rounds: b.chunks_retrieved,
+      request: b.request || null,
     });
+    // What the model was actually asked under: which system prompt and sampling (Testing asks at temperature 0.3).
+    const _chatRequestNote = (q) => {
+      if (!q) return '';
+      const src = { trained_run: 'the trained run\'s prompt', edited: 'your edited prompt', project: 'the project prompt' }[q.system_prompt_source] || q.system_prompt_source;
+      return ' · system: ' + (q.system_prompt ? src : 'none (' + src + ')') + ' · temperature ' + q.temperature + ' · top-k ' + q.top_k;
+    };
 
     const raw = await api.post(url, body, { signal: requestAbort.signal });
     const parsed = parseFn(raw);
 
     if (parsed.reply) {
       _chatHistory.push({ role: 'assistant', content: parsed.reply });
-      _chatAppend('assistant', parsed.reply, (parsed.rounds || 0) + ' chunk(s) retrieved', parsed.sources);
+      _chatAppend('assistant', parsed.reply, (parsed.rounds || 0) + ' chunk(s) retrieved' + _chatRequestNote(parsed.request), parsed.sources);
     } else {
       _chatHistory.push({ role: 'assistant', content: '(no reply)' });
       _chatAppend('assistant', '(no reply)', '0 chunk(s) retrieved');
@@ -664,19 +671,23 @@ async function chatPopulateInlineLoad() {
 }
 
 function _chatCopyAll() {
+  if (!_chatHistory.length) {   // an empty conversation said "copied" and put nothing on the clipboard
+    if (window.fts) window.fts.notify('Nothing to copy yet: the conversation is empty.', 'info');
+    return;
+  }
   const lines = _chatHistory.map((m) => {
     const role = m.role === 'user' ? '**You**' : '**Assistant**';
     return `${role}: ${m.content}`;
   });
-  const text = lines.join('\n\n---\n\n');
-  navigator.clipboard.writeText(text).then(() => {
-    if (window.fts) window.fts.notify('Conversation copied to clipboard', 'success');
-  }).catch(() => {
-    if (window.fts) window.fts.notify('Copy failed — clipboard unavailable', 'error');
-  });
+  // The shared helper falls back when the Clipboard API is missing (plain HTTP from another machine) or refused.
+  return window.ftsCopyText(lines.join('\n\n---\n\n'), 'Conversation copied to clipboard');
 }
 
 function _chatExport() {
+  if (!_chatHistory.length) {   // it downloaded a file holding only the title and the date
+    if (window.fts) window.fts.notify('Nothing to export yet: the conversation is empty.', 'info');
+    return;
+  }
   const lines = [
     `# Chat — {{ project.name }}`,
     `Exported: ${new Date().toISOString()}`,

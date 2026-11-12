@@ -131,7 +131,9 @@ def test_route_saves_a_labelled_suite_that_study_sets_avoid(client, monkeypatch)
     cases = load_test_suite(body["path"])
     assert len(cases) == n and all(c.question.startswith("According to the records") for c in cases)
     assert set(heldout_questions(pid)) == {c.question for c in cases}      # future study sets stay away from it
-    listed = client.get("/api/benchmarks/suites", params={"project_id": pid}).json()
+    from finetune_studio.webui.routes.benchmarks import _discover_suites
+
+    listed = _discover_suites(pid)
     mine = [s for s in listed if s.get("path") == body["path"]]
     assert len(mine) == 1 and mine[0]["source"] == "project_heldout_reworded" and mine[0]["label"] == body["label"]
     assert mine[0]["scoring"] == "judge"
@@ -146,7 +148,7 @@ def test_route_without_a_helper_is_409_with_the_reason(client, monkeypatch) -> N
     pid = client.post("/api/projects", json={"name": "Reworded2"}).json()["id"]
     _register(pid, _dataset())
     monkeypatch.setattr(preference, "helper_generate", lambda **_: None)
-    monkeypatch.setattr(generator, "helper_resolution_error", lambda: "Load the helper on the Pairs page first.")
+    monkeypatch.setattr(generator, "helper_resolution_error", lambda *_a, **_k: "Load the helper on the Pairs page first.")
     r = client.post(f"/api/projects/{pid}/testing/reworded-quiz", json={})
     assert r.status_code == 409
     assert r.json() == {"detail": "Load the helper on the Pairs page first.", "code": "no_model"}

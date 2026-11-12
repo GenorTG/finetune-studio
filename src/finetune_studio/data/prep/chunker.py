@@ -1,17 +1,20 @@
 """Paragraph/sentence-aware text splitter.
 
-Single responsibility: take a long string, return a list of chunks ~target_chars long,
-preserving natural boundaries (paragraph > sentence > hard wrap) and keeping
-`overlap` chars of trailing context between adjacent chunks.
+Single responsibility: take a long string, return chunks near target_chars while preserving paragraphs,
+sentences, and structured records where they fit. Overlap is carried across paragraph boundaries;
+units packed within one paragraph do not overlap.
 """
 from __future__ import annotations
 
 import re
 
+from finetune_studio.data.records import record_ranges
+
 # A buffer shorter than this (typically a lone heading) carries no standalone
 # facts. It is never flushed as its own chunk ahead of an oversized paragraph:
 # coverage-fill cannot mint a pair from "# Lore", so such a chunk would be a
 # permanent coverage hole that blocks dataset export.
+CHUNKER_VERSION = 2
 _MIN_STANDALONE_CHARS = 200
 # A Markdown section heading starts a new passage (and carries no overlap from the section before): retrieval returns
 # passages, and a passage that ends in the next section's first lines — or opens with the previous one's tail — answered
@@ -36,20 +39,28 @@ def _tail(text: str, overlap: int) -> str:
 
 
 def _units(para: str, target_chars: int) -> list[tuple[str, str]]:
-    """(separator-before, text) units of a paragraph: whole LINES, and only a line longer than a chunk is cut into sentences.
-
-    A table row or chat message is a line; splitting it at a "." inside a cell ("quote policy no. SB-KCC-7710-24") put half
-    of a row into the next chunk, where the other half's meaning is lost.
-    """
+    """(separator-before, text) units; structured records are atomic unless individually oversized."""
+    lines = para.split("\n")
+    records = record_ranges(lines)
     units: list[tuple[str, str]] = []
-    for line in para.split("\n"):
+    i = 0
+    while i < len(lines):
+        end = records.get(i, i)
+        block = "\n".join(lines[i:end + 1])
+        if end > i and len(block) <= target_chars:
+            units.append(("\n", block))
+            i = end + 1
+            continue
+        line = lines[i]
         if not line.strip():
+            i += 1
             continue
         if len(line) <= target_chars:
             units.append(("\n", line))
-            continue
-        for i, sent in enumerate(re.split(r"(?<=[.!?])\s+", line)):
-            units.append(("\n" if i == 0 else " ", sent))
+        else:
+            for j, sent in enumerate(re.split(r"(?<=[.!?])\s+", line)):
+                units.append(("\n" if j == 0 else " ", sent))
+        i += 1
     return units
 
 
@@ -75,8 +86,8 @@ def _pack_sentences(prefix: str, para: str, target_chars: int) -> tuple[list[str
 def chunk_text(text: str, target_chars: int = 1200, overlap: int = 200) -> list[str]:
     """Split on paragraph boundaries; fall back to sentence boundaries; then hard wrap.
 
-    Returns list of chunks. Each chunk ends with the last paragraph boundary
-    that fits, with `overlap` chars of trailing context prepended to the next chunk.
+    Returns list of chunks. Paragraph transitions carry up to `overlap` chars of trailing context;
+    units within one paragraph pack without overlap to preserve record boundaries and budget.
     """
     text = text.strip()
     if not text:

@@ -123,7 +123,7 @@ TEMPLATES: dict[str, Template] = {
         example_row={"prompt": "Summarise this changelog for customers: ...",
                      "teacher_answer": "Three changes this week: ..."},
         options={"teacher": "name of the teacher model (recorded with the dataset)",
-                 "teacher_provider_id": "provider row that writes missing teacher answers (Settings -> providers)",
+                 "teacher_provider_id": "API connection that writes missing teacher answers (Settings -> AI assistant)",
                  "instruction": "optional system instruction used for teacher, base and student alike"},
         metric="agreement with the teacher: the AI judge checks each held-out answer against the teacher's answer "
                "(the teacher is the answer key); base and student are judged the same way",

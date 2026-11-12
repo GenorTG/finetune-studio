@@ -1,13 +1,16 @@
-"""Data-prep chat requires the configured GGUF helper.
+"""The Guide's chat backend requires the configured GGUF helper.
 
-When ``provider_id`` is omitted, the route must use the helper already loaded
+When ``provider_id`` is omitted, the backend must use the helper already loaded
 in ModelManager or on ``inference_engine`` — never a project's merged 4B (or
 any other non-helper) and never call ``manager.load``.
 """
 
 from __future__ import annotations
 
+import asyncio
+import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -21,6 +24,18 @@ from finetune_studio.models.helper import (
 )
 
 _HELPER_PATH = f"/models/gguf/{DEFAULT_HELPER_GGUF_BASENAME}"
+
+def _chat_once() -> SimpleNamespace:
+    """What the Guide's backend resolution answers for one turn with no explicit provider (status, reply/detail)."""
+    from finetune_studio.webui.chat_backend import make_chat_fn, resolve_chat_backend
+
+    backend, error = asyncio.run(resolve_chat_backend(None, None))
+    if error is not None:
+        body = json.loads(error.body)
+        return SimpleNamespace(status_code=error.status_code, text=str(body), json=lambda: body)
+    reply = make_chat_fn(backend, {})([{"role": "user", "content": "hi"}])
+    return SimpleNamespace(status_code=200, text=reply, json=lambda: {"reply": reply})
+
 
 
 @pytest.fixture
@@ -76,7 +91,7 @@ def test_omitted_provider_id_uses_helper_on_inference(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Helper GGUF on Inference + manager inactive → engine, no load."""
-    pid = _project(client)
+    _project(client)
     eng = _loaded_engine()
     mgr = _manager_helper(active=None)
 
@@ -89,10 +104,7 @@ def test_omitted_provider_id_uses_helper_on_inference(
         eng,
     )
 
-    r = client.post(
-        f"/api/projects/{pid}/data-prep/chat",
-        json={"messages": [{"role": "user", "content": "hi"}]},
-    )
+    r = _chat_once()
     assert r.status_code == 200, r.text
     assert "ok from inference engine" in (r.json().get("reply") or "")
     mgr.load.assert_not_called()
@@ -104,7 +116,7 @@ def test_omitted_provider_id_uses_helper_manager_when_active(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Helper already active in manager → manager chat, no load."""
-    pid = _project(client)
+    _project(client)
     eng = _loaded_engine(path="/models/Qwen3-4B")  # non-helper on Inference
     mgr = _manager_helper(
         active={
@@ -124,10 +136,7 @@ def test_omitted_provider_id_uses_helper_manager_when_active(
         eng,
     )
 
-    r = client.post(
-        f"/api/projects/{pid}/data-prep/chat",
-        json={"messages": [{"role": "user", "content": "hi"}]},
-    )
+    r = _chat_once()
     assert r.status_code == 200, r.text
     assert r.json().get("reply") == "ok from manager"
     mgr.load.assert_not_called()
@@ -140,7 +149,7 @@ def test_omitted_provider_id_rejects_non_helper_inference(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Merged 4B on Inference is not a silent fallback — clear 409."""
-    pid = _project(client)
+    _project(client)
     eng = _loaded_engine(path="/models/Qwen3-4B")
     mgr = _manager_helper(active=None)
 
@@ -153,10 +162,7 @@ def test_omitted_provider_id_rejects_non_helper_inference(
         eng,
     )
 
-    r = client.post(
-        f"/api/projects/{pid}/data-prep/chat",
-        json={"messages": [{"role": "user", "content": "hi"}]},
-    )
+    r = _chat_once()
     assert r.status_code == 409, r.text
     err = r.json().get("detail") or ""
     assert err == wrong_model_message("/models/Qwen3-4B")
@@ -168,7 +174,7 @@ def test_omitted_provider_id_409_when_nothing_loaded(
     fts_root: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    pid = _project(client)
+    _project(client)
     eng = MagicMock()
     eng.model = None
     eng.model_path = None
@@ -183,19 +189,16 @@ def test_omitted_provider_id_409_when_nothing_loaded(
         eng,
     )
 
-    r = client.post(
-        f"/api/projects/{pid}/data-prep/chat",
-        json={"messages": [{"role": "user", "content": "hi"}]},
-    )
+    r = _chat_once()
     assert r.status_code == 409, r.text
     assert r.json().get("detail") == no_helper_message()
     mgr.load.assert_not_called()
 
 
-def test_resolve_loaded_backend_is_helper_only(
+def test_resolve_helper_backend_is_helper_only(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """resolve_loaded_backend never returns a non-helper Inference load."""
+    """resolve_helper_backend never returns a non-helper Inference load."""
     from finetune_studio.data.prep import generator as gen_mod
 
     eng = _loaded_engine(path="/models/Qwen3-4B")
@@ -216,22 +219,18 @@ def test_resolve_loaded_backend_is_helper_only(
         eng,
     )
 
-    # prefer_inference ignored — helper manager wins; 4B engine is not used.
-    both = gen_mod.resolve_loaded_backend(prefer_inference=True)
+    # The helper manager wins; the 4B loaded in the inference engine is never used instead.
+    both = gen_mod.resolve_helper_backend()
     assert both is not None
     assert both["kind"] == "provider"
     assert both["manager"] is mgr
-
-    only_other = gen_mod.resolve_loaded_backend(prefer_inference=False)
-    assert only_other is not None
-    assert only_other["kind"] == "provider"
 
 
 def test_agent_created_pairs_keep_one_based_chunk_provenance(fts_root: Path) -> None:
     """Agent-created pairs satisfy the same provenance contract as prep jobs."""
     from finetune_studio import db
     from finetune_studio.data.fs import qa as qa_fs
-    from finetune_studio.webui.routes.data_prep_chat import _run_tool
+    from tests._guide_tool import run_tool as _run_tool
     from tests.knowledge_helpers import add_source
 
     pid = db.create_project(name="agent-provenance", description="")["id"]

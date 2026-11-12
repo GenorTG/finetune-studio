@@ -241,9 +241,17 @@
       // Re-mount sprites & animations for the new page
       window.spritesInit && window.spritesInit();
       renderedKey = pageKey();
-      // Scroll to top on new page
+      // Scroll to top on new page, or to the link's #target (Package → "Build the package" lands on the Smart
+      // Brain's export panel: the page script opens it, and scrolling to the top here used to undo its scroll).
       c.scrollTo({ top: 0, behavior: "instant" });
       window.scrollTo({ top: 0, behavior: "instant" });   // the page scrolls on the window: keep no stale offset
+      let target = null;
+      try { target = location.hash.length > 1 ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null; }
+      catch (_e) { target = null; }
+      if (target) {
+        if (target.tagName === "DETAILS") target.open = true;
+        target.scrollIntoView({ block: "start", behavior: "instant" });
+      }
       document.dispatchEvent(new CustomEvent("fts:navigated", {
         detail: { url: location.href },
       }));

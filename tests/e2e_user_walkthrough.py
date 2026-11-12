@@ -496,7 +496,7 @@ async def phase_model(w: Walk) -> None:
     await w.shot("search-results")
     await card.locator("button:has-text('DOWNLOAD')").click()
     await w.shot("download-confirm")
-    await w.page.click("button:has-text('OK')")      # "Download all files of ...?" — the user confirms
+    await w.page.click("button:has-text('OK')")      # "Download <repo>? …" — the user confirms
     await w.shot("download-clicked")
 
     def local_size() -> int:

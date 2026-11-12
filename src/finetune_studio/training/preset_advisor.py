@@ -196,11 +196,13 @@ def propose(
 
     eff_batch = max(1, batch_size * gradient_accumulation_steps)
 
-    # Dataset-size scaling: reference is ~500 pairs. Sub-linear exponent keeps
-    # big datasets from collapsing to 1 epoch while small ones scale up enough
-    # to accumulate real optimizer steps.
+    # Dataset-size scaling: reference is ~500 pairs. Smaller datasets get more epochs (sub-linear) so they accumulate
+    # real optimizer steps. Larger ones keep the tier's epochs: every fact needs about as many passes however many
+    # facts there are. Quillmoor S (4,306 facts, Llama 3.2 3B, tests/corpus/quillmoor/RESULTS.md section 9): epochs
+    # shrunk by sqrt(500/pairs) left Balanced at 2 epochs = 5.8 % recall of trained facts and Precision at 4 = 26.7 %,
+    # while 12 passes reached 97-99.8 %.
     ds_factor = math.sqrt(500.0 / max(pair_count, 1))
-    ds_factor = min(max(ds_factor, 0.25), 4.0)
+    ds_factor = min(max(ds_factor, 1.0), 4.0)
     size_factor = (_rank_factor(params_b))
     epochs = anchor["epochs"] * ds_factor
 

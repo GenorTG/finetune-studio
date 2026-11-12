@@ -3,8 +3,9 @@
 ``POST /api/guide/chat`` runs the guide loop (``finetune_studio.guide.loop``) and streams one SSE
 frame per event — ``start``, ``thinking``, ``tool_call``, ``tool_result``, ``ui``, ``final`` /
 ``error``, ``done`` — so the browser shows each tool call the moment it happens and can act on
-``ui`` events (navigate / highlight / prefill) immediately. The helper-model rule is the legacy
-route's: no silent switch, a clear 409 when no helper is available.
+``ui`` events (navigate / highlight / prefill) immediately. The Guide runs on the ``guide`` job's
+connection (Settings -> AI assistant; by default the main assistant) with that job's extra
+instructions. No silent switch, a clear 409 when no helper is available.
 """
 from __future__ import annotations
 
@@ -17,17 +18,16 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from finetune_studio import db
-from finetune_studio.guide.kb import load_kb, table_of_contents
 from finetune_studio.guide.loop import run_guide_loop
-from finetune_studio.guide.search import search_kb
+from finetune_studio.guide.prompt import build_system_prompt
 from finetune_studio.guide.tools import ToolContext
-from finetune_studio.webui.live_sse import sse_data, sse_response
-from finetune_studio.webui.routes.data_prep_chat import (
+from finetune_studio.webui.chat_backend import (
     MAX_TOOL_ROUNDS,
     make_chat_fn,
     parse_gen,
     resolve_chat_backend,
 )
+from finetune_studio.webui.live_sse import sse_data, sse_response
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -66,12 +66,15 @@ async def guide_chat(request: Request):
         return JSONResponse({"detail": f"project {ctx.pid} not found"}, status_code=404)
 
     gen = parse_gen(body)
-    provider_id = body.get("provider_id")
     name = (project or {}).get("name")
-    # A named provider may have to LOAD the helper (~50 s): resolve it inside the stream so the
-    # user sees "loading helper" at once. Cheap cases (external API, helper already resident)
-    # resolve up front so failures keep a real HTTP status.
-    deferred = bool(provider_id) and not external
+    provider_id = body.get("provider_id")
+    if not provider_id and not external:
+        from finetune_studio.models.helper import get_helper_provider_id
+        provider_id = await asyncio.to_thread(get_helper_provider_id, "guide")
+    # A local model may have to LOAD (~50 s): resolve it inside the stream so the user sees "loading" at once.
+    # Cheap cases (an API connection, external API, model already resident) resolve up front so failures keep
+    # a real HTTP status.
+    deferred = bool(provider_id) and not external and not await asyncio.to_thread(_ready_now, str(provider_id))
     backend: dict | None = None
     if not deferred:
         backend, error = await resolve_chat_backend(provider_id, external)
@@ -90,8 +93,9 @@ async def guide_chat(request: Request):
                 yield sse_data({"type": "error", "status": getattr(error, "status_code", 409), "error": detail})
                 yield sse_data({"type": "done"})
                 return
+        system = await asyncio.to_thread(_guide_system_prompt, ctx, name)
         events = run_guide_loop(ctx, clean, make_chat_fn(backend, gen), max_rounds=max_rounds,
-                                project_name=name, max_tokens=gen.get("max_tokens", 4096))
+                                project_name=name, system_prompt=system, max_tokens=gen.get("max_tokens", 4096))
         end = object()
         try:
             while (event := await asyncio.to_thread(next, events, end)) is not end:
@@ -104,23 +108,16 @@ async def guide_chat(request: Request):
     return sse_response(frames())
 
 
-@router.get("/guide/kb")
-async def guide_kb():
-    """Table of contents of the app knowledge base."""
-    return {"entries": table_of_contents()}
+def _ready_now(provider_id: str) -> bool:
+    """True when the connection answers without a model load: an API connection, or the local model already loaded."""
+    from finetune_studio.models.manager import get_manager
+
+    mgr = get_manager()
+    row = mgr.get_provider(provider_id) or {}
+    return row.get("kind") == "openai_compat" or (mgr.active() or {}).get("id") == provider_id
 
 
-@router.get("/guide/kb/{entry_id}")
-async def guide_kb_entry(entry_id: str):
-    entry = load_kb().get(entry_id)
-    if entry is None:
-        return JSONResponse({"detail": f"unknown KB entry {entry_id!r}"}, status_code=404)
-    return {"id": entry.id, "title": entry.title, "page": entry.route, "sections": entry.sections}
+def _guide_system_prompt(ctx: ToolContext, project_name: str | None) -> str:
+    from finetune_studio.models.assistant import instruct
 
-
-@router.get("/guide/help")
-async def guide_help(q: str, limit: int = 3):
-    """Same retrieval as the ``app_help`` tool (debugging / docs links)."""
-    if not q.strip():
-        return JSONResponse({"detail": "q required"}, status_code=400)
-    return {"query": q, "results": await asyncio.to_thread(search_kb, q, limit)}
+    return instruct("guide", [{"role": "system", "content": build_system_prompt(ctx, project_name)}])[0]["content"]

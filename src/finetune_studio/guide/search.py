@@ -54,13 +54,41 @@ def _index() -> tuple[BM25Index, list[tuple[KbEntry, str]]]:
     return BM25Index.build(docs), chunks
 
 
-def search_kb(query: str, limit: int = 3) -> list[dict[str, Any]]:
-    """Top sections for a question, one result per entry (best section wins)."""
+def search_kb(
+    query: str,
+    limit: int = 3,
+    *,
+    preferred_page: str | None = None,
+) -> list[dict[str, Any]]:
+    """Top sections for a question, one result per entry (best section wins).
+
+    If the question names the current page or asks what this page does, keep that
+    page's own reference first; generic flow/how-to entries otherwise crowd it out.
+    """
     index, chunks = _index()
-    scores = index.score(_normalize(query, query=True))
+    normalized_query = _normalize(query, query=True)
+    scores = index.score(normalized_query)
     ranked = sorted(range(len(chunks)), key=lambda i: float(scores[i]), reverse=True)
     out: list[dict[str, Any]] = []
     seen: set[str] = set()
+    query_terms = set(normalized_query.split())
+    page_terms = set(_normalize(preferred_page or "").split())
+    if preferred_page and ("page" in query_terms or page_terms.intersection(query_terms)):
+        page_candidates = [i for i, (entry, _) in enumerate(chunks) if entry.page == preferred_page]
+        if page_candidates:
+            preferred = max(page_candidates, key=lambda i: float(scores[i]))
+            entry, section = chunks[preferred]
+            seen.add(entry.id)
+            out.append({
+                "entry": entry.id,
+                "title": entry.title,
+                "page": entry.route,
+                "section": section,
+                "score": round(float(scores[preferred]), 2),
+                "text": entry.sections[section][:SNIPPET_CHARS],
+            })
+            if len(out) >= max(1, min(limit, 5)):
+                return out
     for i in ranked:
         score = float(scores[i])
         if score <= 0:

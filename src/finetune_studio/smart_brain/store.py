@@ -15,6 +15,7 @@ import tarfile
 import tempfile
 import time
 import zipfile
+from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -23,7 +24,6 @@ from finetune_studio.data import shared_models as _sm
 from finetune_studio.smart_brain.bm25 import BM25Index
 from finetune_studio.smart_brain.constants import (
     DEFAULT_EMBEDDER,
-    DEFAULT_RERANKER,
     EMBEDDER_LOCAL_PREFIX,
     RERANKER_LOCAL_PREFIX,
     SCHEMA_VERSION,
@@ -40,6 +40,7 @@ from finetune_studio.smart_brain.model_cache import (
     cached_embedder as get_embedder,
 )
 from finetune_studio.smart_brain.query import BrainQuery
+from finetune_studio.smart_brain.rerankers import default_reranker
 from finetune_studio.smart_brain.schema import (
     ChunkSettings,
     IndexDocument,
@@ -52,6 +53,60 @@ from finetune_studio.smart_brain.source_labels import display_name_for_path
 _MODEL_DIR_NAMES = frozenset({"embedder", "reranker"})
 
 log = logging.getLogger(__name__)
+
+
+
+EMBED_SLICE = 32   # texts per encode call: small enough that a stop or a progress update comes every few seconds
+
+
+def encode_batched(encode: Callable, texts: list[str], on_batch: Callable[[int, int], None] | None = None,
+                   *, slice_size: int | None = None) -> np.ndarray:
+    """Embed ``texts`` slice by slice; ``on_batch(done, total)`` after each (it may raise to stop the build).
+
+    One ``encode`` call over the whole corpus could not be stopped or followed: a large embedder on the CPU ran
+    for many minutes with the page at "0 files" and a stop request unanswered (2026-10-28)."""
+    total = len(texts)
+    slice_size = slice_size or EMBED_SLICE
+    if on_batch is None or total <= slice_size:
+        out = encode(texts)
+        if on_batch is not None:
+            on_batch(total, total)
+        return out
+    parts = []
+    on_batch(0, total)
+    for start in range(0, total, slice_size):
+        parts.append(encode(texts[start:start + slice_size]))
+        on_batch(min(start + slice_size, total), total)
+    return np.concatenate(parts, axis=0)
+
+
+def register_shared_models(m: Manifest, *, embedder: str | None = None, reranker: str | None = None) -> None:
+    """Point ``m`` at shared-store copies of its embedder / reranker (``shared:<kind>:<id>``, what an export with
+    models bundles), registering a model named by its Hugging Face id on first use.
+
+    A shared ref is kept, a local path (a bundled package) is left alone. A failure is logged and leaves the name as
+    it was: the index still works, only an export with models then says it cannot bundle that model."""
+    paths = dict((m.extra or {}).get("shared_model_paths") or {})
+    for kind, name in (("embedder", embedder), ("reranker", reranker)):
+        if not name or name.startswith(EMBEDDER_LOCAL_PREFIX if kind == "embedder" else RERANKER_LOCAL_PREFIX):
+            continue
+        prefix = f"shared:{kind}:"
+        try:
+            if name.startswith(prefix):
+                ref, path = name, str(_sm.resolve(name[len(prefix):], kind))
+            else:
+                r = _sm.register(name, kind=kind, prefer_cached=True)
+                ref, path = r.to_compact(), r.path
+        except Exception as e:  # noqa: BLE001 - download / copy errors vary; the index itself is fine
+            log.warning("shared %s registration failed for %s: %s", kind, name, e)
+            continue
+        if kind == "embedder":
+            m.embedding_model.name = ref
+            m.rag_settings.embedder = ref
+        else:
+            m.rag_settings.reranker = ref
+        paths[kind] = path
+    m.extra = {**(m.extra or {}), "shared_model_paths": paths}
 
 
 class BrainIndex:
@@ -141,7 +196,8 @@ class BrainIndex:
                              device: str = "auto",
                              splitter: str | None = None,
                              extra: dict | None = None,
-                             rag_settings: RetrievalSettings | None = None) -> dict:
+                             rag_settings: RetrievalSettings | None = None,
+                             on_batch: Callable[[int, int], None] | None = None) -> dict:
         """Chunk, embed and BM25-index already parsed documents; write every corpus artifact.
 
         Always **replaces** the corpus content. No documents = nothing written (an existing corpus is kept), so a
@@ -152,6 +208,9 @@ class BrainIndex:
         The retrieval settings carry over: ``rag_settings`` (a caller that removed the corpus first), else this
         corpus' own. No ``embedder`` = the one those settings chose, else ``DEFAULT_EMBEDDER`` (a rebuild used to
         reset every index to the default embedder and rerank/hybrid defaults).
+
+        ``on_batch(done, total)`` runs after each embedded batch (progress; raising there stops the build). Nothing
+        on disk changes until every vector is computed, so a stopped or failed build leaves the old index whole.
         """
         from finetune_studio.smart_brain.chunking import chunk_documents
 
@@ -179,7 +238,7 @@ class BrainIndex:
             chunk_settings=ChunkSettings(size=chunk_size, overlap=overlap,
                                          splitter=splitter or ("rows+tokens" if count_tokens else "rows+chars")),
             rag_settings=(dataclasses.replace(rag_settings, embedder=embedder) if rag_settings else
-                          RetrievalSettings(embedder=embedder, reranker=DEFAULT_RERANKER,
+                          RetrievalSettings(embedder=embedder, reranker=default_reranker(),
                                             rerank_enabled=True, hybrid_enabled=True)),
         )
         all_chunks = chunk_documents(docs, chunk_size, overlap, count_tokens)
@@ -191,6 +250,9 @@ class BrainIndex:
                 log.warning("%d chunk(s) exceed the embedder's %d-token window: their tails are not embedded",
                             too_long, max_seq)
 
+        texts = [c["text"] for c in all_chunks]
+        vectors = encode_batched(encode, texts, on_batch)
+
         # Replace source artifacts to match the new corpus (no stale orphans).
         self._clear_source_artifacts()
         sources_dir = self.dir / "sources"
@@ -199,10 +261,9 @@ class BrainIndex:
         for d in docs:
             (sources_dir / f"{d.document_id}.txt").write_text(d.text, encoding="utf-8")
             all_documents.append({"document_id": d.document_id, "source": d.source,
-                                  "content_text_path": f"sources/{d.document_id}.txt", "filename": d.filename})
+                                  "content_text_path": f"sources/{d.document_id}.txt", "filename": d.filename,
+                                  **({"path": d.path} if getattr(d, "path", "") else {})})
 
-        texts = [c["text"] for c in all_chunks]
-        vectors = encode(texts)
         pd = try_import_pandas()
         chunks_df = pd.DataFrame(all_chunks)
         chunks_df.to_parquet(self.chunks_path, index=False)
@@ -220,20 +281,12 @@ class BrainIndex:
         write_json(self.manifest_path, manifest.to_json())
 
         # Register embedder + reranker in the SHARED model store, store refs
-        # in manifest (NOT a local copy — share the model across corpora).
-        try:
-            emb_ref = _sm.register(embedder, kind="embedder", prefer_cached=True)
-            rr_ref = _sm.register(DEFAULT_RERANKER, kind="reranker", prefer_cached=True)
-            m = Manifest.from_json(read_json(self.manifest_path))
-            m.embedding_model.name = emb_ref.to_compact()
-            m.rag_settings.embedder = emb_ref.to_compact()
-            m.rag_settings.reranker = rr_ref.to_compact()
-            m.extra["shared_model_paths"] = {
-                "embedder": emb_ref.path, "reranker": rr_ref.path,
-            }
-            write_json(self.manifest_path, m.to_json())
-        except Exception as e:  # noqa: BLE001
-            log.warning("shared model registration failed: %s", e)
+        # in manifest (NOT a local copy — share the model across corpora). The reranker is the one the search
+        # settings chose (the default only when none was chosen): a rebuild used to reset it to the default.
+        m = Manifest.from_json(read_json(self.manifest_path))
+        register_shared_models(m, embedder=embedder,
+                               reranker=(rag_settings.reranker if rag_settings else "") or default_reranker())
+        write_json(self.manifest_path, m.to_json())
 
         self._write_readme(manifest)
 
@@ -248,65 +301,6 @@ class BrainIndex:
     #     RAG is self-contained (no internet needed, no model download).
     #     Use case: ship the corpus to another machine. Unpack, load, query.
     # ──
-
-    def bundle_models(self, embedder_ref: str | None = None,
-                      reranker_ref: str | None = None) -> dict:
-        """Copy models from the SHARED store INTO the corpus dir for export.
-
-        After this call, the corpus is self-contained: a `tar.gz` of the dir
-        can be unpacked on a machine with the right Python packages and
-        queries work fully offline.
-
-        `embedder_ref` / `reranker_ref` use the magic prefix:
-            "shared:embedder:<short_id>"  -> resolved via the shared store
-        If omitted, the value currently in manifest.json is used.
-        """
-        out = {"embedder": None, "reranker": None, "size_bytes": 0}
-        if not self.manifest_path.exists():
-            raise FileNotFoundError("build the corpus first")
-        m = Manifest.from_json(read_json(self.manifest_path))
-
-        def _bundle_one(kind: str, current_ref: str, dest_name: str) -> str | None:
-            if not current_ref or not current_ref.startswith(f"shared:{kind}:"):
-                return None
-            short_id = current_ref[len(f"shared:{kind}:"):]
-            src = _sm.resolve(short_id, kind)
-            dest = self.dir / dest_name
-            if dest.exists():
-                shutil.rmtree(dest)
-            dest.mkdir(parents=True)
-            for f in src.rglob("*"):
-                if f.is_file():
-                    shutil.copy2(f, dest / f.relative_to(src))
-            abs_path = str(dest.resolve())
-            if kind == "embedder":
-                new_ref = f"{EMBEDDER_LOCAL_PREFIX}{abs_path}"
-            else:
-                new_ref = f"{RERANKER_LOCAL_PREFIX}{abs_path}"
-            return new_ref
-
-        new_emb = _bundle_one("embedder",
-                              embedder_ref or m.embedding_model.name,
-                              "embedder")
-        new_rr = _bundle_one("reranker",
-                             reranker_ref or m.rag_settings.reranker,
-                             "reranker")
-        if new_emb:
-            m.embedding_model.name = new_emb
-            m.rag_settings.embedder = new_emb
-            out["embedder"] = new_emb
-        if new_rr:
-            m.rag_settings.reranker = new_rr
-            out["reranker"] = new_rr
-        m.updated_at = time.time()
-        write_json(self.manifest_path, m.to_json())
-        total = 0
-        for p in self.dir.rglob("*"):
-            if p.is_file():
-                total += p.stat().st_size
-        out["size_bytes"] = total
-        return out
-
 
     def export_bundle(self, out_path: str | Path | None = None,
                      fmt: str = "tar",
@@ -586,7 +580,7 @@ class BrainIndex:
                     m.embedding_model.name = DEFAULT_EMBEDDER
                     m.rag_settings.embedder = DEFAULT_EMBEDDER
                 else:
-                    m.rag_settings.reranker = DEFAULT_RERANKER
+                    m.rag_settings.reranker = default_reranker()
 
         m.updated_at = time.time()
 
@@ -839,7 +833,8 @@ fts brain rebuild-vectors --corpus /path/to/corpus [--embedder NEW_MODEL]
             sources.append({"id": did, "filename": fname, "size": size})
         return sources
 
-    def rebuild_vectors(self, embedder: str | None = None, device: str = "auto") -> dict:
+    def rebuild_vectors(self, embedder: str | None = None, device: str = "auto",
+                        on_batch: Callable[[int, int], None] | None = None) -> dict:
         """Re-embed every chunk (and rebuild BM25); the documents and chunks stay.
 
         No ``embedder`` = the one the settings ask for (``rag_settings.embedder``: a settings change writes it there
@@ -848,18 +843,23 @@ fts brain rebuild-vectors --corpus /path/to/corpus [--embedder NEW_MODEL]
             raise FileNotFoundError(self.dir)
         pd = try_import_pandas()
         manifest = Manifest.from_json(read_json(self.manifest_path))
-        new_name = embedder or manifest.rag_settings.embedder or manifest.embedding_model.name
-        new_name = resolve_model_ref(new_name, "embedder")
+        if not manifest.chunks:
+            raise ValueError("the index is empty, nothing to re-embed: build it first")
+        requested = embedder or manifest.rag_settings.embedder or manifest.embedding_model.name
+        new_name = resolve_model_ref(requested, "embedder")
         encode, new_info = get_embedder(name=new_name, device=device)
         chunks_df = pd.read_parquet(self.chunks_path)
-        vectors = encode(chunks_df["text"].tolist())
+        vectors = encode_batched(encode, chunks_df["text"].tolist(), on_batch)
         np.save(self.vectors_path, vectors)
         # Rebuild BM25 too (cheap, keeps state consistent)
         bm25 = BM25Index.build(chunks_df["text"].tolist())
         write_json(self.bm25_path, bm25.to_dict())
         manifest.embedding_model = new_info
         manifest.rag_settings.embedder = new_name
+        # Same shared-store ref a full build writes: without it an index re-embedded with a new model could not be
+        # exported with its models ("does not reference a shared embedder").
+        register_shared_models(manifest, embedder=requested)
         manifest.updated_at = time.time()
         write_json(self.manifest_path, manifest.to_json())
         return {"chunks": len(chunks_df), "vector_dim": vectors.shape[1],
-                "embedder": new_name}
+                "embedder": manifest.embedding_model.name}

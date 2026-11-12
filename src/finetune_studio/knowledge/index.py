@@ -37,6 +37,8 @@ class IndexState:
     stale: list[str] = field(default_factory=list)       # in the index, but their text changed since (edit, Vision, reparse)
     missing: list[str] = field(default_factory=list)     # ready sources the index has never seen
     removed: list[str] = field(default_factory=list)     # in the index, but the file is gone
+    imported: list[str] = field(default_factory=list)    # came with an imported bundle; not files of this project
+    imported_from: str = ""                              # the bundle's index name ("" = built here)
     fact_cards: bool = False                             # the last build indexed the approved pairs as fact cards
     facts_changed: bool = False                          # ... and pairs were approved, edited or un-approved since
 
@@ -46,7 +48,8 @@ class IndexState:
 
     def as_dict(self) -> dict[str, Any]:
         return {"built": self.built, "fresh": self.fresh, "indexed": self.indexed, "stale": self.stale,
-                "missing": self.missing, "removed": self.removed, "fact_cards": self.fact_cards,
+                "missing": self.missing, "removed": self.removed, "imported": self.imported,
+                "imported_from": self.imported_from, "fact_cards": self.fact_cards,
                 "facts_changed": self.facts_changed}
 
 
@@ -73,9 +76,11 @@ def facts_sha(pid: str) -> str:
 
 def documents(pid: str, *, fact_cards: bool = False) -> list[Any]:
     """Every ready source of the project as an index document (+ its approved pairs as fact cards when asked)."""
+    from finetune_studio.data.fs import file_library as fl
     from finetune_studio.smart_brain.schema import IndexDocument
 
     facts = _approved_facts(pid) if fact_cards else {}
+    folders = fl.folder_paths(pid)
     out = []
     for s in sources.list_sources(pid):
         if not s.ready:
@@ -83,8 +88,10 @@ def documents(pid: str, *, fact_cards: bool = False) -> list[Any]:
         text = sources.parsed_text(pid, s)
         path = str(sources.source_dir(pid, s) / "parsed.txt")
         passages = tuple(p for p in sources.passages(pid, s.sha256) if p.strip())
+        folder = folders.get(s.file_id, "")
         if passages:
-            out.append(IndexDocument(s.id, s.filename, path, text, chunks=passages))
+            out.append(IndexDocument(s.id, s.filename, path, text, chunks=passages,
+                                     path=f"{folder}/{s.filename}" if folder else s.filename))
         cards = tuple(f"Q: {q}\nA: {a}" for _fid, q, a in facts.get(s.id, ()))
         if cards:
             out.append(IndexDocument(s.id + FACTS_SUFFIX, f"{s.filename} · reviewed facts", path, "\n\n".join(cards),
@@ -127,7 +134,14 @@ def state(pid: str) -> IndexState:
             st.stale.append(sid)
         else:
             st.indexed.append(sid)
-    st.removed = [sid for sid in built if sid not in ready]
+    gone = [sid for sid in built if sid not in ready]
+    imported = extra.get("imported_from") or {}
+    if imported:
+        # An imported index was built from the exporting project's files: absent here by design, not removed.
+        st.imported_from = str(imported.get("name") or "a bundle")
+        st.imported = gone
+    else:
+        st.removed = gone
     if st.fact_cards:
         st.facts_changed = str(extra.get("facts_sha") or "") != facts_sha(pid)
     return st
@@ -168,6 +182,31 @@ def parse_pending(pid: str, file_ids: list[str] | None = None, *,
     return {"promoted": promoted, "failed": failed}
 
 
+def register_import(pid: str, *, bundle: str = "") -> dict[str, Any]:
+    """After a bundle import into ``pid``'s index dir: mark where it came from and register it like a build.
+
+    The manifest's ``extra.imported_from`` keeps ``state`` from reporting the exporting project's files as removed
+    here; the ``brain_indexes`` row is what the Guide and the Testing page read to know an index exists.
+    Returns ``{documents, chunks, imported_from}``."""
+    import time
+
+    from finetune_studio.smart_brain import read_json, write_json
+
+    project = db.get_project(pid)
+    if not project:
+        raise IndexBuildError(f"project {pid} not found", 404)
+    corpus = brain_index_dir(pid)
+    raw = read_json(corpus / "manifest.json")
+    extra = raw.setdefault("extra", {})
+    name = str(raw.get("name") or bundle or "a bundle")
+    extra["imported_from"] = {"name": name, "bundle": bundle, "at": time.time()}
+    write_json(corpus / "manifest.json", raw)
+    n_docs, n_chunks = int(raw.get("documents") or 0), int(raw.get("chunks") or 0)
+    _index_row_id(pid, project["name"])
+    db.ensure_brain_index(pid, str(corpus), name=project["name"], doc_count=n_docs, chunk_count=n_chunks)
+    return {"documents": n_docs, "chunks": n_chunks, "imported_from": name}
+
+
 def _index_row_id(pid: str, project_name: str) -> str:
     corpus = brain_index_dir(pid)
     rows = db.list_brain_indexes(pid)
@@ -200,14 +239,30 @@ def prepare(pid: str, *, fact_cards: bool | None = None, parse_first: bool = Fal
             "fact_cards": fact_cards}
 
 
+def explain_build_error(e: BaseException) -> str:
+    """The build error in words a user can act on (the row's ``error``, shown on the page)."""
+    text = str(e) or type(e).__name__
+    if type(e).__name__ == "Stopped":
+        return "stopped on request: the index was left as it was before this build"
+    if type(e).__name__ == "OutOfMemoryError" or "out of memory" in text.lower():
+        from finetune_studio.smart_brain.devices import gpu_memory_report
+
+        return ("the GPU ran out of memory while embedding" + gpu_memory_report() + ". The index was left as it "
+                "was. Choose a smaller embedder (all-MiniLM-L6-v2 needs little memory), free the GPU and build "
+                "again, or pick CPU in Settings → Compute device (slower). Details: " + text.splitlines()[0][:200])
+    return text
+
+
 def run(pid: str, build_id: str, *, embedder: str | None = None, reset: bool = False,
         fact_cards: bool = False, parse_first: bool = False, file_ids: list[str] | None = None,
-        progress: Callable[[str, int, int], None] | None = None) -> dict[str, Any]:
+        progress: Callable[[str, int, int], None] | None = None,
+        on_batch: Callable[[int, int], None] | None = None) -> dict[str, Any]:
     """Embed every ready source into the project index for a ``prepare``d build row; the row ends done or error
     (with the real error, then re-raised).
 
     ``parse_first`` (the Quick index) parses the pending library files before embedding: the result then carries
-    ``promoted`` / ``failed`` (``parse_pending``). ``progress(phase, done, total)`` reports the parse step.
+    ``promoted`` / ``failed`` (``parse_pending``). ``progress(phase, done, total)`` reports the parse step;
+    ``on_batch(done, total)`` the embedding (raising there stops the build; the old index stays whole).
     """
     from finetune_studio.smart_brain import BrainIndex, Manifest, read_json
 
@@ -229,18 +284,31 @@ def run(pid: str, build_id: str, *, embedder: str | None = None, reset: bool = F
         manifest = corpus / "manifest.json"
         settings = Manifest.from_json(read_json(manifest)).rag_settings \
             if manifest.is_file() else None   # the embedder/rerank choice outlives a reset
-        if reset and corpus.exists():
-            shutil.rmtree(corpus)
         hashes = {s.id: s.text_sha for s in sources.list_sources(pid) if s.ready}
         extra = {"built_from": {d.document_id: hashes.get(d.document_id, "") for d in docs
                                 if not d.document_id.endswith(FACTS_SUFFIX)},
                  "fact_cards": fact_cards, "facts_sha": facts_sha(pid) if fact_cards else ""}
-        result = BrainIndex(corpus).build_from_documents(
+        # Rebuild from scratch: embed into a fresh directory and swap it in only when the build finished, so a
+        # stopped or failed rebuild keeps the working index (it used to delete it first).
+        fresh = corpus.with_name(corpus.name + ".rebuild")
+        swap = reset and corpus.exists()
+        if swap:
+            shutil.rmtree(fresh, ignore_errors=True)
+        result = BrainIndex(fresh if swap else corpus).build_from_documents(
             docs, name=project["name"], embedder=embedder, chunk_size=0, overlap=0,
-            splitter="passages", extra=extra, rag_settings=settings)
+            splitter="passages", extra=extra, rag_settings=settings, on_batch=on_batch)
+        if swap:
+            old = corpus.with_name(corpus.name + ".old")
+            shutil.rmtree(old, ignore_errors=True)
+            if corpus.exists():
+                corpus.rename(old)
+            fresh.rename(corpus)
+            shutil.rmtree(old, ignore_errors=True)
     except Exception as e:
+        if reset:
+            shutil.rmtree(corpus.with_name(corpus.name + ".rebuild"), ignore_errors=True)
         log.exception("index build failed for %s", pid)
-        db.mark_brain_build_failed(build_id, error=str(e) or type(e).__name__)
+        db.mark_brain_build_failed(build_id, error=explain_build_error(e))
         raise
     n_docs, n_chunks = int(result.get("documents") or 0), int(result.get("chunks") or 0)
     db.mark_brain_build_done(build_id, doc_count=n_docs, chunk_count=n_chunks)
@@ -267,12 +335,15 @@ def prepare_rebuild_vectors(pid: str) -> dict[str, Any]:
     if not store.exists():
         raise IndexBuildError("no index to re-embed yet: build it first", 404)
     manifest = Manifest.from_json(read_json(store.manifest_path))
+    if not manifest.chunks:   # Clear the index keeps the folder: nothing to embed (the job died on an empty matrix)
+        raise IndexBuildError("the index is empty, nothing to re-embed: build it first", 404)
     run_row = db.create_brain_build(pid, _index_row_id(pid, project["name"]))
     return {"build_id": run_row["id"], "queued_files": int(manifest.documents or 0), "pending_parses": 0,
             "fact_cards": bool((manifest.extra or {}).get("fact_cards"))}
 
 
-def run_rebuild_vectors(pid: str, build_id: str, *, embedder: str | None = None) -> dict[str, Any]:
+def run_rebuild_vectors(pid: str, build_id: str, *, embedder: str | None = None,
+                        on_batch: Callable[[int, int], None] | None = None) -> dict[str, Any]:
     """Re-embed the project index for a ``prepare_rebuild_vectors``'d build row; the row ends done or error."""
     from finetune_studio.smart_brain import BrainIndex, Manifest, read_json
 
@@ -285,11 +356,11 @@ def run_rebuild_vectors(pid: str, build_id: str, *, embedder: str | None = None)
         store = BrainIndex(corpus)
         if not store.exists():
             raise IndexBuildError("no index to re-embed yet: build it first", 404)
-        result = store.rebuild_vectors(embedder=embedder)
+        result = store.rebuild_vectors(embedder=embedder, on_batch=on_batch)
         n_docs = int(Manifest.from_json(read_json(store.manifest_path)).documents or 0)
     except Exception as e:
         log.exception("re-embed failed for %s", pid)
-        db.mark_brain_build_failed(build_id, error=str(e) or type(e).__name__)
+        db.mark_brain_build_failed(build_id, error=explain_build_error(e))
         raise
     n_chunks = int(result.get("chunks") or 0)
     db.mark_brain_build_done(build_id, doc_count=n_docs, chunk_count=n_chunks)

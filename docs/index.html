@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>⚡ Finetune Studio — self-hosted LLM workshop</title>
-<meta name="description" content="A self-hosted local-LLM workshop: one route for your files, then LoRA fine-tuning or a Smart Brain that answers from them, plus evaluation, export, and chat. Runs on your hardware; optional model downloads and integrations may use external services.">
+<title>⚡ Finetune Studio — your knowledge, packaged for local models</title>
+<meta name="description" content="Prepare, lint and test your documents, company context and answer style, then export one encrypted knowledge package for local models over MCP or HTTP. Optional LoRA fine-tuning. Runs on your hardware; optional model downloads and integrations may use external services.">
 <meta property="og:title" content="⚡ Finetune Studio">
-<meta property="og:description" content="A self-hosted local-model workshop: organize files once, then use Smart Brain retrieval or train a LoRA adapter, evaluate results, and chat. Responsive dark/light WebUI.">
+<meta property="og:description" content="Prepare, lint and test your documents, company context and answer style, then export one encrypted knowledge package for local models over MCP or HTTP. Optional LoRA fine-tuning. Responsive dark/light WebUI.">
 <meta property="og:type" content="website">
 
 <style>
@@ -122,8 +122,7 @@
 
 <header><div class="wrap">
   <h1>⚡ FINETUNE STUDIO<span class="cursor">▮</span></h1>
-  <p class="tagline">A web app for working with local language models on your
-  own documents: search them, fine-tune on them, test the result.</p>
+  <p class="tagline">Prepare, check and test everything your local models should know about you, then export it as one encrypted knowledge package.</p>
   <p class="sub">A hobby project: I like tinkering with local models and did my best to make this solid
   (tests, CI, measured results), but it is a one-person beta. Use it if it helps you.</p>
   <p class="sub">Project data is stored locally. If you enable a connected provider, the data needed for that feature may be sent to it.</p>
@@ -151,20 +150,20 @@
       <blockquote>"I have a pile of PDFs and want to ask questions about
       them in plain English — without uploading anything to the cloud."</blockquote>
       <p>Every file is parsed once in <b>Files &amp; Knowledge</b> (PDF, DOCX, TXT, MD, HTML, code, CSV, JSON,
-      images via OCR or a Vision reader). The <b>Smart Brain</b> answers from that parse with sources: semantic +
+      images via OCR or the AI assistant reading pictures). The <b>Smart Brain</b> answers from that parse with sources: semantic +
       keyword search, rank fusion, reranking, an answer gate — often called RAG. Live build progress via SSE,
       an index status that says when files changed, optional <b>fact cards</b> from reviewed pairs. One-click
-      <b>⚡ Quick index</b>; export it as a standalone MCP + HTTP server.</p>
+      <b>Build Smart Brain</b>; export it as a standalone MCP + HTTP server.</p>
       <div class="pillbox"><span class="pill">SMART BRAIN</span><span class="pill">HYBRID SEARCH</span></div>
     </div>
 
     <div class="usecase">
-      <h4>2 · FINE-TUNE A MODEL</h4>
+      <h4>2 · OPTIONAL: FINE-TUNE A MODEL</h4>
       <blockquote>"I want to teach a small open model how my company talks."</blockquote>
       <p>Point at a JSONL or your mined dataset, pick a base model, run
       LoRA / QLoRA. Live loss curves, VRAM profiles, adapter merge, then
-      export (merged / abliterated; GGUF when host tools are
-      installed). Per past-run Actions (⭐ Set production, ▶ Open in inference, ⬇
+      export (merged; GGUF, optionally with an importance matrix, when host tools are
+      installed; abliterated is offered but not yet verified end to end; Heretic is an optional separately installed format). Per past-run Actions (⭐ Set production, ▶ Open in inference, ⬇
       Export).</p>
       <div class="pillbox"><span class="pill">LoRA</span><span class="pill">QLoRA</span><span class="pill">MERGE</span><span class="pill">EXPORT</span></div>
     </div>
@@ -172,11 +171,11 @@
     <div class="usecase">
       <h4>3 · BENCHMARK BEFORE SHIP</h4>
       <blockquote>"I trained two variants. Which one is actually better?"</blockquote>
-      <p>Offline smoke suites styled after MMLU / GSM8K / HellaSwag (not the
-      full HuggingFace dataset downloads), plus project-local suites. Two
+      <p>The official MMLU / GSM8K / HellaSwag test sets from Hugging Face
+      (downloaded on first use) or offline look-alikes, plus project-local suites. Two
       tabs: <b>Recent scores</b> and <b>Compare two runs</b> (per-suite Δ =
       B − A, colored).</p>
-      <div class="pillbox"><span class="pill">MMLU-style</span><span class="pill">GSM8K-style</span><span class="pill">HellaSwag-style</span></div>
+      <div class="pillbox"><span class="pill">MMLU</span><span class="pill">GSM8K</span><span class="pill">HellaSwag</span></div>
     </div>
 
     <div class="usecase">
@@ -215,15 +214,15 @@
   <p class="lead">A quick overview of the current self-hosted workflow. See
   the README and tutorial for installation requirements and step-by-step use.</p>
   <ul style="color:var(--fg);font-size:13px;line-height:1.8;list-style:none;padding:0">
-    <li>· <b style="color:var(--accent)">⚡ Quick work</b> — the entire model pipeline on one page (upload → pairs → dataset → train → test → pin), live status pills per step, and a <b>Run steps 2–5</b> chain that drives dataset → training → test unattended</li>
-    <li>· <b style="color:var(--accent)">One project flow</b> — <code style="color:var(--amber)">1 Files &amp; Knowledge → 2 train or 2 Smart Brain → 3 test → 4 use it</code>: every file parsed once, both routes read that parse</li>
+    <li>· <b style="color:var(--accent)">⚡ Quick work</b> — the entire model pipeline on one page (upload → pairs → dataset → train → test → pin), live status pills per step, and a <b>Run all training steps</b> chain that drives dataset → training → test unattended</li>
+    <li>· <b style="color:var(--accent)">One project flow</b> — <code style="color:var(--amber)">1 files → 2 Smart Brain → 3 test → 4 package</code>: every file parsed once, both routes read that parse</li>
     <li>· <b style="color:var(--accent)">File browser v2</b> — folder chips with drag-to-move, tag pills, bulk actions, zip export, per-file usage chain (file → pairs → datasets → runs → Smart Brain), knowledge search over facts and passages, 7-day trash (select and restore)</li>
-    <li>· <b style="color:var(--accent)">Chunk-coverage fallback</b> — export can fill chunks without an approved generated pair with verbatim extractive pairs; the project data audit reports coverage issues. Coverage does not guarantee that a model learned every fact.</li>
+    <li>· <b style="color:var(--accent)">Export completeness gate</b> — export checks every file's data-point checklist (each point stated by an approved pair or excluded with a reason) and stops on an incomplete file unless you choose export anyway; nothing is filled in for you. Completeness does not guarantee that a model learned every fact.</li>
     <li>· <b style="color:var(--accent)">Full-coverage test suites</b> — auto-suites test every dataset row (N rows → N questions); sampling is an explicit, labeled opt-in</li>
     <li>· <b style="color:var(--accent)">Project versions</b> — immutable manifests pinning datasets + sources + corpora + runs + base model, with lineage</li>
     <li>· <b style="color:var(--accent)">Standalone Smart Brain</b> — the index ships as a self-installing tarball (MCP + HTTP, <code style="color:var(--amber)">setup.sh</code>, optional bundled embedder + reranker for fully offline semantic search)</li>
     <li>· <b style="color:var(--accent)">Parsed-text editor</b> — fix a bad parse in-app; corrections feed mining + the next Smart Brain build while raw bytes stay immutable</li>
-    <li>· <b style="color:var(--accent)">Versioned releases + Linux in-app update</b> — tagged SemVer releases with a changelog; Settings → Apply update pulls, repairs, migrates, and restarts</li>
+    <li>· <b style="color:var(--accent)">Versioned releases + Linux in-app update</b> — tagged SemVer releases with a changelog; <code style="color:var(--amber)">./update.sh</code> pulls, repairs, migrates, and restarts, and Settings → Apply update runs it from the browser</li>
     <li>· <b style="color:var(--accent)">Dark and light themes</b> — switch themes in the UI; regression checks cover theme and responsive behavior</li>
   </ul>
 </div></section>
@@ -240,25 +239,25 @@
     <figure><img src="screenshots/01_dashboard.png" alt="Dashboard with host resources and project cards" loading="lazy">
       <figcaption><b>DASHBOARD</b> — host resources (RAM/VRAM bars updated live), your projects, quick-create.</figcaption></figure>
     <figure><img src="screenshots/02_project.png" alt="Project home with a live setup checklist and one next action" loading="lazy">
-      <figcaption><b>PROJECT HOME</b> — live checklist with one suggested next action; Smart Brain stays available as an alternate path, with project counts and recent activity.</figcaption></figure>
+      <figcaption><b>PROJECT HOME</b> — live checklist with one suggested next action on the Smart Brain path; training is optional, with project counts and recent activity.</figcaption></figure>
     <figure><img src="screenshots/04_files.png" alt="File browser v2" loading="lazy">
       <figcaption><b>FILES · STEP 1</b> — immutable deduped uploads, folder chips, tags, bulk actions, zip export, usage chain, parsed-text editor, 7-day trash.</figcaption></figure>
     <figure><img src="screenshots/05_pairs.png" alt="Question-answer pairs page" loading="lazy">
-      <figcaption><b>PAIRS · STEP 2</b> — mine question-answer pairs from your sources, triage in bulk; export can add extractive pairs for chunks without approved generated pairs.</figcaption></figure>
+      <figcaption><b>PAIRS · OPTIONAL</b> — mine question-answer pairs from your sources, triage in bulk; export waits until every file's data points are covered or excluded. Optional study sets and preference (DPO) pairs.</figcaption></figure>
     <figure><img src="screenshots/06_brain.png" alt="Smart Brain page" loading="lazy">
-      <figcaption><b>SMART BRAIN</b> — ⚡ Quick index, documents-in-index, search test, grounded chat, standalone MCP + HTTP server export.</figcaption></figure>
+      <figcaption><b>SMART BRAIN · STEP 2</b> — build it in one click, ask your documents with sources, standalone MCP + HTTP server export.</figcaption></figure>
     <figure><img src="screenshots/07_training.png" alt="Training with past-run Actions" loading="lazy">
-      <figcaption><b>TRAINING · STEP 3</b> — LoRA config, live loss curve; each past run has Actions (⭐ Set production, ▶ Open in inference, ⬇ Export).</figcaption></figure>
+      <figcaption><b>TRAINING · OPTIONAL</b> — LoRA config, live loss curve; each past run has Actions (⭐ Set production, ▶ Open in inference, ⬇ Export).</figcaption></figure>
     <figure><img src="screenshots/10_testing.png" alt="Testing page" loading="lazy">
-      <figcaption><b>TESTING · STEP 4</b> — did it learn YOUR material? Auto-suites test every dataset row; case-by-case strict judging.</figcaption></figure>
+      <figcaption><b>TESTING · STEP 3</b> — did it learn YOUR material? Auto-suites test every dataset row; case-by-case strict judging.</figcaption></figure>
     <figure><img src="screenshots/08_models.png" alt="Models with expand rows" loading="lazy">
-      <figcaption><b>MODELS · STEP 5</b> — trained-exports table; expand any row for the parent run, settings, dir contents, ▶ Open in inference.</figcaption></figure>
+      <figcaption><b>MODELS · STEP 4</b> — trained-exports table; expand any row for the parent run, settings, dir contents, ▶ Open in inference.</figcaption></figure>
     <figure><img src="screenshots/09_export.png" alt="Export page" loading="lazy">
-      <figcaption><b>EXPORT</b> — merged / abliterated first-class; GGUF when host tools are present; failures land in the run row, never silent.</figcaption></figure>
+      <figcaption><b>EXPORT</b> — merged and GGUF (plain or importance-matrix) when host tools are present; abliterated offered, not yet verified; optional Heretic format (installed from Settings); failures land in the run row, never silent.</figcaption></figure>
     <figure><img src="screenshots/13_chat.png" alt="Chat" loading="lazy">
       <figcaption><b>CHAT</b> — safetensors or GGUF, streaming with sprite feedback, Smart Brain sources, Agent mode for tool-driven dataset curation.</figcaption></figure>
     <figure><img src="screenshots/12_settings.png" alt="Settings" loading="lazy">
-      <figcaption><b>SETTINGS</b> — per-project config + WebUI log tail + Linux Apply update + Replay Tutorial.</figcaption></figure>
+      <figcaption><b>SETTINGS</b> — AI assistant (connections, encrypted keys, one connection per job) + access + compute device + Linux Apply update + Replay Tutorial.</figcaption></figure>
   </div>
   <p class="lead"><b>BENCHMARKS</b> — optional public exams with offline smoke suites, real HF splits, recent scores, and two-run comparison.</p>
 </div></section>
@@ -268,7 +267,7 @@
   <p class="lead">From raw documents to a benchmarked, chat-ready model —
   one project, one flow — or let ⚡ Quick work chain it from one page:</p>
 <pre class="diagram"><span class="g">upload</span> ──► <span class="g">file library</span>      sha256 dedup · MIME auto-folders · versioning · 7-day trash · rename · per-file purge · parsed MD
-   └─► <span class="g">parse once</span>         text · code · data · office · email · images(OCR / Vision reader) ── passages
+   └─► <span class="g">parse once</span>         text · code · data · office · email · images(OCR / assistant)  ── passages
         └─► <span class="g">Smart Brain</span>       index: semantic + keyword search, rank fusion, reranking · live SSE
              └─► <span class="g">Q&amp;A mining</span>      batch prep job  OR  <span class="a">agentic tool-calling chat</span>
                   └─► <span class="g">review</span>           approve / reject / edit pairs ──► JSONL datasets
@@ -291,7 +290,7 @@
     <tr><td>Lose an afternoon to CUDA install issues</td><td>One ./install.sh — GPU-aware wheels, self-repair</td></tr>
     <tr><td>Guess why a model will not load</td><td>See estimated VRAM needed, free VRAM, and the named GPU processes using it</td></tr>
     <tr><td>Compare two trained runs by hand</td><td>Compare tab — pick run A + B, get the Δ table</td></tr>
-    <tr><td>SSH in to grep server logs</td><td>Settings → WebUI log tail, Refresh + Auto-refresh</td></tr>
+    <tr><td>SSH in to grep server logs</td><td>Project → Settings → WebUI log tail, Refresh + Auto-refresh</td></tr>
   </table>
 </div></section>
 

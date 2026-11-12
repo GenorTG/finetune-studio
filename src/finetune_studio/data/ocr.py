@@ -189,6 +189,10 @@ def ocr_image(image_path: str | Path, languages: str = DEFAULT_LANGS,
     _ensure_tessdata(languages)
     env = os.environ.copy()
     env["TESSDATA_PREFIX"] = _tessdata_prefix()
+    # One thread per tesseract: files are parsed in parallel, and every tesseract otherwise starts an OpenMP thread
+    # per core. Measured 2026-10-29 with ~12 parses at once on 6 cores: one nameplate photo took 137 s with the
+    # default and 1.7 s with one thread (spinning OpenMP threads starve each other). An explicit setting is kept.
+    env.setdefault("OMP_THREAD_LIMIT", "1")
     fd, tmp = tempfile.mkstemp(prefix="_ocr_")
     os.close(fd)
     out_base = Path(tmp)

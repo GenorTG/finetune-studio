@@ -75,13 +75,14 @@ def list_active() -> list[dict]:
 
 
 def mark_done(eid: str, *, output_path: str = "", size_bytes: int = 0,
-              size_human: str = "", intermediate_path: str = "") -> dict | None:
+              size_human: str = "", intermediate_path: str = "", detail: str = "") -> dict | None:
+    """``detail`` stays on the finished row (what a Heretic export kept); empty for the other formats."""
     with cursor() as c:
         row = c.execute("SELECT started_at FROM model_exports WHERE id = ?", (eid,)).fetchone()
     started = row["started_at"] if row else None
     finished = time.time()
     duration_ms = int((finished - started) * 1000) if started else None
-    return update_export(eid, status="done", phase="done", phase_detail="",
+    return update_export(eid, status="done", phase="done", phase_detail=detail[:1000],
                          finished_at=finished,
                          duration_ms=duration_ms, output_path=output_path,
                          size_bytes=size_bytes, size_human=size_human,
@@ -94,7 +95,7 @@ def mark_failed(eid: str, error: str) -> dict | None:
 
 
 def mark_cancelled(eid: str, note: str = "cancelled by user") -> dict | None:
-    return update_export(eid, status="cancelled", phase="cancelled",
+    return update_export(eid, status="cancelled", phase="cancelled", phase_detail="",   # not "stopping…" forever
                          finished_at=time.time(), error=note[:1000])
 
 

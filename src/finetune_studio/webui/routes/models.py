@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import os
-import subprocess
+import threading
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -14,6 +14,8 @@ from finetune_studio.webui.engine_guard import ENGINE_LOCK
 
 router = APIRouter()
 log = logging.getLogger(__name__)
+_registry_refresh_lock = threading.RLock()
+_registry_generation = 0
 
 
 async def _json_body(request: Request) -> dict:
@@ -27,46 +29,14 @@ async def _json_body(request: Request) -> dict:
     return body
 
 
-def _identify_process(args_line: str, pid: int) -> str:
-    """Human-identifiable name for a GPU consumer. `ps comm` truncates
-    everything to 'python3.12' — useless. Prefer a recognizable project
-    marker from the full cmdline, then the script basename."""
-    low = args_line.lower()
-    for marker in ("comfyui", "comfy", "ollama", "vllm", "lmstudio", "lm studio",
-                   "stable-diffusion", "sd-webui", "fooocus", "kohaku",
-                   "text-generation-webui", "jupyter", "tensorboard"):
-        if marker in low:
-            return marker
-    try:
-        import shlex
-        parts = shlex.split(args_line)
-    except ValueError:
-        parts = args_line.split()
-    for p in parts:
-        if p.endswith((".py", ".js", ".sh", ".ts", ".jar")):
-            return os.path.basename(p)
-    if parts:
-        return os.path.basename(parts[0])
-    return f"pid-{pid}"
-
-
 def _gpu_snapshot():
     """Return (free_mib, top consumers) for the active GPU of any vendor, or (None, [])."""
-    from finetune_studio.webui.gpu_probe import free_and_consumers
+    from finetune_studio.webui.gpu_probe import free_and_consumers, name_consumers
     try:
         free, top = free_and_consumers()
     except Exception:  # noqa: BLE001
         return None, []
-    for t in top:
-        try:
-            cmd = subprocess.run(
-                ["ps", "-o", "args=", "-p", str(t["pid"])],
-                capture_output=True, text=True, timeout=3, check=False,
-            ).stdout.strip()
-            t["name"] = _identify_process(cmd, t["pid"]) if cmd else f"pid-{t['pid']}"
-        except Exception:  # noqa: BLE001
-            t["name"] = f"pid-{t['pid']}"
-    return free, top
+    return free, name_consumers(top)
 
 
 def _vram_hint(model_path: str) -> str:
@@ -214,16 +184,37 @@ def refresh_model_registry() -> int:
     Blocking (disk walk). The list is replaced in one slice assignment so
     concurrent readers never observe it empty. Returns the model count.
     """
+    global _registry_generation
     from finetune_studio.config import settings
     from finetune_studio.models.registry import scan_models
+    from finetune_studio.models.registry_invalidation import read_generation
     from finetune_studio.webui.app import discovered_models
-    dirs = list(settings.model_dirs)
-    for d in settings.model_dirs_extra:
-        if d not in dirs:
-            dirs.append(d)
-    discovered = scan_models(dirs)
-    discovered_models[:] = discovered
-    return len(discovered)
+
+    with _registry_refresh_lock:
+        dirs = list(settings.model_dirs)
+        for d in settings.model_dirs_extra:
+            if d not in dirs:
+                dirs.append(d)
+        discovered = scan_models(dirs)
+        discovered_models[:] = discovered
+        _registry_generation = read_generation()
+        return len(discovered)
+
+
+def refresh_model_registry_if_invalidated() -> bool:
+    """Rescan after another local process removes or adds model files."""
+    global _registry_generation
+    from finetune_studio.models.registry_invalidation import read_generation
+
+    if read_generation() <= _registry_generation:
+        return False
+    with _registry_refresh_lock:
+        generation = read_generation()
+        if generation <= _registry_generation:
+            return False
+        refresh_model_registry()
+        _registry_generation = generation
+        return True
 
 
 @router.post("/refresh")
@@ -254,6 +245,14 @@ async def load_model_endpoint(request: Request):
     if _mp.startswith(("/", "./", "../", "~")) and not os.path.exists(os.path.expanduser(_mp)):
         return await asyncio.to_thread(
             _load_failure, 404, f"model path does not exist: {_mp}", _mp,
+        )
+    # A training run's output folder (what Training's "Open in inference" sends): open the model inside it.
+    from finetune_studio.models.run_paths import has_model_files, resolve_run_model_dir
+    model_path = resolve_run_model_dir(_mp)
+    if not has_model_files(model_path):
+        return await asyncio.to_thread(
+            _load_failure, 400, f"no model in this folder (no config.json, adapter or weight files): {model_path}",
+            model_path,
         )
     try:
         # Run the blocking load off the event loop. Loading a multi-GB model

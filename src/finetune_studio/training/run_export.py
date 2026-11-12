@@ -12,26 +12,37 @@ exist on disk and are non-empty — never on HTTP 200 / empty dirs alone.
 from __future__ import annotations
 
 import os
+import shutil
+import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 from finetune_studio.training import export_job
 from finetune_studio.training.gguf_convert import (  # noqa: F401 — re-export
     GGUF_CONVERTER_MISSING_MSG,
+    LLAMA_IMATRIX_MISSING_MSG,
+    LLAMA_QUANTIZE_MISSING_MSG,
     convert_merged_to_gguf,
     find_gguf_convert_script,
+    find_llama_imatrix,
     find_llama_quantize,
     gguf_filename_matches_quant,
+    imatrix_applies,
     llama_cpp_search_paths,
     normalize_gguf_quant,
     verify_gguf_artifacts,
 )
 
 SUPPORTED_EXPORT_FORMATS: frozenset[str] = frozenset(
-    {"gguf", "abliterated", "merged"}
+    {"gguf", "abliterated", "merged", "heretic"}
 )
 
 DEFAULT_GGUF_QUANTS: list[str] = ["f16", "q8_0", "q4_k_m", "q5_k_m"]
+
+# An importance-matrix export lands beside the plain one, never over it (same quant names, different weights).
+IMATRIX_SUBDIR = "gguf-imatrix"
+IMATRIX_CALIBRATION_CHARS = 300_000   # ~75k tokens: more than the 128 chunks x 512 tokens llama-imatrix measures
 
 
 def validate_base_model(base_model: str) -> str:
@@ -150,6 +161,31 @@ def ensure_merged_for_export(
     }
 
 
+HERETIC_PROGRESS_EVERY_S = 10.0
+
+
+def _heretic_progress(ctx: Any, run: Any) -> Callable[[], None]:
+    """The job's heartbeat plus a "trial N of M" line: a search can take over an hour on one unchanged message."""
+    from finetune_studio.training import heretic_tool
+
+    state = {"shown": 0, "next_read": 0.0}
+
+    def tick() -> None:
+        ctx.tick()
+        now = time.monotonic()
+        if now < state["next_read"]:
+            return
+        state["next_read"] = now + HERETIC_PROGRESS_EVERY_S
+        done = min(heretic_tool.finished_trials(run.checkpoint_dir), run.n_trials)
+        if done != state["shown"]:
+            state["shown"] = done
+            export_job.report(export_job.PHASE_ABLITERATING,
+                              f"Heretic: trial {done} of {run.n_trials} done" if done < run.n_trials
+                              else f"Heretic: all {run.n_trials} trials done, saving the best one")
+
+    return tick
+
+
 def _export_failure(
     error: str,
     *,
@@ -167,15 +203,51 @@ def _export_failure(
     return out
 
 
+def imatrix_calibration_text(data_path: str, *, max_chars: int = IMATRIX_CALIBRATION_CHARS) -> str:
+    """The run's training text (every turn of every row, in file order) for measuring an importance matrix.
+
+    Reads JSONL rows in the shapes training accepts (``messages`` / ``conversations`` turns, or ``text`` /
+    ``prompt``+``completion``) and stops at ``max_chars``. Empty when the file is missing or holds no text.
+    """
+    import json
+
+    if not data_path or not os.path.isfile(data_path):
+        return ""
+    parts: list[str] = []
+    total = 0
+    with open(data_path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if not isinstance(row, dict):
+                continue
+            turns = row.get("messages") or row.get("conversations") or []
+            texts = [str(t.get("content") or t.get("value") or "") for t in turns if isinstance(t, dict)]
+            if not texts:
+                texts = [str(row.get(k) or "") for k in ("text", "prompt", "completion", "instruction", "output")]
+            block = "\n".join(t.strip() for t in texts if t.strip())
+            if not block:
+                continue
+            parts.append(block)
+            total += len(block) + 2
+            if total >= max_chars:
+                break
+    return "\n\n".join(parts)[:max_chars]
+
+
 def _export_gguf(
     engine: Any,
     *,
     output_path: str,
     quant_list: list[str],
     force: bool,
+    subdir: str = "gguf",
+    calibration_text: str = "",
 ) -> dict[str, Any]:
     """Run GGUF conversion and only succeed when artifacts verify non-empty."""
-    gguf_dir = os.path.join(output_path, "gguf")
+    gguf_dir = os.path.join(output_path, subdir)
     existing = verify_gguf_artifacts(gguf_dir, quant_list)
     if existing["ok"] and not force:
         return {
@@ -203,10 +275,13 @@ def _export_gguf(
         )
 
     # TrainingEngine._do_export_gguf uses convert_merged_to_gguf; tests may patch it.
-    try:
-        result = engine._do_export_gguf(output_path, force=force)
-    except TypeError:
-        result = engine._do_export_gguf(output_path)
+    if calibration_text or subdir != "gguf":
+        result = engine._do_export_gguf(output_path, force=force, subdir=subdir, calibration_text=calibration_text)
+    else:
+        try:
+            result = engine._do_export_gguf(output_path, force=force)
+        except TypeError:
+            result = engine._do_export_gguf(output_path)
 
     if result.get("ok") is True and result.get("files"):
         return {
@@ -291,12 +366,151 @@ def _export_gguf(
     }
 
 
+def _export_heretic(
+    *,
+    merged_path: str,
+    output_path: str,
+    force: bool,
+    n_trials: int | None = None,
+) -> dict[str, Any]:
+    """Remove refusals with the optional Heretic tool, into ``<output>/heretic/``.
+
+    Heretic is a separate program (AGPL-3.0) that searches abliteration
+    parameters with Optuna; this only drives it and verifies what it wrote.
+    A run that writes weights without ``config.json``/a tokenizer is a failure
+    here, not an export: such a directory cannot be loaded by Chat, Testing or
+    any other app.
+    """
+    from finetune_studio.training import heretic_tool
+    from finetune_studio.training.proc_runner import (
+        SubprocessCancelled,
+        SubprocessFailed,
+        SubprocessTimeout,
+    )
+
+    out_dir = os.path.join(output_path, "heretic")
+    if heretic_tool.output_complete(out_dir) and not force:
+        return {
+            "ok": True,
+            "status": "skipped",
+            "format": "heretic",
+            "output_path": out_dir,
+            "message": "A Heretic model already exists here. Use force=true to overwrite.",
+        }
+    if not merged_path or not os.path.isdir(merged_path):
+        # Heretic ablates a full model; a bare adapter is not one. Merging happens
+        # before this call, so an absent merged/ is a real failure, not a skip.
+        return _export_failure(
+            "no merged model to abliterate; export Merged (or retrain with merge on save) first",
+            format="heretic",
+        )
+
+    status = heretic_tool.probe()
+    if not status.usable:
+        return _export_failure(
+            status.hint or "Heretic is not available",
+            format="heretic",
+            install_command="fts heretic install",
+        )
+
+    shortfall = heretic_tool.vram_shortfall(merged_path)
+    if shortfall:
+        return _export_failure(shortfall, format="heretic")
+
+    export_job.report(export_job.PHASE_ABLITERATING, "Heretic: searching abliteration parameters")
+    ctx = export_job.current()
+    run = heretic_tool.AbliterationRun(
+        model_path=merged_path,
+        output_dir=out_dir,
+        n_trials=int(n_trials or 40),
+        checkpoint_dir=os.path.join(out_dir, heretic_tool.STUDY_DIRNAME),
+        batch_size=heretic_tool.EXPORT_BATCH_SIZE,
+    )
+    try:
+        written = heretic_tool.run_abliteration(
+            run,
+            cancelled=ctx.cancelled if ctx else None,
+            on_tick=_heretic_progress(ctx, run) if ctx else None,
+            on_start=ctx.register_proc if ctx else None,
+            on_status=lambda text: export_job.report(export_job.PHASE_ABLITERATING, text),
+        )
+    except SubprocessCancelled as e:
+        raise export_job.ExportCancelled(str(e)) from e
+    except SubprocessTimeout as e:
+        return _export_failure(f"Heretic did not finish in time: {e}", format="heretic")
+    except SubprocessFailed as e:
+        return _export_failure(f"Heretic failed: {heretic_tool.failure_text(e.output) or e}", format="heretic")
+    except heretic_tool.HereticError as e:
+        return _export_failure(str(e), format="heretic")
+
+    chosen = written.get("chosen") or {}
+    budget = {
+        "budget_met": bool(written.get("budget_met")),
+        "kl_budget": written.get("kl_budget"),
+        "chosen_kl": chosen.get("kl"),
+        "chosen_refusals": chosen.get("refusals"),
+        "chosen_trial": chosen.get("trial"),
+    }
+    if not budget["budget_met"] and not force:
+        # Outside the budget the model is measurably damaged (token soup, endless
+        # loops: see AbliterationRun.kl_budget). Never call that "exported"; move it
+        # aside so the next export starts clean and the files can still be inspected.
+        rejected = out_dir + ".over-budget"
+        shutil.rmtree(rejected, ignore_errors=True)
+        os.replace(out_dir, rejected)
+        return _export_failure(
+            f"Heretic found no trial within the KL budget {budget['kl_budget']}: the closest one "
+            f"(trial {budget['chosen_trial']}) drifted KL {budget['chosen_kl']} with "
+            f"{budget['chosen_refusals']} refusals, which damages the model. It was moved to "
+            f"{rejected}. Tick \"Overwrite existing\" to export such a result anyway.",
+            format="heretic",
+            output_path=rejected,
+            **budget,
+        )
+    result = {
+        "ok": True,
+        "status": "exported",
+        "format": "heretic",
+        "output_path": written["output_path"],
+        "size_bytes": written["size_bytes"],
+        "version": status.version,
+        "ref": status.ref,
+        "files": written["files"],
+        **budget,
+    }
+    if not budget["budget_met"]:
+        result["message"] = (
+            f"Exported outside the KL budget {budget['kl_budget']} (KL {budget['chosen_kl']}) because "
+            "Overwrite existing was ticked; check the model before using it."
+        )
+    else:
+        # What was kept, in the export's own row: without it a finished Heretic export said only "done".
+        result["message"] = heretic_choice_text(budget)
+    return result
+
+
+def heretic_choice_text(budget: dict[str, Any]) -> str:
+    """One line on the kept trial: Heretic's refusal rate on its own test prompts and the KL drift against the budget."""
+    refusals = budget.get("chosen_refusals")
+    kl = budget.get("chosen_kl")
+    if not isinstance(refusals, (int, float)):
+        rate = "refusals unknown"
+    elif refusals <= 1:   # Heretic 2's KeywordRate scorer reports a share of its prompts (0.08 = 8 of 100)
+        rate = f"{float(refusals) * 100:.0f}% refusals"
+    else:
+        rate = f"{refusals:g} refusals"
+    drift = f"KL {float(kl):.3f}" if isinstance(kl, (int, float)) else "KL unknown"
+    return (f"Kept Heretic trial {budget.get('chosen_trial')}: {rate} on Heretic's test prompts, {drift} "
+            f"(budget {budget.get('kl_budget')}).")
+
+
 def validate_export_request(
     run: dict[str, Any],
     *,
     fmt: str = "gguf",
     quants: list[str] | None = None,
     force: bool = False,
+    imatrix: bool = False,
 ) -> dict[str, Any] | None:
     """Cheap pre-flight: a failure payload for a request that cannot succeed.
 
@@ -326,6 +540,21 @@ def validate_export_request(
         )
     if not (run.get("output_path") or "").strip():
         return _export_failure("run has no output_path", format=fmt_norm)
+    if fmt_norm == "heretic":
+        # Heretic is an optional external tool: refuse here, with the reason and the
+        # fix, instead of queueing a job that dies after a multi-GB merge.
+        from finetune_studio.training import heretic_tool
+
+        status = heretic_tool.probe()
+        if not status.usable:
+            return _export_failure(
+                status.hint or "Heretic is not available", format="heretic",
+                install_command="fts heretic install",
+            )
+    if imatrix:
+        refused = _imatrix_refusal(run, fmt_norm, list(quants or DEFAULT_GGUF_QUANTS))
+        if refused is not None:
+            return refused
     if (
         fmt_norm == "gguf"
         and find_gguf_convert_script() is None
@@ -340,6 +569,24 @@ def validate_export_request(
     return None
 
 
+def _imatrix_refusal(run: dict[str, Any], fmt_norm: str, quants: list[str]) -> dict[str, Any] | None:
+    """Why an importance-matrix export cannot run, or None."""
+    if fmt_norm != "gguf":
+        return _export_failure("the importance matrix only applies to a GGUF export", format=fmt_norm)
+    if not imatrix_applies(quants):
+        return _export_failure(
+            "the importance matrix only changes llama-quantize types (Q4_K_M, Q5_K_M, Q6_K, IQ…); "
+            "f16, bf16 and Q8_0 are written without it, so pick at least one of those",
+            format="gguf", quants=quants)
+    if os.environ.get("FTS_SKIP_EXPORT") != "1" and find_llama_imatrix() is None:
+        return _export_failure(LLAMA_IMATRIX_MISSING_MSG, format="gguf")
+    if not imatrix_calibration_text(str(run.get("data_path") or ""), max_chars=1):
+        return _export_failure(
+            "this run's training data file is missing or empty, so there is no text to measure the importance "
+            "matrix on; export without it", format="gguf")
+    return None
+
+
 def export_trained_run(
     run: dict[str, Any],
     *,
@@ -347,15 +594,17 @@ def export_trained_run(
     quants: list[str] | None = None,
     force: bool = False,
     base_model: str | None = None,
+    imatrix: bool = False,
 ) -> dict[str, Any]:
     """Merge if needed, then export ``run`` to ``fmt``.
 
-    Returns a dict with ``ok`` / ``status`` / ``error`` plus format fields.
+    ``imatrix`` (GGUF only) measures an importance matrix on the run's training text and quantizes with it, into
+    ``<output>/gguf-imatrix/``. Returns a dict with ``ok`` / ``status`` / ``error`` plus format fields.
     Failures always set ``ok=False`` and ``status="failed"``.
     """
     fmt_norm = (fmt or "gguf").strip().lower()
     refused = validate_export_request(
-        run, fmt=fmt_norm, quants=quants, force=force,
+        run, fmt=fmt_norm, quants=quants, force=force, imatrix=imatrix,
     )
     if refused is not None:
         return refused
@@ -378,6 +627,13 @@ def export_trained_run(
             "size_human": merge_info.get("size_human", "0 B"),
         }
 
+    if fmt_norm == "heretic":
+        return _export_heretic(
+            merged_path=str(merge_info.get("merged_path") or ""),
+            output_path=output_path,
+            force=force,
+        )
+
     from finetune_studio.training.engine import TrainingConfig, TrainingEngine
 
     quant_list = list(quants) if quants else list(DEFAULT_GGUF_QUANTS)
@@ -386,6 +642,11 @@ def export_trained_run(
     engine.config = cfg
 
     if fmt_norm == "gguf":
+        if imatrix:
+            return _export_gguf(
+                engine, output_path=output_path, quant_list=quant_list, force=force, subdir=IMATRIX_SUBDIR,
+                calibration_text=imatrix_calibration_text(str(run.get("data_path") or "")),
+            )
         return _export_gguf(
             engine,
             output_path=output_path,

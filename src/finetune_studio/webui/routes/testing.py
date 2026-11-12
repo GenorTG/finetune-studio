@@ -29,12 +29,8 @@ from finetune_studio.testing.scoring import rescore_benchmark
 from finetune_studio.testing.suite import load_test_suite
 from finetune_studio.webui import testing_jobs
 from finetune_studio.webui.app import inference_engine
-from finetune_studio.webui.engine_guard import ENGINE_LOCK
 from finetune_studio.webui.live_sse import sse_comment, sse_data, sse_response
-from finetune_studio.webui.testing_models import (
-    resolve_latest_merged_model,
-    target_model,
-)
+from finetune_studio.webui.testing_models import target_model
 
 router = APIRouter()
 _log = logging.getLogger(__name__)
@@ -50,42 +46,7 @@ async def _json_object(request: Request) -> dict:
     return body
 
 
-def _resolve_merged_model(pid: str) -> str | None:
-    """Return path to the most-recent completed run's merged model, or None."""
-    return resolve_latest_merged_model(pid)
-
-
 # ── Engine load / status (unchanged) ─────────────────────────────────────────
-
-
-@router.post("/load")
-async def load_model(request: Request):
-    """Load a model into the global inference engine.
-
-    Accepts ``{"model_path": "..."}`` or ``{"path": "..."}`` (same keys as
-    ``/api/models/load`` / chat-v2) so UI callers don't get ``No model_path``.
-    """
-    body = await _json_object(request)
-    model_path = body.get("model_path") or body.get("path") or ""
-    if not model_path:
-        return JSONResponse({"detail": "No model_path"}, status_code=400)
-    try:
-        from finetune_studio.models.llama_loader import resolve_loader_overrides
-        kwargs = resolve_loader_overrides(body, caller="testing/load", model_path=model_path)
-        if "max_seq_length" in body:
-            kwargs["max_seq_length"] = int(body["max_seq_length"])
-        if "load_in_4bit" in body:
-            kwargs["load_in_4bit"] = bool(body["load_in_4bit"])
-        # Free whatever ModelManager (data-prep's helper, /api/providers/*)
-        # has resident before loading into inference_engine — otherwise both
-        # sit in VRAM simultaneously until someone happens to click Unload.
-        from finetune_studio.models.manager import get_manager
-        await asyncio.to_thread(get_manager().unload)
-        async with ENGINE_LOCK:
-            await asyncio.to_thread(inference_engine.load, model_path, **kwargs)
-        return {"status": "loaded", "model": model_path}
-    except Exception as e:  # noqa: BLE001
-        return JSONResponse({"detail": str(e)}, status_code=500)
 
 
 def _job_progress() -> list[dict[str, Any]]:
@@ -177,6 +138,7 @@ async def run_test_suite(request: Request):
     body = await _json_object(request)
     suite_path = str(body.get("suite_path") or "").strip()
     project_id = str(body.get("project_id") or body.get("pid") or "").strip()
+    request.state.activity_project_id = project_id   # the Activity row's project (not in the path)
     if not suite_path:
         return JSONResponse({"detail": "suite_path required"}, status_code=400)
     if not project_id:
@@ -215,6 +177,7 @@ async def run_brain_test_suite(request: Request):
     body = await _json_object(request)
     suite_path = str(body.get("suite_path") or "").strip()
     project_id = str(body.get("project_id") or body.get("pid") or "").strip()
+    request.state.activity_project_id = project_id   # the Activity row's project (not in the path)
     if not suite_path:
         return JSONResponse({"detail": "suite_path required"}, status_code=400)
     if not project_id:
@@ -262,6 +225,7 @@ async def evaluate_training_dataset(request: Request):
     """
     body = await _json_object(request)
     project_id = str(body.get("project_id") or body.get("pid") or "").strip()
+    request.state.activity_project_id = str(project_id or "")
     if not project_id:
         return JSONResponse({"detail": "project_id required"}, status_code=400)
     _project_or_404(project_id)
@@ -425,14 +389,7 @@ async def delete_test_run(pid: str, bid: str):
     _run_for_project(pid, bid)
     if testing_jobs.is_active(bid):
         return JSONResponse({"detail": "stop the running job first"}, status_code=409)
-
-    def drop() -> None:
-        with db.cursor() as c:
-            c.execute("DELETE FROM case_judgements WHERE benchmark_id = ?", (bid,))
-            c.execute("DELETE FROM benchmark_cases WHERE benchmark_id = ?", (bid,))
-            c.execute("DELETE FROM benchmark_runs WHERE id = ?", (bid,))
-
-    await asyncio.to_thread(drop)
+    await asyncio.to_thread(db.delete_benchmark, bid)
     return {"ok": True}
 
 

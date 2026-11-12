@@ -45,7 +45,7 @@ def _normalize_export_path(raw: str) -> str:
         absolute = "/" + p
         # Run output paths are often stored relative to the server cwd
         # (``output/projects/...``); prefer the absolute reading only when it exists.
-        if not os.path.isdir(absolute) and os.path.isdir(p):
+        if not os.path.exists(absolute) and os.path.exists(p):
             return os.path.normpath(os.path.abspath(p))
         p = absolute
     return os.path.normpath(p)
@@ -74,19 +74,34 @@ def export_belongs_to_project(pid: str, export_path: str) -> bool:
     return False
 
 
+def _export_note(pid: str, path: str) -> str:
+    """What the export job concluded about this output (Heretic: the kept trial, its refusals and KL), else ''."""
+    from finetune_studio.webui import export_service
+
+    for row in export_service.list_exports(pid, limit=1000):   # newest first
+        out = (row.get("output_path") or "").strip()
+        if out and row.get("status") == "done" and os.path.abspath(out) == os.path.abspath(path):
+            return str(row.get("phase_detail") or "")
+    return ""
+
+
 @router.get("/projects/{pid}/models/{export_path:path}/contents")
 async def model_export_contents(pid: str, export_path: str) -> dict:
-    """List top-level files in a trained export directory (max 20)."""
+    """List top-level files in a trained export directory (max 20); a GGUF export is one file, listed as itself."""
     from finetune_studio import db
 
     if not db.get_project(pid):
         raise HTTPException(status_code=404, detail="project not found")
 
     path = _normalize_export_path(export_path)
-    if not path or not os.path.isdir(path):
+    if not path or not os.path.exists(path):
         raise HTTPException(status_code=404, detail="export path not found")
     if not export_belongs_to_project(pid, path):
         raise HTTPException(status_code=403, detail="path not in project")
 
+    note = _export_note(pid, path)
+    if os.path.isfile(path):
+        one = {"name": os.path.basename(path), "size_bytes": os.path.getsize(path), "is_dir": False}
+        return {"path": path, "files": [one], "truncated": False, "note": note}
     files = list_dir_contents(path)
-    return {"path": path, "files": files, "truncated": len(files) >= _MAX_CONTENTS}
+    return {"path": path, "files": files, "truncated": len(files) >= _MAX_CONTENTS, "note": note}

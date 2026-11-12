@@ -1,9 +1,8 @@
-"""Parsing of model replies into tool calls (shared by the guide loop and the legacy route).
+"""Parsing of model replies into tool calls (used by the guide loop and the chat backends).
 
 Local GGUF helpers emit ``<tool_call>{...}</tool_call>`` text; this module strips Qwen-style
 thinking blocks and extracts the calls robustly (closed tag first, brace-balanced fallback for
-an unclosed tag). Moved verbatim from ``webui/routes/data_prep_chat.py``, which re-exports the
-old underscore names for existing callers and tests.
+an unclosed tag).
 """
 from __future__ import annotations
 

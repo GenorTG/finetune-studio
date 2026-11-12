@@ -25,6 +25,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from finetune_studio.data.fs.paths import brain_index_dir, project_dir
+from finetune_studio.smart_brain.scope import DocumentScope
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -56,6 +57,13 @@ class BundleRequest(BaseModel):
 _SAFE_BUNDLE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.ftsrag$")
 
 
+def _identity_load(pid: str) -> dict | None:
+    from finetune_studio.smart_brain import identity as brain_identity
+
+    saved = brain_identity.load(pid)
+    return saved if brain_identity.is_set(saved) else None
+
+
 def _bundle_dir(pid: str) -> Path:
     return project_dir(pid) / "brain-bundles"
 
@@ -80,7 +88,7 @@ async def brain_bundle(pid: str, body: BundleRequest | None = None):
     out = _bundle_dir(pid) / f"{stem}{sb.BUNDLE_EXT}"
     try:
         path, generated = await asyncio.to_thread(
-            sb.export_secure_bundle, corpus, out, req.passphrase or None)
+            sb.export_secure_bundle, corpus, out, req.passphrase or None, identity=_identity_load(pid))
     except ValueError as e:
         return JSONResponse({"detail": str(e)}, status_code=422)
     except Exception as e:
@@ -157,8 +165,16 @@ async def brain_import(pid: str, file: UploadFile, overwrite: bool = False,
     await asyncio.to_thread(_stage)
 
     index = BrainIndex(_corpus_dir(pid))
+    from finetune_studio.smart_brain import package_import
+
+    opened: dict | None = None
     try:
-        if suffix == sb.BUNDLE_EXT:
+        if suffix != sb.BUNDLE_EXT and await asyncio.to_thread(package_import.is_server_package, tmp_path):
+            if index.exists() and not overwrite:
+                raise FileExistsError(f"Corpus already exists at {index.dir}; pass overwrite=True to replace.")
+            opened = await asyncio.to_thread(package_import.import_package, pid, tmp_path, passphrase or None,
+                                             overwrite=True)
+        elif suffix == sb.BUNDLE_EXT:
             if not passphrase:
                 return JSONResponse({"detail": "this bundle is encrypted; a passphrase is required"},
                                     status_code=400)
@@ -167,10 +183,15 @@ async def brain_import(pid: str, file: UploadFile, overwrite: bool = False,
                     f"Corpus already exists at {index.dir}; pass overwrite=True to replace.")
             await asyncio.to_thread(sb.import_secure_bundle, tmp_path, passphrase,
                                     index.dir, overwrite=True)
-            stats = index.read_manifest().to_json()   # counts only: no embedder load
-            stats = {"documents": stats.get("documents", 0), "chunks": stats.get("chunks", 0)}
         else:
-            stats = index.import_bundle(tmp_path, overwrite=overwrite)
+            await asyncio.to_thread(index.import_bundle, tmp_path, overwrite=overwrite)
+        from finetune_studio.knowledge import index as knowledge_index
+
+        stats = await asyncio.to_thread(knowledge_index.register_import, pid, bundle=filename)
+        if opened is not None:
+            stats = {**stats, "package": opened}
+        from finetune_studio.smart_brain import identity as brain_identity
+        await asyncio.to_thread(brain_identity.adopt_imported, pid, index.dir)
     except FileNotFoundError as e:
         return JSONResponse({"detail": str(e)}, status_code=400)
     except FileExistsError as e:
@@ -220,6 +241,18 @@ class ExportConfigPatch(BaseModel):
     top_k: int | None = None
     encrypt: bool | None = None
     kdf_log_n: int | None = None
+    semantic_search: bool | None = None
+    keyword_search: bool | None = None
+    answer_enabled: bool | None = None
+    llm_provider: str | None = None
+    llm_base_url: str | None = None
+    llm_model: str | None = None
+    llm_headers: dict[str, str] | None = None
+    llm_body: dict[str, Any] | None = None
+    include_originals: bool | None = None
+    originals_inline_max_mb: int | None = None
+    hide_file_names: bool | None = None
+    llm_connection: str | None = None   # copy endpoint, model, headers and body from a Settings connection (no key)
 
 
 class ExportConfigSave(BaseModel):
@@ -233,10 +266,33 @@ class StandaloneRequest(ExportConfigPatch):
 
     name: str | None = None
     passphrase: str | None = Field(default=None, repr=False)
+    scope: DocumentScope | None = None    # which documents go in (default: all)
+    new_version_of: str | None = None     # a package id from this project's package history: keep it, bump the version
+    version: str | None = None            # override the bumped version
 
 
 def _patch_values(p: ExportConfigPatch) -> dict[str, Any]:
-    return {k: v for k, v in p.model_dump().items() if v is not None}
+    values = {k: v for k, v in p.model_dump().items()
+              if v is not None and k not in ("scope", "name", "passphrase", "new_version_of", "version")}
+    conn = values.pop("llm_connection", None)
+    if conn:
+        values = {**connection_llm_settings(conn), **values}   # a typed endpoint or model wins
+    return values
+
+
+def connection_llm_settings(connection_id: str) -> dict[str, Any]:
+    """Answer-model settings of a Settings → AI assistant API connection: endpoint, model, headers, body.
+
+    The API key is never copied (a package is handed to other people): it is ``RAG_LLM_API_KEY`` where it runs.
+    """
+    from finetune_studio.models.manager import get_manager
+
+    row = get_manager().get_provider(connection_id)
+    if row is None or row.get("kind") != "openai_compat":
+        raise HTTPException(status_code=422, detail=f"{connection_id!r} is not an API connection (Settings → AI assistant)")
+    extra = row.get("extra") or {}
+    return {"llm_base_url": (row.get("base_url") or "").rstrip("/"), "llm_model": row.get("model_id") or "",
+            "llm_headers": dict(extra.get("headers") or {}), "llm_body": dict(extra.get("body") or {})}
 
 
 def _require_project(pid: str) -> dict:
@@ -281,8 +337,69 @@ async def brain_export_config_save(pid: str, body: ExportConfigSave) -> dict[str
     return _export_config_payload(pid)
 
 
+@router.get("/{pid}/brain/packages")
+def brain_packages(pid: str) -> dict[str, Any]:
+    """This project's package history: every package id with its versions (newest first), and the latest
+    version's change report (``CHANGES.md``)."""
+    from finetune_studio.smart_brain import package_meta as pm
+
+    _require_project(pid)
+    rows = pm.read_history(_package_dir(pid))
+    last = max(rows, key=lambda r: r.get("created") or "", default=None)
+    return {"packages": pm.packages(_package_dir(pid)),
+            "latest": ({k: last.get(k) for k in ("package_id", "version", "parent_version", "created", "filename",
+                                                  "origin", "changes")} | {"changes_md": last.get("changes_md") or ""})
+            if last else None}
+
+
+@router.post("/{pid}/brain/package-base")
+async def brain_package_base(pid: str, file: UploadFile, passphrase: str = Form("")):
+    """Add an exported package archive (+ its passphrase when encrypted) to the history, as the base for
+    "New version of an existing package". Only its version record and document list are kept, never its content."""
+    from finetune_studio.smart_brain import package_import
+    from finetune_studio.smart_brain import package_meta as pm
+
+    _require_project(pid)
+    staging = project_dir(pid) / "brain-import-staging"
+    staging.mkdir(parents=True, exist_ok=True)
+    name = Path(file.filename or "package.tar.gz").name
+    tmp = staging / f"base-{time.time_ns()}-{re.sub(r'[^A-Za-z0-9._-]+', '-', name)}"
+
+    def _stage() -> None:
+        with open(tmp, "wb") as out:
+            shutil.copyfileobj(file.file, out)
+
+    await asyncio.to_thread(_stage)
+    try:
+        record = await asyncio.to_thread(package_import.read_record, tmp, passphrase or None, staging)
+    except Exception as e:  # wrong passphrase, not a package, damaged archive: the reason is what the user needs
+        raise HTTPException(status_code=400, detail=f"cannot read that package: {e}") from e
+    finally:
+        tmp.unlink(missing_ok=True)
+    await asyncio.to_thread(pm.add_history, _package_dir(pid), {**record, "origin": "uploaded", "filename": name,
+                                                                "name": name})
+    return {k: record.get(k) for k in ("package_id", "version", "parent_version", "created")} | {
+        "documents": len(record.get("documents") or [])}
+
+
+@router.get("/{pid}/brain/package-documents")
+def brain_package_documents(pid: str) -> dict[str, Any]:
+    """The index's documents with their folder path and tags, folders and tags with counts: the Export card's
+    picker for a package's audience scope."""
+    from finetune_studio.smart_brain import scope as brain_scope
+
+    _require_project(pid)
+    corpus = _corpus_dir(pid)
+    if not (corpus / "manifest.json").is_file():
+        # Not built yet: nothing to pick from. An empty overview, not a 404 the Smart Brain page logged as an error
+        # on every visit before the first build.
+        return {**brain_scope.overview([]), "indexed": False}
+    return {**brain_scope.overview(brain_scope.documents(corpus, pid)), "indexed": True}
+
+
 def _package_dir(pid: str) -> Path:
-    return Path("output") / "projects" / pid / "brain-packages"
+    from finetune_studio.smart_brain.package_meta import package_dir
+    return package_dir(pid)
 
 
 _SAFE_PKG_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.(tar\.gz|tar|zip)$")
@@ -301,6 +418,7 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
     from fastapi.responses import JSONResponse
 
     from finetune_studio.smart_brain import export_config as ec
+    from finetune_studio.smart_brain import identity as brain_identity
     from finetune_studio.smart_brain.server_package import build_package
 
     proj = _require_project(pid)
@@ -311,21 +429,54 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
             status_code=404,
             detail="no corpus yet — build one first (section 2 on this page)",
         )
+    from finetune_studio.knowledge.lint import SUPERSEDED_HINT, lint, superseded_files
+
+    filenames = superseded_files(await asyncio.to_thread(lint, pid))
+    if filenames:
+        raise HTTPException(
+            status_code=409,
+            detail="Review superseded documents before packaging: " + ", ".join(filenames) + ". " + SUPERSEDED_HINT,
+        )
     try:
         cfg = ec.effective_config(pid, _patch_values(req))
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
+    from finetune_studio.smart_brain import package_meta as pm
+
     title = req.name or proj["name"] or pid
-    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", title).strip(".-")[:48] or "project"
     out_dir = _package_dir(pid)
-    suffix = "-with-models" if cfg.include_models else ""
-    plain = "" if cfg.encrypt else "-PLAINTEXT"
+    base = None
+    if req.new_version_of:
+        base = pm.latest(out_dir, req.new_version_of)
+        if base is None:
+            raise HTTPException(status_code=404, detail=f"no package {req.new_version_of!r} in this project's history")
+    from finetune_studio.smart_brain import originals as brain_originals
+    from finetune_studio.smart_brain import scope as brain_scope
+
+    docs = await asyncio.to_thread(brain_scope.documents, corpus, pid)
+    try:
+        keep, scope_record = brain_scope.resolve(req.scope, docs)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    probes = (await asyncio.to_thread(brain_scope.probe_queries, corpus, {d.document_id for d in docs} - keep)
+              if keep is not None else {})
+    originals = await asyncio.to_thread(brain_originals.collect, corpus, pid) if cfg.include_originals else []
+    doc_rows = await asyncio.to_thread(pm.document_manifest, corpus, pid, keep)
+    try:
+        record = pm.make_record(base=base, documents=doc_rows, version=req.version)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    diff = pm.changes(base["documents"] if base else None, doc_rows)
+    record["changes"] = pm.summary(diff)
+    changes_md = pm.changes_markdown(record, diff)
     ext = "zip" if cfg.archive_format == "zip" else cfg.archive_format
-    out_path = out_dir / f"{safe}-smart-brain{suffix}{plain}.{ext}"
+    out_path = out_dir / pm.package_filename(title, record, ext=ext, models=cfg.include_models, encrypted=cfg.encrypt)
     try:
         result = await asyncio.to_thread(
             build_package, corpus, out_path, name=title, config=cfg,
-            passphrase=(req.passphrase or None))
+            passphrase=(req.passphrase or None), identity=brain_identity.package_record(pid), originals=originals,
+            documents=keep, scope=scope_record, package=record, changes_md=changes_md,
+            changes_md_public=pm.changes_markdown(record, diff, names=False))
     except FileNotFoundError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except ValueError as e:
@@ -333,8 +484,26 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
     except Exception as e:
         log.exception("rag package build failed")  # never includes the passphrase
         raise HTTPException(status_code=500, detail=f"package build failed: {type(e).__name__}") from e
+    from finetune_studio.knowledge.readiness import record_package
+
+    # The passphrase is only in memory here: the check gets it through the child's environment, never on disk.
+    from finetune_studio.smart_brain.server_package import (
+        studio_models_for,
+        verify_package,
+    )
+
+    verified = await asyncio.to_thread(verify_package, result.path, result.passphrase or req.passphrase or None,
+                                       studio_models=studio_models_for(corpus),
+                                       expected_originals={o.document_id: o.sha256 for o in originals},
+                                       out_of_scope=probes)
+    await asyncio.to_thread(pm.add_history, out_dir, {
+        **record, "origin": "exported", "filename": result.path.name, "name": title, "scope": scope_record["label"],
+        "encrypted": result.encrypted, "changes_md": changes_md})
+    await asyncio.to_thread(record_package, pid, filename=result.path.name, size=result.size, encrypted=result.encrypted,
+                            identity=brain_identity.is_set(brain_identity.load(pid)), verified=verified)
     return JSONResponse(
         {
+            "verified": verified,
             "filename": result.path.name,
             "download_url": f"/api/projects/{pid}/brain/standalone/download?file={result.path.name}",
             "size": result.size,
@@ -342,6 +511,12 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
             # Shown once; only set when generated here.
             "passphrase": result.passphrase,
             "config": cfg.model_dump(),
+            "layers": result.layers,
+            "original_files": sum(1 for o in originals if keep is None or o.document_id in keep),
+            "scope": scope_record,
+            "package": {k: record[k] for k in ("package_id", "version", "parent_version", "created")},
+            "changes": record["changes"],
+            "identity": brain_identity.is_set(brain_identity.load(pid)),
         },
         headers={"Cache-Control": "no-store"},
     )

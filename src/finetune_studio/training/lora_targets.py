@@ -106,21 +106,21 @@ def discover_lora_targets(model: Any, rank: int) -> LoraTargets:
     """
     head = model.get_output_embeddings() if hasattr(model, "get_output_embeddings") else None
     picked: list[str] = []
-    skipped: list[str] = []
+    others: list[str] = []   # every other module: a short leaf name matches these too, whatever their type
     for name, module in model.named_modules():
-        if not name or module is head:
+        if not name:
             continue
-        dims = _linear_dims(module)
-        if dims is None:
-            continue
-        (skipped if _skip_reason(name, dims, rank) else picked).append(name)
+        dims = None if module is head else _linear_dims(module)
+        (picked if dims is not None and not _skip_reason(name, dims, rank) else others).append(name)
     if not picked:
         raise ValueError(
             f"{type(model).__name__} has no linear layer a LoRA adapter can train "
             "(only output head, vision/audio, router or tiny layers were found)."
         )
     leaves = {n.rsplit(".", 1)[-1] for n in picked}
-    modules = sorted(leaves) if leaves.isdisjoint(n.rsplit(".", 1)[-1] for n in skipped) else sorted(picked)
+    # A wrapper in another tower can share a leaf name without being a Linear itself (Gemma 4's vision ``q_proj`` is a
+    # ``Gemma4ClippableLinear``): matched by name, PEFT refuses it. The output head counts here as well.
+    modules = sorted(leaves) if leaves.isdisjoint(n.rsplit(".", 1)[-1] for n in others) else sorted(picked)
     return LoraTargets(modules=modules, parameters=_expert_parameters(model))
 
 

@@ -1,0 +1,18 @@
+kl_divergence: computing over 40 chunks, n_ctx=512, batch_size=2048, n_seq=4
+chunk             PPL               ln(PPL(Q)/PPL(base))          KL Divergence              Δp RMS            Same top p
+Cor(ln(PPL(Q)), ln(PPL(base))):  99.30%
+Mean ln(PPL(Q)/PPL(base))     :   0.015793 ±   0.003327
+Mean    KLD:   0.031528 ±   0.000816
+Maximum KLD:   1.901210
+99.9%   KLD:   0.941121
+99.0%   KLD:   0.339378
+95.0%   KLD:   0.153348
+90.0%   KLD:   0.098576
+Median  KLD:   0.000272
+10.0%   KLD:   0.000000
+ 5.0%   KLD:  -0.000000
+ 1.0%   KLD:  -0.000002
+ 0.1%   KLD:  -0.000003
+Minimum KLD:  -0.000005
+RMS Δp    :  4.357 ± 0.139 %
+Same top p: 94.363 ± 0.228 %

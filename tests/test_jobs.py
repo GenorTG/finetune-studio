@@ -54,6 +54,35 @@ def test_stop_ends_the_job_cooperatively() -> None:
     assert d["exit"]["status"] == "stopped" and d["exit"]["code"] == 3
 
 
+def test_a_kind_that_raises_stopped_ends_stopped_in_a_real_process() -> None:
+    """The runner runs as ``__main__``; a kind's ``Stopped`` (imported from the package module) must still be caught:
+    the stopped Smart Brain build was recorded 'failed' live (2026-10-28)."""
+    spec = _spec(steps=200, delay_s=0.05, raise_stopped=True)
+    launch.start(spec)
+    deadline = time.monotonic() + 30
+    while (launch.describe(spec.id)["state"] or {}).get("step", 0) < 2:
+        assert time.monotonic() < deadline
+        time.sleep(0.05)
+    launch.stop(spec.id)
+    ex = launch.wait(spec.id, timeout=30)["exit"]
+    assert ex["status"] == "stopped" and ex["code"] == 3, ex
+
+
+def test_a_stopped_job_exits_even_when_a_thread_is_left_running() -> None:
+    """A stopped download left snapshot_download's executor threads running, and a normal exit joined them: the
+    process kept downloading the whole repository after the row said cancelled. The runner must leave anyway."""
+    spec = _spec(steps=200, delay_s=0.1, leave_thread_s=300)
+    launch.start(spec)
+    deadline = time.monotonic() + 60
+    while (launch.describe(spec.id)["state"] or {}).get("step", 0) < 2:
+        assert time.monotonic() < deadline
+        time.sleep(0.1)
+    launch.stop(spec.id)
+    d = launch.wait(spec.id, timeout=20)      # a joined 300 s thread would hold the process past this
+    assert d["exit"]["status"] == "stopped" and d["exit"]["code"] == 3
+    assert not store.pid_alive(spec.id)
+
+
 def test_a_hard_death_is_reported_as_a_crash_not_running_forever() -> None:
     spec = _spec(steps=5, delay_s=0.05, crash_at=2)
     launch.start(spec)

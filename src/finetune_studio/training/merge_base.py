@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 from pathlib import Path
 
 # Strip longest suffixes first.
@@ -258,3 +259,24 @@ def resolve_merge_base(base_model: str) -> str:
         f"Download the 16-bit {bare} (e.g. {suggested}) on the HF models page, "
         f"then re-run merge."
     )
+
+
+_PROCESSOR_FILES = ("preprocessor_config.json", "processor_config.json", "video_preprocessor_config.json")
+
+
+def copy_processor_files(base_path: str, merged_dir: str) -> list[str]:
+    """A merged model that keeps its vision tower also needs the base's image/video processor settings.
+
+    ``save_pretrained`` writes neither: the merged Gemma 3 could not be opened by anything that builds a processor
+    (Heretic: "Can't load image processor"). A merge that saved text only has no ``vision_config`` and needs none.
+    """
+    config = _read_config_dict(merged_dir) or {}
+    if "vision_config" not in config:
+        return []
+    copied = []
+    for name in _PROCESSOR_FILES:
+        src = Path(base_path) / name
+        if src.is_file():
+            shutil.copy(src, Path(merged_dir) / name)
+            copied.append(name)
+    return copied

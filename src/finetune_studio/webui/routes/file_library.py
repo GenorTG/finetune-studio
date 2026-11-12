@@ -88,12 +88,31 @@ async def _stage_upload(pid: str, upload: UploadFile) -> tuple[Path, int, str]:
     return path, size, digest.hexdigest()
 
 
+def _upload_base_folder(pid: str, folder_id: str | None, folder_path: str | None) -> str:
+    """The folder path an upload goes into: ``folder_path`` (cleaned), else the user folder ``folder_id`` names
+    (an auto/by-type folder or an unknown id means none), else ``""``."""
+    if folder_path and folder_path.strip():
+        path = fl.folder_path(folder_path)
+        if not path:
+            raise HTTPException(status_code=400, detail="invalid folder_path")
+        return path
+    if not folder_id:
+        return ""
+    with db.cursor() as c:
+        row = c.execute("SELECT kind, name FROM file_folders WHERE id = ? AND project_id = ?",
+                        (folder_id, pid)).fetchone()
+    return str(row["name"]) if row and row["kind"] == "user" else ""
+
+
 def _parse_source_background(pid: str, source_id: str) -> None:
     """Parse one staged upload after the HTTP response has been sent (a bad file ends as an ``error`` source)."""
     try:
-        sources.parse(pid, source_id)
+        source = sources.parse(pid, source_id)
     except Exception:
         log.exception("background parse failed for %s/%s", pid, source_id)
+        return
+    from finetune_studio.knowledge import pictures
+    pictures.after_parse(pid, source)    # a Vision reader is set: read its pictures (charts, scans) now
 
 
 def _stage_for_parse(pid: str, file_id: str, background: BackgroundTasks, item: dict) -> None:
@@ -140,10 +159,16 @@ async def upload_files(
     background: BackgroundTasks,
     files: list[UploadFile] = File(...),  # noqa: B008  # FastAPI requires File() default at def site
     folder_id: str | None = Form(None),
+    folder_path: str | None = Form(None),
+    paths: list[str] = Form([]),  # noqa: B008
     uploaded_by: str = Form("user"),
 ):
     """Upload one or more files (curl -F files=@x -F files=@y; the field is
     always ``files``, also for a single file).
+
+    Folders: ``folder_id`` (a user folder) or ``folder_path`` (``public/faq``, created when missing) is where the
+    files go; ``paths`` (one per file, in order: the browser's relative path of a picked or dropped folder,
+    ``public/faq/returns.md``) or a file name with ``/`` in it puts each file in that sub-folder below it.
 
     For bulk: each file is processed independently; the response is a
     structured report listing uploaded, duplicate, and error items.
@@ -160,9 +185,13 @@ async def upload_files(
 
     report: list[dict] = []
     counts = {"uploaded": 0, "duplicates_skipped": 0, "errors": 0}
+    base = _upload_base_folder(pid, folder_id, folder_path)
 
-    for up in files:
-        name = up.filename or "unnamed"
+    for i, up in enumerate(files):
+        rel = (paths[i] if i < len(paths) and paths[i] else up.filename or "unnamed").replace("\\", "/")
+        name = rel.rsplit("/", 1)[-1] or "unnamed"
+        sub = fl.folder_path(rel.rsplit("/", 1)[0]) if "/" in rel else ""
+        target_folder = "/".join(p for p in (base, sub) if p)
         staged_path: Path | None = None
         try:
             staged_path, size_bytes, h = await _stage_upload(pid, up)
@@ -219,19 +248,13 @@ async def upload_files(
             counts["errors"] += 1
             continue
 
-        # Optionally move to a user folder (if folder_id was provided and is
-        # a USER folder, not an auto raw folder).
-        if folder_id:
-            with db.cursor() as c:
-                row = c.execute(
-                    "SELECT kind FROM file_folders WHERE id = ? AND project_id = ?",
-                    (folder_id, pid),
-                ).fetchone()
-            if row and row["kind"] == "user":
-                fl.move_file_to_folder(pid, meta.file_id, folder_id)
+        # Into its user folder (the base folder, or the sub-folder its relative path names), created when missing.
+        if target_folder:
+            fl.move_file_to_folder(pid, meta.file_id, fl.ensure_folder(pid, target_folder)["id"])
 
         item = {
             "filename": name,
+            "folder": target_folder,
             "status": "uploaded",
             "file_id": meta.file_id,
             "mime_type": meta.mime_type,

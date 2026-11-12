@@ -1,11 +1,11 @@
 ---
 id: testing
-title: Testing page (step 4)
+title: Testing page (step 3)
 page: testing
 keywords: test testing quiz suite pass rate from memory with context score scores difference recall retrieved grounded run judge judging ai judge human review verdict pass partial fail awaiting auto-judge transcripts answer key rag suite held-out validation memorization leakage results did it learn
 ---
 ## Purpose
-Did the model actually learn your material? A test is two separate steps. **1 · Run** asks the model every question and saves exactly what it answered next to the correct answer (the raw transcript). **2 · Judge** is a separate pass: an AI judge (any model you connected: the helper seat, an API provider) or **you** read each saved case and decide pass / partial / fail. Nothing is scored by string matching, so a correct answer worded differently still passes.
+Did the model actually learn your material? A test is two separate steps. **1 · Run** asks the model every question and saves exactly what it answered next to the correct answer (the raw transcript). **2 · Judge** is a separate pass: an AI judge (any model you connected: the main assistant, an API provider) or **you** read each saved case and decide pass / partial / fail. Nothing is scored by string matching, so a correct answer worded differently still passes.
 
 ## Workflow
 1. Pick **What to test**: *Project quiz* (a quiz file or the quiz the wizard built), *Smart Brain* (look the answer up in the project's Smart Brain, answer only from what it finds) or *Dataset check* (questions built from the training dataset).
@@ -16,6 +16,7 @@ Did the model actually learn your material? A test is two separate steps. **1 ·
 6. **Export JSON / JSONL** gives the raw transcripts and all judgements for outside review.
 
 ## Key controls
+- `#t-bq-btn` — Smart Brain mode: write a quiz from the indexed documents with the AI assistant, including questions they do not answer. Items whose answer is not in their passage are dropped; building again replaces the last quiz.
 - `[name="t-mode"]` — project quiz, Smart Brain or dataset check.
 - `#t-model` — model to test.
 - `#t-suite` — question suite.

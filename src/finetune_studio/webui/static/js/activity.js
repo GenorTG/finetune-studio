@@ -121,7 +121,13 @@
         const pct = Math.round((t.progress || 0) * 100);
         const isDone = t.status === "done" || t.status === "ready" || t.status === "completed";
         const isErr = t.status === "error";
-        const isActive = !isDone && !isErr;
+        const isCancelled = t.status === "cancelled";
+        const isActive = !isDone && !isErr && !isCancelled;
+        // A running model download can be stopped from here (POST /api/hf/download/cancel).
+        const cancelBtn = t.kind === "download" && isActive && t.id
+          ? `<button type="button" class="btn sm activity-cancel" data-dl-cancel="${escapeHtml(t.id)}"
+                     title="Stop this download; the files already fetched stay in the cache">Cancel download</button>`
+          : "";
         const projectBadge = t.project_name
           ? `<span class="activity-proj">${escapeHtml(t.project_name)}</span>`
           : "";
@@ -138,6 +144,7 @@
             <span class="activity-chevron" aria-hidden="true">▸</span>
           </div>
           <div class="activity-msg activity-msg-short">${escapeHtml(shortMsg || "")}</div>
+          ${cancelBtn}
           <div class="activity-expand">
             <div class="activity-msg activity-msg-full">${escapeHtml(t.message || "")}</div>
             ${
@@ -200,6 +207,20 @@
     });
   }
 
+  async function cancelDownload(btn) {
+    btn.disabled = true;
+    try {
+      const r = await fetch("/api/hf/download/cancel?job_id=" + encodeURIComponent(btn.dataset.dlCancel), { method: "POST" });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || ("HTTP " + r.status));
+      window.fts?.notify?.("Download " + (d.status || "cancelled"), "success");
+    } catch (e) {
+      btn.disabled = false;
+      window.fts?.notify?.("Could not cancel the download: " + (e.message || e), "error");
+    }
+    refresh();
+  }
+
   function updateBadge(count) {
     if (count > 0) {
       countEl.textContent = String(count);
@@ -240,9 +261,21 @@
     return true;
   }
 
+  // A page that shows a task's result (Model Library's downloaded list) listens for "fts:task-finished" instead of
+  // polling: it fires once when a task seen running or queued reaches any other status.
+  const _wasActive = new Set();
+  function announceFinished(tasks) {
+    for (const t of tasks) {
+      const key = (t.kind || "") + ":" + (t.id || "");
+      if (t.status === "running" || t.status === "queued") { _wasActive.add(key); continue; }
+      if (_wasActive.delete(key)) document.dispatchEvent(new CustomEvent("fts:task-finished", { detail: t }));
+    }
+  }
+
   function applySnapshot(d) {
     if (!d || typeof d !== "object") return;
     lastTasks = d.tasks || [];
+    announceFinished(lastTasks);
     updateBadge(d.active_count || 0);
 
     // Keep the sub-label accurate even while the drawer is closed so the
@@ -305,10 +338,30 @@
     }
   });
 
+  // Cancel download: a running download re-renders the drawer every second (its byte count changes), so a
+  // click whose press and release straddle a re-render lands on a removed button and is lost. Act on the
+  // press, delegated from the body that survives re-renders; keyboard activation (click with detail 0) too.
+  if (bodyEl) {
+    bodyEl.addEventListener("pointerdown", (ev) => {
+      const btn = ev.target.closest("[data-dl-cancel]");
+      if (!btn || ev.button !== 0 || btn.disabled) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      cancelDownload(btn);
+    });
+    bodyEl.addEventListener("click", (ev) => {
+      const btn = ev.target.closest("[data-dl-cancel]");
+      if (!btn) return;
+      ev.stopPropagation();
+      if (ev.detail === 0 && !btn.disabled) cancelDownload(btn);
+    });
+  }
+
   // SSE with silent /api/activity poll fallback (app.js always loads first).
   window.fts.subscribe("/api/activity/events", applySnapshot, {
     pollUrl: "/api/activity",
     fallbackMs: 5000,
+    persistent: true,   // the drawer lives for the whole document, across SPA navigation
   });
 
   // base.html filter <select onchange="activityApplyFilter()">

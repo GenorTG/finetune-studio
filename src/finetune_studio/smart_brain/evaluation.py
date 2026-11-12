@@ -483,27 +483,6 @@ def collect_brain_answers(
     return answers
 
 
-def llm_as_judge(
-    mgr: Any,
-    brain_query: BrainSearch,
-    qa: list[QAEntry],
-    top_k: int = 5,
-    max_tokens: int = 400,
-    temperature: float = 0.0,
-) -> list[FactCoverageResult]:
-    """Back-compat wrapper: retrieve + answer + must_contain check.
-
-    Despite the historical name, this does **not** invoke an LLM judge —
-    it checks that required fact strings appear in the model answer.
-    Prefer ``collect_brain_answers`` + ``evaluate_fact_coverage``.
-    """
-    answers = collect_brain_answers(
-        mgr, brain_query, qa,
-        top_k=top_k, max_tokens=max_tokens, temperature=temperature,
-    )
-    return evaluate_fact_coverage(answers, qa)
-
-
 # ── Portability round-trip ─────────────────────────────────────────────
 
 def portability_roundtrip(

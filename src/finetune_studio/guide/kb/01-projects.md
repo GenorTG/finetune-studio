@@ -20,7 +20,7 @@ A project groups its files and knowledge (parsed text, Q&A pairs), datasets, tra
 - `#import-file` — pick an exported project archive to import.
 
 ## What to check
-The project id (8 hex chars) shown on the card is what every URL and API uses. Deleting a project also removes its outputs on disk.
+The project id (8 hex chars) shown on the card is what every URL and API uses. Deleting a project is permanent: it removes the file library, datasets, Smart Brain index, training outputs, and exported models from disk as well as the project record.
 
 ## Common mistakes
 Using a project you care about for experiments — create a throwaway one instead.

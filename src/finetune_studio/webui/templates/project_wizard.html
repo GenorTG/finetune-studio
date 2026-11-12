@@ -7,7 +7,7 @@
 {% block content %}
 <div class="page-head">
   <h1>⚡ Quick work</h1>
-  <div class="sub">Upload <b>files</b>, then get a <b>trained model</b> (Quick start runs the steps in order) or a <b>Smart Brain</b> that answers from the files (step 1b, no training) from this one page.</div>
+  <div class="sub">Upload <b>files</b> and build a <b>Smart Brain</b> that answers from them, on this one page. Below that, optionally train a model too: Quick start runs those steps in order.</div>
   <details class="page-more"><summary>More about this page</summary>
   <div class="sub">Quick start chains files &rarr; question-answer pairs &rarr; dataset &rarr; training &rarr; test &rarr; pin, one step at a time. &#128218; A Smart Brain is one click and needs no training. &#128736; Step by step shows every control separately, in any order.</div>
   </details>
@@ -27,7 +27,7 @@
     <div class="card-head"><div>
       <div class="card-title">Step 1 · Upload your files</div>
       <div class="card-sub text-dim">
-        Put the documents the model should learn from into the project —
+        Put your documents into the project —
         PDF, Word, text, markdown, code, CSV. They are parsed automatically.
       </div>
     </div><span class="pill outline" id="wiz-files-pill">…</span></div>
@@ -40,11 +40,10 @@
 
   <div class="card mb-2 border-cyan" id="wiz-step-brain">
     <div class="card-head"><div>
-      <div class="card-title">Step 1b · Or answer from the files now (Smart Brain)</div>
+      <div class="card-title">Step 2 · Build the Smart Brain</div>
       <div class="card-sub text-dim">
-        Skips training entirely: every parsed file becomes a searchable
-        knowledge index you can query and chat with right away. Independent of
-        the steps below — do both, in any order.
+        Every parsed file becomes a searchable knowledge index you can ask
+        questions right away, with sources. No training needed.
       </div>
     </div><span class="pill outline" id="wiz-brain-pill">…</span></div>
     <div class="text-sm" id="wiz-brain-sub">checking…</div>
@@ -55,11 +54,13 @@
     </div>
   </div>
 
+  <h2 class="brain-section-label">Optional: train a model on these files</h2>
+
   <div class="card mb-2" id="wiz-step-qa">
     <div class="card-head"><div>
-      <div class="card-title">Step 2 · Make question-answer pairs</div>
+      <div class="card-title">Train 1 · Make question-answer pairs</div>
       <div class="card-sub text-dim">
-        Each parsed document gets a checklist of its data points; the helper
+        Each parsed document gets a checklist of its data points; the assistant
         writes pairs until every point is stated, then quick mode approves them.
         Want to review them first? Open the pairs page.
       </div>
@@ -73,26 +74,26 @@
 
   <div class="card mb-2" id="wiz-step-dataset">
     <div class="card-head"><div>
-      <div class="card-title">Step 3 · Build the dataset</div>
+      <div class="card-title">Train 2 · Build the dataset</div>
       <div class="card-sub text-dim">
-        Turns the approved pairs into one training-ready dataset file.
-        Uncovered passages are filled with extractive pairs first, so the
-        dataset covers every source. Extractive pairs are text fragments from
-        your files, not written Q&amp;A — generate pairs with a helper model
-        (step 2) for a better dataset, and for a quiz that makes sense.
+        Turns the approved pairs into one training-ready dataset file. Every
+        data point of every file has to be stated by an approved pair (or
+        excluded) first. Quick start asks the assistant to fill points that are
+        still open; if some stay open it stops here and offers to export the
+        approved pairs anyway or to finish them on the pairs page.
       </div>
     </div><span class="pill outline" id="wiz-dataset-pill">…</span></div>
     <div class="text-sm" id="wiz-dataset-sub">checking…</div>
     <div class="mt-2 text-sm" id="wiz-dataset-gate" role="alert" hidden></div>
     <div class="flex gap-2 wrap mt-2">
-      <button class="btn primary" type="button" id="wiz-dataset-btn" onclick="wizExport()">Build dataset</button>
+      <button class="btn primary" type="button" id="wiz-dataset-btn" onclick="wizExport()" title="Approve at least one Q&A pair first" disabled>Build dataset</button>
       <button class="btn sm" type="button" onclick="wizRefresh('dataset')">Refresh</button>
     </div>
   </div>
 
   <div class="card mb-2" id="wiz-step-train">
     <div class="card-head"><div>
-      <div class="card-title">Step 4 · Train the adapter (LoRA)</div>
+      <div class="card-title">Train 3 · Train the adapter (LoRA)</div>
       <div class="card-sub text-dim">
         Fine-tunes a base model on your approved pairs with the chosen preset: it learns how to answer
         (tone, format, a few key facts), not a whole document set — pair it with the Smart Brain for the facts.
@@ -106,12 +107,13 @@
         <select id="wiz-base-model" aria-label="Base model" class="select" {% if not models %}disabled{% endif %}>
           {% if models %}
             {% for model in models %}
-            <option value="{{ model.path }}" {% if model.path == project.base_model %}selected{% endif %}>{{ model.name }} ({{ model.format }}, {{ model.size_gb }} GB)</option>
+            <option value="{{ model.path }}" data-size-gb="{{ model.size_gb }}" {% if model.path == project.base_model %}selected{% endif %}>{{ model.name }} ({{ model.format }}, {{ model.size_gb }} GB)</option>
             {% endfor %}
           {% else %}
-            <option value="" selected disabled>No trainable base models found — put one in the models folder</option>
+            <option value="" selected disabled>No base model yet: download one first</option>
           {% endif %}
         </select>
+        {% if not models %}<div class="text-xs dim mt-1">Training needs a base model. <a href="/models/explore" data-link>Open the Model library →</a></div>{% endif %}
       </div>
       <div class="col-span-3">
         <label class="block text-xs muted mb-1" title="Presets here are grouped by model size (Nano, Standard, Large, QLoRA). The Training page offers effort-based presets (Smoke test, Baseline, Precision, Overkill) that fill the same fields.">Preset by model size</label>
@@ -120,7 +122,7 @@
         </select>
       </div>
       <div class="col-span-3 flex items-end">
-        <button class="btn primary w-full" type="button" id="wiz-train-btn" onclick="wizTrain()">Start training</button>
+        <button class="btn primary w-full" type="button" id="wiz-train-btn" onclick="wizTrain()" title="Build a non-empty dataset and choose a base model first" disabled>Start training</button>
       </div>
     </div>
     <details class="mt-2" id="wiz-train-adv">
@@ -138,11 +140,11 @@
 
   <div class="card mb-2" id="wiz-step-test">
     <div class="card-head"><div>
-      <div class="card-title">Step 5 · Test it</div>
+      <div class="card-title">Train 4 · Test it</div>
       <div class="card-sub text-dim">
-        Generates a quiz that covers <b>every row</b> of the training data —
-        100 rows means 100 questions — and scores the trained model's answers.
-        The pass rate tells you whether the model actually learned the material.
+        Generates a quiz from <b>every row</b> of the training data — 100 rows means 100 questions — and scores
+        the trained model's answers. This is a training-set recall check, not a held-out generalization score;
+        use a separate held-out or reworded quiz to measure generalization.
       </div>
     </div><span class="pill outline" id="wiz-test-pill">…</span></div>
     <div class="text-sm" id="wiz-test-sub">checking…</div>
@@ -159,7 +161,7 @@
 
   <div class="card mb-2" id="wiz-step-done">
     <div class="card-head"><div>
-      <div class="card-title">Step 6 · Save &amp; use it</div>
+      <div class="card-title">Train 5 · Save &amp; use it</div>
       <div class="card-sub text-dim">
         Pin a version so you can reproduce this exact result later, or export
         the model for chat / GGUF.
@@ -167,6 +169,10 @@
     </div><span class="pill outline" id="wiz-version-pill">…</span></div>
     <form id="wiz-version-form" class="flex gap-2 wrap m-0">
       <input class="input" id="wiz-version-label" placeholder="label (e.g. v3-my-corpus)">
+      <select class="select" id="wiz-version-parent" aria-label="Builds on version"
+              title="The earlier version this one continues from; its lineage shows the whole chain.">
+        <option value="">builds on: nothing (new line)</option>
+      </select>
       <button class="btn sm primary" type="submit">Pin version</button>
     </form>
     <div class="flex gap-2 wrap mt-2">
@@ -174,17 +180,25 @@
       <a class="btn sm" href="/projects/{{ pid }}/chat" data-link>Chat with it</a>
       <span class="text-xs dim" id="wiz-version-list"></span>
     </div>
+    <div id="wiz-versions" class="mt-2" hidden>
+      <div class="text-xs muted mb-1">Saved versions</div>
+      <table class="table compact" id="wiz-versions-table">
+        <thead><tr><th>Version</th><th>Label</th><th>Saved</th><th>Builds on</th><th>Contents</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <pre id="wiz-version-detail" class="debug-pre text-xs" hidden></pre>
+    </div>
   </div>
 
   <div class="card mb-2 border-accent">
     <div class="card-head"><div>
       <div class="card-title">Run everything at once</div>
       <div class="card-sub text-dim">
-        Chains steps 2 → 5 with no more clicks. Needs files already uploaded
+        Chains Train 1 → 4 with no more clicks. Needs files already uploaded
         (step 1). Keep this page open — progress shows below.
       </div>
     </div></div>
-    <button class="btn primary" type="button" id="wiz-run-all" onclick="wizRunAll()">⚡ Run steps 2-5 now</button>
+    <button class="btn primary" type="button" id="wiz-run-all" onclick="wizRunAll()">⚡ Run all training steps</button>
   </div>
 </div>
 
@@ -219,7 +233,7 @@
       </div><span class="pill outline" id="flow-dataset-pill">…</span></div>
       <div class="flex gap-2 wrap">
         <a class="btn sm" href="/projects/{{ pid }}/training" data-link>Go to training</a>
-        <button class="btn sm" type="button" onclick="flowExport()">Full export</button>
+        <button class="btn sm" type="button" id="flow-dataset-export-btn" onclick="flowExport()" disabled>Full export</button>
       </div>
     </div>
     <div class="card mb-2" id="flow-brain">
@@ -259,6 +273,9 @@
       </div><span class="pill outline" id="flow-version-pill">…</span></div>
       <form id="flow-version-form" class="flex gap-2 wrap m-0">
         <input class="input" id="flow-version-label" placeholder="label (e.g. v3-my-corpus)">
+        <select class="select" id="flow-version-parent" aria-label="Builds on version">
+          <option value="">builds on: nothing (new line)</option>
+        </select>
         <button class="btn sm primary" type="submit">Save version</button>
       </form>
       <div class="flex gap-2 wrap mt-2">
@@ -330,10 +347,12 @@
       api("/api/projects/" + PID + "/data-prep/qa").then(function (d) {
         var items = d.items || [];
         var approved = items.filter(function (i) { return i.status === "approved"; }).length;
-        set("wiz-qa", approved + " approved of " + items.length + " pairs");
+        wizApprovedPairs = approved;
+        set("wiz-qa", approved + " approved of " + items.length + " pairs" + (approved > 0 ? "" : (items.length ? " — review or add a pair before building a dataset." : " — generate or add pairs before building a dataset.")));
         pill("wiz-qa", approved > 0 ? "ready" : "empty", approved > 0);
         set("flow-qa", approved + " approved / " + items.length + " pairs");
         pill("flow-qa", approved > 0 ? "ready" : "empty", approved > 0);
+        updateActionReadiness();
         line("qa: " + approved + "/" + items.length + " approved");
       }).catch(function (e) { pill("wiz-qa", "error", false); line("qa: ERROR " + e); });
     }
@@ -341,11 +360,19 @@
       api("/api/projects/" + PID + "/datasets").then(function (d) {
         var ds = d.datasets || [];
         var newest = ds[0];
-        var txt = ds.length + " dataset(s)" + (newest ? " · newest " + (newest.qa_count || "?") + " rows" : "");
-        set("wiz-dataset", txt);
-        pill("wiz-dataset", ds.length > 0 ? "ready" : "empty", ds.length > 0);
-        set("flow-dataset", txt);
-        pill("flow-dataset", ds.length > 0 ? ds.length + " ok" : "empty", ds.length > 0);
+        var newestRows = newest && newest.qa_count != null ? Number(newest.qa_count) : null;
+        var hasRows = Number.isFinite(newestRows) && newestRows > 0;
+        wizDatasetRows = hasRows ? newestRows : 0;
+        wizUpdateStepsHint();
+        var txt = ds.length + " dataset(s)" + (newest ? " · newest " + (newestRows != null && Number.isFinite(newestRows) ? newestRows : "?") + " rows" : "");
+        var status = ds.length
+          ? txt + (hasRows ? "" : " — newest dataset is empty or has no rows")
+          : (wizApprovedPairs > 0 ? "No dataset yet — build it from approved pairs." : "No dataset yet — approve or generate at least one pair first.");
+        set("wiz-dataset", status);
+        pill("wiz-dataset", hasRows ? "ready" : "empty", hasRows);
+        updateActionReadiness();
+        set("flow-dataset", status);
+        pill("flow-dataset", hasRows ? ds.length + " ok" : "empty", hasRows);
         line("datasets: " + ds.length);
       }).catch(function (e) { pill("wiz-dataset", "error", false); line("datasets: ERROR " + e); });
     }
@@ -355,7 +382,7 @@
           pill("flow-brain", "not built", false); set("flow-brain", "index missing — build it on the Smart Brain page");
           pill("wiz-brain", "not built", false);
           set("wiz-brain", d.state === "no_sources"
-            ? "no index yet — add and parse files in Step 1 first"
+            ? "no index yet — add files in Step 1 first"
             : "no index yet — ⚡ Build Smart Brain below does it in one click");
           line("Smart Brain coverage: " + d.state.replace("_", " "));
           return;
@@ -398,7 +425,7 @@
         // "ready" only when a finished run exists to test (was shown with 0 runs).
         var state = tested.length > 0 ? "tested" : (res.nDone > 0 ? "ready" : "needs a trained model");
         set("wiz-test", res.nDone ? tested.length + " run(s) have a generated quiz"
-                                  : "train a model in Step 4 first");
+                                  : "train a model in Train 3 first");
         pill("wiz-test", state, tested.length > 0);
         set("flow-test", tested.length + " run(s) with generated suite(s)");
         pill("flow-test", tested.length > 0 ? "tested" : "no runs", tested.length > 0);
@@ -417,6 +444,7 @@
           var t = document.getElementById(lid);
           if (t) t.textContent = names;
         });
+        renderVersions(vs);
         line("versions pinned: " + vs.length);
       }).catch(function (e) { pill("wiz-version", "error", false); pill("flow-version", "error", false); line("versions: ERROR " + e); });
     }
@@ -424,14 +452,130 @@
   window.wizRefresh = wizRefresh;
   window.flowCheck = wizRefresh;  /* advanced cards reuse the same checks */
 
+  /* Saved versions: the table under Train 5, the "builds on" pickers, and per-version lineage / contents / delete
+     (GET/DELETE /api/projects/{pid}/versions/{vid}, GET …/{vid}/lineage). */
+  function versionName(v) { return "v" + v.version_number + (v.label ? " " + v.label : ""); }
+  function cell(tr, text) { var td = document.createElement("td"); td.textContent = text; tr.appendChild(td); return td; }
+  function manifestCounts(v) {
+    var m = {};
+    try { m = JSON.parse(v.manifest_json || "{}"); } catch (e) { m = {}; }
+    return (m.datasets || []).length + " dataset(s) · " + (m.training_runs || []).length + " run(s) · "
+      + (m.brain_builds || []).length + " brain build(s)";
+  }
+  function renderVersions(vs) {
+    var byId = {};
+    vs.forEach(function (v) { byId[v.id] = v; });
+    ["wiz-version-parent", "flow-version-parent"].forEach(function (sid) {
+      var sel = document.getElementById(sid);
+      if (!sel) return;
+      /* Default: the newest version, so each pin continues the line. A pick the user made since the last pin
+         (another version, or "nothing") is kept across refreshes; pinning clears it. */
+      var keep = sel.value;
+      var picked = sel.dataset.userPicked === "1" && (keep === "" || byId[keep]);
+      if (!sel.dataset.pickWired) {
+        sel.dataset.pickWired = "1";
+        sel.addEventListener("change", function () { sel.dataset.userPicked = "1"; });
+      }
+      while (sel.options.length > 1) sel.remove(1);
+      vs.forEach(function (v) {
+        var o = document.createElement("option");
+        o.value = v.id;
+        o.textContent = "builds on: " + versionName(v);
+        sel.appendChild(o);
+      });
+      sel.value = picked ? keep : (vs.length ? vs[0].id : "");
+    });
+    var wrap = document.getElementById("wiz-versions");
+    var body = document.querySelector("#wiz-versions-table tbody");
+    if (!wrap || !body) return;
+    wrap.hidden = vs.length === 0;
+    body.textContent = "";
+    vs.forEach(function (v) {
+      var tr = document.createElement("tr");
+      cell(tr, "v" + v.version_number);
+      cell(tr, v.label || "—");
+      cell(tr, v.created_at ? new Date(v.created_at * 1000).toLocaleString() : "—");
+      var parent = v.parent_version_id ? byId[v.parent_version_id] : null;
+      cell(tr, parent ? versionName(parent) : (v.parent_version_id ? "(deleted version)" : "—"));
+      cell(tr, manifestCounts(v));
+      var actions = cell(tr, "");
+      var show = document.createElement("button");
+      show.type = "button"; show.className = "btn sm"; show.textContent = "Lineage";
+      show.setAttribute("data-version-lineage", v.id);
+      show.addEventListener("click", function () { showVersion(v.id); });
+      var del = document.createElement("button");
+      del.type = "button"; del.className = "btn sm danger"; del.textContent = "Delete";
+      del.setAttribute("data-version-delete", v.id);
+      del.addEventListener("click", function () { deleteVersion(v); });
+      actions.appendChild(show); actions.appendChild(del);
+      body.appendChild(tr);
+    });
+  }
+  async function showVersion(vid) {
+    var out = document.getElementById("wiz-version-detail");
+    if (!out) return;
+    out.hidden = false;
+    out.textContent = "Loading…";
+    try {
+      var base = "/api/projects/" + PID + "/versions/" + encodeURIComponent(vid);
+      var both = await Promise.all([api(base), api(base + "/lineage")]);
+      var v = both[0], chain = both[1].lineage || [];
+      var m = v.manifest || {};
+      var lines = ["Lineage: " + chain.map(versionName).join(" → ")];
+      (m.datasets || []).forEach(function (d) { lines.push("Dataset: " + (d.name || d.id) + " (" + (d.qa_count || 0) + " pairs)"); });
+      (m.training_runs || []).forEach(function (r) {
+        lines.push("Training run: " + r.run_id + " · " + (r.status || "?")
+          + (r.final_loss != null ? " · final loss " + Number(r.final_loss).toFixed(3) : ""));
+      });
+      (m.brain_builds || []).forEach(function (b) { lines.push("Smart Brain build: " + b.build_id + " · " + (b.chunk_count || 0) + " chunks"); });
+      if (v.notes) lines.push("Notes: " + v.notes);
+      out.textContent = lines.join("\n");
+    } catch (e) {
+      out.textContent = "Could not load this version: " + e.message;
+    }
+  }
+  async function deleteVersion(v) {
+    var ok = window.fts && window.fts.confirm
+      ? await window.fts.confirm("Delete " + versionName(v) + "? Only the saved record goes; datasets, runs and models stay.",
+                                 { danger: true, okText: "Delete version" })
+      : window.confirm("Delete " + versionName(v) + "?");
+    if (!ok) return;
+    try {
+      await window.api.del("/api/projects/" + PID + "/versions/" + encodeURIComponent(v.id));
+      line("Version " + versionName(v) + " deleted.");
+      var out = document.getElementById("wiz-version-detail");
+      if (out) out.hidden = true;
+      wizRefresh("version");
+    } catch (e) { line("Delete version failed: " + e.message); }
+  }
+
   /* ── quick-mode actions ── */
   var busy = false;
+  var wizApprovedPairs = 0;
+  function updateActionReadiness() {
+    var hasApprovedPairs = wizApprovedPairs > 0;
+    ["wiz-dataset-btn", "flow-dataset-export-btn"].forEach(function (id) {
+      var button = document.getElementById(id);
+      if (!button) return;
+      button.disabled = busy || !hasApprovedPairs;
+      button.title = hasApprovedPairs ? "Build a dataset from approved Q&A pairs" : "Approve at least one Q&A pair first";
+    });
+    var model = document.getElementById("wiz-base-model");
+    var train = document.getElementById("wiz-train-btn");
+    if (train) {
+      var hasModel = !!(model && !model.disabled && model.value);
+      var hasRows = wizDatasetRows > 0;
+      train.disabled = busy || !hasModel || !hasRows;
+      train.title = !hasModel ? "Choose an available base model first" : !hasRows ? "Build a non-empty dataset from approved pairs first" : "Start training";
+    }
+  }
   function setBusy(b) {
     busy = b;
-    ["wiz-qa-btn", "wiz-dataset-btn", "wiz-train-btn", "wiz-test-btn", "wiz-run-all", "wiz-brain-btn"].forEach(function (id) {
+    ["wiz-qa-btn", "wiz-test-btn", "wiz-run-all", "wiz-brain-btn"].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) el.disabled = b;
     });
+    updateActionReadiness();
   }
   var wizLastRunId = "";
 
@@ -441,11 +585,11 @@
     try {
       var srcs = await api("/api/projects/" + PID + "/data-prep/sources");
       var sources = (srcs.sources || []).filter(function (s) { return s.parse_status !== "error"; });
-      if (!sources.length) { line("Step 2: no parsed documents yet — upload files (step 1) first."); return false; }
+      if (!sources.length) { line("Train 1: no parsed documents yet — upload files (step 1) first."); return false; }
       // Per-file mining: files never mined get a "mine" job, mined files with open data points a "fill" job.
       var mine = sources.filter(function (s) { return !s.mining || s.mining.status === "parsed"; }).map(function (s) { return s.id; });
       var fill = sources.filter(function (s) { return s.mining && s.mining.status === "gaps"; }).map(function (s) { return s.id; });
-      if (!mine.length && !fill.length) { line("Step 2: every document is already mined; review the pairs on the pairs page."); wizRefresh("qa"); return true; }
+      if (!mine.length && !fill.length) { line("Train 1: every document is already mined; review the pairs on the pairs page."); wizRefresh("qa"); return true; }
       // A local helper must be resident; an API helper is seated on demand by the server.
       var prov = await api("/api/providers");
       var helperId = prov.helper_provider_id || "local-default";
@@ -453,7 +597,7 @@
         line("Loading helper (" + (prov.helper_label || helperId) + ")…");
         try { await post("/api/providers/" + helperId + "/load", {}); }
         catch (e) { throw new Error("helper load failed: " + e.message); }
-        line("Helper ready.");
+        line("Assistant ready.");
       }
       // Quick mode approves only what THIS run wrote: pairs that were pending before stay for the reviewer.
       var before = await api("/api/projects/" + PID + "/data-prep/qa");
@@ -479,7 +623,7 @@
       jobs.forEach(function (j) {
         line("  " + j.filename + ": " + j.status + (j.error ? " — " + j.error : (j.message ? " — " + j.message : "")));
       });
-      if (!ok.length) { line("Step 2 failed: no document was mined — fix the error above and retry."); return false; }
+      if (!ok.length) { line("Train 1 failed: no document was mined — fix the error above and retry."); return false; }
       var succeededSourceIds = new Set();
       ok.forEach(function (s) { succeededSourceIds.add(s.source_id); });
       var qa = await api("/api/projects/" + PID + "/data-prep/qa?status=pending");
@@ -493,7 +637,7 @@
       wizRefresh("qa");
       return true;
     } catch (e) {
-      line("Step 2 failed: " + e.message);
+      line("Train 1 failed: " + e.message);
       return false;
     } finally { setBusy(false); }
   };
@@ -579,11 +723,16 @@
       }
       var b = await r.blob();
       var rows = r.headers.get("X-Rows"), grounded = r.headers.get("X-Grounded-Rows");
+      if (rows != null) {
+        wizDatasetRows = Number(rows) || 0;
+        wizUpdateStepsHint();
+        updateActionReadiness();
+      }
       line("Dataset built and registered (" + Math.round(b.size / 1024) + " KB" + (rows ? ", " + rows + " rows" + (grounded && grounded !== "0" ? ", " + grounded + " with retrieved context" : "") : "") + ").");
       wizRefresh("dataset");
       return true;
     } catch (e) {
-      line("Step 3 failed: " + e.message);
+      line("Train 2 failed: " + e.message);
       return false;
     } finally { setBusy(false); }
   };
@@ -606,7 +755,7 @@
   // Epochs hint: the real optimizer-step count this run will get, and a warning when it is tiny.
   var wizPresets = {};
   var wizDatasetRows = 0;
-  var TINY_STEPS = 100, GOOD_STEPS = 150;
+  var TINY_STEPS = 100;
   function wizPlannedSteps(epochs, preset) {
     var batch = Number(preset.batch_size) || 2, accum = Number(preset.gradient_accumulation_steps) || 1;
     var train = Math.floor(wizDatasetRows * 0.9);   // the engine holds out 10% (int(n*0.9) train rows)
@@ -634,11 +783,9 @@
     hint.textContent = "About " + p.total + " optimizer steps: " + p.train + " training rows ÷ effective batch " + p.eff +
       " = " + p.perEpoch + " per epoch × " + epochs + " epochs" + (epochsEl.value.trim() ? "." : " (preset default).");
     if (p.total >= TINY_STEPS || !warnEl) return;
-    var need = Math.ceil(GOOD_STEPS / p.perEpoch);
-    warnEl.textContent = "Under " + TINY_STEPS + " steps is too short to memorise facts: expect the final loss to stay above ~0.5. " +
-      "Try " + need + " epochs (~" + (need * p.perEpoch) + " steps) or add more training data.";
+    warnEl.textContent = "Under " + TINY_STEPS + " steps is a smoke test, not a quality benchmark. " +
+      "Quick Start keeps the selected preset; add more diverse training rows or set epochs manually before judging model quality.";
     warnEl.hidden = false;
-    if (sugg) { sugg.textContent = "Use " + need + " epochs"; sugg.dataset.epochs = String(need); sugg.hidden = false; }
     var adv = document.getElementById("wiz-train-adv");
     if (adv) adv.open = true;
   }
@@ -648,6 +795,8 @@
     var sugg = document.getElementById("wiz-epochs-suggest");
     if (epochsEl) epochsEl.addEventListener("input", wizUpdateStepsHint);
     if (presetEl) presetEl.addEventListener("change", wizUpdateStepsHint);
+    var modelEl = document.getElementById("wiz-base-model");
+    if (modelEl) modelEl.addEventListener("change", updateActionReadiness);
     if (sugg) sugg.addEventListener("click", function () {
       if (epochsEl) epochsEl.value = sugg.dataset.epochs || "";
       wizUpdateStepsHint();
@@ -656,20 +805,25 @@
       var first = (ds.datasets || [])[0];
       wizDatasetRows = first ? Number(first.qa_count) || 0 : 0;
       wizUpdateStepsHint();
+      updateActionReadiness();
     }).catch(function () { /* hint stays generic */ });
   })();
 
   window.wizTrain = async function () {
     if (busy) { line("Already running — wait for the current step."); return false; }
     var model = (document.getElementById("wiz-base-model") || {}).value || "";
-    if (!model) { line("Step 4: pick a base model first (or add one to the models folder)."); return false; }
+    if (!model) { line("Train 3: pick a base model first (download one in the Model library)."); return false; }
     var preset = (document.getElementById("wiz-preset") || {}).value || "standard";
     setBusy(true);
     try {
       var ds = await api("/api/projects/" + PID + "/datasets");
       var list = ds.datasets || [];
-      if (!list.length) { line("Step 4: no dataset yet — run step 3 first."); return false; }
+      if (!list.length) { line("Train 3: no dataset yet — run step 3 first."); return false; }
       var dataset = list[0];
+      wizDatasetRows = Number(dataset.qa_count) || 0;
+      wizUpdateStepsHint();
+      updateActionReadiness();
+      if (wizDatasetRows < 1) { line("Train 3: the selected dataset is empty — approve pairs and rebuild it first."); return false; }
       // Free VRAM: a resident helper GGUF + the trainable base can stack past
       // the card and OOM the run at step zero.
       try {
@@ -684,12 +838,12 @@
       var epochsRaw = ((document.getElementById("wiz-epochs") || {}).value || "").trim();
       if (epochsRaw) {
         var ep = Number(epochsRaw);
-        if (!Number.isInteger(ep) || ep < 1) { line("Step 4: epochs must be a whole number of 1 or more."); return false; }
+        if (!Number.isInteger(ep) || ep < 1) { line("Train 3: epochs must be a whole number of 1 or more."); return false; }
         startBody.num_epochs = ep;   // top-level field, same as the Training page form
       }
       var r = await post("/api/training/start", startBody);
       wizLastRunId = r.run_id || "";
-      line("Training started (" + (r.steps || "?") + " steps). This page will keep polling — long step, go do something else and come back.");
+      line("Training started" + (r.steps ? " (" + r.steps + " steps)" : "") + ". This page will keep polling — long step, go do something else and come back.");
       for (;;) {
         await sleep(6000);
         var st = await api("/api/training/status");
@@ -701,12 +855,44 @@
       wizRefresh("train");
       return true;
     } catch (e) {
-      line("Step 4 failed: " + e.message);
+      line("Train 3 failed: " + e.message);
       await wizExplainFailure();
       wizRefresh("train");
       return false;
     } finally { setBusy(false); }
   };
+
+  async function wizEnsureMerged(run) {
+    var output = String(run.output_path || "").replace(/[\\/]+$/, "");
+    if (!output) throw new Error("training run has no output path");
+    var mergedPath = output + "/merged";
+    async function hasWeights() {
+      var encoded = mergedPath.split("/").filter(Boolean).map(encodeURIComponent).join("/");
+      var contents = await api("/api/projects/" + PID + "/models/" + encoded + "/contents");
+      return (contents.files || []).some(function (file) { return /\.(safetensors|bin)$/i.test(file.name || ""); });
+    }
+    try { if (await hasWeights()) return mergedPath; } catch (e) { /* merge may not exist yet */ }
+
+    line("No merged weights were saved during training; retrying via the supervised Export job…");
+    var queued = await post("/api/projects/" + PID + "/runs/" + encodeURIComponent(run.id) + "/export", { format: "merged" });
+    if (!queued.export_id) throw new Error(queued.detail || "merged export job was not queued");
+    var deadline = Date.now() + 20 * 60 * 1000;
+    var job = null;
+    while (Date.now() < deadline) {
+      await sleep(3000);
+      job = await api("/api/projects/" + PID + "/exports/" + encodeURIComponent(queued.export_id));
+      var phase = job.phase_detail || job.phase || "merging adapter";
+      set("wiz-test", phase + "…");
+      pill("wiz-test", "merging", false);
+      if (["done", "failed", "error", "cancelled"].indexOf(job.status) >= 0) break;
+    }
+    if (!job || job.status !== "done") {
+      throw new Error("merged export failed: " + (job && job.error || job && job.status || "timed out"));
+    }
+    if (!await hasWeights()) throw new Error("merged export finished without loadable model weights");
+    line("Merged model recovered through the supervised Export job.");
+    return mergedPath;
+  }
 
   window.wizTest = async function () {
     if (busy) { line("Already running — wait for the current step."); return false; }
@@ -714,7 +900,7 @@
     try {
       var rows = await api("/api/training/runs/" + PID);
       var done = (rows || []).filter(function (r) { return ["done", "completed"].indexOf(r.status) >= 0; });
-      if (!done.length) { line("Step 5: no completed training run to test yet."); return false; }
+      if (!done.length) { line("Train 4: no completed training run to test yet."); return false; }
       var run = null;
       for (var i = 0; i < done.length; i++) if (done[i].id === wizLastRunId) run = done[i];
       if (!run) run = done[0];
@@ -726,11 +912,12 @@
       var suites = await api("/api/training/runs/" + run.id + "/auto-suites");
       if (!Array.isArray(suites) || !suites.length) throw new Error("no quiz was generated");
       var suite = suites[0];
+      var mergedPath = await wizEnsureMerged(run);
       line("Running the " + suite.case_count + "-question test against the trained model — this can take 10-20 minutes…");
       set("wiz-test", "running " + suite.case_count + " questions…");
       var started = await post("/api/testing/run-suite", {
         project_id: PID, suite_path: suite.suite_path,
-        model_path: (run.output_path || "") + "/merged", max_tokens: 256,
+        model_path: mergedPath, max_tokens: 256,
       });
       var bid = started.benchmark_id;
       var runRow = null;
@@ -741,6 +928,7 @@
         if (["done", "failed", "cancelled"].indexOf(runRow.status) >= 0) break;
       }
       if (runRow.status === "failed") throw new Error(runRow.error || "the test run failed");
+      if (runRow.status === "cancelled") throw new Error("the test run was stopped before it finished");
       line("The model answered " + (runRow.progress_done || 0) + " question(s); the raw answers are saved with the correct answers.");
       // Judging is a separate step. It only starts by itself when the user turned auto-judge on.
       var autoJudge = false;
@@ -761,9 +949,11 @@
         if (["done", "failed", "cancelled"].indexOf(runRow.judge_status) >= 0) break;
         if (!runRow.judge_status && runRow.status === "done" && !(runRow.active || []).length) break;
       }
-      if (runRow.judge_status === "failed") {
-        line("Judging failed: " + (runRow.judge_error || "unknown error") + ". The answers are saved; judge them from the Testing page: " + link);
-        set("wiz-test", "answers saved — judging failed");
+      if (runRow.judge_status === "failed" || runRow.judge_status === "cancelled") {
+        var stopped = runRow.judge_status === "cancelled";
+        line((stopped ? "Judging was stopped" : "Judging failed: " + (runRow.judge_error || "unknown error"))
+          + ". The answers are saved; judge them from the Testing page: " + link);
+        set("wiz-test", stopped ? "answers saved — judging stopped" : "answers saved — judging failed");
         pill("wiz-test", "unjudged", false);
         wizRefresh("test");
         return true;
@@ -787,19 +977,57 @@
       wizRefresh("test");
       return true;
     } catch (e) {
-      line("Step 5 failed: " + e.message);
+      line("Train 4 failed: " + e.message);
       return false;
     } finally { setBusy(false); }
   };
+
+  var MAX_FILL_PASSES = 2;
+  // Open data points of the files mining left with gaps (the dataset export refuses those files).
+  async function wizOpenPoints() {
+    var srcs = await api("/api/projects/" + PID + "/data-prep/sources");
+    var gaps = (srcs.sources || []).filter(function (s) { return s.mining && s.mining.status === "gaps"; });
+    var points = gaps.reduce(function (n, s) { return n + (Number((s.mining.counts || {}).open) || 0); }, 0);
+    return {files: gaps.length, points: points};
+  }
 
   window.wizRunAll = async function () {
     if (busy) return;
     line("Quick start: running steps 2-5 in order…");
     if (!await wizGenerate()) return;
+    // Mining can leave data points open, which blocks the dataset export. Each gap-filling pass asks the assistant
+    // to write pairs for what is still open: repeat while a pass closes something, at most MAX_FILL_PASSES times.
+    var lastOpen = Infinity;
+    for (var pass = 1; pass <= MAX_FILL_PASSES; pass++) {
+      var open = await wizOpenPoints();
+      if (!open.points || open.points >= lastOpen) break;
+      lastOpen = open.points;
+      line("Quick start: " + open.points + " data point(s) still open in " + open.files + " file(s) — asking the assistant to fill them (pass " + pass + " of " + MAX_FILL_PASSES + ")…");
+      if (!await wizGenerate()) return;
+    }
     if (!await wizExport()) return;
+
+    var epochsEl = document.getElementById("wiz-epochs");
+    var presetId = (document.getElementById("wiz-preset") || {}).value || "standard";
+    var preset = wizPresets[presetId];
+    if (!preset) {
+      try {
+        var available = await api("/api/training/presets");
+        (Array.isArray(available) ? available : []).forEach(function (p) { wizPresets[p.id] = p; });
+        preset = wizPresets[presetId];
+      } catch (e) { /* use the server preset default if recommendations are unavailable */ }
+    }
+    if (epochsEl && !epochsEl.value.trim() && preset && wizDatasetRows > 0) {
+      var defaultPlan = wizPlannedSteps(Number(preset.num_epochs) || 1, preset);
+      if (defaultPlan.total < TINY_STEPS) {
+        line("Quick Start kept the " + preset.num_epochs + "-epoch preset (~" + defaultPlan.total +
+          " steps): this is a workflow smoke test, not evidence of model quality. Add diverse rows or set epochs explicitly.");
+      }
+    }
+
     if (!await wizTrain()) return;
-    await wizTest();
-    line("Quick start finished. Pin a version (step 6) if you want to keep this exact result.");
+    if (!await wizTest()) return;
+    line("Quick start finished: training and the generated test both completed. Pin a version (step 6) if you want to keep this exact result.");
   };
 
   /* presets + version form + initial status sweep */
@@ -815,13 +1043,48 @@
       if (p.id === "standard") o.selected = true;
       sel.appendChild(o);
     });
+    wizMatchPreset(false);
     wizUpdateStepsHint();
   }).catch(function () { /* keep the static default */ });
 
+  // "Preset by model size": follow the base model until the user picks a preset themselves. The size comes from the
+  // name ("Qwen3-0.6B") or, failing that, the bf16 weights (about 2 GB per billion parameters).
+  var wizPresetPicked = false;
+  function wizModelBillions(opt) {
+    var m = /(\d+(?:\.\d+)?)\s*[bB](?![a-zA-Z])/.exec(opt.textContent || "");
+    if (m) return Number(m[1]);
+    var gb = Number(opt.getAttribute("data-size-gb"));
+    return gb > 0 ? gb / 2 : 0;
+  }
+  function wizMatchPreset(announce) {
+    var modelEl = document.getElementById("wiz-base-model"), sel = document.getElementById("wiz-preset");
+    if (wizPresetPicked || !modelEl || !sel) return;
+    var opt = modelEl.options[modelEl.selectedIndex];
+    var b = opt ? wizModelBillions(opt) : 0;
+    if (!b) return;
+    var want = b <= 2 ? "nano-fast" : (b <= 10 ? "standard" : "large");
+    if (!wizPresets[want] || sel.value === want) return;
+    sel.value = want;
+    wizUpdateStepsHint();
+    if (announce) line("Preset set to " + (wizPresets[want].name || want) + " for a " + b + "B model (pick another any time).");
+  }
+  (function wirePresetMatch() {
+    var modelEl = document.getElementById("wiz-base-model"), sel = document.getElementById("wiz-preset");
+    if (modelEl) modelEl.addEventListener("change", function () { wizMatchPreset(true); });
+    if (sel) sel.addEventListener("change", function () { wizPresetPicked = true; });
+  })();
+
   function pinVersion(formId, labelId, fallback) {
     var label = (document.getElementById(labelId) || {}).value || "";
-    post("/api/projects/" + PID + "/versions", { label: label || fallback })
+    var parentSel = document.getElementById(formId.replace("-form", "-parent"));
+    var body = { label: label || fallback };
+    if (parentSel && parentSel.value) body.parent_version_id = parentSel.value;
+    post("/api/projects/" + PID + "/versions", body)
       .then(function (v) {
+        ["wiz-version-parent", "flow-version-parent"].forEach(function (sid) {
+          var s = document.getElementById(sid);
+          if (s) delete s.dataset.userPicked;   /* the next pin builds on this new version again */
+        });
         line("Version v" + v.version_number + " pinned.");
         wizRefresh("version");
       })

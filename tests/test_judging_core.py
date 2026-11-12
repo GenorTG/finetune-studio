@@ -8,6 +8,7 @@ retracted; scores keep unjudged cases as "awaiting".
 from __future__ import annotations
 
 import json
+import threading
 
 import pytest
 
@@ -219,6 +220,44 @@ def test_judge_many_parallel_for_api_providers_keeps_every_result():
     got: dict[str, str] = {}
     judge_many(_loaded(lambda _m: _reply("pass"), concurrent=True), items, lambda k, r: got.__setitem__(k, r.verdict))
     assert got == {str(i): "pass" for i in range(11)}
+
+
+def test_judge_many_stops_submitting_after_current_api_calls_finish():
+    workers = judge_mod.JUDGE_PARALLEL_API
+    questions = [f"Unique question number {i}?" for i in range(workers * 3)]
+    items = [(str(i), JudgeCase(question, "k", "a")) for i, question in enumerate(questions)]
+    stop = threading.Event()
+    first_wave_started = threading.Event()
+    release_wave = threading.Event()
+    started: list[str] = []
+    got: list[str] = []
+    lock = threading.Lock()
+
+    def chat(messages):
+        prompt = messages[-1]["content"]
+        question = next(q for q in questions if q in prompt)
+        with lock:
+            started.append(question)
+            if len(started) == workers:
+                first_wave_started.set()
+        if question == questions[0]:
+            assert first_wave_started.wait(timeout=2)
+        else:
+            assert release_wave.wait(timeout=2)
+        return _reply("pass")
+
+    def on_result(key, result):
+        assert result.verdict == "pass"
+        got.append(key)
+        if key == "0":
+            stop.set()
+            release_wave.set()
+
+    attempted = judge_many(_loaded(chat, concurrent=True), items, on_result, should_stop=stop.is_set)
+
+    assert attempted == workers
+    assert set(started) == set(questions[:workers])
+    assert set(got) == {str(i) for i in range(workers)}
 
 
 def test_stop_between_cases_reports_stopped():

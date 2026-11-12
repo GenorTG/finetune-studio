@@ -17,6 +17,7 @@ import logging
 from collections.abc import Callable, Iterator
 from typing import Any
 
+from finetune_studio.guide.navigation_consent import allowed_pages
 from finetune_studio.guide.prompt import build_system_prompt
 from finetune_studio.guide.toolcalls import (
     TRUNCATION_MSG,
@@ -33,21 +34,42 @@ FORCED_FINAL_PROMPT = (
     "results above. Do not call any tool. If something is still unknown, say so."
 )
 MAX_RESULT_CHARS = 12000
-
-
 def authoritative_readiness_reply(tool_calls: list[dict], reply: str) -> str:
-    """Use server-computed readiness facts instead of a model paraphrase."""
-    if not tool_calls or tool_calls[-1].get("name") != "inspect_project_readiness":
+    """Keep the answer and append the exact server-computed readiness facts."""
+    readiness_call = next(
+        (call for call in reversed(tool_calls) if call.get("name") == "inspect_project_readiness"),
+        None,
+    )
+    if readiness_call is None:
         return reply
-    result = tool_calls[-1].get("result") or {}
-    if result.get("summary"):
-        return str(result["summary"])
-    return reply
+    result = readiness_call.get("result") or {}
+    summary = str(result.get("summary") or "")
+    if not summary or summary in reply:
+        return reply
+    if not reply.strip():
+        return summary
+    return f"{reply.rstrip()}\n\nCurrent project state: {summary}"
+
+
+def _navigation_refusal(messages: list[dict], page: str) -> str:
+    """Why ``navigate(page)`` may not run, or ``""`` when the user asked for that page.
+
+    Navigation changes the visible page, so it needs an explicit request naming the page, or a
+    yes to the page the guide itself offered (``navigation_consent``).
+    """
+    allowed = allowed_pages(messages)
+    if not allowed:
+        return ("The user asked for information, not a page switch. Answer the question in place; "
+                "navigate only when they explicitly ask to open or switch pages.")
+    if page in allowed:
+        return ""
+    names = ", ".join(sorted(allowed))
+    return f"The user asked to open {names}, not {page!r}. Navigate only to the page they asked for."
 
 
 def _fallback_reply(tool_calls: list[dict]) -> str:
     if not tool_calls:
-        return "The helper model returned no answer. Try again, or rephrase the question."
+        return "The assistant returned no answer. Try again, or rephrase the question."
     names = ", ".join(dict.fromkeys(tc["name"] for tc in tool_calls))
     return (
         f"I ran {len(tool_calls)} tool call(s) ({names}) but the model did not write a final answer "
@@ -98,6 +120,9 @@ def run_guide_loop(
             key = f"{name}:{json.dumps(args, sort_keys=True, default=str)}"
             if key in seen:
                 result: dict[str, Any] = {"error": "identical call already made this turn; use the earlier result"}
+            elif name == "navigate" and (refusal := _navigation_refusal(messages, str(args.get("page") or ""))):
+                seen.add(key)
+                result = {"error": refusal}
             else:
                 seen.add(key)
                 result = run_tool(ctx, name, args)

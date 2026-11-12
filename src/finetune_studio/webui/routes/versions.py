@@ -25,6 +25,7 @@ from finetune_studio.db.datasets import (
     datasets_dir,
     get_dataset_by_path,
 )
+from finetune_studio.project_versioning import ProjectVersionError, save_project_version
 
 router = APIRouter()
 log = logging.getLogger("finetune_studio.versions")
@@ -35,53 +36,6 @@ def _manifest_of(v: dict) -> dict[str, Any]:
         return json.loads(v.get("manifest_json") or "{}")
     except Exception:  # noqa: BLE001
         return {}
-
-
-async def _save_version(pid: str, body: dict[str, Any]) -> dict | JSONResponse:
-    """Shared save logic for both the JSON route and the multipart-free CLI path."""
-    proj = db.get_project(pid)
-    if not proj:
-        return JSONResponse({"detail": "project not found"}, status_code=404)
-    parent_vid = body.get("parent_version_id")
-    parent = db.get_version(str(parent_vid)) if parent_vid else None
-    if parent_vid and (not parent or parent.get("project_id") != pid):
-        return JSONResponse({"detail": f"parent version {parent_vid!r} not found"}, status_code=404)
-    manifest = body.get("manifest") or {}
-    if not isinstance(manifest, dict):
-        return JSONResponse({"detail": "manifest must be an object"}, status_code=400)
-
-    # Auto-fill runnable inputs when the caller doesn't pin them explicitly:
-    # current datasets, latest Smart Brain index build, recent training runs.
-    if not manifest.get("datasets"):
-        manifest["datasets"] = [
-            {"id": d["id"], "name": d["name"], "data_path": d["data_path"],
-             "qa_count": d.get("qa_count", 0)}
-            for d in db.list_datasets(pid)
-        ]
-    if not manifest.get("brain_builds"):
-        latest = db.brain_builds.latest_for_project(pid)
-        if latest:
-            manifest["brain_builds"] = [{
-                "build_id": latest["id"], "index_id": latest.get("index_id", ""),
-                "doc_count": latest.get("doc_count", 0),
-                "chunk_count": latest.get("chunk_count", 0),
-            }]
-    if not manifest.get("training_runs"):
-        from finetune_studio.db.runs import list_runs
-        runs = [r for r in list_runs(pid) if r.get("status") in ("done", "completed", "completed_error")][:5]
-        manifest["training_runs"] = [
-            {"run_id": r["id"], "status": r.get("status", ""),
-             "final_loss": r.get("final_loss"), "output_path": r.get("output_path", "")}
-            for r in runs
-        ]
-    v = db.create_version(
-        pid,
-        label=str(body.get("label") or ""),
-        notes=str(body.get("notes") or ""),
-        parent_version_id=str(parent_vid) if parent_vid else None,
-        manifest=manifest,
-    )
-    return v
 
 
 @router.get("/projects/{pid}/versions")
@@ -99,7 +53,10 @@ async def save_version(pid: str, request: Request):
         return JSONResponse({"detail": "invalid JSON"}, status_code=400)
     if not isinstance(body, dict):
         return JSONResponse({"detail": "expected JSON object"}, status_code=400)
-    return await _save_version(pid, body)
+    try:
+        return save_project_version(pid, body)
+    except ProjectVersionError as exc:
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 
 
 @router.get("/projects/{pid}/versions/{vid}")

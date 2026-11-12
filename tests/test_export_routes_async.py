@@ -120,35 +120,52 @@ def test_active_endpoint_lists_running_jobs_for_reattach(setup, monkeypatch) -> 
     assert client.get("/api/projects/nope/exports/active").status_code == 404
 
 
-def test_imatrix_quantize_is_a_tracked_job_too(setup, monkeypatch) -> None:
+def _with_training_data(run: dict, tmp: Path) -> dict:
+    data = tmp / "train.jsonl"
+    data.write_text(json.dumps({"messages": [{"role": "user", "content": "What is the Korvane tag?"},
+                                             {"role": "assistant", "content": "The KC-Tag 4."}]}) + "\n")
+    db.update_run(run["id"], data_path=str(data))
+    return db.get_run(run["id"])
+
+
+def test_imatrix_export_measures_on_the_training_data_and_quantizes_with_it(setup) -> None:
     client, pid, run, tmp = setup
-    imatrix = tmp / "imatrix.dat"
-    imatrix.write_bytes(b"im")
-    monkeypatch.setenv("FAKE_QUANT_SECONDS", "0.5")
-    r = client.post(f"/api/training/runs/{run['id']}/quantize",
-                    json={"method": "imatrix", "imatrix_path": str(imatrix),
-                          "quants": ["q4_k_m"]})
+    run = _with_training_data(run, tmp)
+    r = _post(client, pid, run, format="gguf", quants=["q4_k_m"], imatrix=True)
     assert r.status_code == 202, r.text
-    eid = r.json()["export_id"]
-    final = wait_export(client, pid, eid)
-    assert final["status"] == "done", final
-    assert final["format"] == "imatrix" and final["size_bytes"] > 0
-    listed = client.get(f"/api/training/runs/{run['id']}/quant-exports").json()
-    assert len(listed) == 1 and listed[0]["status"] == "done"
-    # synchronous refusals keep their codes
-    bad = client.post(f"/api/training/runs/{run['id']}/quantize",
-                      json={"method": "imatrix", "imatrix_path": "/nope"})
-    assert bad.status_code == 422 and "imatrix file not found" in bad.json()["detail"]
-
-
-def test_imatrix_all_quants_failing_marks_the_job_failed(setup, monkeypatch) -> None:
-    client, pid, run, tmp = setup
-    imatrix = tmp / "imatrix.dat"
-    imatrix.write_bytes(b"im")
-    monkeypatch.setenv("FAKE_QUANT_FAIL", "imatrix does not match model")
-    r = client.post(f"/api/training/runs/{run['id']}/quantize",
-                    json={"imatrix_path": str(imatrix), "quants": ["q4_k_m"]})
     final = wait_export(client, pid, r.json()["export_id"])
-    assert final["status"] == "failed"
-    assert "imatrix does not match model" in final["error"]
-    assert client.get(f"/api/training/runs/{run['id']}/quant-exports").json() == []
+    assert final["status"] == "done", final
+    out = Path(final["output_path"])
+    assert out.parent.name == "gguf-imatrix" and out.name == "model-q4_k_m.gguf"
+    imatrix = out.parent / "imatrix.dat"
+    assert out.read_text().strip() == f"quantized imatrix={imatrix}"       # llama-quantize got --imatrix
+    assert "The KC-Tag 4." in (out.parent / "imatrix.dat.seen-calibration").read_text()
+    assert not (out.parent / "imatrix.dat.calibration.txt").exists()        # the temp text is cleaned up
+    assert not (Path(run["output_path"]) / "gguf").exists()                  # the plain export is untouched
+
+
+def test_imatrix_export_refusals_say_why(setup) -> None:
+    client, pid, run, tmp = setup
+    no_data = _post(client, pid, run, format="gguf", quants=["q4_k_m"], imatrix=True)   # data_path "/d" is gone
+    assert no_data.status_code == 400 and "training data" in no_data.json()["detail"]
+    run = _with_training_data(run, tmp)
+    only_q8 = _post(client, pid, run, format="gguf", quants=["q8_0"], imatrix=True)
+    assert only_q8.status_code == 400 and "llama-quantize" in only_q8.json()["detail"]
+    merged = _post(client, pid, run, format="merged", imatrix=True)
+    assert merged.status_code == 400 and "only applies to a GGUF" in merged.json()["detail"]
+    assert _post(client, pid, run, format="gguf", quants=["q4_k_m"], imatrix="yes").status_code == 400
+
+
+def test_imatrix_measuring_failure_fails_the_job_with_the_reason(setup, monkeypatch) -> None:
+    client, pid, run, tmp = setup
+    run = _with_training_data(run, tmp)
+    monkeypatch.setenv("FAKE_IMATRIX_FAIL", "out of memory measuring")
+    eid = _post(client, pid, run, format="gguf", quants=["q4_k_m"], imatrix=True).json()["export_id"]
+    final = wait_export(client, pid, eid)
+    assert final["status"] == "failed" and "out of memory measuring" in final["error"]
+
+
+def test_old_quantize_routes_are_gone(client) -> None:
+    assert client.post("/api/training/runs/x/quantize", json={}).status_code in (404, 405)
+    assert client.get("/api/training/runs/x/quant-exports").status_code in (404, 405)
+    assert client.post("/api/training/runs/x/set-output", json={"output_path": "/tmp"}).status_code in (404, 405)

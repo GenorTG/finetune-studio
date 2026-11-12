@@ -4,175 +4,164 @@
 {% block breadcrumb_tab %}smart brain{% endblock %}
 
 {% block content %}
-{% set res_compact = true %}
-{% include "_resources.html" %}
-
-<div class="page-head row">
-  <div>
-    <h1>🧠 Smart Brain</h1>
-    <div class="sub"><b>Step 2 · Answer from your files, no training.</b> The Smart Brain reads the files you
-      prepared in <a href="/projects/{{ pid }}/data" data-link>Files &amp; Knowledge</a>, finds the passages that
-      answer a question and quotes them; then <a href="/projects/{{ pid }}/chat" data-link>chat with it</a> or
-      <a href="/projects/{{ pid }}/testing" data-link>test it (step 3)</a>.</div>
-    <details class="page-more">
-      <summary>More about the Smart Brain</summary>
-      <p class="text-sm">It reads exactly the text that training uses: each file is parsed once in Files &amp; Knowledge,
-        including pictures read by the Vision reader and your hand edits. New or edited files only need a rebuild
-        (minutes, not hours) and model weights never change. Export it as an encrypted bundle or a standalone server
-        that runs without this app.</p>
-      <p class="text-xs dim">Search combines multilingual semantic embeddings with BM25 keyword matches using rank fusion,
-        then reranks passages with a cross-encoder. An answer gate declines when no passage supports the question;
-        this is often called retrieval-augmented generation (RAG).</p>
-    </details>
-  </div>
-  <div class="actions flex gap-2 wrap">
-    <button onclick="quickIndex()" id="quick-index-btn" class="btn primary"
-            title="⚡ One click: parse any library files that are not ready yet, then build the index. When the embedder runs on the GPU, the chat model is unloaded first.">⚡ Quick index</button>
-    <a href="/projects/{{ pid }}/data" class="btn" data-link
-       id="brain-cta-data">⬆ Files &amp; Knowledge (step 1)</a>
-    <span id="quick-index-status" class="text-xs dim self-center" role="status" aria-live="polite"></span>
-  </div>
+<div class="page-head">
+  <h1>🧠 Smart Brain</h1>
+  <div class="sub">Ask questions about your files and get answers with their sources. No training needed.</div>
+  <details class="page-more">
+    <summary>How it works</summary>
+    <ol class="brain-workflow-steps" aria-label="Smart Brain steps">
+      <li><b>Add files</b> here or in <a href="/projects/{{ pid }}/data" data-link>Files &amp; Knowledge</a>. Each file is read once; you can check or correct the text there.</li>
+      <li><b>Build</b> the index. New or edited files only need an update, and the status below says when one is due.</li>
+      <li><b>Ask</b>, then <a href="/projects/{{ pid }}/testing" data-link>score it on your own questions</a>.</li>
+    </ol>
+    <p class="text-xs dim">The index is external memory: model weights never change. Search combines multilingual semantic embeddings with BM25 keyword matches using rank fusion, then reranks passages with a cross-encoder. An answer gate declines when no passage supports the question; this is often called retrieval-augmented generation (RAG).</p>
+    <p class="text-xs dim">Stored on disk: the passages, their vectors, the keyword index and the search settings. Shared embedder and reranker weights live under <code>~/.finetune-studio/shared_models/</code>. <a href="/projects/{{ pid }}/chat?mode=agent" data-link>Agent chat</a> can recommend settings and start a build for you.</p>
+  </details>
 </div>
 
-{# Where the Smart Brain sits in the project flow #}
-<details class="card mb-4" id="brain-workflow">
+{# The one thing to do next, from the live state (renderHero) #}
+<section class="card brain-hero is-loading mb-4" id="brain-hero" aria-labelledby="brain-state-title">
+  <div class="brain-hero-main">
+    <span class="pill text-xs" id="brain-state-pill">Checking…</span>
+    <h2 id="brain-state-title" class="brain-hero-title">Checking your Smart Brain…</h2>
+    <p id="brain-state-sub" class="brain-hero-sub muted"></p>
+  </div>
+  <div class="brain-hero-actions">
+    <button onclick="quickIndex()" id="quick-index-btn" class="btn lg primary" hidden
+            title="Read any files that are not parsed yet, then build the index. When the embedder runs on the GPU, the chat model is unloaded first and you can load it again in the Ask panel.">Build Smart Brain</button>
+    <button type="button" class="btn" id="brain-add-files-btn" onclick="toggleBrainUpload()"
+            title="Upload more files to this project">＋ Add files</button>
+    <a href="/projects/{{ pid }}/data" class="btn ghost" data-link id="brain-cta-data"
+       title="Check, edit or remove files, and see how each one was read">Manage files</a>
+  </div>
+  <div class="brain-hero-progress">
+<div id="build-status" class="brain-hero-status text-xs dim" role="status" aria-live="polite"></div>
+<div id="build-progress-wrap" class="mt-2" hidden>
+  <div class="hpbar"><div id="build-progress-fill" class="hpbar-fill"></div></div>
+  <div class="flex gap-2 items-center mt-1">
+    <div id="build-progress-text" class="text-xs mono"></div>
+    <button type="button" class="btn sm" id="build-stop-btn" hidden onclick="stopBuild()"
+            title="Stop this build. It ends after the batch it is embedding (a few seconds); the index stays as it was before the build.">■ Stop build</button>
+  </div>
+</div>
+  </div>
+</section>
+
+{# Upload without leaving the page: the first thing a new project needs #}
+<section class="card mb-4" id="brain-upload" hidden aria-label="Add files">
+  <form id="brain-upload-form" class="dropzone" data-drop enctype="multipart/form-data" onsubmit="return false">
+    <p class="mb-1"><b>Drop your files here</b> or choose them.</p>
+    <p class="text-xs muted mb-2">PDF, Word, Excel, PowerPoint, e-mail, text, CSV, HTML, code and more. Files stay on this computer.</p>
+    <input type="file" id="brain-upload-input" class="input" multiple aria-label="Files to add">
+    <div id="brain-upload-status" class="text-xs dim mt-2" role="status" aria-live="polite"></div>
+  </form>
+</section>
+
+{# Who it speaks for: goes with every answer and into the exported package #}
+<details class="card mb-4" id="brain-identity">
   <summary class="card-head">
     <div>
-      <div class="card-title">How the Smart Brain fits in</div>
-      <div class="card-sub">Files are prepared once; the Smart Brain and training both read that one parse.</div>
+      <div class="card-title">Identity</div>
+      <div class="card-sub">Your company, its personality and how it should answer. Used in every answer here and in Testing, and packed into the export.</div>
     </div>
+    <span class="pill text-xs outline" id="identity-pill">Not set</span>
   </summary>
-  <ol class="brain-workflow-steps" aria-label="Smart Brain steps">
-    <li><a href="/projects/{{ pid }}/data" data-link><b>Upload</b></a> files in Files &amp; Knowledge; each one is parsed on arrival (pictures are read by the Vision reader during mining)</li>
-    <li><b>Check or edit</b> the parsed text there if a file read badly</li>
-    <li><b>Build</b> the index below (section 2); the status shows files that changed since the last build</li>
-    <li><b>Test</b> a search and chat below, or score it on the <a href="/projects/{{ pid }}/testing" data-link>test page</a></li>
-  </ol>
-  <p class="text-xs dim mt-2 mb-0">
-    Stored on disk: the passages, their vectors, the keyword index and the search settings. Shared embedder and
-    reranker weights live under <code>~/.finetune-studio/shared_models/</code> (not inside your fine-tuned model).
-  </p>
+  <div class="grid grid-12 gap-3">
+    <div class="col-span-12">
+      <label class="block text-xs muted mb-1" for="id-name">Name</label>
+      <input id="id-name" class="input" maxlength="200" placeholder="e.g. Korvane Assistant, or your own name">
+    </div>
+    <div class="col-span-12">
+      <label class="block text-xs muted mb-1" for="id-about">About you or your company</label>
+      <textarea id="id-about" class="textarea" rows="4" maxlength="20000" placeholder="What every answer should already know: what you do, who you serve, where you operate."></textarea>
+    </div>
+    <div class="col-span-6">
+      <label class="block text-xs muted mb-1" for="id-personality">Personality</label>
+      <textarea id="id-personality" class="textarea" rows="4" maxlength="4000" placeholder="e.g. Plain-spoken and warm. Short sentences. No marketing language."></textarea>
+    </div>
+    <div class="col-span-6">
+      <label class="block text-xs muted mb-1" for="id-rules">How to answer</label>
+      <textarea id="id-rules" class="textarea" rows="4" maxlength="8000" placeholder="e.g. Lead with the answer. Use EUR. Say which policy version applies."></textarea>
+    </div>
+  </div>
+  <div class="flex gap-2 items-center mt-3">
+    <button type="button" class="btn primary" id="identity-save" onclick="saveIdentity()">Save identity</button>
+    <span id="identity-status" class="text-xs dim" role="status" aria-live="polite"></span>
+  </div>
+  <p class="text-xs dim mt-2 mb-0">Facts still come only from this text and your files: a personality changes the voice, not what the sources say. No rebuild needed.</p>
 </details>
 
-<details class="card mb-4" id="brain-agent-help">
-  <summary class="card-head brain-help-head">
+{# Lint: what is wrong with the documents, before they are packaged #}
+<details class="card mb-4" id="brain-lint">
+  <summary class="card-head">
     <div>
-      <div class="card-title">Optional: ask Agent chat for help</div>
-      <div class="card-sub">Chat can recommend chunk size / embedder and call Build — it does not replace uploading files (step 1).</div>
+      <div class="card-title">Knowledge check</div>
+      <div class="card-sub">Finds unreadable files, duplicates, out-of-date versions, documents that disagree and leaked passwords or keys.</div>
     </div>
-    <a href="/projects/{{ pid }}/chat?mode=agent" class="btn" data-link onclick="event.stopPropagation()">Open Agent chat →</a>
+    <span class="pill text-xs outline" id="lint-pill">Checking…</span>
   </summary>
-  <div class="text-xs dim brain-help-body">
-    Example prompts: <i>"Recommend an embedder for my sources."</i>
-    or <i>"Build the index with fact cards on."</i>
+  <div id="lint-list" class="brain-lint-list"></div>
+  <div class="flex gap-2 items-center mt-3">
+    <button type="button" class="btn sm" id="lint-run" onclick="runLint()" title="Check every document again">Check again</button>
+    <button type="button" class="btn sm" id="lint-read-pictures" data-lint-action="read_pictures" hidden title="Read the charts, table images and scanned pages that only OCR read, with the vision reader">Read pictures</button>
+    <span id="lint-status" class="text-xs dim" role="status" aria-live="polite"></span>
   </div>
+  <div id="lint-pictures" class="text-xs dim mt-1"></div>
 </details>
 
-{# Status #}
-<div class="card mb-4" id="brain-dashboard">
-  <div class="card-head">
-    <div>
-      <div class="card-title">1. Index status</div>
-      <div class="card-sub">Whether a search index exists on disk for this project, and where it lives (external memory, not model weights).</div>
-    </div>
-    <span class="pill solid-purple" id="brain-summary-badge" hidden></span>
-  </div>
-  <div id="brain-status" class="text-sm muted">Loading…</div>
-  <div id="shared-models-info" class="mt-2 text-xs dim"></div>
-</div>
-
-{# Build #}
-<div class="card mb-4" id="brain-ingest">
-  <div class="card-head">
-    <div>
-      <div class="card-title">2. Build the index</div>
-      <div class="card-sub">
-        Split this project's <b>parsed text sources</b> into chunks and turn them
-        into a searchable index. First build may download the embedding model
-        (~2.2 GB); later rebuilds reuse it.
-        Upload new files on the files page first — there is no upload on this page.
-      </div>
-    </div>
-  </div>
-  <div class="grid grid-12 gap-3 items-end">
-    <div class="col-span-4">
-      <label class="block text-xs muted mb-1"
-             title="An embedder is a small ML model that converts text into a fixed-length numeric vector (e.g. 1024 numbers). Texts with similar meaning land near each other in that vector space, which lets the system find chunks semantically related to a query. multilingual-e5-large handles 100+ languages; bge-large-en is stronger for English-only corpora; Qwen3-Embedding-0.6B is small and multilingual, and Ollama serves the same model (qwen3-embedding:0.6b), so an exported server can embed queries through an Ollama that already holds it; all-MiniLM-L6-v2 is tiny and fast but weaker.">Embedder <span class="dim">?</span></label>
-      <select id="b-embedder" class="select"
-              title="Pick the embedding model. Larger = better retrieval quality but more disk + slower build. You can change this and rebuild to compare results.">
-        <option value="intfloat/multilingual-e5-large" selected>multilingual-e5-large (1024d, multilingual, recommended)</option>
-        <option value="BAAI/bge-large-en-v1.5">bge-large-en-v1.5 (1024d, English only, strong)</option>
-        <option value="Qwen/Qwen3-Embedding-0.6B">Qwen3-Embedding-0.6B (1024d, multilingual, small: ~1.2 GB, also in Ollama)</option>
-        <option value="sentence-transformers/all-MiniLM-L6-v2">all-MiniLM-L6-v2 (384d, fast, weaker)</option>
-      </select>
-    </div>
-    <div class="col-span-6 text-xs dim self-center"
-         title="The index uses the passages each file was split into when it was parsed (Files &amp; Knowledge), the same passages mining reads. Measured on the Korvane quiz: right passage in the top 5 for 95/102 questions vs 89/102 with separate 400-token chunks.">
-      Passages: the same ones mining reads (one split per file, set when it is parsed). <span class="dim">?</span>
-    </div>
-    <div class="col-span-2 flex gap-2">
-      <button onclick="buildIndex(false)" id="build-btn" class="btn flex-1"
-              title="Build the Smart Brain index: chunk your sources, embed each chunk, index for fast retrieval. First build downloads the embedder (~2.2 GB) which takes a few minutes.">Build</button>
-      <button onclick="buildIndex(true)" id="rebuild-btn" class="btn"
-              title="Wipe the existing index and rebuild from scratch. Use this when you change the embedder — the existing vectors are no longer valid.">⟲ Rebuild from scratch</button>
-    </div>
-  </div>
-  <label class="text-xs flex items-center gap-2 mt-3 cursor-pointer"
-         title="Also index every APPROVED question-answer pair as its own short card next to its file's passages, so a question can land on a reviewed fact. Off by default: measure it on your own questions (test page, Smart Brain mode) before relying on it. Kept for later rebuilds.">
-    <input type="checkbox" id="b-fact-cards"> Fact cards: also index the reviewed (approved) Q&amp;A pairs
-  </label>
-  <div id="build-status" class="mt-3 text-xs dim"></div>
-  <div id="build-progress-wrap" class="mt-2" hidden>
-    <div class="hpbar"><div id="build-progress-fill" class="hpbar-fill"></div></div>
-    <div id="build-progress-text" class="text-xs mono mt-1"></div>
-  </div>
-</div>
-
-{# Settings #}
 <div class="card mb-4" id="brain-needs-index-note" hidden>
-  <p class="text-sm muted">Search settings, the document list, the search test, grounded chat and export appear here once the index is built (step 2 above).</p>
+  <p class="text-sm muted mb-0">Once the index is built you can ask questions here, and the document list, search test and export appear below.</p>
 </div>
 
-<details class="card mb-4" id="brain-search-settings" data-needs-index>
-  <summary class="card-head">
+<section class="card mb-4 brain-ask" id="brain-chat" data-needs-index aria-labelledby="brain-ask-title">
+  <div class="card-head">
     <div>
-      <div class="card-title">3. Search settings</div>
-      <div class="card-sub">
-        Saved with this project's index. Hybrid = keyword match + meaning match
-        combined; rerank = a second scoring pass that reorders results for
-        accuracy. These affect retrieval only — they never retrain the chat model.
-      </div>
+      <div class="card-title" id="brain-ask-title">Ask your documents</div>
+      <div class="card-sub">Answers come only from your indexed files, written by the loaded chat model or the AI assistant's API connection. Click a source to read the passage it came from. If the files do not say, it tells you so.</div>
     </div>
-  </summary>
-  <div class="grid grid-12 gap-3 items-end">
-    <div class="col-span-5">
-      <label class="block text-xs muted mb-1"
-             title="A reranker is a small cross-encoder model (separate from the embedder) that reads the query AND each candidate chunk together and outputs a relevance score. More accurate than raw embedding similarity but slower.">Reranker (cross-encoder) <span class="dim">?</span></label>
-      <select id="s-reranker" aria-label="Reranker model" class="select">
-        <option value="cross-encoder/ms-marco-MiniLM-L-6-v2" selected>ms-marco-MiniLM-L-6-v2 (English, fast)</option>
-        <option value="BAAI/bge-reranker-v2-m3">bge-reranker-v2-m3 (multilingual, larger)</option>
-      </select>
-    </div>
-    <div class="col-span-3">
-      <label class="block text-xs muted mb-1"
-             title="How many candidate chunks to rerank. More = slower but possibly better precision. The reranker then returns the top-K (configured separately) of these. Typical: 30–100.">Rerank top-N <span class="dim">?</span></label>
-      <input id="s-rerank-top-n" aria-label="Candidates to rerank" type="number" min="1" max="200" value="50" class="input">
-    </div>
-    <div class="col-span-2 flex items-center gap-3">
-      <label class="flex items-center gap-2 text-xs" title="Re-rank dense-vector search results with the cross-encoder. Adds latency but improves precision. Disable for fast lookup-only workflows."><input id="s-rerank-enabled" type="checkbox" checked> Rerank</label>
-      <label class="flex items-center gap-2 text-xs" title="Hybrid retrieval = combine meaning-based (embedding) search with BM25 keyword search (classic exact-word matching), then rerank. Better recall than either alone — embedding catches paraphrases, BM25 catches exact terms / code / names."><input id="s-hybrid-enabled" type="checkbox" checked> Hybrid</label>
-    </div>
-    <div class="col-span-2">
-      <button onclick="saveSettings()" class="btn primary w-full">Save</button>
-    </div>
+    <button type="button" class="btn sm ghost" id="chat-new-btn" onclick="newBrainChat()" hidden
+            title="Clear this conversation and start again. Your index is not affected.">New conversation</button>
   </div>
-</details>
+  <div id="chat-messages" class="brain-chat-log" aria-live="polite">
+    <div class="brain-chat-empty" id="chat-empty">Your answers will appear here, each with the files it came from.</div>
+  </div>
+  <div class="flex gap-2 mt-3">
+    <input id="chat-input" type="text" placeholder="Ask a question about your indexed documents…"
+           class="input flex-1"
+           title="Your question is matched against the index, the best passages are pulled out, and the model answers from those passages. Follow-up questions keep the conversation."
+           onkeydown="if(event.key==='Enter'){event.preventDefault();sendChat();}">
+    <button onclick="sendChat()" id="chat-btn" class="btn primary"
+            title="Send your question. The system retrieves relevant chunks and sends them with your message to the selected answer source: the loaded chat model or the AI assistant API connection.">Ask</button>
+  </div>
+  <div class="flex items-center gap-3 wrap text-xs mt-2">
+    <label for="chat-answer-with" title="Which model writes the answer. The default is the chat model loaded on this machine (the top-bar pill; nothing leaves the machine). The AI assistant is an explicit choice, never picked for you: it is the API connection of its Smart Brain chat job (Settings → AI assistant): grounded chat without loading a local model; your question and the retrieved passages are sent to that API.">Answer with</label>
+    <select id="chat-answer-with" class="select" aria-label="Answer with" onchange="updateChatAnswerHint()">
+      <option value="model">the loaded chat model</option>
+      <option value="assistant">the AI assistant (API connection)</option>
+    </select>
+    <label class="flex items-center gap-2"
+         title="When the passages lack a fact the question needs (who manages the site where asset X is installed?), the model may ask for one more search before answering. It helped the API model and Qwen 3.5 4B on the Quillmoor benchmark; for small models that over-use it (Llama 3.2 3B, Gemma 3 4B gained nothing and Gemma abstained less) turn it off.">
+    <input id="chat-follow-up" type="checkbox" checked> Follow-up search for questions that go through another item</label>
+    <label class="flex items-center gap-2"
+         title="When the answer says part of the question is not stated (a contract's value, who signed it), search once more for just that part and write the answer again. One retry per answer; the chat shows what it searched. Needs the follow-up search on.">
+    <input id="chat-retry-missing" type="checkbox" checked> Search again for a missing part</label>
+  </div>
+  <div id="chat-answer-hint" class="text-xs muted mt-1" role="status" hidden></div>
+  <div class="brain-chat-model" id="chat-model-row" hidden>
+    <span class="text-xs" id="chat-model-msg"></span>
+    <select id="chat-model-select" class="select" aria-label="Model to load for answering"></select>
+    <button type="button" class="btn sm primary" id="chat-model-load" onclick="loadBrainAnswerModel()"
+            title="Load this model on this machine so it can write the answers. Nothing leaves the computer.">Load</button>
+    <a class="btn sm ghost" id="chat-model-download" href="/models/explore" data-link hidden>Download a model</a>
+  </div>
+</section>
 
-{# Documents indexed #}
+<h2 class="brain-section-label">Manage</h2>
+
 <details class="card mb-4" id="brain-docs-panel" data-needs-index>
   <summary class="card-head">
     <div>
-      <div class="card-title">4. Documents in the index</div>
+      <div class="card-title">Documents in the index</div>
       <div class="card-sub">
         What actually got indexed — not your raw uploads (files page), and not the
         parsed sources list. If a file is missing here, it wasn't parsed or wasn't
@@ -253,18 +242,13 @@
   </div>
 </div>
 
-{# Test #}
-<div class="card mb-4" id="brain-search" data-needs-index>
-  <div class="card-head">
+<details class="card mb-4" id="brain-search" data-needs-index>
+  <summary class="card-head">
     <div>
-      <div class="card-title">5. Search test</div>
-      <div class="card-sub">
-        Search the index and see which passages come back — no AI answer is
-        generated. Use it to check whether your build and settings retrieve
-        the right text before you chat or train.
-      </div>
+      <div class="card-title">Test a search</div>
+      <div class="card-sub">See which passages come back for a question, without an AI answer. Use it when an answer looks wrong.</div>
     </div>
-  </div>
+  </summary>
   <div class="flex gap-2">
     <input id="q-text" type="text" placeholder="Ask a question about this project's documents…"
            class="input flex-1"
@@ -275,40 +259,97 @@
   </div>
   <div id="q-status" class="mt-2 text-xs dim"></div>
   <div id="q-results" class="mt-3" hidden></div>
-</div>
+</details>
 
-{# Chat #}
-<div class="card mb-4" id="brain-chat" data-needs-index>
-  <div class="card-head">
+<details class="card mb-4" id="brain-search-settings" data-needs-index>
+  <summary class="card-head">
     <div>
-      <div class="card-title">6. Ask the model (grounded)</div>
+      <div class="card-title">Search settings</div>
       <div class="card-sub">
-        Chat that looks up your documents first and answers using them as context
-        (needs a chat model loaded — see the pill in the top bar).
-        The grounding comes from this index, not from fine-tuned weights.
+        Saved with this project's index. Hybrid = keyword match + meaning match
+        combined; rerank = a second scoring pass that reorders results for
+        accuracy. These affect retrieval only — they never retrain the chat model.
       </div>
     </div>
+  </summary>
+  <div class="grid grid-12 gap-3 items-end">
+    <div class="col-span-4">
+      <label class="block text-xs muted mb-1"
+             title="A reranker is a small cross-encoder model (separate from the embedder) that reads the query AND each candidate chunk together and outputs a relevance score. More accurate than raw embedding similarity but slower.">Reranker (cross-encoder) <span class="dim">?</span></label>
+      <select id="s-reranker" aria-label="Reranker model" class="select">
+        <option value="BAAI/bge-reranker-v2-m3" selected>bge-reranker-v2-m3 (multilingual, most accurate; default with a GPU)</option>
+        <option value="cross-encoder/ms-marco-MiniLM-L-6-v2">ms-marco-MiniLM-L-6-v2 (English, small; default without a GPU)</option>
+      </select>
+    </div>
+    <div class="col-span-2">
+      <label class="block text-xs muted mb-1"
+             title="How many candidate chunks to rerank. More = slower but possibly better precision. The reranker then returns the top-K (configured separately) of these. Typical: 30–100.">Rerank top-N <span class="dim">?</span></label>
+      <input id="s-rerank-top-n" aria-label="Candidates to rerank" type="number" min="1" max="200" value="50" class="input">
+    </div>
+    <div class="col-span-2">
+      <label class="block text-xs muted mb-1"
+             title="At most this many passages of one document in a search's top results before other documents get a turn (its other passages still fill the end when nothing else matches). Keeps one long e-mail or contract from pushing the deciding passage out. 0 = no cap. Default 3. Packages exported from this index use it too.">Per document <span class="dim">?</span></label>
+      <input id="s-max-per-doc" aria-label="Passages per document in the top results" type="number" min="0" max="100" value="3" class="input">
+    </div>
+    <div class="col-span-2 flex items-center gap-3">
+      <label class="flex items-center gap-2 text-xs" title="Re-rank dense-vector search results with the cross-encoder. Adds latency but improves precision. Disable for fast lookup-only workflows."><input id="s-rerank-enabled" type="checkbox" checked> Rerank</label>
+      <label class="flex items-center gap-2 text-xs" title="Hybrid retrieval = combine meaning-based (embedding) search with BM25 keyword search (classic exact-word matching), then rerank. Better recall than either alone — embedding catches paraphrases, BM25 catches exact terms / code / names."><input id="s-hybrid-enabled" type="checkbox" checked> Hybrid</label>
+    </div>
+    <div class="col-span-2">
+      <button onclick="saveSettings()" class="btn primary w-full">Save</button>
+    </div>
   </div>
-  <div id="chat-messages" class="flex flex-col gap-2 mb-3 brain-chat-log"></div>
-  <div class="flex gap-2">
-    <input id="chat-input" type="text" placeholder="Ask anything — model uses the retrieved documents as context…"
-           class="input flex-1"
-           title="A retrieval-augmented chat: your question is embedded, top-K matching chunks are pulled from the index, and the model is asked to answer using those chunks as context. Reduces hallucination and lets the model cite sources."
-           onkeydown="if(event.key==='Enter'){event.preventDefault();sendChat();}">
-    <button onclick="sendChat()" id="chat-btn" class="btn primary"
-            title="Send your question. The system retrieves relevant chunks, prepends them to your message, and sends everything to the loaded model. Requires a model to be loaded first (top-bar pill turns green when one is).">Send</button>
-  </div>
-</div>
+</details>
 
-{# Bundle #}
+<details class="card mb-4" id="brain-ingest">
+  <summary class="card-head">
+    <div>
+      <div class="card-title">Build options</div>
+      <div class="card-sub">Choose another embedder, rebuild from scratch or replace only the vectors. The first build downloads the embedding model (~2.2 GB) and, on a machine with a GPU, the reranker (~2.2 GB).</div>
+    </div>
+  </summary>
+  <div class="grid grid-12 gap-3 items-end">
+    <div class="col-span-4">
+      <label class="block text-xs muted mb-1"
+             title="An embedder is a small ML model that converts text into a fixed-length numeric vector (e.g. 1024 numbers). Texts with similar meaning land near each other in that vector space, which lets the system find chunks semantically related to a query. multilingual-e5-large handles 100+ languages; bge-large-en is stronger for English-only corpora; Qwen3-Embedding-0.6B is small and multilingual, and Ollama serves the same model (qwen3-embedding:0.6b), so an exported server can embed queries through an Ollama that already holds it; all-MiniLM-L6-v2 is tiny and fast but weaker.">Embedder <span class="dim">?</span></label>
+      <select id="b-embedder" class="select"
+              title="Pick the embedding model. Larger = better retrieval quality but more disk + slower build. You can change this and rebuild to compare results.">
+        <option value="intfloat/multilingual-e5-large" selected>multilingual-e5-large (1024d, multilingual, recommended)</option>
+        <option value="BAAI/bge-large-en-v1.5">bge-large-en-v1.5 (1024d, English only, strong)</option>
+        <option value="Qwen/Qwen3-Embedding-0.6B">Qwen3-Embedding-0.6B (1024d, multilingual, small: ~1.2 GB, also in Ollama)</option>
+        <option value="sentence-transformers/all-MiniLM-L6-v2">all-MiniLM-L6-v2 (384d, fast, weaker)</option>
+      </select>
+    </div>
+    <div class="col-span-6 text-xs dim self-center"
+         title="The index uses the passages each file was split into when it was parsed (Files &amp; Knowledge), the same passages mining reads. Measured on the Korvane quiz: right passage in the top 5 for 95/102 questions vs 89/102 with separate 400-token chunks.">
+      Passages: the same ones mining reads (one split per file, set when it is parsed). <span class="dim">?</span>
+    </div>
+    <div class="col-span-2 flex gap-2">
+      <button onclick="buildIndex(false)" id="build-btn" class="btn flex-1"
+              title="Build the Smart Brain index: chunk your sources, embed each chunk, index for fast retrieval. First build downloads the embedder (~2.2 GB) which takes a few minutes.">Build</button>
+      <button onclick="buildIndex(true)" id="rebuild-btn" class="btn"
+              title="Wipe the existing index and rebuild from scratch: parse, chunk and embed every file again.">⟲ Rebuild from scratch</button>
+      <button onclick="reembedIndex()" id="reembed-btn" class="btn"{% if not indexed_doc_count %} disabled{% endif %}
+              data-title-ready="Keep the documents and passages, replace only their vectors with the embedder picked above. Use it after changing the embedder: quicker than rebuilding from scratch."
+              data-title-none="No index yet: build it first (Build or Quick index), then Re-embed only swaps its vectors."
+              title="{% if indexed_doc_count %}Keep the documents and passages, replace only their vectors with the embedder picked above. Use it after changing the embedder: quicker than rebuilding from scratch.{% else %}No index yet: build it first (Build or Quick index), then Re-embed only swaps its vectors.{% endif %}">⇄ Re-embed only</button>
+    </div>
+  </div>
+  <label class="text-xs flex items-center gap-2 mt-3 cursor-pointer"
+         title="Also index every APPROVED question-answer pair as its own short card next to its file's passages, so a question can land on a reviewed fact. Off by default: measure it on your own questions (test page, Smart Brain mode) before relying on it. Kept for later rebuilds.">
+    <input type="checkbox" id="b-fact-cards"> Fact cards: also index the reviewed (approved) Q&amp;A pairs
+  </label>
+</details>
+
 <details class="card mb-4" id="brain-export-panel" data-needs-index>
   <summary class="card-head">
     <div>
-      <div class="card-title">7. Download / export the index</div>
+      <div class="card-title">Build the package</div>
       <div class="card-sub">
         Studio-to-studio copy of this index (documents, chunks, vectors, keyword index, settings) as one
-        <b>encrypted</b> <code>.ftsrag</code> file saved inside the project. The passphrase is never stored.
-        Search-model files are not included &mdash; use the standalone package below for an offline pack.
+        <b>encrypted</b> <code>.ftsrag</code> file saved inside the project; the other studio loads it with
+        <b>Import an index</b>. The passphrase is never stored. Search-model files are not included &mdash; use the
+        standalone package below for an offline pack.
       </div>
     </div>
   </summary>
@@ -326,21 +367,8 @@
       <button id="bundle-btn" onclick="startBundleDownload()" class="btn primary w-full" title="Encrypt the index into a single .ftsrag file you can move to another studio.">Export</button>
     </div>
   </div>
-  <div class="grid grid-12 gap-3 items-end mb-3">
-    <div class="col-span-5">
-      <label class="block text-xs muted mb-1">Import a bundle (.ftsrag, or legacy .tar/.zip)</label>
-      <input id="bundle-import-file" aria-label=".ftsrag bundle file" type="file" accept=".ftsrag,.tar,.tar.gz,.tgz,.zip" class="input">
-    </div>
-    <div class="col-span-5">
-      <label class="block text-xs muted mb-1">Passphrase</label>
-      <input id="bundle-import-pass" aria-label="Bundle passphrase" type="password" autocomplete="off" class="input">
-    </div>
-    <div class="col-span-2">
-      <button id="bundle-import-btn" onclick="startBundleImport()" class="btn w-full" title="Replaces this project's index.">Import</button>
-    </div>
-  </div>
   <div class="mt-3" id="mcp-pkg-panel">
-    <div class="text-sm font-semibold">Standalone Smart Brain server (MCP + HTTP)</div>
+    <div class="text-sm font-semibold">Knowledge package (MCP + HTTP server)</div>
     <p class="text-xs dim mb-2">An archive with the index, a small Python server, installer, run scripts and a README. Speaks plain HTTP and MCP. <b>Encrypted by default</b> (AES-256-GCM); the passphrase is never stored — it is shown once below.</p>
     <div class="grid grid-12 gap-3 items-end mb-2">
       <div class="col-span-4">
@@ -371,10 +399,118 @@
         <input id="mcp-topk" type="number" min="1" max="100" class="input" value="10">
       </div>
     </div>
+    <fieldset class="brain-layers mb-2" id="mcp-versioning">
+      <legend class="text-xs font-semibold">Version</legend>
+      <div class="grid grid-12 gap-3 items-end">
+        <div class="col-span-8">
+          <label class="block text-xs muted mb-1" for="mcp-base">Package</label>
+          <select id="mcp-base" class="select" title="A new package gets a new id at version 1.0.0. A new version keeps the package's id, bumps its version and lists what changed since then (CHANGES.md, the Package page). A running copy is updated with its update.sh.">
+            <option value="">A new package (version 1.0.0)</option>
+          </select>
+        </div>
+        <div class="col-span-4">
+          <label class="block text-xs muted mb-1" for="mcp-version">Version (blank = automatic)</label>
+          <input id="mcp-version" type="text" class="input" placeholder="1.0.0" autocomplete="off">
+        </div>
+      </div>
+      <details class="text-xs mt-2" id="mcp-base-upload-box"><summary>Use an exported package file as the base</summary>
+        <div class="grid grid-12 gap-3 items-end mt-2">
+          <div class="col-span-5"><label class="block text-xs muted mb-1" for="mcp-base-file">Package archive</label>
+            <input id="mcp-base-file" type="file" accept=".tar.gz,.tgz,.tar,.zip" class="input"></div>
+          <div class="col-span-5"><label class="block text-xs muted mb-1" for="mcp-base-pass">Its passphrase</label>
+            <input id="mcp-base-pass" type="password" autocomplete="off" class="input"></div>
+          <div class="col-span-2"><button class="btn w-full" type="button" id="mcp-base-upload" onclick="uploadPackageBase()">Read it</button></div>
+        </div>
+        <p class="dim mt-1">Only its id, version and document list are read (to compare against); nothing else is kept.</p>
+      </details>
+      <div class="text-xs mt-2" id="mcp-version-note" role="status" aria-live="polite"></div>
+    </fieldset>
+    <fieldset class="brain-layers mb-2" id="mcp-scope">
+      <legend class="text-xs font-semibold">Documents in the package</legend>
+      <p class="text-xs dim mb-2">A package for a public chatbot can carry only part of the index (for example the
+        <code>public/</code> folder); the rest is not inside at all, so it cannot be found or read through it.</p>
+      <label class="brain-layer"><input type="radio" name="mcp-scope-mode" id="mcp-scope-all" value="all" checked>
+        <span><b>All documents</b></span></label>
+      <label class="brain-layer"><input type="radio" name="mcp-scope-mode" id="mcp-scope-some" value="some">
+        <span><b>Only these</b> <span class="dim">folders, tags or single documents</span></span></label>
+      <div id="mcp-scope-pick" class="mt-2" hidden>
+        <div class="text-xs muted mb-1">Folders</div>
+        <div id="mcp-scope-folders" class="flex gap-4 wrap text-xs mb-2"></div>
+        <div class="text-xs muted mb-1" id="mcp-scope-tags-label" hidden>Tags</div>
+        <div id="mcp-scope-tags" class="flex gap-4 wrap text-xs mb-2"></div>
+        <details class="text-xs" id="mcp-scope-docs-more"><summary>Single documents</summary>
+          <div id="mcp-scope-docs" class="mt-1"></div></details>
+      </div>
+      <div class="text-xs mt-2" id="mcp-scope-summary" role="status" aria-live="polite"></div>
+    </fieldset>
+    <fieldset class="brain-layers mb-2" id="mcp-layers">
+      <legend class="text-xs font-semibold">Search layers in the package</legend>
+      <p class="text-xs dim mb-2">Each layer is separate. The package ships only the files the layers you keep need, and
+        its server can switch a shipped layer off at run time (<code>--no-semantic</code>, <code>--no-keyword</code>, <code>--no-reranker</code>).</p>
+      <label class="brain-layer" title="Each passage is stored as a vector (a list of numbers from the embedding model). A question is turned into a vector too, and passages whose vectors point the same way are found even when they use other words. Ships vectors.npy; needs the embedder (bundled with Include models) or an embeddings API at run time.">
+        <input id="mcp-sem" type="checkbox" checked>
+        <span><b>Meaning search</b> (vectors / embeddings) <span class="dim">finds passages that say the same thing in other words</span></span>
+      </label>
+      <label class="brain-layer" title="BM25: the classic search-engine score over the exact words of each passage (rare words count more, long passages are evened out). Best for names, codes, numbers and exact terms. Ships bm25.json; needs no model.">
+        <input id="mcp-kw" type="checkbox" checked>
+        <span><b>Word search</b> (BM25 keyword index) <span class="dim">exact names, codes, numbers; no model needed</span></span>
+      </label>
+      <div class="brain-layer brain-layer-auto" id="mcp-fusion" title="With both searches on, Reciprocal Rank Fusion merges their two rankings: a passage ranked high by either one, or by both, rises to the top. It is not a separate switch: it runs exactly when both searches do.">
+        <span class="brain-layer-mark" aria-hidden="true">⇄</span>
+        <span><b>Rank fusion</b> (RRF) <span class="dim" id="mcp-fusion-state">on: merges the two rankings</span></span>
+      </div>
+      <label class="brain-layer" title="A cross-encoder reads the question and each of the best candidates together and scores them again: slower, more precise ordering. Its model must be inside the package, so it needs Include models.">
+        <input id="mcp-rerank" type="checkbox" checked>
+        <span><b>Reranker</b> (cross-encoder) <span class="dim" id="mcp-rerank-note">needs Include models</span></span>
+      </label>
+      <label class="brain-layer" title="The G in RAG (retrieval-augmented generation). Off: the server returns passages and your own model or agent writes the answer (the usual MCP setup). On: the server also answers, at /ask and the MCP tool rag_answer, by sending the passages to an OpenAI-compatible chat model with the same grounded prompt as this page's chat.">
+        <input id="mcp-answer" type="checkbox">
+        <span><b>Answer generation</b> (the “G” in RAG) <span class="dim">the server also writes the answer with a language model</span></span>
+      </label>
+      <div class="grid grid-12 gap-3 items-end mt-2" id="mcp-llm" hidden>
+        <div class="col-span-12">
+          <label class="block text-xs muted mb-1" for="mcp-llm-conn">Copy from an AI assistant connection</label>
+          <select id="mcp-llm-conn" class="select"
+                  title="Fills the endpoint and model from one of your API connections in Settings → AI assistant, with the extra headers and request settings it needs (e.g. OpenCode Go's session header). Its API key is never copied.">
+            <option value="">— type the endpoint and model below —</option>
+          </select>
+        </div>
+        <div class="col-span-4">
+          <label class="block text-xs muted mb-1" for="mcp-llm-preset">Provider</label>
+          <select id="mcp-llm-preset" class="select" title="Fills the endpoint and the API kind. The key is never in the package: whoever runs it sets RAG_LLM_API_KEY, or types a key in the package's chat page.">
+            <option value="">— choose —</option>
+            <option value="openai" data-api="openai" data-url="https://api.openai.com/v1">OpenAI</option>
+            <option value="anthropic" data-api="anthropic" data-url="https://api.anthropic.com/v1">Anthropic Claude</option>
+            <option value="openrouter" data-api="openai" data-url="https://openrouter.ai/api/v1">OpenRouter</option>
+            <option value="local" data-api="openai" data-url="http://127.0.0.1:11434/v1">Local server (Ollama, LM Studio, llama.cpp)</option>
+            <option value="other" data-api="openai" data-url="">Other OpenAI-compatible API</option>
+          </select>
+          <input id="mcp-llm-provider" type="hidden" value="openai">
+        </div>
+        <div class="col-span-4">
+          <label class="block text-xs muted mb-1" for="mcp-llm-url">Answer model endpoint</label>
+          <input id="mcp-llm-url" type="text" class="input" placeholder="http://127.0.0.1:11434/v1"
+                 title="Base URL of any OpenAI-compatible chat API: Ollama, LM Studio, llama.cpp server, vLLM, OpenAI. The server calls {url}/chat/completions.">
+        </div>
+        <div class="col-span-4">
+          <label class="block text-xs muted mb-1" for="mcp-llm-model">Answer model name</label>
+          <input id="mcp-llm-model" type="text" class="input" placeholder="qwen3:8b"
+                 title="The model name that endpoint expects. An API key is never put in the package: set RAG_LLM_API_KEY where the server runs.">
+        </div>
+        <p class="col-span-12 text-xs dim">No API key is stored in the package: where the server runs, set <code>RAG_LLM_API_KEY</code>, or type a key in the package's chat page (it is sent with each question and never saved).</p>
+      </div>
+      <div class="text-xs mt-2" id="mcp-pipeline" role="status" aria-live="polite"></div>
+    </fieldset>
     <div class="flex gap-4 items-center mb-2 text-xs">
-      <label class="flex items-center gap-2" title="Ship the embedding model (+ reranker) inside for offline meaning-search (~2 GB). Model weights are public and are NOT encrypted."><input id="mcp-models" type="checkbox"> Include models (not encrypted)</label>
-      <label class="flex items-center gap-2"><input id="mcp-rerank" type="checkbox" checked> Reranker on by default</label>
+      <label class="flex items-center gap-2" title="Ship the embedding model (for meaning search) and the reranker inside, for fully offline use (about 0.2 GB with the small MiniLM models, about 4.5 GB with e5-large and bge-reranker-v2-m3). Model weights are public and are NOT encrypted."><input id="mcp-models" type="checkbox"> Include models (not encrypted)</label>
       <label class="flex items-center gap-2 brain-plaintext-opt" title="Off the default path. Documents and index become plain files in the archive."><input id="mcp-noenc" type="checkbox"> Export WITHOUT encryption (plaintext)</label>
+    </div>
+    <div class="mb-2 text-xs" id="mcp-hide-names-row">
+      <label class="flex items-center gap-2" title="For a public bot: answers do not cite internal-looking file names like [Harrowgate_deal_sheet.xlsx]. The answer model never sees the file names, any it writes anyway are removed, and the package chat page shows no source list. Your own tools still get the sources by asking for them (/ask with &quot;sources&quot;: true, rag_answer with include_sources)."><input id="mcp-hide-names" type="checkbox"> Hide file names in answers</label>
+    </div>
+    <div class="mb-2 text-xs" id="mcp-originals-row">
+      <label class="flex items-center gap-2" title="Ship the uploaded files themselves (PDF, spreadsheet, …), encrypted with the corpus. Agents get them with the MCP tool rag_get_document, browsers at /files/&lt;id&gt; and the chat page shows a download link per source."><input id="mcp-originals" type="checkbox"> Include original files</label>
+      <p class="dim mt-1" id="mcp-originals-note">Anyone with access to the package server can download them. Leave this off for a public bot.</p>
     </div>
     <div class="flex gap-2 items-center">
       <button class="btn primary" type="button" id="mcp-pkg-btn" onclick="startMcpPackage()"
@@ -395,11 +531,38 @@
   <span id="bundle-status" class="block mt-2 text-xs dim"></span>
 </details>
 
-{# Shared models #}
+<details class="card mb-4" id="brain-import-panel">
+  <summary class="card-head">
+    <div>
+      <div class="card-title">Import an index or open a package</div>
+      <div class="card-sub">Load an encrypted <code>.ftsrag</code> bundle someone exported from their Smart Brain
+        (or a legacy .tar/.zip): it brings the passages, vectors and keyword index. Or <b>open an exported package</b>
+        (<code>.tar.gz</code> / <code>.zip</code> with its passphrase) to edit it: its index becomes this project's,
+        its original files (when it ships them) come back into Files in their folders, and the next export can be
+        a new version of it.</div>
+    </div>
+  </summary>
+  <div class="grid grid-12 gap-3 items-end mb-2">
+    <div class="col-span-5">
+      <label class="block text-xs muted mb-1" for="bundle-import-file">Bundle (.ftsrag) or package (.tar.gz / .zip)</label>
+      <input id="bundle-import-file" type="file" accept=".ftsrag,.tar,.tar.gz,.tgz,.zip" class="input">
+    </div>
+    <div class="col-span-5">
+      <label class="block text-xs muted mb-1" for="bundle-import-pass">Passphrase (from whoever exported it)</label>
+      <input id="bundle-import-pass" type="password" autocomplete="off" class="input">
+    </div>
+    <div class="col-span-2">
+      <button id="bundle-import-btn" onclick="startBundleImport()" class="btn primary w-full"
+              title="Decrypt and load the bundle as this project's index (an existing index is replaced, after a confirmation).">Import</button>
+    </div>
+  </div>
+  <div id="bundle-import-status" class="text-xs dim" role="status" aria-live="polite"></div>
+</details>
+
 <details class="card mb-4" id="brain-shared-models">
   <summary class="card-head">
     <div>
-      <div class="card-title">8. Shared search models</div>
+      <div class="card-title">Shared search models</div>
       <div class="card-sub">
         The embedder and reranker model files (the helpers that turn text into
         searchable numbers) live in <code>~/.finetune-studio/shared_models/</code> —
@@ -411,6 +574,21 @@
   </summary>
   <div id="shared-models-list" class="text-xs muted">Loading…</div>
 </details>
+
+<details class="card mb-4" id="brain-dashboard" data-sprite="corpus-node">
+  <summary class="card-head">
+    <div>
+      <div class="card-title">Index details</div>
+      <div class="card-sub">What is on disk: counts, embedder and where the index lives (external memory, not model weights).</div>
+    </div>
+    <span class="pill solid-purple" id="brain-summary-badge" hidden></span>
+  </summary>
+  <div id="brain-status" class="text-sm muted">Loading…</div>
+  <div id="shared-models-info" class="mt-2 text-xs dim"></div>
+</details>
+
+{% set res_compact = true %}
+{% include "_resources.html" %}
 
 {# Danger zone #}
 <div class="card card-danger">
@@ -432,6 +610,8 @@
     if (n) n(msg, type); else console.log(msg);
   };
   const PID = {{ pid | tojson }};
+  // Re-embed only needs an index to re-embed: off until one exists (the API answers 404 without it).
+  let hasIndex = {{ 'true' if indexed_doc_count else 'false' }};
   // 'shared:embedder:intfloat__multilingual-e5-large@b97ef8b3…' -> 'intfloat/multilingual-e5-large' (full id in the tooltip).
   function embedderLabel(raw) {
     if (!raw) return '—';
@@ -443,6 +623,13 @@
   const esc = (s) => String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  // Answers are Markdown-ish (**bold**, `code`, ### headings, - lists): show them as such instead of raw asterisks.
+  // Takes ALREADY-ESCAPED text and adds only <strong>/<code> tags; the line breaks stay (white-space: pre-wrap).
+  const mdInline = (html) => String(html)
+    .replace(/^#{1,4} +(.+)$/gm, '<strong>$1</strong>')
+    .replace(/^([ \t]*)[-*] +/gm, '$1\u2022 ')
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/`([^`\n]+)`/g, '<code>$1</code>');
 
   function statusPill(status) {
     if (status === 'indexed') return '<span class="pill solid-green">indexed</span>';
@@ -496,6 +683,7 @@
     const body = {
       reranker: reranker || null,
       rerank_top_n: topNEl ? parseInt(topNEl.value, 10) || 50 : 50,
+      max_per_document: (function () { const v = parseInt((document.getElementById('s-max-per-doc') || {}).value, 10); return isNaN(v) ? 3 : v; })(),
       rerank_enabled: !!(rerankOn && rerankOn.checked),
       hybrid_enabled: !!(hybridOn && hybridOn.checked),
     };
@@ -544,13 +732,170 @@
     }
   };
 
+  function clearBrainTransientOutput() {
+    const queryStatus = document.getElementById('q-status');
+    const queryResults = document.getElementById('q-results');
+    const chatMessages = document.getElementById('chat-messages');
+    const chatInput = document.getElementById('chat-input');
+    const buildStatus = document.getElementById('build-status');
+    if (queryStatus) queryStatus.textContent = 'No indexed passages. Build the index to search.';
+    if (queryResults) {
+      queryResults.replaceChildren();
+      queryResults.hidden = true;
+    }
+    if (chatMessages) newBrainChat();
+    if (chatInput) chatInput.value = '';
+    if (buildStatus) buildStatus.textContent = 'Sources cleared. Build the index again to search and chat.';
+  }
+
   window.clearAllDocuments = async function() {
     if (!await fts.confirm('Remove ALL sources? You will need to rebuild the index.', {danger: true, okText: 'Remove all'})) return;
     try {
       await api().del('/api/projects/' + PID + '/brain/documents');
+      clearBrainTransientOutput();
+      loadBrainStatus();
       loadIndexedDocs(); notify('All sources cleared', 'success');
     } catch (e) { notify('Failed: ' + e.message, 'error'); }
   };
+
+  // ── What the page says first: one state, one next action ─────────
+  let buildRunning = false;
+  let lastBrainState = null;
+
+  function changesText(st) {
+    const n = (a) => (a || []).length;
+    return [n(st.stale) ? n(st.stale) + ' changed' : '', n(st.missing) ? n(st.missing) + ' new' : '',
+            n(st.removed) ? n(st.removed) + ' removed' : '', st.facts_changed ? 'reviewed facts changed' : '']
+      .filter(Boolean).join(' · ');
+  }
+
+  // The state the page is in, from GET /brain (files = the project's sources, state = what changed since the build).
+  function brainStateOf(d) {
+    const st = d.state || {};
+    const files = d.files || { total: 0, ready: 0 };
+    const built = !!d.exists && d.chunks > 0;
+    const count = function (n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); };
+    if (buildRunning) {
+      return { key: 'building', pill: 'Building', tone: 'solid-blue', title: 'Building your Smart Brain…',
+               sub: 'It runs on its own: you can leave this page.', action: '' };
+    }
+    if (built && st.fresh) {
+      return { key: 'ready', pill: 'Ready', tone: 'solid-green', title: 'Ready to answer',
+               sub: count(d.documents, 'document') + ' · ' + count(d.chunks, 'passage') + ' indexed. Ask below.', action: '' };
+    }
+    if (built) {
+      return { key: 'stale', pill: 'Needs an update', tone: 'solid-amber', title: 'Your files changed since the last build',
+               sub: (changesText(st) || 'Files changed') + '. Answers still use the old index until you update it.',
+               action: 'Update Smart Brain' };
+    }
+    if (!files.total) {
+      return { key: 'empty', pill: 'Start here', tone: 'outline', title: 'Add your files to begin',
+               sub: 'A Smart Brain answers questions from your own documents, with the sources.', action: '' };
+    }
+    if (!files.ready) {
+      return { key: 'parsing', pill: 'Reading', tone: 'solid-blue', title: 'Reading your files…',
+               sub: count(files.total, 'file') + ' uploaded. You can build as soon as one is ready.', action: 'Build Smart Brain' };
+    }
+    return { key: 'unbuilt', pill: 'One step left', tone: 'solid-purple', title: count(files.ready, 'file') + ' ready to index',
+             sub: 'Building takes a minute or two. The first build also downloads the search models (about 4 GB).',
+             action: 'Build Smart Brain' };
+  }
+
+  function renderHero(d) {
+    const v = brainStateOf(d);
+    lastBrainState = d;
+    const hero = document.getElementById('brain-hero');
+    const pill = document.getElementById('brain-state-pill');
+    const btn = document.getElementById('quick-index-btn');
+    const upload = document.getElementById('brain-upload');
+    if (hero) { hero.className = 'card brain-hero mb-4 is-' + v.key; }
+    if (pill) { pill.className = 'pill text-xs ' + v.tone; pill.textContent = v.pill; }
+    document.getElementById('brain-state-title').textContent = v.title;
+    document.getElementById('brain-state-sub').textContent = v.sub;
+    if (btn) { btn.hidden = !v.action; if (v.action) btn.textContent = v.action; }
+    if (upload && v.key === 'empty') upload.hidden = false;
+    const chatNew = document.getElementById('chat-new-btn');
+    if (chatNew) chatNew.hidden = !brainChat.length;
+  }
+
+  function focusAsk() {
+    const input = document.getElementById('chat-input');
+    if (input && !input.closest('[hidden]')) input.focus({ preventScroll: false });
+  }
+
+  // ── Add files without leaving the page ───────────────────────────
+  window.toggleBrainUpload = function () {
+    const card = document.getElementById('brain-upload');
+    if (!card) return;
+    card.hidden = !card.hidden;
+    if (!card.hidden) card.scrollIntoView({ block: 'nearest' });
+  };
+
+  function uploadBrainFiles(fileList) {
+    const status = document.getElementById('brain-upload-status');
+    const input = document.getElementById('brain-upload-input');
+    if (!fileList || !fileList.length) return;
+    const fd = new FormData();
+    for (const f of fileList) fd.append('files', f, f.name);
+    if (input) input.disabled = true;
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/projects/' + PID + '/files/upload');
+    xhr.upload.onprogress = function (ev) {
+      if (status && ev.lengthComputable) status.textContent = 'Uploading ' + Math.round(ev.loaded / ev.total * 100) + '%…';
+    };
+    const done = function () { if (input) { input.disabled = false; input.value = ''; } };
+    xhr.onerror = function () { done(); if (status) status.textContent = 'Upload failed: the connection dropped.'; };
+    xhr.onload = async function () {
+      done();
+      let data = {};
+      try { data = JSON.parse(xhr.responseText); } catch (_e) { /* reported below */ }
+      if (xhr.status >= 400) {
+        const msg = (typeof data.detail === 'string' && data.detail) || ('the server answered ' + xhr.status);
+        if (status) status.textContent = 'Upload failed: ' + msg;
+        notify('Upload failed: ' + msg, 'error');
+        return;
+      }
+      const c = data.counts || {};
+      const errors = (data.files || data.report || []).filter(function (f) { return f.status === 'error'; });
+      if (status) {
+        status.textContent = 'Added ' + (c.uploaded || 0) + ' file(s)'
+          + (c.duplicates_skipped ? ', ' + c.duplicates_skipped + ' already here' : '')
+          + (errors.length ? '. Could not add: ' + errors.map(function (f) { return f.filename + ' (' + f.error + ')'; }).join(', ') : '')
+          + '. Reading them…';
+      }
+      if (window.fts && fts.refreshFlowNext) fts.refreshFlowNext();
+      // Parsing runs in the background: follow it so the build button turns up by itself.
+      for (let i = 0; i < 30; i++) {
+        await loadBrainStatus();
+        const f = (lastBrainState && lastBrainState.files) || {};
+        if (f.total && f.ready >= f.total) break;
+        await new Promise(function (r) { setTimeout(r, 2000); });
+      }
+      if (status) {
+        const f = (lastBrainState && lastBrainState.files) || {};
+        const unread = (f.total || 0) - (f.ready || 0);
+        status.textContent = status.textContent.replace('Reading them…', unread
+          ? unread + ' file(s) could not be read yet: see Manage files.'
+          : (lastBrainState && lastBrainState.exists ? 'Update the Smart Brain to include them.' : 'Ready to build.'));
+      }
+    };
+    xhr.send(fd);
+  }
+
+  function initBrainUpload() {
+    const input = document.getElementById('brain-upload-input');
+    const form = document.getElementById('brain-upload-form');
+    if (input) input.addEventListener('change', function () { uploadBrainFiles(input.files); });
+    if (form) {
+      ['dragover', 'dragenter'].forEach(function (e) {
+        form.addEventListener(e, function (ev) { ev.preventDefault(); form.classList.add('dragging'); });
+      });
+      ['dragleave', 'drop'].forEach(function (e) {
+        form.addEventListener(e, function (ev) { ev.preventDefault(); form.classList.remove('dragging'); });
+      });
+      form.addEventListener('drop', function (ev) { uploadBrainFiles(ev.dataTransfer.files); });
+    }
+  }
 
   // ── Index status card (readable fields, not JSON) ─────────────────
   window.loadBrainStatus = async function() {
@@ -563,8 +908,11 @@
       document.querySelectorAll('[data-needs-index]').forEach((c) => { c.hidden = !d.exists; });
       const note = document.getElementById('brain-needs-index-note');
       if (note) note.hidden = !!d.exists;
+      window.BRAIN_HAS_INDEX = !!d.exists;
+      setHasIndex(d.exists && d.chunks > 0);   // Clear the index keeps the folder: exists alone is not enough
+      renderHero(d);
       if (!d.exists) {
-        el.innerHTML = '<p class="text-sm muted">No index yet. Use Quick index above, or choose an embedder below and click Build.</p>'
+        el.innerHTML = '<p class="text-sm muted">No index yet.</p>'
           + '<div class="text-xs dim mono mt-1">' + esc(d.corpus_dir || '') + '</div>';
         if (badge) badge.hidden = true;
         return;
@@ -575,19 +923,16 @@
       }
       // What changed since the build (knowledge.index.state): edited, new and removed files need a rebuild.
       const st = d.state || {};
-      const changed = (st.stale || []).length, added = (st.missing || []).length, gone = (st.removed || []).length;
+      const imported = st.imported_from
+        ? '<div class="text-xs muted mb-2">Imported from “' + esc(st.imported_from) + '”: '
+          + (st.imported || []).length + ' file(s) came with the bundle. A rebuild here indexes this project\u2019s own files instead.</div>'
+        : '';
       const fc = document.getElementById('b-fact-cards');
       if (fc) fc.checked = !!st.fact_cards;
-      const fresh = st.fresh
-        ? '<span class="pill solid-green text-xs">up to date</span>'
-        : '<span class="pill solid-amber text-xs">rebuild needed</span> <span class="text-xs muted">'
-          + [changed ? changed + ' file(s) changed since the build' : '', added ? added + ' new file(s)' : '',
-             gone ? gone + ' file(s) removed' : '', st.facts_changed ? 'reviewed facts changed' : '']
-            .filter(Boolean).join(' · ') + '</span>';
-      el.innerHTML = '<div class="mb-2">' + fresh + '</div><table class="table text-xs run-kv-table"><tbody>'
+      el.innerHTML = imported + '<table class="table text-xs run-kv-table"><tbody>'
         + '<tr><td class="meta muted">Name</td><td class="mono" title="' + esc(d.name || '—') + '">' + esc(d.name || '—') + '</td></tr>'
         + '<tr><td class="meta muted">Documents</td><td class="mono">' + esc(d.documents) + '</td></tr>'
-        + '<tr><td class="meta muted">Chunks</td><td class="mono">' + esc(d.chunks) + '</td></tr>'
+        + '<tr><td class="meta muted">Passages</td><td class="mono">' + esc(d.chunks) + '</td></tr>'
         + '<tr><td class="meta muted">Embedder</td><td class="mono" title="' + esc(d.embedder || '—') + '">' + esc(embedderLabel(d.embedder)) + '</td></tr>'
         + '<tr><td class="meta muted">Path</td><td class="mono text-xs" title="' + esc(d.corpus_dir || '') + '">' + esc(d.corpus_dir || '') + '</td></tr>'
         + '</tbody></table>'
@@ -654,41 +999,256 @@
     }
   };
 
+  // ── Knowledge check ──────────────────────────────────────────────
+  function lintRow(f) {
+    const links = f.files.map(function (x) { return esc(x.name); }).join(', ');
+    return '<div class="brain-lint-row is-' + esc(f.severity) + (f.ignored ? ' is-ignored' : '') + '">'
+      + '<div class="brain-lint-title">' + esc(f.title) + '</div>'
+      + (f.detail.length ? '<div class="text-xs dim">' + f.detail.map(esc).join(' · ') + '</div>' : '')
+      + '<div class="text-xs muted">' + esc(f.fix) + (links && f.files.length > 2 ? ' Files: ' + links : '') + '</div>'
+      + '<div class="flex gap-2 mt-1">'
+      + (f.files.length ? '<a class="btn sm ghost" href="/projects/' + PID + '/data" data-link>Open files</a>' : '')
+      + (f.link && f.link.href ? '<a class="btn sm" href="' + esc(f.link.href) + '" data-link>' + esc(f.link.label || 'Fix') + '</a>' : '')
+      + (f.severity === 'error' && !f.ignored ? '' :
+         '<button type="button" class="btn sm ghost" data-lint-key="' + esc(f.key) + '" data-lint-ignored="' + (f.ignored ? '1' : '0') + '">'
+         + (f.ignored ? 'Stop ignoring' : 'Ignore') + '</button>')
+      + '</div></div>';
+  }
+
+  window.runLint = async function () {
+    const list = document.getElementById('lint-list');
+    const pill = document.getElementById('lint-pill');
+    const status = document.getElementById('lint-status');
+    status.textContent = 'Checking…';
+    try {
+      const r = await api().get('/api/projects/' + PID + '/brain/lint');
+      const problems = r.errors + r.warnings;
+      pill.textContent = r.errors ? r.errors + ' to fix' + (r.warnings ? ' · ' + r.warnings + ' to review' : '')
+        : r.warnings ? r.warnings + ' to review' : (r.files ? 'All clear' : 'No files yet');
+      pill.className = 'pill text-xs ' + (r.errors ? 'solid-rose' : r.warnings ? 'solid-amber' : r.files ? 'solid-green' : 'outline');
+      list.innerHTML = r.findings.length ? r.findings.map(lintRow).join('')
+        : '<p class="text-sm muted mb-0">' + (r.files ? 'Nothing to fix in ' + r.files + ' file(s).' : 'Add files and they are checked here.') + '</p>';
+      if (r.errors) document.getElementById('brain-lint').open = true;
+      status.textContent = r.files + ' file(s) checked' + (r.reading ? ', ' + r.reading + ' still being read' : '')
+        + (r.ignored ? ', ' + r.ignored + ' ignored' : '') + (problems ? '' : '.');
+      document.getElementById('lint-read-pictures').hidden = !r.findings.some(function (f) { return f.action === 'read_pictures'; });
+      showPictures();
+    } catch (e) {
+      status.textContent = 'The check failed: ' + (e.message || e);
+    }
+  };
+
+  async function showPictures() {
+    const box = document.getElementById('lint-pictures');
+    try {
+      const p = await api().get('/api/projects/' + PID + '/brain/pictures');
+      const all = p.pictures + p.scanned;
+      const job = p.job || {};
+      box.textContent = all ? 'Pictures: ' + all + ' (' + p.read + ' read by a vision model, '
+        + (p.pictures_ocr + p.scanned_ocr) + ' by OCR only) · vision reader: ' + p.reader.label
+        + (job.running ? ' · reading now' + (job.state && job.state.file ? ' (' + job.state.file + ')' : '') + '…' : '') : '';
+      if (job.running) setTimeout(showPictures, 5000);
+    } catch (e) { box.textContent = ''; }
+  }
+
+  document.addEventListener('click', async function (ev) {
+    const a = ev.target.closest && ev.target.closest('[data-lint-action="read_pictures"]');
+    if (!a) return;
+    a.disabled = true;
+    try {
+      const r = await api().post('/api/projects/' + PID + '/brain/pictures/read', {});
+      notify(r.already_running ? 'Pictures are already being read.' : 'Reading pictures in ' + (r.files || 0) + ' file(s) with the vision reader. Update Smart Brain when it is done.', 'success');
+      setTimeout(runLint, 2000);
+    } catch (e) {
+      a.disabled = false;
+      notify('Could not read pictures: ' + (e.message || e), 'error');
+    }
+  });
+
+  document.addEventListener('click', async function (ev) {
+    const b = ev.target.closest && ev.target.closest('[data-lint-key]');
+    if (!b) return;
+    try {
+      await api().post('/api/projects/' + PID + '/brain/lint/ignore', { key: b.dataset.lintKey, ignored: b.dataset.lintIgnored !== '1' });
+      runLint();
+    } catch (e) { notify('Could not save that: ' + (e.message || e), 'error'); }
+  });
+
+  // ── Identity: who it speaks for, how it sounds, how it answers ───
+  const IDENTITY_FIELDS = { name: 'id-name', about: 'id-about', personality: 'id-personality', answer_rules: 'id-rules' };
+
+  function showIdentityState(isSet) {
+    const pill = document.getElementById('identity-pill');
+    if (!pill) return;
+    pill.textContent = isSet ? 'Set' : 'Not set';
+    pill.className = 'pill text-xs ' + (isSet ? 'solid-green' : 'outline');
+  }
+
+  async function loadIdentity() {
+    try {
+      const d = await api().get('/api/projects/' + PID + '/brain/identity');
+      Object.keys(IDENTITY_FIELDS).forEach(function (k) {
+        document.getElementById(IDENTITY_FIELDS[k]).value = d[k] || '';
+      });
+      showIdentityState(d.is_set);
+    } catch (_e) { /* the form stays empty; Save reports any real problem */ }
+  }
+
+  window.saveIdentity = async function () {
+    const status = document.getElementById('identity-status');
+    const btn = document.getElementById('identity-save');
+    const body = {};
+    Object.keys(IDENTITY_FIELDS).forEach(function (k) { body[k] = document.getElementById(IDENTITY_FIELDS[k]).value; });
+    btn.disabled = true;
+    status.textContent = 'Saving…';
+    try {
+      const d = await api().put('/api/projects/' + PID + '/brain/identity', body);
+      showIdentityState(d.is_set);
+      status.textContent = d.is_set ? 'Saved. The next answer uses it.' : 'Cleared: answers use the default instructions.';
+    } catch (e) {
+      status.textContent = 'Not saved: ' + (e.message || e);
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  // ── The conversation: earlier turns go with each question, so a follow-up can say "and the second one?" ──
+  let brainChat = [];
+
+  window.newBrainChat = function () {
+    brainChat = [];
+    const box = document.getElementById('chat-messages');
+    if (box) box.innerHTML = '<div class="brain-chat-empty" id="chat-empty">Your answers will appear here, each with the files it came from.</div>';
+    const b = document.getElementById('chat-new-btn');
+    if (b) b.hidden = true;
+    focusAsk();
+  };
+
+  // Sources: one row per file, the files the answer names first. The prompt tells the model to cite by file name
+  // ([handbook.pdf]); some models use the context blocks' numbers ([2]) instead. Both open the file's row.
+  function groupSources(reply, sources) {
+    const files = new Map();
+    sources.forEach(function (s, i) {
+      const name = s.filename || s.source || 'source';
+      if (!files.has(name)) files.set(name, { name: name, passages: [], cited: false });
+      files.get(name).passages.push({ n: s.rank || i + 1, text: s.chunk_text_preview || '' });
+    });
+    const groups = Array.from(files.values());
+    groups.forEach(function (g, i) {
+      g.id = i;
+      g.cited = reply.indexOf('[' + g.name + ']') >= 0
+        || g.passages.some(function (p) { return reply.indexOf('[' + p.n + ']') >= 0; });
+    });
+    groups.sort(function (x, y) { return Number(y.cited) - Number(x.cited); });
+    return groups;
+  }
+
+  function citeLinks(html, msgId, groups) {
+    const link = function (g, label) {
+      return '<a href="#" class="brain-cite" data-source="' + msgId + '-' + g.id + '" title="Show the passages">' + label + '</a>';
+    };
+    groups.forEach(function (g) {
+      html = html.split('[' + esc(g.name) + ']').join(link(g, '[' + esc(g.name) + ']'));
+    });
+    return html.replace(/\[(\d{1,3})\](?!<\/a>)/g, function (m, n) {
+      const g = groups.find(function (x) { return x.passages.some(function (p) { return p.n === Number(n); }); });
+      return g ? link(g, m) : m;
+    });
+  }
+
+  function sourcesHtml(msgId, groups) {
+    const row = function (g) {
+      const count = g.passages.length === 1 ? '1 passage' : g.passages.length + ' passages';
+      return '<details class="brain-source" id="src-' + msgId + '-' + g.id + '"><summary>' + esc(g.name)
+        + ' <span class="dim">· ' + count + '</span></summary>'
+        + g.passages.map(function (p) { return '<div class="brain-source-text">' + esc(p.text) + '</div>'; }).join('')
+        + '</details>';
+    };
+    const used = groups.filter(function (g) { return g.cited; });
+    const also = groups.filter(function (g) { return !g.cited; });
+    // No file named at all: every file it read is simply "Sources".
+    const first = used.length ? used : also;
+    let html = '<div class="brain-sources"><div class="brain-sources-label">Sources</div>' + first.map(row).join('');
+    if (used.length && also.length) {
+      html += '<details class="brain-sources-more"><summary>Also read (' + also.length + ')</summary>' + also.map(row).join('') + '</details>';
+    }
+    return html + '</div>';
+  }
+
+  function brainBubble(role, html) {
+    const box = document.getElementById('chat-messages');
+    const empty = document.getElementById('chat-empty');
+    if (empty) empty.remove();
+    const el = document.createElement('div');
+    el.className = 'brain-msg brain-msg-' + role;
+    el.innerHTML = html;
+    box.appendChild(el);
+    box.scrollTop = box.scrollHeight;
+    return el;
+  }
+
   window.sendChat = async function() {
     const input = document.getElementById('chat-input');
     const box = document.getElementById('chat-messages');
     const btn = document.getElementById('chat-btn');
     const text = (input && input.value || '').trim();
-    if (!text || !box) return;
+    if (!text || !box || (btn && btn.disabled)) return;
     if (btn) btn.disabled = true;
-    box.insertAdjacentHTML('beforeend',
-      '<div class="text-xs"><b>You</b>: ' + esc(text) + '</div>');
+    brainBubble('user', esc(text));
     if (input) input.value = '';
+    brainChat.push({ role: 'user', content: text });
+    const pending = brainBubble('assistant', '<span class="spinner"></span> <span class="dim">Searching your files and writing the answer…</span>');
     try {
       const d = await api().post('/api/projects/' + PID + '/brain/chat', {
-        messages: [{ role: 'user', content: text }],
+        messages: brainChat,
         top_k: 10,
+        follow_up: (document.getElementById('chat-follow-up') || {}).checked === false ? 0 : 1,
+        retry_missing: (document.getElementById('chat-retry-missing') || {}).checked !== false,
+        answer_with: (document.getElementById('chat-answer-with') || {}).value || 'model',
       });
       const reply = d.reply || d.response || '';
-      box.insertAdjacentHTML('beforeend',
-        '<div class="text-xs"><b>Assistant</b>: ' + esc(reply) + '</div>');
-      if (d.sources && d.sources.length) {
-        box.insertAdjacentHTML('beforeend',
-          // Numbered like the answer's [n] citations (the context blocks are labelled by rank); a bare repeated list of
-          // file names did not say which one [2] was.
-          '<div class="text-xs dim">Sources: ' + esc(d.sources.map(function(s, i) {
-            return '[' + (s.rank || i + 1) + '] ' + (s.filename || s.source || s);
-          }).join(' · ')) + '</div>');
+      brainChat.push({ role: 'assistant', content: reply });
+      const msgId = 'm' + brainChat.length;
+      const sources = d.sources || [];
+      const groups = groupSources(reply, sources);
+      let html = '<div class="brain-answer">' + citeLinks(mdInline(esc(reply)), msgId, groups) + '</div>';
+      const fu = d.followup;
+      const asked = (d.follow_up_searches || []).filter(function (q) { return !fu || q !== fu.query; });
+      if (asked.length) {
+        // The model asked for a second search before answering (a question that goes through another item).
+        html += '<div class="text-xs dim mt-1">Also searched: ' +
+          esc(asked.map(function(q) { return '"' + q + '"'; }).join(', ')) + '</div>';
       }
+      if (fu) {
+        // The first answer said part of the question is not stated: one more search for that part.
+        html += '<div class="text-xs dim mt-1">Part of the answer was missing, so it searched again for "' + esc(fu.query) + '"'
+          + (fu.added_sources && fu.added_sources.length ? ' and added ' + esc(fu.added_sources.join(', ')) : ' (nothing new found)') + '.</div>';
+      }
+      if (sources.length) html += sourcesHtml(msgId, groups);
+      pending.innerHTML = html;
       box.scrollTop = box.scrollHeight;
+      const n = document.getElementById('chat-new-btn');
+      if (n) n.hidden = false;
     } catch (e) {
-      box.insertAdjacentHTML('beforeend',
-        '<div class="text-xs err">' + esc(e.message || e) + '</div>');
-      notify(String(e.message || e), 'error');
+      brainChat.pop();   // the question never got an answer: it must not go along with the next one
+      const m = String(e.message || e);
+      pending.className = 'brain-msg brain-msg-error';
+      pending.textContent = m;
+      notify(m, 'error');
+      if (input && !input.value) input.value = text;   // nothing lost: it can be sent again
+      if (e && e.code === 'no_model' || /No chat model is loaded/.test(m)) initChatAnswerWith();
     } finally {
       if (btn) btn.disabled = false;
     }
   };
+
+  document.addEventListener('click', function (ev) {
+    const a = ev.target.closest && ev.target.closest('.brain-cite');
+    if (!a) return;
+    ev.preventDefault();
+    const src = document.getElementById('src-' + a.dataset.source);
+    if (src) { src.open = true; src.scrollIntoView({ block: 'nearest' }); }
+  });
 
   function showPassphrase(p) {
     if (!p) return;
@@ -723,22 +1283,34 @@
   };
 
   window.startBundleImport = async function() {
-    const status = document.getElementById('bundle-status');
+    const status = document.getElementById('bundle-import-status');
     const f = document.getElementById('bundle-import-file').files[0];
     if (!f) { notify('Choose a bundle file first', 'error'); return; }
-    if (!await fts.confirm('Importing replaces this project\u2019s current index. Continue?', {danger: true, okText: 'Import'})) return;
+    const isEnc = /\.ftsrag$/i.test(f.name);
+    const pass = document.getElementById('bundle-import-pass').value;
+    if (isEnc && !pass) { status.textContent = 'This bundle is encrypted: enter the passphrase it was exported with.'; return; }
+    if (window.BRAIN_HAS_INDEX && !await fts.confirm('This project already has an index. Importing replaces it with the bundle\u2019s. Continue?',
+        {danger: true, okText: 'Replace with the bundle'})) return;
     const fd = new FormData();
     fd.append('file', f);
-    fd.append('passphrase', document.getElementById('bundle-import-pass').value);
-    if (status) status.textContent = 'Importing…';
+    fd.append('passphrase', pass);
+    status.textContent = 'Decrypting and importing ' + f.name + '…';
+    const btn = document.getElementById('bundle-import-btn');
+    btn.disabled = true;
     try {
       const d = await api().post('/api/projects/' + PID + '/brain/import?overwrite=true', fd);
       document.getElementById('bundle-import-pass').value = '';
-      if (status) status.textContent = 'Imported ' + (d.documents || 0) + ' documents, ' + (d.chunks || 0) + ' chunks.';
-      setTimeout(() => window.location.reload(), 800);
+      status.textContent = 'Imported “' + (d.imported_from || f.name) + '”: ' + (d.documents || 0) + ' documents, '
+        + (d.chunks || 0) + ' passages'
+        + (d.package ? ', package v' + d.package.version + ', ' + d.package.restored_files + ' original file(s) back in Files'
+           + (d.package.note ? ' (' + d.package.note + ')' : '') : '') + '. Reloading…';
+      notify('Index imported', 'success');
+      setTimeout(() => window.location.reload(), 900);
     } catch (e) {
-      if (status) status.textContent = 'Import failed: ' + (e.message || e);
+      status.textContent = 'Import failed: ' + (e.message || e);
       notify(String(e.message || e), 'error');
+    } finally {
+      btn.disabled = false;
     }
   };
 
@@ -753,8 +1325,194 @@
       include_models: g('mcp-models').checked,
       reranker_enabled: g('mcp-rerank').checked,
       encrypt: !g('mcp-noenc').checked,
+      semantic_search: g('mcp-sem').checked,
+      keyword_search: g('mcp-kw').checked,
+      answer_enabled: g('mcp-answer').checked,
+      llm_base_url: g('mcp-llm-url').value.trim(),
+      llm_model: g('mcp-llm-model').value.trim(),
+      llm_provider: g('mcp-llm-provider').value || 'openai',
+      llm_connection: g('mcp-llm-conn').value || null,
+      include_originals: g('mcp-originals').checked,
+      hide_file_names: g('mcp-hide-names').checked,
+      scope: mcpScope(),
+      new_version_of: document.getElementById('mcp-base').value || null,
+      version: document.getElementById('mcp-version').value.trim() || null,
     };
   }
+
+  // Versions: this project's package history feeds the "New version of" list.
+  var pkgHistory = [];
+  function syncVersion() {
+    var id = document.getElementById('mcp-base').value, note = document.getElementById('mcp-version-note');
+    var p = pkgHistory.find(function (x) { return x.package_id === id; });
+    var parts = p ? p.latest.split('.').map(Number) : null;
+    var next = p ? parts[0] + '.' + ((parts[1] || 0) + 1) + '.0' : '1.0.0';
+    document.getElementById('mcp-version').placeholder = next;
+    note.textContent = p ? 'Same package id (' + id + '), version ' + p.latest + ' \u2192 ' + next
+      + ': the export lists the documents added, changed and removed since ' + p.latest + '.'
+      : 'A new package id; its later exports can be new versions of it.';
+  }
+  window.loadPackageHistory = async function (select) {
+    try {
+      var r = await fetch('/api/projects/' + PID + '/brain/packages');
+      if (!r.ok) return;
+      pkgHistory = (await r.json()).packages || [];
+      var sel = document.getElementById('mcp-base'), keep = select || sel.value;
+      while (sel.options.length > 1) sel.remove(1);
+      pkgHistory.forEach(function (p) {
+        sel.add(new Option('New version of ' + (p.name || p.package_id) + ' \u2014 v' + p.latest + ' (' + p.package_id + ')', p.package_id));
+      });
+      if (keep && pkgHistory.some(function (p) { return p.package_id === keep; })) sel.value = keep;
+    } catch (e) { /* no history: a new package */ }
+    syncVersion();
+  };
+  window.uploadPackageBase = async function () {
+    var f = document.getElementById('mcp-base-file').files[0], note = document.getElementById('mcp-version-note');
+    if (!f) { note.textContent = 'Choose the exported package archive first.'; return; }
+    var fd = new FormData(); fd.append('file', f); fd.append('passphrase', document.getElementById('mcp-base-pass').value);
+    note.textContent = 'Reading the package\u2026';
+    try {
+      var r = await fetch('/api/projects/' + PID + '/brain/package-base', { method: 'POST', body: fd });
+      var d = await r.json();
+      if (!r.ok) throw new Error(d.detail || ('HTTP ' + r.status));
+      document.getElementById('mcp-base-pass').value = '';
+      await loadPackageHistory(d.package_id);
+    } catch (e) { note.textContent = 'Could not read it: ' + (e.message || e); }
+  };
+  document.getElementById('mcp-base').addEventListener('change', syncVersion);
+
+  // Audience scope: which documents go in the package. The same rule as smart_brain/scope.py: a document is in when
+  // it matches any chosen folder, tag or single document (nothing chosen = all).
+  var scopeDocs = [];
+  function scopeChecked(box) {
+    return [].slice.call(document.querySelectorAll('#' + box + ' input:checked')).map(function (el) { return el.value; });
+  }
+  function mcpScope() {
+    if (!document.getElementById('mcp-scope-some').checked) return null;
+    return { include: scopeChecked('mcp-scope-folders'), tags: scopeChecked('mcp-scope-tags'),
+             document_ids: scopeChecked('mcp-scope-docs') };
+  }
+  function scopeSelected(sc, d) {
+    if (!sc || !(sc.include.length || sc.tags.length || sc.document_ids.length)) return true;
+    var path = d.path.toLowerCase();
+    return sc.include.some(function (p) { return path.indexOf(p.toLowerCase()) === 0; })
+      || d.tags.some(function (t) { return sc.tags.indexOf(t) >= 0; })
+      || sc.document_ids.indexOf(d.document_id) >= 0;
+  }
+  function syncScope() {
+    var some = document.getElementById('mcp-scope-some').checked, sc = mcpScope();
+    document.getElementById('mcp-scope-pick').hidden = !some;
+    var n = scopeDocs.filter(function (d) { return scopeSelected(sc, d); }).length;
+    var out = document.getElementById('mcp-scope-summary');
+    out.textContent = scopeDocs.length ? n + ' of ' + scopeDocs.length + ' documents go in the package' : '';
+    out.classList.toggle('err', some && n === 0);
+    var btn = document.getElementById('mcp-pkg-btn');
+    if (some && n === 0) { if (btn) btn.disabled = true; } else syncLayers();
+  }
+  function scopeBox(value, label, kind) {
+    var l = document.createElement('label'); l.className = 'flex items-center gap-2';
+    var i = document.createElement('input'); i.type = 'checkbox'; i.value = value; i.dataset.kind = kind;
+    i.addEventListener('change', syncScope);
+    l.append(i, document.createTextNode(label)); return l;
+  }
+  window.loadScopeDocs = async function () {
+    try {
+      var r = await fetch('/api/projects/' + PID + '/brain/package-documents');
+      if (!r.ok) return;
+      var d = await r.json();
+      scopeDocs = d.documents || [];
+      var f = document.getElementById('mcp-scope-folders'), t = document.getElementById('mcp-scope-tags'),
+        docs = document.getElementById('mcp-scope-docs');
+      f.innerHTML = ''; t.innerHTML = ''; docs.innerHTML = '';
+      (d.folders || []).forEach(function (x) { if (x.prefix) f.append(scopeBox(x.prefix, x.label + ' (' + x.count + ')', 'folder')); });
+      if (!f.children.length) f.textContent = 'No folders: put files in folders on the Files page to choose by folder.';
+      (d.tags || []).forEach(function (x) { t.append(scopeBox(x.tag, x.tag + ' (' + x.count + ')', 'tag')); });
+      document.getElementById('mcp-scope-tags-label').hidden = !(d.tags || []).length;
+      scopeDocs.forEach(function (x) { docs.append(scopeBox(x.document_id, x.path, 'doc')); });
+    } catch (e) { /* the picker stays empty: All documents still works */ }
+    syncScope();
+  };
+  ['mcp-scope-all', 'mcp-scope-some'].forEach(function (id) {
+    document.getElementById(id).addEventListener('change', syncScope);
+  });
+
+  // API connections from Settings → AI assistant: picking one fills endpoint + model; the server side copies its
+  // headers and request settings (never the key) into the package.
+  async function loadLlmConnections() {
+    var sel = document.getElementById('mcp-llm-conn');
+    if (!sel) return;
+    try {
+      var d = await api().get('/api/settings/assistant');
+      (d.connections || []).filter(function (c) { return c.kind === 'openai_compat'; }).forEach(function (c) {
+        var o = document.createElement('option');
+        o.value = c.id; o.textContent = c.label || c.id;
+        o.dataset.url = c.base_url || ''; o.dataset.model = c.model || '';
+        sel.appendChild(o);
+      });
+    } catch (e) { /* no connections: type the endpoint by hand */ }
+    // A different endpoint typed by hand is not that connection any more: its headers must not follow.
+    document.getElementById('mcp-llm-url').addEventListener('input', function () {
+      var o = sel.selectedOptions[0];
+      if (o && o.value && this.value.trim() !== o.dataset.url) sel.value = '';
+    });
+    var preset = document.getElementById('mcp-llm-preset');
+    preset.addEventListener('change', function () {
+      var o = preset.selectedOptions[0];
+      if (!o || !o.value) return;
+      document.getElementById('mcp-llm-provider').value = o.dataset.api;
+      if (o.dataset.url) document.getElementById('mcp-llm-url').value = o.dataset.url;
+      sel.value = '';
+      syncLayers();
+    });
+    sel.addEventListener('change', function () {
+      var o = sel.selectedOptions[0];
+      if (o && o.value) {
+        document.getElementById('mcp-llm-url').value = o.dataset.url;
+        document.getElementById('mcp-llm-model').value = o.dataset.model;
+        document.getElementById('mcp-llm-provider').value = 'openai';   // Settings connections are OpenAI-compatible
+        preset.value = 'other';
+      }
+      syncLayers();
+    });
+  }
+
+  // The layer panel explains itself: fusion follows the two searches, the reranker needs its bundled model, and the
+  // pipeline line says how a question travels through the package that would be built.
+  function syncLayers() {
+    var g = function (id) { return document.getElementById(id); };
+    var sem = g('mcp-sem').checked, kw = g('mcp-kw').checked, models = g('mcp-models').checked;
+    var rr = g('mcp-rerank'), ans = g('mcp-answer').checked;
+    g('mcp-fusion').classList.toggle('is-off', !(sem && kw));
+    g('mcp-fusion-state').textContent = sem && kw ? 'on: merges the two rankings'
+      : 'off: runs only when both searches are on';
+    rr.disabled = !models;
+    g('mcp-rerank-note').textContent = models ? 'rescores the best candidates (slower, more precise)'
+      : 'needs Include models (its model must be inside the package)';
+    g('mcp-llm').hidden = !ans;
+    var steps = ['question'];
+    var found = [];
+    if (sem) found.push('meaning search');
+    if (kw) found.push('word search (BM25)');
+    var warn = '';
+    if (!found.length) warn = 'Turn on meaning search, word search or both: the package needs one way to find passages.';
+    else steps.push(found.join(' + '));
+    if (sem && kw) steps.push('rank fusion (RRF)');
+    if (rr.checked && models) steps.push('reranker');
+    steps.push(ans ? 'LLM answer with sources' : 'passages with sources');
+    if (!warn && sem && !models && !kw) warn = 'Meaning search alone needs the embedder inside (Include models) or an embeddings API where it runs.';
+    if (!warn && ans && !(g('mcp-llm-url').value.trim() && g('mcp-llm-model').value.trim()))
+      warn = 'Answer generation needs the endpoint and model name (they can also be set where the server runs).';
+    g('mcp-pipeline').innerHTML = '<b>Pipeline:</b> ' + steps.map(escHtmlLayer).join(' → ')
+      + (warn ? '<div class="sev-warning mt-1">⚠ ' + escHtmlLayer(warn) + '</div>' : '');
+    g('mcp-pkg-btn').disabled = !found.length;
+  }
+  function escHtmlLayer(t) {
+    return String(t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+  }
+  ['mcp-sem', 'mcp-kw', 'mcp-rerank', 'mcp-models', 'mcp-answer', 'mcp-llm-url', 'mcp-llm-model'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener(el.type === 'text' ? 'input' : 'change', syncLayers);
+  });
 
   function applyMcpVals(c) {
     var g = function (id) { return document.getElementById(id); };
@@ -763,6 +1521,15 @@
     g('mcp-host').value = c.host; g('mcp-port').value = c.port;
     g('mcp-topk').value = c.top_k; g('mcp-models').checked = !!c.include_models;
     g('mcp-rerank').checked = !!c.reranker_enabled; g('mcp-noenc').checked = !c.encrypt;
+    g('mcp-sem').checked = c.semantic_search !== false; g('mcp-kw').checked = c.keyword_search !== false;
+    g('mcp-answer').checked = !!c.answer_enabled;
+    g('mcp-originals').checked = !!c.include_originals;
+    g('mcp-hide-names').checked = !!c.hide_file_names;
+    g('mcp-llm-url').value = c.llm_base_url || ''; g('mcp-llm-model').value = c.llm_model || '';
+    g('mcp-llm-provider').value = c.llm_provider || 'openai';
+    var pre = [].find.call(g('mcp-llm-preset').options, function (o) { return o.value && o.dataset.url && o.dataset.url === c.llm_base_url; });
+    g('mcp-llm-preset').value = pre ? pre.value : (c.llm_base_url ? 'other' : '');
+    syncLayers();
   }
 
   window.loadMcpDefaults = async function () {
@@ -770,6 +1537,10 @@
       var r = await fetch('/api/projects/' + PID + '/brain/export-config');
       if (r.ok) applyMcpVals((await r.json()).effective);
     } catch (e) { /* defaults stay as rendered */ }
+    syncLayers();
+    loadLlmConnections();
+    loadScopeDocs();
+    loadPackageHistory();
   };
 
   window.saveMcpDefaults = async function (scope) {
@@ -800,15 +1571,32 @@
     var body = mcpVals();
     if (passEl.value && body.encrypt) body.passphrase = passEl.value;
     if (note) note.textContent = body.include_models
-      ? 'Building the package with the embedding model inside (~2 GB) \u2014 this takes a minute, then the download starts.'
+      ? 'Building the package with the models inside (about 0.2 GB with the MiniLM models, about 4.5 GB with e5-large and bge-reranker-v2-m3) \u2014 this can take a few minutes, then the download starts.'
       : 'Building the package \u2014 the download starts when it is ready.';
     if (btn) btn.disabled = true;
     try {
       var d = await api().post('/api/projects/' + PID + '/brain/standalone', body);
       passEl.value = '';
       showPassphrase(d.passphrase);
+      if (d.package) {
+        var ch = d.changes || {};
+        var built = 'Built version ' + d.package.version
+          + (d.package.parent_version ? ' (after ' + d.package.parent_version + '): ' + (ch.added || []).length + ' added, '
+             + (ch.changed || []).length + ' changed, ' + (ch.removed || []).length + ' removed.' : ' (first version).');
+        document.getElementById('mcp-version').value = '';
+        loadPackageHistory(d.package.package_id).then(function () {   // the next export defaults to its next version
+          var vn = document.getElementById('mcp-version-note');
+          vn.textContent = built + ' Next export: ' + vn.textContent;
+        });
+      }
       if (note) note.textContent = (d.encrypted ? 'Encrypted package ' : 'PLAINTEXT package ')
-        + d.filename + ' (' + humanBytes(d.size) + ') ready \u2014 downloading.';
+        + d.filename + ' (' + humanBytes(d.size) + ') ready \u2014 downloading.'
+        + (d.identity ? ' Identity included.' : ' No identity set.')
+        + (d.scope && d.scope.label !== 'all documents' ? ' Scope: ' + d.scope.documents + ' of ' + d.scope.of + ' documents (' + d.scope.label + ').' : '')
+        + (d.original_files ? ' ' + d.original_files + ' original file' + (d.original_files === 1 ? '' : 's') + ' inside.' : '')
+        + (d.verified && d.verified.ok === true ? ' Self-test passed: ' + d.verified.detail + '.'
+           : d.verified && d.verified.ok === false ? ' SELF-TEST FAILED: ' + d.verified.detail + '.'
+           : d.verified ? ' Not self-tested: ' + d.verified.detail + '.' : '');
       window.location.href = d.download_url;
     } catch (e) {
       if (note) note.textContent = 'Package build failed: ' + (e.message || e);
@@ -873,12 +1661,108 @@
       // rebuild with reset=true wipes the index dir; we only need the wipe
       // when there are no files — fall back to clearing sources.
       await api().del('/api/projects/' + PID + '/brain/documents');
+      clearBrainTransientOutput();
       notify('Index sources cleared — rebuild to re-index', 'success');
       loadBrainStatus();
       loadIndexedDocs();
     } catch (e) {
       notify('Failed: ' + e.message, 'error');
     }
+  };
+
+  // "Answer with": always the local model by default. Answering through the AI assistant's API connection is a
+  // deliberate choice (e.g. to compare against an outside provider), never a fallback: it sends the question and the
+  // retrieved passages to that provider. With no local model loaded a hint names both ways out.
+  let chatAnswerState = { loaded: false, api: false, provider: '' };
+
+  window.updateChatAnswerHint = function() {
+    const sel = document.getElementById('chat-answer-with');
+    const hint = document.getElementById('chat-answer-hint');
+    if (!sel || !hint) return;
+    let text = '';
+    if (sel.value === 'assistant') {
+      text = 'Answers come from ' + (chatAnswerState.provider || 'the API connection')
+        + ': your question and the retrieved passages are sent to that provider.';
+    } else if (!chatAnswerState.loaded) {
+      text = chatAnswerState.api
+        ? "No local chat model is loaded. Load one here, or choose 'the AI assistant ("
+          + chatAnswerState.provider + ")': this sends the question and the retrieved passages to that provider."
+        : 'No local chat model is loaded. Load one here to get answers.';
+    }
+    hint.textContent = text;
+    hint.hidden = !text;
+    renderModelRow(sel.value !== 'assistant' && !chatAnswerState.loaded);
+  };
+
+  // Load a model from here: answers are the point of this page, and sending a new user to Inference loses them.
+  async function renderModelRow(show) {
+    const row = document.getElementById('chat-model-row');
+    if (!row) return;
+    row.hidden = !show;
+    if (!show) return;
+    const sel = document.getElementById('chat-model-select');
+    const load = document.getElementById('chat-model-load');
+    const dl = document.getElementById('chat-model-download');
+    const msg = document.getElementById('chat-model-msg');
+    let models = [];
+    try {
+      const r = await fetch('/api/models/list?for_selector=true');
+      if (r.ok) models = await r.json();
+    } catch (_e) { /* the empty case below says what to do */ }
+    const usable = (models || []).filter(function (m) { return m && m.path; })
+      .sort(function (a, b) { return Number(a.category === 'trained_export') - Number(b.category === 'trained_export'); });
+    if (sel) {
+      sel.innerHTML = usable.map(function (m) {
+        return '<option value="' + esc(m.path) + '">' + esc(m.name) + (m.size_gb ? ' (' + m.size_gb + ' GB)' : '') + '</option>';
+      }).join('');
+      sel.hidden = !usable.length;
+    }
+    if (load) load.hidden = !usable.length;
+    if (dl) dl.hidden = !!usable.length;
+    if (msg) msg.textContent = usable.length ? 'Load a model:' : 'No chat model on this computer yet.';
+  }
+
+  window.loadBrainAnswerModel = async function () {
+    const sel = document.getElementById('chat-model-select');
+    const btn = document.getElementById('chat-model-load');
+    const msg = document.getElementById('chat-model-msg');
+    if (!sel || !sel.value) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+    if (msg) msg.textContent = 'Loading (this can take a minute)…';
+    try {
+      const r = await api().post('/api/models/load', { path: sel.value });
+      (r && r.warnings || []).forEach(function (w) { notify(w, 'warn'); });
+      notify('Model loaded', 'success');
+      await initChatAnswerWith();
+      focusAsk();
+    } catch (e) {
+      const m = String(e.message || e);
+      if (msg) msg.textContent = 'Could not load it: ' + m;
+      notify('Load failed: ' + m, 'error');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Load'; }
+    }
+  };
+
+  window.initChatAnswerWith = async function() {
+    const sel = document.getElementById('chat-answer-with');
+    if (!sel) return;
+    try {
+      const [inf, asst] = await Promise.all([
+        fetch('/api/inference/status').then(r => r.ok ? r.json() : {}),
+        fetch('/api/settings/assistant').then(r => r.ok ? r.json() : {}),
+      ]);
+      const job = (asst.jobs || []).find(j => j.id === 'brain') || {};
+      const api = job.provider_kind === 'openai_compat';
+      chatAnswerState = { loaded: !!inf.loaded, api: api, provider: api ? (job.provider_label || 'API') : '' };
+      const opt = sel.querySelector('option[value="assistant"]');
+      if (opt) {
+        opt.textContent = api ? 'the AI assistant (' + chatAnswerState.provider + ')'
+                              : 'the AI assistant (needs an API connection: Settings → AI assistant)';
+        opt.disabled = !api;
+      }
+    } catch (_e) { /* keep "the loaded chat model" */ }
+    updateChatAnswerHint();
   };
 
   // Fill the form controls from the saved manifest so "Save" doesn't
@@ -888,6 +1772,7 @@
       const r = await fetch('/api/projects/' + PID + '/brain/settings');
       if (!r.ok) return;
       const s = await r.json();
+      if (!s.exists && s.default_reranker) s.reranker = s.default_reranker;   // what a first build will use here
       const setVal = function(id, v) {
         const el = document.getElementById(id);
         if (!el || v == null) return;
@@ -900,6 +1785,7 @@
       };
       setVal('s-reranker', s.reranker);
       setVal('s-rerank-top-n', s.rerank_top_n);
+      setVal('s-max-per-doc', s.max_per_document);
       setChk('s-rerank-enabled', s.rerank_enabled);
       setChk('s-hybrid-enabled', s.hybrid_enabled);
       setVal('b-embedder', s.embedder);
@@ -908,10 +1794,21 @@
 
   // Disable the build buttons while a build runs (this page's or one found running on load).
   function setBuildBusy(on) {
-    ['quick-index-btn', 'build-btn', 'rebuild-btn'].forEach(function (id) {
+    buildRunning = !!on;
+    if (lastBrainState) renderHero(lastBrainState);
+    ['quick-index-btn', 'build-btn', 'rebuild-btn', 'reembed-btn'].forEach(function (id) {
       const b = document.getElementById(id);
-      if (b) b.disabled = !!on;
+      if (b) b.disabled = !!on || (id === 'reembed-btn' && !hasIndex);
     });
+  }
+
+  // Re-embed only follows the index status (a build creates the index, Clear the index removes it).
+  function setHasIndex(exists) {
+    hasIndex = !!exists;
+    const b = document.getElementById('reembed-btn');
+    if (!b) return;
+    b.disabled = !hasIndex || ['build-btn'].some((id) => { const o = document.getElementById(id); return o && o.disabled; });
+    b.title = hasIndex ? b.dataset.titleReady : b.dataset.titleNone;
   }
 
   // A build runs as its own job process (the POST answers 202 + build_id), so it outlives a web restart and this
@@ -925,9 +1822,11 @@
     const sseUrl = '/api/projects/' + PID + '/brain/build/progress';
     const pollUrl = '/api/projects/' + PID + '/brain/build/status';
     const rowUrl = '/api/projects/' + PID + '/brain/builds/' + encodeURIComponent(buildId);
+    const stopBtn = document.getElementById('build-stop-btn');
+    buildRate = {};
     wrap.hidden = false;
-    fill.style.width = '5%';
-    progText.textContent = 'QUEUED…';
+    fill.style.width = '2%';
+    progText.textContent = 'Queued…';
     return new Promise(function (resolve, reject) {
       let stopLive = null;
       let ended = false;
@@ -940,21 +1839,22 @@
           const b = await api().get(rowUrl);
           if (!b.finished) { ended = false; setTimeout(listen, 1000); return; }   // the job is still exiting
           wrap.hidden = true;
+          stopBtn.hidden = true;
           if (b.ok) resolve(b);
           else reject(new Error(b.error || 'the index build failed'));
         } catch (e) {
           if (!e.status || e.status >= 500) { ended = false; setTimeout(listen, 5000); return; }   // restarting
           wrap.hidden = true;
+          stopBtn.hidden = true;
           reject(e);
         }
       };
       const applyProgress = function (p) {
         if (!p || typeof p !== 'object' || ended) return;
         if (p.phase === 'queued' || p.phase === 'parsing' || p.phase === 'embedding') {
-          fill.style.width = p.phase === 'embedding' ? '50%' : (p.phase === 'parsing' ? '25%' : '5%');
-          const files = p.phase === 'parsing' ? (p.files_done || 0) + '/' + (p.files_total || 0) : (p.files_total || 0);
-          progText.textContent = p.phase.toUpperCase() + ' ' + files + ' files  ' +
-            (p.elapsed_s != null ? p.elapsed_s + 's' : '');
+          stopBtn.hidden = false;
+          progText.textContent = buildProgressText(p);
+          fill.style.width = buildProgressPct(p) + '%';
           return;
         }
         if (p.phase === 'timeout') { stop(); listen(); return; }   // a long build: keep following it
@@ -979,25 +1879,78 @@
     });
   }
 
+  // "Embedding 48 of 101 passages · 1 min 12 s · about 1 min left": the time left comes from the measured rate.
+  function fmtSecs(s) {
+    s = Math.max(0, Math.round(s));
+    return s < 60 ? s + ' s' : Math.floor(s / 60) + ' min ' + (s % 60) + ' s';
+  }
+  let buildRate = {};
+  function buildProgressText(p) {
+    const took = p.elapsed_s ? ' · ' + fmtSecs(p.elapsed_s) : '';
+    if (p.phase === 'queued') return 'Queued…' + took;
+    if (p.phase === 'parsing') return 'Reading files ' + (p.files_done || 0) + ' of ' + (p.files_total || 0) + took;
+    const done = p.passages_done || 0, total = p.passages_total || 0;
+    if (!total) return 'Loading the embedder…' + took;
+    // Rate from the first embedded batch on: loading the model (seconds to a minute) is not embedding time.
+    if (!buildRate.at && done > 0) buildRate = { at: p.elapsed_s, done: done };
+    let left = '';
+    if (buildRate.at != null && done > buildRate.done && done < total && p.elapsed_s > buildRate.at) {
+      const perSec = (done - buildRate.done) / (p.elapsed_s - buildRate.at);
+      left = ' · about ' + fmtSecs((total - done) / perSec) + ' left';
+    }
+    return 'Embedding ' + done + ' of ' + total + ' passages' + took + left;
+  }
+  function buildProgressPct(p) {
+    if (p.phase === 'queued') return 2;
+    if (p.phase === 'parsing') return 2 + 18 * ((p.files_done || 0) / Math.max(1, p.files_total || 0));
+    if (!p.passages_total) return 20;
+    return 20 + 80 * (p.passages_done || 0) / p.passages_total;
+  }
+
+  // A build that ended without an index: stopped on request (not an error) or failed with the reason in words.
+  function buildEnded(status, failedLabel, e, quiet) {
+    const msg = (e && e.message) || String(e);
+    if (msg.indexOf('stopped on request') === 0) {
+      status.textContent = 'Stopped: the index was left as it was before this build.';
+      if (!quiet) notify('Build stopped', 'info');
+      return;
+    }
+    status.textContent = failedLabel + ': ' + msg;
+    if (!quiet) notify(msg, 'error');
+  }
+
+  window.stopBuild = async function () {
+    const btn = document.getElementById('build-stop-btn');
+    btn.disabled = true;
+    try {
+      await api().post('/api/projects/' + PID + '/brain/build/stop', {});
+      document.getElementById('build-progress-text').textContent = 'Stopping after the current batch…';
+    } catch (e) {
+      notify('Could not stop the build: ' + ((e && e.message) || e), 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
   // A build whose embedder runs on the GPU takes the GPU: the supervisor unloads the chat model first, and grounded
   // chat then has no model. Say it where the build was started.
   function gpuNote(r) {
-    return r && r.gpu ? ' The embedder runs on the GPU, so the chat model was unloaded: load it again for grounded chat.' : '';
+    if (!r) return '';
+    if (r.gpu) return chatAnswerState.loaded ? ' The embedder runs on the GPU, so the chat model was unloaded: load it again in Ask your documents.' : '';
+    return ' The embedder runs on the CPU: a large one (e5-large, bge-large, Qwen3-Embedding) can take many minutes; the progress shows the time left, and Stop build keeps the old index.';
   }
 
   function buildDone(b) {
     if (typeof window.loadIndexedDocs === 'function') window.loadIndexedDocs();
     if (typeof window.loadBrainStatus === 'function') window.loadBrainStatus();
-    return (b.documents != null ? b.documents : '?') + ' docs, ' + (b.chunks != null ? b.chunks : '?') + ' chunks';
+    const many = function (v, word) { return (v != null ? v : '?') + ' ' + word + (v === 1 ? '' : 's'); };
+    return many(b.documents, 'document') + ', ' + many(b.chunks, 'passage');
   }
 
   window.quickIndex = async function () {
-    // The button sits at the top of the page; section 2's #build-status is below the fold: say it in both places.
-    const lower = document.getElementById('build-status');
-    const near = document.getElementById('quick-index-status');
-    const status = { set textContent(t) { lower.textContent = t; if (near) near.textContent = t; } };
+    const status = document.getElementById('build-status');
     setBuildBusy(true);
-    status.textContent = 'Quick index: starting… (first build downloads the embedder ~2.2 GB)';
+    status.textContent = 'Starting… (the first build downloads the search models, about 4 GB)';
     try {
       // The parse step and the build run in one job (it runs on its own: you can leave this page). A job that
       // cannot start is a 4xx/5xx whose detail says why.
@@ -1008,13 +1961,18 @@
         'building the index (it runs on its own: you can leave this page)…' + note;
       const b = await followBuild((r.build || {}).build_id || r.build_id);
       const failed = (b.failed || []).length;
-      const converted = (b.promoted ? '⚡ Converted ' + b.promoted + ' new file(s)' : '⚡ Every file was already parsed') +
+      const converted = (b.promoted ? 'Read ' + b.promoted + ' new file(s)' : 'Every file was already read') +
         (failed ? ' (' + failed + ' failed to parse)' : '');
       status.textContent = converted + ' · index: ' + buildDone(b) + '.' + note;
-      notify('Quick index done: ' + (b.promoted || 0) + ' converted · ' + b.chunks + ' chunks', 'success');
+      initChatAnswerWith();
+      notify('Smart Brain ready: ' + b.chunks + ' passages', 'success');
+      runLint();
+      const up = document.getElementById('brain-upload');
+      if (up) up.hidden = true;
+      await loadBrainStatus();
+      focusAsk();
     } catch (e) {
-      status.textContent = 'Failed: ' + e.message;
-      notify('Quick index failed: ' + e.message, 'error');
+      buildEnded(status, 'Build failed', e);
     } finally {
       setBuildBusy(false);
     }
@@ -1042,10 +2000,33 @@
       const done = buildDone(b);
       status.textContent = 'Done — ' + done + ' indexed.' + note;
       notify('Index built: ' + done, 'success');
+      runLint();
+      initChatAnswerWith();
     } catch (e) {
-      const msg = (e && e.message) || String(e);
-      status.textContent = 'Build failed: ' + msg;
-      notify(msg, 'error');
+      buildEnded(status, 'Build failed', e);
+    } finally {
+      setBuildBusy(false);
+    }
+  };
+
+  // Same build job in re-embed mode: the documents and passages stay, the vectors are replaced with the picked
+  // embedder (404 when there is no index yet, 409 while a build runs or the GPU is busy).
+  window.reembedIndex = async function() {
+    const status = document.getElementById('build-status');
+    const embedderEl = document.getElementById('b-embedder');
+    const embedder = embedderEl ? embedderEl.value : '';
+    setBuildBusy(true);
+    status.textContent = 'Re-embedding the index with ' + (embedder || 'the saved embedder') + '…';
+    try {
+      const r = await api().post('/api/projects/' + PID + '/brain/rebuild-vectors', { embedder: embedder });
+      const note = gpuNote(r);
+      status.textContent = 'Re-embedding… (it runs on its own: you can leave this page)' + note;
+      notify('Re-embed started', 'info');
+      const b = await followBuild(r.build_id);
+      status.textContent = 'Done — ' + buildDone(b) + ' re-embedded' + (b && b.embedder ? ' with ' + b.embedder : '') + '.' + note;
+      notify('Index re-embedded', 'success');
+    } catch (e) {
+      buildEnded(status, 'Re-embed failed', e);
     } finally {
       setBuildBusy(false);
     }
@@ -1063,7 +2044,7 @@
       const b = await followBuild(p.build_id);
       status.textContent = 'Done — ' + buildDone(b) + ' indexed.';
     } catch (e) {
-      status.textContent = 'Build failed: ' + ((e && e.message) || String(e));
+      buildEnded(status, 'Build failed', e, true);
     } finally {
       setBuildBusy(false);
     }
@@ -1073,11 +2054,20 @@
   // after an SPA swap it never fires, so run immediately in that case.
   function init() {
     loadRagSettings();
+    initChatAnswerWith();
+    initBrainUpload();
+    loadIdentity();
+    runLint();
     loadIndexedDocs();
     loadBrainStatus();
     loadSharedModels();
     loadMcpDefaults();
     resumeBuild();
+    // A link like the Package page's "Build the package" lands on a folded panel: open it.
+    if (location.hash) {
+      const panel = document.querySelector(location.hash);
+      if (panel && panel.tagName === 'DETAILS') { panel.open = true; panel.scrollIntoView({ block: 'start' }); }
+    }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();

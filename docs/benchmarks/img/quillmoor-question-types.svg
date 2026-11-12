@@ -1,0 +1,65 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='750' height='490' viewBox='0 0 750 490' font-family='Helvetica, Arial, sans-serif'>
+<rect width='100%' height='100%' fill='#ffffff'/>
+<text x='16' y='26' font-size='16' font-weight='bold' fill='#1d2733'>API answer model by question type</text>
+<rect x='210' y='36' width='12' height='12' fill='#9aa5b1'/>
+<text x='226' y='46' font-size='12' fill='#1d2733'>MiniLM reranker (before)</text>
+<rect x='400' y='36' width='12' height='12' fill='#4a90d9'/>
+<text x='416' y='46' font-size='12' fill='#1d2733'>bge-reranker-v2-m3</text>
+<rect x='548' y='36' width='12' height='12' fill='#1f6f3f'/>
+<text x='564' y='46' font-size='12' fill='#1d2733'>bge + follow-up search</text>
+<line x1='210.0' y1='66' x2='210.0' y2='434' stroke='#e3e8ee' stroke-width='1'/>
+<text x='210.0' y='452' font-size='10' fill='#6b7785' text-anchor='middle'>0%</text>
+<line x1='304.0' y1='66' x2='304.0' y2='434' stroke='#e3e8ee' stroke-width='1'/>
+<text x='304.0' y='452' font-size='10' fill='#6b7785' text-anchor='middle'>20%</text>
+<line x1='398.0' y1='66' x2='398.0' y2='434' stroke='#e3e8ee' stroke-width='1'/>
+<text x='398.0' y='452' font-size='10' fill='#6b7785' text-anchor='middle'>40%</text>
+<line x1='492.0' y1='66' x2='492.0' y2='434' stroke='#e3e8ee' stroke-width='1'/>
+<text x='492.0' y='452' font-size='10' fill='#6b7785' text-anchor='middle'>60%</text>
+<line x1='586.0' y1='66' x2='586.0' y2='434' stroke='#e3e8ee' stroke-width='1'/>
+<text x='586.0' y='452' font-size='10' fill='#6b7785' text-anchor='middle'>80%</text>
+<line x1='680.0' y1='66' x2='680.0' y2='434' stroke='#e3e8ee' stroke-width='1'/>
+<text x='680.0' y='452' font-size='10' fill='#6b7785' text-anchor='middle'>100%</text>
+<text x='200' y='100.0' font-size='12' fill='#1d2733' text-anchor='end'>reworded</text>
+<rect x='210' y='72' width='433.1' height='13' fill='#9aa5b1'/>
+<text x='647.1' y='82' font-size='10' fill='#1d2733'>92.1%</text>
+<rect x='210' y='88' width='446.5' height='13' fill='#4a90d9'/>
+<text x='660.5' y='98' font-size='10' fill='#1d2733'>95.0%</text>
+<rect x='210' y='104' width='451.5' height='13' fill='#1f6f3f'/>
+<text x='665.5' y='114' font-size='10' fill='#1d2733'>96.1%</text>
+<text x='200' y='162.0' font-size='12' fill='#1d2733' text-anchor='end'>verbatim</text>
+<rect x='210' y='134' width='454.3' height='13' fill='#9aa5b1'/>
+<text x='668.3' y='144' font-size='10' fill='#1d2733'>96.7%</text>
+<rect x='210' y='150' width='454.3' height='13' fill='#4a90d9'/>
+<text x='668.3' y='160' font-size='10' fill='#1d2733'>96.7%</text>
+<rect x='210' y='166' width='462.2' height='13' fill='#1f6f3f'/>
+<text x='676.2' y='176' font-size='10' fill='#1d2733'>98.3%</text>
+<text x='200' y='224.0' font-size='12' fill='#1d2733' text-anchor='end'>changed value</text>
+<rect x='210' y='196' width='451.9' height='13' fill='#9aa5b1'/>
+<text x='665.9' y='206' font-size='10' fill='#1d2733'>96.2%</text>
+<rect x='210' y='212' width='461.0' height='13' fill='#4a90d9'/>
+<text x='675.0' y='222' font-size='10' fill='#1d2733'>98.1%</text>
+<rect x='210' y='228' width='470.0' height='13' fill='#1f6f3f'/>
+<text x='684.0' y='238' font-size='10' fill='#1d2733'>100.0%</text>
+<text x='200' y='286.0' font-size='12' fill='#1d2733' text-anchor='end'>reverse look-up</text>
+<rect x='210' y='258' width='329.0' height='13' fill='#9aa5b1'/>
+<text x='543.0' y='268' font-size='10' fill='#1d2733'>70.0%</text>
+<rect x='210' y='274' width='470.0' height='13' fill='#4a90d9'/>
+<text x='684.0' y='284' font-size='10' fill='#1d2733'>100.0%</text>
+<rect x='210' y='290' width='470.0' height='13' fill='#1f6f3f'/>
+<text x='684.0' y='300' font-size='10' fill='#1d2733'>100.0%</text>
+<text x='200' y='348.0' font-size='12' fill='#1d2733' text-anchor='end'>two-step</text>
+<rect x='210' y='320' width='47.0' height='13' fill='#9aa5b1'/>
+<text x='261.0' y='330' font-size='10' fill='#1d2733'>10.0%</text>
+<rect x='210' y='336' width='150.4' height='13' fill='#4a90d9'/>
+<text x='364.4' y='346' font-size='10' fill='#1d2733'>32.0%</text>
+<rect x='210' y='352' width='394.8' height='13' fill='#1f6f3f'/>
+<text x='608.8' y='362' font-size='10' fill='#1d2733'>84.0%</text>
+<text x='200' y='410.0' font-size='12' fill='#1d2733' text-anchor='end'>not in the documents</text>
+<rect x='210' y='382' width='470.0' height='13' fill='#9aa5b1'/>
+<text x='684.0' y='392' font-size='10' fill='#1d2733'>100.0%</text>
+<rect x='210' y='398' width='470.0' height='13' fill='#4a90d9'/>
+<text x='684.0' y='408' font-size='10' fill='#1d2733'>100.0%</text>
+<rect x='210' y='414' width='470.0' height='13' fill='#1f6f3f'/>
+<text x='684.0' y='424' font-size='10' fill='#1d2733'>100.0%</text>
+<text x='16' y='478' font-size='10' fill='#6b7785'>DeepSeek v4.1 Flash on the same exported packages; 26-140 questions per type.</text>
+</svg>

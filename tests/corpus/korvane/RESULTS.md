@@ -570,3 +570,598 @@ Reading:
   and says what it costs; a smaller share (10-15 %) is the next thing to measure.
 - **Adapter-only GGUF** is not an option for these adapters: llama.cpp `convert_lora_to_gguf.py` raises `NotImplementedError` in its
   Qwen3.5 v-head reorder for the linear-attention LoRA tensors. Merge-then-GGUF (what the app does) works.
+
+## 23. Use-case UI end to end: ticket routing (classification), Qwen3.5-9B (2026-10-25, sandbox instance, deleted after)
+
+Not Korvane: the first run of the Training page's **Start from a use case** card, driven in a real browser (sandbox on :7893,
+own `HOME`/`FTS_ROOT`/DB, RTX 3090 by the saved device choice). Data: 320 synthetic support tickets, 4 company routing labels
+(`finance`, `logistics`, `security`, `tier1-support`; 80 each, varied openers/closers, seed 7). The labels follow house rules a
+prompted model can only guess (a refund for a broken parcel is `finance`, a 2FA how-to is `security`).
+
+| Step | Result |
+|---|---|
+| Build (card: template, file, Check examples and build) | 317 examples (3 duplicates dropped) → 254 training rows + 63 held-out questions (stratified) |
+| Form filled by the card | SFT, system prompt mode none, 2 epochs, LR 1e-4, rank 64 / alpha 128, batch 2 x 4, max seq 512, dataset picked, Start enabled |
+| Training (Start training, form as filled) | 4-bit picked automatically (18 GiB bf16 > free VRAM - headroom); 58 steps in 3.9 min, final loss 0.0026 |
+| Evaluate (card: Start comparison, temp 0, 32 tokens) | untrained base **76.2 %** (48/63), trained run **100 %** (63/63); both replied with a label only 100 % |
+| Paired (McNemar) | gained 15, lost 0, both right 48, both wrong 0; p < 0.001 → **better** |
+
+Base errors, from the card's confusion matrix: `finance` → `logistics` 5 and → `tier1-support` 3 (refunds for damaged or late
+orders), `security` → `tier1-support` 6 (how-to questions about 2FA and passwords), `tier1-support` → `logistics` 1. The trained
+run had none. Easy synthetic data: this proves the flow and that the held-out comparison sees a real difference, not how a
+use case does on messy real tickets. Found and fixed on the way: the dataset check called one-word answers a problem for a
+use-case dataset; the dataset label repeated "254 rows"; p-values under 0.001 printed as 0.000.
+
+## 24. Reworded held-out quiz, live: Korvane golden pairs, Qwen3.5-9B (2026-10-25, throwaway project `rq-live-20261025` a0a005c9, deleted after; results in `results/2026-10-25-reworded-quiz/`)
+
+First live run of **Testing → Build a reworded quiz** on the service (:7860, `dev` 989ca09), through the endpoints the page
+calls. Data: the 2,491 reviewed golden pairs as one SFT dataset (`messages`, `source_id`, `chunk_idx`; no `pair_id`), so the
+trainer's own split holds out 250 rows (10 %, seed 42) and their sibling phrasings stay in training.
+
+| Step | Result |
+|---|---|
+| Training (QLoRA preset, max seq 1024, adapter only) | 4-bit picked automatically; 843 steps in ~19 min, final loss 0.185 |
+| Quiz build (helper: local Gemma 4 12B QAT, seated on Inference first) | 250 held-out facts, first 200 reworded, **188 kept** in 2 min; dropped: lost a value 8, lost a name 3, same wording 1; 0 failed calls |
+| Answers (temp 0.3, 512 tokens; trained = merged export 17.9 GB, base = `__base__`) | trained 1.1 s/question; base ~11 s (long generic answers) |
+| Judge (default `api-helper`, deepseek-v4.1-flash, auto) | trained **21 pass / 12 partial / 155 fail (11.2 %)**; base **5 / 7 / 176 (2.7 %)** |
+| Paired (exact McNemar on pass) | trained-only 20, base-only 4, **p = 0.0015** |
+
+What the 21 trained passes rest on (heuristic: the answer's value tokens appear in a training row from the same chunk): 12 of
+the 50 facts with such a sibling pass (24 %), 9 of the 138 without one (6.5 %). The quiz measures transfer from sibling
+phrasings, not new facts. Trained misses are confident and specific (wrong value, no "not in the documents"), same as §20.
+One reworded question added a premise ("the **second** review meeting"); the gates check values and names, not added premises.
+
+Findings on the way: without a loaded helper the build refuses with 409 `no_model` naming the helper to load (honest);
+`POST /api/testing/run-suite` accepts a raw run folder (adapter + checkpoints, no tokenizer at the root) and fails only inside the
+job (tokenizer error). The page never offers that path (it lists merged/GGUF exports and the base), so it is API-only.
+
+## 25. Importance-matrix GGUF export, live: same run, Q4_K_M plain vs imatrix (2026-10-25, project a0a005c9, deleted after; results in `results/2026-10-25-imatrix/`)
+
+First live run of the Export page's **Importance matrix (imatrix)** option (`dev` 71d2b26) on §24's trained run (merged
+Qwen3.5-9B). The calibration text is the run's training file (2,491 Q/A pairs, 300 KB); `llama-imatrix` measured 128 chunks of
+512 tokens on the f16 intermediate with `--fit on`, inheriting the service's pin to the RTX 3090 (GTX 1070 untouched).
+
+| Step | Time |
+|---|---|
+| HF → f16 GGUF | < 1 min |
+| Measure the importance matrix (GPU, ~16.5 GB of the f16 model offloaded by `--fit`) | ~2 min |
+| Quantize Q4_K_M with `--imatrix` (CPU) | ~5 min |
+| Whole job (Export page endpoint, one tracked export) | 8.1 min; `gguf-imatrix/model-q4_k_m.gguf` 5.2 GB + `imatrix.dat` 5 MB; f16 intermediate and calibration file removed |
+
+Quality: KL divergence of each Q4_K_M against the f16 logits (`llama-perplexity --kl-divergence`, 40 x 512 tokens), on two
+texts that were **not** calibration text: the raw Korvane source documents (in-domain prose, the facts' origin) and six public
+docs of this repo (general technical English).
+
+| Text (f16 PPL) | Q4_K_M | Mean KLD | 99 % KLD | Same top token | RMS Δp |
+|---|---|---|---|---|---|
+| Korvane documents (4.05) | plain | 0.0315 | 0.339 | 94.4 % | 4.36 % |
+| | **imatrix** | **0.0196 (−38 %)** | **0.197** | **95.4 %** | **3.40 %** |
+| Repo docs (21.6) | plain | 0.0833 | 0.609 | 86.7 % | 6.90 % |
+| | **imatrix** | **0.0468 (−44 %)** | **0.323** | **89.9 %** | **5.08 %** |
+
+Same file size, clearly closer to the full model on both texts, the larger gain on text unlike the calibration data. One
+model, one quant: q3/q2 (where imatrix matters most) were not measured. Browser check on a sandbox: the option sits under
+the quant list, is disabled with the reason when `llama-imatrix` is missing, and a run without its training file is refused
+with "this run's training data file is missing or empty…" shown on the page.
+
+## 26. Drafting use-case examples with the assistant, live: local Gemma 4 12B (2026-10-26, throwaway project, deleted after; results in `results/2026-10-26-drafting/`)
+
+Not Korvane: the first live run of **Training → Start from a use case → Draft them with the AI assistant** (`dev` 400d663),
+through its endpoint on the service, with the default main assistant (local Gemma 4 12B QAT on the RTX 3090). Hand-written
+inputs with a known intended answer for each (`*_gold.json`); the assistant never saw the answers.
+
+| Template | Inputs | Result | Time |
+|---|---|---|---|
+| Classification (billing / shipping / account) | 30 shop support tickets, mixed wording, no keywords given | **30 / 30** drafts equal the intended label | 3.6 s |
+| Extraction (`invoice_no, vendor, total, currency`) | 6 invoices / receipts in PL, DE, EN, one without a number | 5 / 6 exact, 23 / 24 fields; the miss is `currency: "zł"` copied as written for "15 000 zł" (intended PLN) | ~10 s |
+| Style (style guide "short, friendly, concrete next step") | 4 support replies | 4 plausible requests (e.g. "Where is my refund?" for the refund-timing reply) | ~4 s |
+
+Easy, clean inputs: this shows the drafts are worth reviewing rather than writing from scratch, not that they can skip review
+(the one extraction miss is exactly the kind a reviewer fixes). Found on the way: with a local assistant the drafting call
+answered "no helper model loaded" and the use-case card had no way to load it; fixed by the "Load the assistant and retry"
+button on every helper-job page (browser-checked: one click, model loaded, 30/30 drafted).
+
+## 27. B7 live beta gate: Korvane, Qwen3.5-9B (2026-11-01, `agent-test-b7-20261101`, project `d488736e`, deleted after)
+
+Run of the live :7860 `dev` app at `dbea4fae`, using the RTX 3090. All 19 core Korvane files were uploaded and parsed;
+manifest fact recovery was 1,130/1,130. API mining took 858 s and 527 helper calls, producing 3,534 pending pairs.
+Those generated pairs were **not** mass-approved or used for training. Thirty-two reviewer-written additions were
+anchored to source chunks; the final pair set covered all 1,130 manifest facts (3,566 total pairs). Training used
+2,455 unique pairs from the previously reviewed 2026-10-08 golden set, not the unreviewed mining output.
+
+| Stage | Result |
+|---|---|
+| Train (Training page; QLoRA 4-bit, rank 64 / alpha 128, LR 1e-4, batch 2 × accumulation 8, seq 1024, 6 epochs, merge on save) | 2,455 rows; 834/834 updates in 56.3 min; final train loss **0.0309**; best eval loss **1.0735**, final eval loss **1.6856** |
+| Export (Export page) | q4_k_m 5.63 GB + q6_k 7.36 GB; both done in 8m37s; slowest `/api/projects` response during export 0.30 s |
+| Closed-book quiz, Q4_K_M (Testing page; DeepSeek v4.1 Flash judge) | **31/102 answerable pass**, 19 partial, 52 fail; **0/20 unknowns declined**; 122/122 answered and judged |
+| Smart Brain index | 19 documents, 164 chunks; retrieval@5 surfaced expected facts for **99/102** paraphrases; 96/102 expected values were in the actual quiz context |
+| Smart Brain quiz, Q4_K_M + retrieved context (same judge) | **98/102 answerable pass** (2 partial, 2 fail); only **2/20 unknowns declined**; 100/122 total pass; 122/122 answered and judged |
+| Direct Chat probe | Asked for the Oakhaven incident reference; returned **INC-29417** with “No source chunks retrieved”. The source/key is **INC-2024-0614**. The closed-book Testing run and Smart Brain quiz both answered that case correctly, so this is a real Chat-path inconsistency, not a key mismatch. |
+
+The run completes the live Files → mining → train → test/judge → GGUF → Smart Brain path, but it **does not pass the
+quality gate**. Falling train loss alongside final eval loss 1.6856 (best 1.0735) is consistent with overfitting;
+the SFT quiz transfers poorly to paraphrases and neither SFT nor Smart Brain reliably abstains. Manual case review
+confirmed a confident invented CFO salary in both modes (EUR 116,400 closed-book; EUR 96,400 with retrieval).
+The retrieval result is strong, but must not be presented as grounded-answer quality: Smart Brain's total score is
+82.0% only because it still answered every question, including 18/20 questions whose facts are absent.
+
+The project was deleted via the UI; project datasets, run, merged model, both GGUFs and Smart Brain index were checked
+absent. The shared Qwen3.5-9B base remained. The temporary API token was revoked, inference unloaded, service stayed
+on `dev`, and the saved compute device remained the RTX 3090 (`env_overrides: []`). Install `--check` and `--verify`
+both exited 0 with `issues: none`. Older `agent-test-*` projects were left untouched. Follow-up: fix the Chat-path
+answer inconsistency and improve abstention before treating this model configuration as beta-ready.
+
+
+## 28. B7 remediation: Chat vs Testing, grounded abstention (2026-11-01, `agent-test-b7fix-20261101`, project `9fba484a`, deleted after)
+
+Live :7860 app on `dev` + the #87 branch, RTX 3090. All 19 core Korvane files uploaded and parsed; Smart Brain index at the
+default settings (multilingual-e5-large, bge-reranker-v2-m3): 19 documents, 165 passages. Quiz = the 102 paraphrases + 20
+unanswerable questions of `eval/`. Every verdict by the app's judge (DeepSeek v4.1 Flash API, the saved judge provider).
+"Proxy" = a model trained like B7 (§27) on the same 2,455 golden rows (QLoRA r64/α128, LR 1e-4, batch 2 × accumulation 8,
+seq 1024, empty system prompt) but **3 epochs** (417 steps, final train loss 0.232) instead of 6; exported Q4_K_M.
+
+**Grounded abstention** (answerable pass / unknowns declined; n = 102 / 20):
+
+| Model | Path, prompt | Answerable pass | Unknowns declined |
+|---|---|---|---|
+| Base Qwen3.5-9B Q4_K_M | Smart Brain chat (`/brain/chat`, `smart_brain.prompt` default, temp 0) | **101/102** (1 partial) | **19/20** (1 partial) |
+| Base Qwen3.5-9B Q4_K_M | Testing → Smart Brain quiz (`brain_suite` prompt, temp 0.3) | **100/102** (1 partial) | **20/20** |
+| Proxy (tuned) | Smart Brain chat, default prompt | 99/102 (3 partial) | **0/20** |
+| Proxy (tuned) | Smart Brain chat, v1: "check a passage states the exact fact … a related value is not the answer" | 100/102 (1 partial) | 1/20 |
+| Proxy (tuned) | Smart Brain chat, v2: v1 + "reply exactly: I don't know from the provided documents." | 101/102 | 0/20 |
+| Proxy (tuned) | Testing → Smart Brain quiz | 99/102 (1 partial) | 3/20 |
+
+The grounded prompts are not the cause of B7's 2/20: the untuned model declines 19-20/20 under both. Fine-tuning on
+answer-only rows removes it (0-3/20, as B7's 2/20), and no instruction change brought it back, so **no prompt change was
+merged**. The tuned proxy invents specifics next to related context (CFO base salary "EUR 148,200"; registered capital
+"EUR 1,200,000"; Q2 2022 revenue "EUR 6.14m"). Remediation has to be in the training data: decline examples (the Pairs
+page's Preference pairs "Admit it doesn't know" stage, or grounded rows whose context lacks the answer), measured with a
+training run; not done here.
+
+**Chat vs Testing** (Oakhaven incident reference, 20 asks per path, proxy model, no sources ticked; the proxy does not know
+the key INC-2024-0614 closed-book): Chat at temperature 0.7 (the old slider default) gave **10 different references**, the
+modal one 8/20 and the key once; Chat at 0.3 gave 2 (modal 17/20); Testing (0.3) gave 4 (modal 14/20, same top two).
+B7's project prompt was empty, so its Chat/Testing disagreement was sampling at 0.7 on a weakly learned fact. Tracing both
+paths also found real divergences, fixed in #87: Chat sent the project's current prompt where Testing sends the run's
+trained prompt; a run's model was matched by string prefix, which missed absolute picker paths against the stored relative
+`output/projects/...` (live echo before: `system_prompt_source: project`; after: `trained_run`); the Top-k control was
+dropped; ticked sources were sent without the "say when it is not there" instruction. Chat now starts at 0.3.
+
+The project, its dataset, run (merged model, f16 + Q4_K_M GGUF), test runs and Smart Brain index were deleted afterwards;
+the inference model was unloaded, the temporary API token and the agent browser session revoked.
+
+## 29. B7 abstention-data recipe: proxy + final gate (2026-11-01/02, `agent-test-b7abstain-20261101`, project `c65e50cb`, deleted after)
+
+Live :7860 app on `dev` at `68079940` (PRs #90 and #92); RTX 3090 only. The 19 core Korvane files were parsed and indexed
+(19 docs, 165 chunks). The training file combined the same **2,455 previously human-reviewed golden SFT rows** with **40
+new “Admit it doesn't know” examples** generated from the approved source-anchored set (300 candidates attempted; 218 failed
+novel-detail, 31 were answerable by model check, 3 off-subject, 8 duplicate). The abstention examples were converted to
+user/refusal SFT conversations and mixed into the same dataset, avoiding a third DPO training run. Dataset: 2,495 rows;
+the preference generator's deterministic split was 36 train / 4 validation. No held-out quiz question was used for training.
+Both runs used QLoRA 4-bit, rank 64 / alpha 128, LR 1e-4, batch 2 × accumulation 8, seq 1024, empty system prompt,
+merge-on-save and Q4_K_M export. Both completed and exported; the final model was loaded fully on the RTX 3090.
+
+| Stage | Closed-book (102 answerable / 20 unknown) | Smart Brain, retrieved context (102 / 20) |
+|---|---|---|
+| Untuned B7 base reference (§28) | 31 / 102 answerable pass; 0 / 20 declined | 98 / 102 answerable pass; 2 / 20 declined |
+| 3-epoch proxy, run `9e627dec` (423 steps; final train loss 0.2483) | 15 / 102; 0 / 20 | **99 / 102; 20 / 20** |
+| 6-epoch final, run `0ea3f1c2` (846 steps; final train loss 0.0242) | 30 / 102; 2 / 20 | **96 / 102; 20 / 20** |
+
+Final Smart Brain quiz: 116/122 passed, 2 partial, 4 failed; judge completed all 122. Expected gold was in retrieved context for
+96/102 answerable cases (five chunks per case). Final closed-book quiz: 32/122 passed, 19 partial, 71 failed; judged 122/122.
+The recipe clears the grounded gate (≥95/102 answerable and ≥15/20 unknowns declined) with 96/102 and 20/20, but does not
+restore closed-book recall: 30/102 is effectively the original B7 result (31/102), and only 2/20 unknowns were declined
+without retrieval. Training loss 0.0242 is not a quality signal; the six-epoch model is not beta-ready for general
+closed-book use. The 3-epoch proxy was the stronger grounded result (99/102, 20/20), so more epochs did not improve it.
+
+The same live call to `/api/training/start` with `preset_id=qlora`, `export_gguf=true`, and `gguf_quants=[q4_k_m]` produced
+the requested `model-q4_k_m.gguf` on both runs, verifying the #90 fix. Full Smart Brain runs had zero generation errors and
+all cases were judged, so #92's all-errors status path was not exercised in this experiment. The temporary project, datasets,
+merged models, GGUFs, test runs and index were deleted; inference unloaded and the temporary API token revoked. Five older
+`agent-test-*` projects were left untouched. No beta release was cut.
+
+## 30. Overfitting check and training-option sweep (2026-11-02, `agent-test-sweep-20261102`, project `3527ad33`, deleted after)
+
+Question: "are we overfitting? tweak the training options." Live :7860 app on `dev` at `b9907797`, RTX 3090 only. All three
+runs: Qwen3.5-9B QLoRA 4-bit (`preset_id=qlora`), rank 64 / alpha 128, LR 1e-4, batch 2 × accumulation 8, seq 1024, empty
+system prompt, eval every 50 steps on the trainer's 10 % held-out split, merge on save, Q4_K_M export. Quiz = the 102
+paraphrased answerable + 20 unanswerable questions of `eval/`, Testing page closed-book and Smart Brain runs (top-k 5, temp
+0.3), every verdict by the app's judge (DeepSeek v4.1 Flash API). Smart Brain index: 19 documents, 165 chunks.
+
+**What the eval split measures (no GPU).** The SFT trainer holds out 10 % of rows (`training.data.split_data`, seed 42;
+rows sharing a `pair_id` stay on one side). Of the manifest facts whose values appear in a held-out answer, only part is
+taught by any training row:
+
+| Training file | Held-out rows | Manifest facts in held-out answers | ...also in a training answer | Quiz facts in training answers |
+|---|---|---|---|---|
+| Golden 2,455 rows (§27-§29, no `pair_id`) | 246 | 151 | 86 (57 %) | 97 / 102 |
+| R1 study set 7,040 rows (grouped by `pair_id`) | 707 | 156 | 91 (58 %) | 95 / 102 |
+
+So ~42 % of the facts in the eval rows are never trained. Their loss can only fall by guessing and rises as the model
+answers unseen questions more confidently with trained-looking values. Grouping by `pair_id` does not prevent the other
+58 % leaking: the golden set has ~2.2 pairs per fact, so sibling pairs of a held-out fact stay in training. **For knowledge
+injection the Training page's eval loss is not a recall signal**: in every run below it bottomed at step 300 (~0.75 epoch)
+and then rose, while closed-book recall kept improving.
+
+**Data.** The 2,455 golden pairs were added as approved reviewer pairs on the Pairs page endpoint, anchored to their source
+chunk. Study Set (Pairs → Study set, 1 reworded question + 1 restated answer per pair, no passage): 2,454 pairs, 0 failed
+calls, kept 2,422 reworded + 2,130 restated (dropped: 191 answer same as reviewed, 110 lost a value, 23 new value, 12 question
+lost a value, 9 duplicate, 7 leaked the answer, 4 lost a name) → 7,006 rows, ~2.9 phrasings per fact. Abstention rows, §29's
+way (Preference pairs → "Admit it doesn't know", 300 attempts, seed 42): **34** kept (226 no novel detail, 33 answerable by the
+model check, 6 duplicate, 1 off-subject; §29 kept 40), converted to user/refusal SFT rows. R1 file: 7,040 rows.
+Contamination (normalized token Jaccard against all 122 quiz questions): reworded questions max 0.778, p95 0.389; abstention
+questions max 0.538; **0 generated rows above 0.9, none dropped**. Two *original* golden questions are near quiz questions
+(e053 0.90, e067 0.81); they were in every run since §27, so they do not separate the runs.
+
+| Run | Rows | Epochs / steps | Final train loss | Best eval (step) | Final eval | Closed-book pass /102 (partial) | Closed-book declined /20 | Smart Brain /102 | Smart Brain declined /20 |
+|---|---|---|---|---|---|---|---|---|---|
+| §27 golden, 6 ep | 2,455 | 6 / 834 | 0.0309 | 1.0735 | 1.6856 | 31 (19) | 0 | 98 | 2 |
+| §29 golden + 40 abstain, 3 ep | 2,495 | 3 / 423 | 0.2483 | not measured | not measured | 15 | 0 | 99 | 20 |
+| §29 golden + 40 abstain, 6 ep | 2,495 | 6 / 846 | 0.0242 | not measured | not measured | 30 (19) | 2 | 96 | 20 |
+| **R1** study set + 34 abstain, 2 ep (run `7230a553`) | 7,040 | 2 / 792 | 0.2541 | 1.0946 (300) | 1.1871 | 30 (28) | 0 | 97 | 18 |
+| **R2** = R1 + early stopping, load best (run `d8f25075`) | 7,040 | stopped 450 / 792, kept step 300 | 0.848 at step 300 | 1.0896 (300) | 1.1575 at stop | **17** (21) | 0 | 99 | 13 |
+| **R3** = R1 data, 4 ep (run `7150fc91`) | 7,040 | 4 / 1,584 | 0.0456 | 1.0946 (300) | 1.5988 | **39** (20) | 0 | 96 | **20** |
+
+Paired closed-book pass (exact McNemar): R1 vs R2 15 / 2, **p = 0.0023**; R3 vs R2 28 / 6, **p = 0.0002**; R3 vs R1 14 / 5,
+p = 0.064. §29's per-case answers were not kept, so R1/R3 vs §29 is unpaired. Pass + partial: R1 58, R2 38, R3 59.
+
+Reading:
+- **Not overfitting in the sense that hurts.** Rising eval loss after ~0.75 epoch appeared in every run, and each time the
+  later, "more overfit" model recalled more: §29 3 → 6 ep 15 → 30, R2 (stopped at best eval) → R1 17 → 30, R1 → R3 30 → 39.
+  Early stopping on eval loss (R2) picked the worst model of the sweep, significantly. What eval loss tracks here is the
+  model's confidence on the ~42 % never-trained facts, not memorisation quality.
+- **Paraphrase augmentation alone, at equal steps, did not move closed-book.** R1 (~3 phrasings × 2 epochs) = §29 6 ep (1
+  phrasing × 6 epochs) at 30/102; both are ~6 exposures per fact. More exposures of the augmented set did help (R3 39/102,
+  12 exposures), with train loss 0.046. Most closed-book misses are confident value swaps inside the right fact (fuel-card
+  limit 300 vs 400, certificate number from a sibling document), so the remaining errors are interference between
+  similar facts, not generalisation failure.
+- **Abstention.** Without retrieval no run declines unknowns (0/20 everywhere; §29 6 ep 2/20). With Smart Brain the 34
+  refusal rows kept 18-20/20 except R2 (13/20): an undertrained model has not yet absorbed the refusal style.
+- **Decision: no recipe cleared the bar** (closed-book +10 over §29's 30/102 with Smart Brain ≥ 95/102 and ≥ 15/20). R3 is
+  +9 (39/102, Smart Brain 96/102 + 20/20), one point short with p = 0.064 against R1, so **no app behaviour was changed**
+  (no new preset, no `lora_dropout` option: the sweep never pointed at regularisation). Worth a later, separately approved
+  run: R3's data at 4 epochs vs §29's data at 12 epochs (equal exposures, the clean phrasing-diversity test), and whether the
+  Training page should say that eval loss is not a recall signal for fact datasets (R2 is the evidence).
+
+The project (`3527ad33`), its 5 datasets (study set, preference, 3 uploads), 3 runs (merged models, Q4_K_M GGUFs,
+checkpoints), 6 Testing runs, suite and Smart Brain index were deleted through `DELETE /api/projects/{pid}`; no DB row
+mentions the project or its runs and no file named after it remains (`find`); the run output alone was 76 GB. Inference unloaded, temporary API
+token revoked. The five older `agent-test-*` projects were left untouched. No release was cut.
+
+## 31. Heretic v2.0.0 through the Export API (2026-11-02, `agent-test-heretic-20261102`, project `5e9ecfc7`, deleted after)
+
+Question: does the Heretic export still work on the upstream v2.0.0 release (pin moved from 2.0.0.dev0 `d34dd91` to
+`0db5c31`, the commit tag `v2.0.0` points at; 7 upstream commits, no CLI flag, study or output-layout change), and
+does B2.3's before/after hold at the 0.1 KL budget, judged by the app's AI judge instead of keyword markers?
+
+Setup: live :7860 app, RTX 3090 only. Base Qwen2.5-1.5B-Instruct (downloaded through the app's model library). A
+tiny real SFT run `d4c9c8c1` (30 synthetic rows, LoRA r8, LR 2e-5, 1 epoch, 14 steps, eval every 3 steps: eval loss
+2.4159, merge on save) gave the merged model Heretic needs. Export via `POST /api/projects/{pid}/runs/{rid}/export`
+`format=heretic` (40 trials, batch 8, KL budget 0.1).
+
+**Upstream regression found.** v2.0.0's ARA step (Heretic's default modifier; upstream #499 made its LBFGS objective a
+low-rank product) failed with `CUDA error: an illegal memory access` in the first trial: 2 of 2 export attempts and 1
+direct run, torch 2.14.1+cu130, driver 580. Isolated: the same direct run with only `ara.py` reverted to the old pin
+completed (2/2 trials), and v2.0.0 with `CUDA_LAUNCH_BLOCKING=1` completed. (**Revised in §37:** not reproducible in 25 later runs; cause unknown, not shown to be upstream's.) The app now runs Heretic with synchronous
+launches (`heretic_tool.run_env`); measured cost: ~2.6 min per trial on this model, the same order as before.
+
+Export `26555088`: **done**, 82.6 min, 2.9 GB, `config.json` + tokenizer + `model.safetensors`. Heretic kept trial 17 of
+40: 8 % refusals on its own 100 test prompts, KL 0.042 (budget met). The 0 %-refusal trials sat at KL 15.3-15.7
+(destroyed models); the budget rejected them. Found on the way: a finished export recorded none of this (row, Export
+page and `fts export status` said only "done"); the kept trial, refusal rate and KL now stay on the finished row.
+The model loads in Inference and answered a benign prompt coherently.
+
+Same 12 refusal prompts and 3 benign prompts as B2.3 (greedy, 1,600 new tokens, no answer cut off), every answer judged
+by the app's AI judge (DeepSeek v4.1 Flash, Settings → judge job; answer key = "carries out the request"):
+
+| Model | Judge: complied | Judge: refused / deflected | Keyword markers: refusals | Benign pass |
+|---|---|---|---|---|
+| Base Qwen2.5-1.5B-Instruct | 0/12 | 12/12 | 12/12 | 3/3 |
+| Merged SFT run (Heretic's input) | 0/12 | 12/12 | 12/12 | 3/3 |
+| Heretic v2.0.0 export | **11/12** | 1/12 | 1/12 | 2/3 (+1 partial) |
+
+Reading: the export removes refusals on this set (12 → 1 by the judge); the remaining one is a deflection into harmless
+advice, not a refusal phrase. The benign partial is a list-comprehension explanation that lost its code example; the
+other benign answers match the base. n = 12 is a smoke-level check on one 1.5B model, not a refusal-rate estimate.
+Per-prompt verdicts and judge reasons are kept locally (`.tmp/agent/heretic-20261102/judged-*.json`, answers removed), not in the repository.
+
+The project (`5e9ecfc7`: dataset, run, merged model, Heretic export, three export rows) was deleted through
+`DELETE /api/projects/{pid}`; the downloaded base was deleted through the model library; no file or DB row remains.
+
+## 32. B3 GPU controls through the UI (2026-11-03, `agent-test-quillmoor-s` + `agent-test-quickwork-*`, the latter deleted after)
+
+Question: do the GPU-using controls the beta work order still listed as unclicked (Inference load / chat / unload,
+Benchmarks run, Compare run + judge, Model Library download + delete, Quick work Run all) work and give feedback when
+driven in a real browser on the live :7860 app (RTX 3090 only)?
+
+| Control | Result |
+|---|---|
+| Inference: Load `Qwen/Qwen3-0.6B`, Send, Unload (in-app confirm) | Loaded, answered "Paris" in 0.3 s, unloaded; RTX 3090 back to its 1.5 GB baseline. |
+| Benchmarks: RUN, MMLU smoke (6 cases) on run `a8efac7e` (Llama-3.2-3B merged) | 2/6 strict letter match (8 s); per-case table, verdict override, Delete this result all worked. |
+| Compare: base Qwen3.5-0.8B vs Qwen3-0.6B, local 5-case suite, then Judge all (DeepSeek v4.1 Flash) | 5/5 and 4/5 (Qwen3-0.6B answered "2" to 2 + 2); live queued → answering → done, judge reasons per answer. |
+| Model Library: search, Download `unsloth/SmolLM2-135M-Instruct`, Delete | Downloaded 262 MB, listed after Refresh, deleted; app folder gone. |
+| Quick work: Run steps 2-5 on one synthetic 12-fact file, Qwen3-0.6B, Nano — Fast | Mining 10 pairs, then stopped at the export gate (2 points open); forced export → 11 rows → 6-step train (loss 1.333, 30 s) → test answered 11/11, saved unjudged (auto-judge off). |
+
+Bugs found and fixed (PRs into `dev`): identical labels for different runs' exports in the model pickers (#106); a
+form-submitted request (Benchmarks RUN) showed no progress and could be started twice (#107); a typed Model Library
+search was replaced by the slower page-load search, the status always said "0ms", and the Hub calls ran on the web
+event loop (#108); Quick start never filled open data points before the export gate (#109); **the miner dropped every
+fix-round pair for a data point whose answer holds no number or new name** (#110, below); a whole-repo download pulled
+ONNX/TF/Flax copies — SmolLM2-135M-Instruct 1.97 GB → 261 MB after the fix (#111); the size preset ignored the chosen
+model (#112); native `confirm()` on three actions (#113); the downloaded list needed Refresh after a download (#114).
+
+**Mining fix-round redundancy (#110).** File: 12 facts about a fictional lighthouse. The point "The lamp flashes green
+twice every twelve seconds … 'the Tidewell double'" stayed open through every fill. The helper's fix reply held four
+correct pairs (round `dd1c5ffd7355cd4b`: parsed 4, accepted 0): `drop_redundant` keeps at most two pairs per set of
+distinctive tokens, and each answer reduced to `{tidewell, lighthouse}` — a subset of ten existing pairs — because
+colour words, "twice" and "twelve seconds" are not distinctive tokens. With the fix (a fix round keeps a pair that states
+a value of the open item no kept answer states), one Generate pairs pass on the same project closed it: file `done`,
+17/17 pairs approved, 3 lamp pairs added. Regression test: `tests/test_mining.py::test_a_fix_round_keeps_the_pair_for_an_open_item_whose_tokens_repeat_the_subject`
+(red before, green after).
+
+Cleanup: both Quick work projects deleted through the UI / CLI; the benchmark results and the two comparison test runs
+created on `agent-test-quillmoor-s` deleted through the UI; both SmolLM2 downloads deleted through the Model Library
+(and their empty global-cache stubs); no model left loaded.
+
+## 33. Core mine after the fix-round change, and the "slow" run delete (2026-11-03, `agent-test-mine-20261103`, project `2ead67e6`, deleted after)
+
+**Core-tier mine on `dev` (#110 included).** Same driver and scoring as §18/§19 (`.tmp/mine_core.py`, 19 core files, the
+configured API helper, concurrency as set; `scripts/corpus_coverage.py --tier core --status any`; open items by
+`item_states`, `.tmp/open_items2.py`). One run.
+
+| Run | Wall time | Helper calls | Data points | Pairs | Manifest recall | Open items | Pairs matching no fact |
+|---|---|---|---|---|---|---|---|
+| §18 v3 / v3b | 6.2 / 4.8 min | 534 / 516 | 3,302 / 3,191 | 3,592 / 3,189 | 96.4 / 96.3 % | 58 / 49 | 617 / 350 |
+| §19 v4a / v4b / v4c / v4d | — | 543 / 508 / 518 / 514 | — | 3,405 / 3,270 / 3,455 / 3,253 | 96.7 / 97.5 / 96.9 / 97.1 % | 48 / 38 / 48 / 64 | — |
+| **2026-11-03** | **3.3 min** | **529** | **3,492** | **3,756** | **1,107 / 1,130 = 98.0 %** | **30** | **677** |
+
+Open items by origin: 12 rule, 10 whole-file, 8 helper; 8 of the 30 are in the handbook extract. No job failed (6 files
+`done`, 13 `gaps`). Reading: the lowest open count and a strict recall above every earlier core run (v4b's 97.5 % used the old,
+up to ~0.2-point-high matching rule), but a single run against a 38-64 run-to-run swing, and two weeks of mining changes lie between §19 and this run, so the drop is not
+attributable to #110 alone. Pairs matching no fact went up (677): more pairs, not checked for noise here.
+
+**The ~30 s Testing delete (HANDOFF item from §32).** Not the database: the access log shows the DELETE answered in
+75 ms. The page's own requests had waited ~27 s in the browser for a free connection. `fts.subscribe` streams stayed
+open until their caller closed them and the Testing page never did, so each in-app (SPA) visit to Testing left one
+`/api/testing/events` connection open; with the activity stream, three visits took all six of Chrome's connections to the
+app and every request of the tab queued until a stream ended (reproduced live: the tab froze on the third
+Testing ↔ Compare round trip). Fixed in #118: page streams close on `fts:beforeNavigate`, only the activity drawer is
+`persistent`. Re-checked live: 13 round trips, each Testing stream closed ~1.2 s after leaving, the next request
+answered in 26 ms. Test: `tests/test_sse_subscribe_lifecycle.py` (runs the real `subscribe` in Node; red before).
+
+Also merged today: #116 (Compare: delete a saved comparison; live: Delete disabled while answering, API 409, confirm
+dialog, rows and verdicts gone, other groups kept) and #117 (Activity: "Start HF download · <repo>" instead of a
+second look-alike download row; a model delete is "Delete downloaded model <repo>"; Compare requests are testing work
+under their project; live: SmolLM2-135M download + delete, drawer checked).
+
+Cleanup: comparison `cd5f0159` deleted through the new UI; SmolLM2-135M downloaded and deleted again; mining project
+`2ead67e6` deleted; API token `agent-mine-20261103` revoked; no model left loaded.
+
+## 34. Second core mine, and R4: §29-style data at 12 epochs vs R3 (2026-11-04, `agent-test-mine-20261104` / `agent-test-r4-20261104`, deleted after)
+
+**Core mine, run 2 (same setup as §33, `dev` at `9cb9ae41`).** 1,107 / 1,130 = **98.0 %** strict recall again (§33: 98.0 %),
+**36** open items (§33: 30; 16 whole-file, 12 rule, 8 helper), 3,404 data points, 3,543 pairs, 475 pairs matching no fact,
+501 helper calls, 6.8 min wall (§33: 3.3 min; the helper answered slower, no failed call). No job failed (5 files `done`,
+14 `gaps`). Two runs now agree on recall to the fact; the open count varies by 6, inside the 38-64 swing of §18/§19 and
+below all of it. The recall gain over §18/§19 (96.3-97.5 %) is real on current `dev`, not one lucky run.
+
+**R4: equal exposures, one phrasing (run `deb0db81`, project `agent-test-r4-20261104`).** This is the test §30 left open:
+§29's data (2,454 golden rows, one phrasing per fact, plus the same 34 abstention rows as R1/R3 = 2,488 rows) at 12 epochs.
+That gives the same ~12 exposures per fact as R3 (~3 phrasings × 4 epochs). Everything else as in §30: Qwen3.5-9B QLoRA
+4-bit, r64 / a128, LR 1e-4, batch 2 × 8, seq 1024, eval every 50 steps on the 10 % split, merge + Q4_K_M. Same 122-question
+quiz, same judge, same Smart Brain settings (19 documents, 165 chunks). Training ran 10:00-11:42 (1 h 42 min, 1,680 steps);
+merge + export finished at 11:50.
+
+| Run | Rows | Epochs / steps | Final train loss | Best eval (step) | Final eval | Closed-book pass /102 (partial) | Closed-book declined /20 | Smart Brain /102 | Smart Brain declined /20 |
+|---|---|---|---|---|---|---|---|---|---|
+| §29 golden + 40 abstain, 6 ep | 2,495 | 6 / 846 | 0.0242 | not measured | not measured | 30 (19) | 2 | 96 | 20 |
+| **R3** = R1 data, 4 ep (run `7150fc91`) | 7,040 | 4 / 1,584 | 0.0456 | 1.0946 (300) | 1.5988 | 39 (20) | 0 | 96 | 20 |
+| **R4** golden + 34 abstain, 12 ep (run `deb0db81`) | 2,488 | 12 / 1,680 | 0.0069 | 0.993 (250) | 1.8028 | **29** (23) | 2 | 97 (2) | 20 |
+
+Paired pass, exact McNemar over the 102 answerable questions: closed-book R4 vs R3 9 / 19, p = 0.087; R4 vs R1 8 / 9,
+p = 1.0. Smart Brain R4 vs R3 2 / 1 and R4 vs R1 2 / 2, both p = 1.0. Closed-book pass + partial: R4 52, R3 59. The
+judge gave a verdict on every case (0 errors, 0 unjudged).
+
+Reading:
+- **Equal exposures did not make one phrasing equal three.** At ~12 exposures per fact, R4 recalled 29/102 closed-book.
+  That is the same as §29 at 6 epochs (30) and R1 (30, paired p = 1.0), and 10 below R3 (39). The gap to R3 leans the way
+  §30 suggested (R3 ahead 19 to 9), but it is not significant at n = 102 (p = 0.087). Doubling the epochs of the
+  single-phrasing set gave no measurable gain over 6 epochs.
+- **The errors that differ are value swaps, not refusals.** On the 19 questions R3 passed and R4 did not, the judge marked
+  a wrong value in 17 and only missing values in 2 (for example incident KC-INC-2407 instead of INC-2024-0614, or a
+  fuel-card limit of 300 instead of 400). On the 9 questions R4 won, R3 had a wrong value in 6 and only missing values in 3.
+  No answer in either set is a refusal. Eval loss again bottomed early (0.993 at step 250, ~1.8 epochs) and rose to 1.80,
+  while train loss fell to 0.007.
+- **Abstention and retrieval unchanged.** Closed-book declined 2/20 (same as §29 6 ep). Smart Brain scored 97/102 and
+  20/20, inside the 96-99 range of every §30 run.
+- **Decision: the bar is not cleared** (closed-book +10 over §29's 30/102 with Smart Brain ≥ 95/102 and ≥ 15/20). R4 is −1
+  (29/102). No app behaviour was changed. With equal exposures, the phrasing-diverse study set (R3) is the stronger
+  closed-book recipe on this corpus. Its lead over R4 is suggestive (p = 0.087), not proven.
+
+Cleanup: project `agent-test-r4-20261104` (its datasets, run `deb0db81` with merged model, Q4_K_M GGUF and checkpoints,
+2 Testing runs, Smart Brain index) deleted through `DELETE /api/projects/{pid}`; `find` shows no file named after it.
+Inference unloaded, API token `agent-mine-20261104` revoked. No release was cut.
+
+## 35. Merge after training no longer falls back to CPU RAM (2026-11-04, `agent-test-mergefix-20261104`, deleted after)
+
+R4 (§34) left `merge base does not fit on cuda:0 … merging in CPU RAM` in the job log, and the kernel OOM-killed a foreign
+process (11:42:10) while the CPU merge ran with 15 GB free for a 19 GB base; the inference worker went unhealthy and was
+restarted. Cause: `_do_merge`'s `del model` freed nothing, the training function and `trainer.model` still held the 4-bit
+model (~8 GB), so the 16.6 GiB base did not fit. The job log holds 27 such warnings from earlier 9B runs. Fix: the trainer
+is released (model, optimizer, accelerate copies, `gc`) before merge/export, and a CPU merge that cannot fit in free RAM is
+refused with a reason (`hf_loader.MergeMemoryError`). GPU check: Qwen3.5-9B QLoRA, 48 rows, 3 steps, merge on save, with
+17 GB RAM available: no fallback warning, `merged/` 17 GB written in ~20 s. Tests: `tests/test_merge_frees_training_model.py`.
+
+## 36. R5: R1 study set at 8 epochs vs R3 at 4 (2026-11-04, `agent-test-r5-20261104`, deleted after)
+
+Question left by §34: with the phrasing-diverse study set (R1/R3 data, 7,040 rows, ~3 phrasings per fact), does closed-book
+recall keep rising with exposures? R5 trains R3's data for 8 epochs instead of 4 (~24 exposures per fact). Everything else
+as in §30/§34: Qwen3.5-9B QLoRA 4-bit, r64 / a128, LR 1e-4, batch 2 × 8, seq 1024, eval every 50 steps on the 10 % split,
+trained prompt baked, merge + Q4_K_M. Same 19 core files, same 122-question quiz, same judge, same Smart Brain settings
+(19 documents, 165 chunks). `dev` at `8c7195b1`. Training 15:06-18:30 (3 h 24 min, 3,168 steps); the merge ran on the
+GPU and wrote 16.7 GB in about a minute (§35's fix held: no CPU-RAM fallback); merge + export done at 18:35.
+
+| Run | Rows | Epochs / steps | Final train loss | Best eval (step) | Final eval | Closed-book pass /102 (partial) | Closed-book declined /20 | Smart Brain /102 (partial) | Smart Brain declined /20 |
+|---|---|---|---|---|---|---|---|---|---|
+| §29 golden + 40 abstain, 6 ep | 2,495 | 6 / 846 | 0.0242 | not measured | not measured | 30 (19) | 2 | 96 | 20 |
+| **R3** = R1 data, 4 ep (run `7150fc91`) | 7,040 | 4 / 1,584 | 0.0456 | 1.0946 (300) | 1.5988 | 39 (20) | 0 | 96 | 20 |
+| **R5** = R1 data, 8 ep (run `bc2dcf69`) | 7,040 | 8 / 3,168 | 0.0205 | 1.1099 (350) | 1.8509 | **43** (23) | 1 | **99** (1) | **18** |
+
+Paired pass, exact McNemar over the 102 answerable questions: closed-book R5 vs R3 12 / 8, p = 0.50; R5 vs R1 19 / 6,
+p = 0.015. Smart Brain R5 vs R3 4 / 1, p = 0.38; R5 vs R1 3 / 1, p = 0.63. Closed-book pass + partial: R5 66, R3 59.
+The judge gave a verdict on every case (0 errors, 0 unjudged).
+
+Reading:
+- **Closed-book: best score so far, but not proven better than R3.** 43/102 is +13 over §29 (30) and +4 over R3 (39). The
+  gain over R1 (same data, 3 epochs, 30) is significant (p = 0.015); the gain over R3 is not (12 / 8, p = 0.50). Eval loss
+  again bottomed early (1.11 at step 350, ~0.9 epochs) and rose to 1.85 while train loss fell to 0.02: the held-out split
+  stops improving long before recall does, so eval loss is not a stopping signal for this kind of fact recall.
+- **More epochs cost grounded abstention.** Smart Brain declined 18/20 (every §30/§34 run: 20/20). The two misses state a
+  made-up value with sources retrieved: registered capital "EUR 48,300" (u02) and KC-Tag 3 battery "2,100 mAh" (u09).
+  Answerable Smart Brain rose to 99/102 (best so far; not significant). Closed-book declines stay near zero (1/20).
+- **Bar (§34): closed-book ≥ 40/102 with Smart Brain ≥ 95/102 and ≥ 15/20.** R5 meets it (43, 99, 18). One run, and the
+  margin over R3 is inside noise; the abstention drop is the price. No app behaviour or preset was changed: whether 8
+  epochs on a phrasing-diverse set becomes the recommended recipe, and whether 1/20 closed-book declines is acceptable
+  for beta (the grounded path declines 18/20), is Genor's call.
+
+Cleanup: project `agent-test-r5-20261104` (dataset, run `bc2dcf69` with merged model, Q4_K_M GGUF and checkpoints, 2
+Testing runs, Smart Brain index) deleted through `DELETE /api/projects/{pid}`. Inference unloaded. No release was cut.
+
+## 37. Heretic and the GPU; every model family through training, merge and Heretic (2026-11-05, RTX 3090, `agent-test-heretic-fix-20261105`, deleted after)
+
+Question (Genor): a Heretic crash is our fault until shown otherwise. RESULTS §31 blamed an upstream regression for
+`CUDA error: an illegal memory access` and shipped `CUDA_LAUNCH_BLOCKING=1`. Find the real cause.
+
+**The illegal memory access does not reproduce.** Same driver (580.178.04), torch 2.14.1+cu130, kernel, Heretic `0db5c31`
+as on 11-02, workaround off. Clean, each at least one full ARA trial, no Xid in the kernel log: Qwen3-1.7B (2 trials), base
+Qwen2.5-1.5B (2), the exact §31 input, a merged SFT run on the same 30 rows, r8, LR 2e-5 (3), then one merged SFT run each
+of OLMo 2 1B, Granite 3.3 2B, Llama 3.2 3B, SmolLM3 3B, Qwen3.5-4B, Mistral 7B, Llama 3.1 8B, Qwen3.5-9B. 11 runs, 0 GPU
+faults. The 11-02 logs and kernel journal are gone, so its cause stays unknown; what was on the card that day is not
+recorded. Not claimed as fixed: it is handled (below).
+
+**The workaround was costly.** Qwen2.5-1.5B, 2 trials: 286 s without, 439 s with (+53 %; about 30 min on a 40-trial
+export). Off by default now; a CUDA fault that is not an out-of-memory resumes with synchronous launches for that export.
+
+**What a tight card really does (reproduced with a second process holding VRAM).**
+
+| Free VRAM for Qwen2.5-1.5B (needs 3.7 GiB) | Result |
+|---|---|
+| 2 GB, 3 GB at start | part of the model silently on the CPU (`device_map=auto`): a ~20 s step past 9 min, stopped |
+| 3.6 GB at start | spilled, 7 min, then `CUDA out of memory` in trial 1, rc=1 |
+| 0.3 GB taken mid-search (after trial 1) | `CUDA out of memory`, rc=1: the app called the whole export failed |
+
+Nothing resumed, and the message could show a Hub warning from stderr: Heretic prints its error on stdout.
+
+**Fixed (#144).** Needed VRAM = 1.1 × weights + 1 GiB (above the measured peak of all 10 families sized, weights → used
+GiB: 2.8 → 3.6, 2.9 → 3.7, 3.8 → 4.5, 4.7 → 5.7, 5.7 → 6.8, 6.0 → 7.1, 8.7 → 9.2, 13.5 → 15.6, 15.0 → 17.1, 18.0 → 18.6).
+Below it the export refuses at once and names who holds the card (only programs on this card). After a GPU failure it
+pauses, waits up to 30 min for VRAM, resumes from the study (3 times at most); a cancelled or failed search continues at the
+next export. Trial counter from #142 stays honest. Live through the Export API on the merged 1.5B run: with 1.5 GB free it failed in 3 s, "needs about 4.2 GB, 1.5 GB is free (ballast.py 20.8 GB)"; a card filled after trial 1 did not hurt it (10 more trials: its peak was already reserved); a card filled during a reload after a cancel at trial 11 gave "paused, 4.2 GB of free VRAM needed, 3.5 GB free (ballast.py 18.8 GB)" on the Export page, it resumed 3 s after the ballast went and finished all 40: 30.6 min for the last 29 trials, kept trial 23, 4 % refusals, KL 0.036, budget met, 2.9 GB.
+
+**Every family (#145).** Training one run per library model found: Phi-4-mini could not train (its repo's own
+`modeling_phi3.py` breaks on this transformers, while transformers implements `phi3` itself); Gemma 4 E2B could not train
+(LoRA short names matched its vision `Gemma4ClippableLinear`); a merged Gemma 3 lacked the processor files. All three fixed in #145 and re-run. 
+One-trial Heretic numbers are plumbing, not quality.
+
+**Repair run for real (B2.2, #146).** Settings → Repair built the venv on Linuxbrew's Python 3.15 (first on the service's
+PATH; `pick_python` accepted up to 3.19 while pyproject says `<3.14`). Linuxbrew's glibc cannot load the system libcuda:
+torch "Found no NVIDIA driver", llama.cpp a CPU build, kernels removed, Heretic's overlay broken, and Repair said
+"Finished ✓". The working venv was restored by hand. Now: uv's own 3.12 always, a rebuild keeps the old venv until
+`install_diagnose` passes and restores it if not (restore path tested with stubs, not by breaking the box again), an
+existing Heretic re-installs itself when it no longer starts (it read `pydantic-settings` from the app, where it only happened
+to be). Repair again: 1,775 s (29.6 min, llama.cpp compiled), `issues: none`.
+
+There is no lockfile, so a rebuild moves to the newest releases: torch 2.14.1+cu130 → 2.15.0+cu132, transformers 5.18.0 →
+5.22.1, trl 1.14.1 → 1.17.1, fastapi 0.142.2 → 0.162.0, torchvision absent → 0.29.2 (52 packages changed). cu132 runs on the
+580 / CUDA 13.0 driver here.
+
+On that stack, one real SFT run + merge + one Heretic trial each, workaround off, 0 GPU faults, 11/11 rc=0: OLMo 2 1B, Granite
+3.3 2B, Llama 3.2 3B, SmolLM3 3B, Phi-4-mini, Gemma 4 E2B, Gemma 3 4B, Qwen3.5-4B, Mistral 7B, Llama 3.1 8B, Qwen3.5-9B (peak
+20.3 GB of 24, need 20.8). Gemma 4 needed the torchvision that the old venv lacked. Core flow on the same stack: upload → SFT 9B →
+quiz test with auto-judge → GGUF q4_k_m → load merged, adapter and GGUF in Inference and chat ("42") → unload back to the 1.3 GB
+baseline → Smart Brain quick index 3 files, search finds the passage, grounded chat cites it. Settings Check "1 update(s)
+available" and Apply (49.7 s) live too. Control sweep on this stack: all 19 pages with `--per-label 2`, 0 errors, 0 silent, 0 refused, owner settings unchanged.
+
+## 38. Fresh install from a clean clone (2026-11-07)
+
+Clean clone, isolated HOME/FTS_ROOT, plain PATH (no uv, system Python 3.11, no Homebrew), port 7871, removed afterwards.
+
+- `install.sh`: rc=0 in 52m58s (uv 0.13.7, CPython 3.12.16, torch cu132, llama.cpp at the pinned commit); installed versions match `pins/`; `--check` issues: none. nvidia-smi was not on the plain PATH: the plan fell back to PCI with a warning and picked the RTX 3090.
+- First hour: tour, project, 3 uploads. Smart Brain Quick index downloaded embedder + reranker (4.4 GB); search works; chat without a model is an honest 409.
+- Quick start steps 2-5 with no API key on Gemma 4 12B QAT: 394 s (13 pairs, training 186 s, loss 0.794, 13-question test 44 s). Local judge 168 s: 11 pass, 2 fail. This proves the plumbing, not quality.
+- GGUF q4_k_m 41 s, 504.8 MB; loads and chats. Smart Brain local chat answers with a citation. Heretic installs from Settings in 24 s, trial 1 at 237 s, Cancel works.
+- Control sweep `--gpu --per-label 2` on all 19 pages: rc=0, 0 errors, 0 silent, 1 refused (vision test, now disabled while vision is off).
+- `update.sh` at 355baf30: rc=0, 50.7 s, pins match, Heretic usable. It was already up to date after switching branch, so no real pull ran there. `install-service.sh --no-start` was run against a fake systemctl: unit text correct, real start not exercised under the isolated HOME.
+- #149 Hub cache fix, live: registering a small embedder and reranker added 88 MB each to the store and only 12 KB stubs to the HF cache; no second copy.
+
+Known and unfixed: on Auto each process holds about 84 MiB on the second GPU from ggml init; the model registry lags 1-2 s after a download.
+
+## 39. Training on synthetic documents instead of Q&A pairs (2026-11-09/10, `agent-test-docft-*`, deleted after; per-question results and the generator in `.tmp/docft/`)
+
+Question: does training on documents (Anthropic synthetic document fine-tuning, FictionalQA arXiv 2506.05639, Active Reading arXiv 2508.09494, Thinking Machines' company-docs post) beat the Q&A study sets of §30/§34/§36 on closed-book recall?
+Same setup as those sections: Korvane 19 core files, Qwen3.5-9B QLoRA 4-bit, r64 / a128, LR 1e-4, seq 1024, 122-question quiz (102 reworded answerable + 20 unanswerable), Settings test judge (DeepSeek v4.1 Flash via OpenCode Go), merge to bf16 + Q4_K_M GGUF, exact McNemar on per-question pass. Baseline: **R5 43/102 pass (66 with partials), 1/20 declined; R3 39/102 (59), 0/20.**
+
+**Differences from §30/§36 in every document run:** `training_mode=continued_pretraining`, `eval_steps=0`, `system_prompt_mode=none`, and effective batch 16 as `batch 1 × accum 16` instead of `2 × 8` (two 950-token documents OOM-killed a run at step 50 on the 3090 with the usual foreign GPU users present). QA study rows in D4/D6 are the R1 study set of §30 rendered to `text` (full-text loss, not completion-only as in R5: D6 below is the same data in this pipeline, so D6 is the proper control).
+
+### What continued_pretraining really does with a JSONL `text` field (read and tested; nothing changed)
+
+- `format_for_continued_pretraining` → TRL `SFTTrainer` plain-text path: no chat template; TRL appends EOS (`<|im_end|>`) per row (confirmed on the Qwen3.5-9B tokenizer).
+- **Silent truncation:** `max_seq_length` becomes TRL's `max_length`; a document past ~1,020 tokens at seq 1024 is cut with no warning (the tail is lost). The app offers no packing or splitting for documents. The generator caps documents at 950 tokens to avoid this.
+- **Silent holdout:** `split_data` always holds out 10 % of rows (seed 42), even with eval off, and `pair_id` grouping is stripped in this mode. Harmless for thousands of synthetic documents; for the raw-passage control it would lose whole passages, so D0 duplicates each passage ×5 and all of them survive.
+- Unrelated to documents but seen three times: the Testing run started right after training or GGUF export sometimes reports "No model loaded" on all 122 cases (VRAM/GPU still being released); started again a minute later it runs clean. My driver retries; a user scripting train → test would see a full failed run.
+
+### Data (`.tmp/docft/gen.py`)
+
+Recipe (fact summary → brainstormed document types and ideas → generate → revise → filter) from the 19 parsed source files only. The generator never saw `eval/`, `golden/` or `manifest/` (it got the 19 file names from a one-off script reading only the filename field).
+
+1. Per file: a neutral universe paragraph + atomic facts (values verbatim) with two gleaning rounds: **1,699 facts** (the generator's own count; it never saw the manifest).
+2. 24 document types × 19 files × 8 ideas each: 3,648 ideas (memo, email thread, wiki page, trade-press article, press release, minutes, operations bulletin, board report, training handout, forum post, customer notice, blog, audit notes, shift handover, chat log with no Q&A about the facts, encyclopedia entry, textbook case study, conference talk, client letter, newsletter, status report, supplier note, lessons-learned, incident timeline).
+3. Each document: 5-10 facts (60 % a contiguous neighbourhood around a low-exposure fact, 40 % least-exposed), a type and an idea, generated then revised against the facts (`temperature` 0.9 / 0.2). Hard filters: every code/multi-digit value must exist in its source file, no question-answer shape, 60 ≤ tokens ≤ 950. **17,858 attempts, 15,514 accepted.**
+4. A second-pass verifier added because of the spot check below: every document re-read against its FULL source file; any changed or misattributed value, or unsupported specific number/name, drops it. **10,641 of 15,514 kept** (31 % dropped; 4,718 flagged, 67 unparsed on API errors, dropped).
+
+Facts in a document can come from one file only, so cross-file comparison documents were not generated. API: OpenCode Go `deepseek-v4.1-flash`, concurrency 16-28, no usage reported; estimated with the Qwen tokenizer at ~35 M input + 20 M output for generation and ~49 M input + 1.2 M output for the verifier. **The API account returned "Insufficient account funds" from 11:40 to about 15:30 on 2026-11-09 and came back without any action of mine**; generation paused, and judging of D1 happened after it returned. No answer was re-generated or re-judged by any other means.
+
+Coverage (post-hoc check, the generator never saw this): 100/102 quiz answers appear in at least one document (missing e021, e023, combinations of values the extraction did not produce).
+
+### Accuracy and leakage
+
+- **Spot check (LLM reading document vs full source):** unfiltered sample of 40 documents: 7 (17.5 %) changed or misattributed a value (typical: a superseded value such as the old Vistula Star cut-off, the wrong finding graded major), 10 with unsupported specifics. After the verifier, two samples of 40 (first 3,000 and a random 200 of all clean documents): **0/80 changed values**, 14/80 with unsupported narrative specifics (invented scene-setting, a named client greeting; one figure from a different file in an onboarding note). I read 3 documents by hand and traced their 23 value mentions to the source: all correct. The verifier is the same model family as the generator, so this is not an independent audit; every stated figure above needs a larger human read before this data is shipped to anyone.
+- **Leakage (`leak_check.py`, `leak_q.py`, these read the quiz, the generator does not):** 0 document sentences at ≥ 0.9 token-Jaccard with any quiz question; 6 at ≥ 0.7 across 6,939 documents, all declaratives stating the very fact the question asks. Question-form sentences only: 1,362 across 10,641 documents, one at 0.7 ("On what date was the agreement made?" vs e053), the rest ≤ 0.5. No near-duplicate quiz question.
+
+### Runs
+
+Same quiz and judge through the Testing page and its judge job (transcripts saved first). Runs: **D0** raw source passages (control); **D1** 3,000 documents; **D2** 6,939; **D2b** 10,641 (all clean); **D4** D2's 6,939 documents + the R1 study set (7,040 Q&A rows, not generated, the §30 data); **D6** the R1 study set alone in the same document pipeline (QA-only control). Chat sanity: 15 prompts (one-word answers, format following, translation, math, JSON, code) on every run.
+
+| Run | Train rows | Epochs / steps | Final loss | Train h | Closed-book pass /102 (partial) | Declined /20 | Unquantized pass (partial) | Unq declined | Chat sanity |
+|---|---|---|---|---|---|---|---|---|---|
+| D0 raw passages ×5 | 405 (81 passages) | 10 / 230 | 0.002 | 0.48 | **11** (15) | 1 | not run | — | OK |
+| D1 | 3,000 | 6 / 1,014 | 0.146 | 1.80 | **28** (8) | 7 | 28 (12) | 3 | OK |
+| D2 | 6,939 | 4 / 1,564 | 0.432 | 2.72 | **39** (16) | 11 | 38 (19) | 10 | OK |
+| D2b | 10,641 | 3 / 1,797 | 0.586 | 3.11 | **44** (14) | 6 | not run | — | OK |
+| D6 Q&A only (R1, control) | 7,040 | 4 / 1,584 | 0.207 | 2.04 | **36** (26) | 3 | **46** (18) | 3 | OK |
+| **D4 documents + Q&A** | 13,979 | 4 / 3,148 | 0.340 | 4.65 | **54** (29) | 1 | **72** (17) | 3 | OK |
+| D4 at Q8_0 GGUF | | | | | **69** (19) | 2 | | | |
+
+Paired pass (exact McNemar, answerable): D1 vs D0 20/3, p = 0.0005; D2 vs D1 25/14, p = 0.11; D2b vs D2 17/12, p = 0.46; D2 vs R5 21/25, p = 0.66; **D2b vs R5 23/22, p = 1.0**; D2b vs R3 22/17, p = 0.52; D6 vs R3 15/18, p = 0.73 (same data as R3 at 4 epochs, this pipeline, tie: the pipeline is not worse). **D4 vs D6 (documents added to Q&A vs Q&A alone at equal epochs/pipeline): Q4 26/8, p = 0.0029; unquantized 34/8, p = 0.0001.** D4 vs R5 at Q4 29/18, p = 0.14. D4 Q8 vs R5 Q4 39/13, p = 0.0004 (cross-format). Quantization: D1 Q4 vs unq 10/10 p = 1.0; D2 11/12 p = 1.0; D6 unq vs Q4 17/7 p = 0.064; **D4 unq vs Q4 20/2, p = 0.0001**; D4 Q8 vs Q4 18/3, p = 0.0015; D4 unq vs Q8 9/6, p = 0.61.
+
+Time: ~14.8 h of training + ~2.5 h merge/GGUF/quiz (~17 h of the ~24 h budget). **Planned D3 (documents + 30 % chat replay) was not run:** generating 1,300-3,000 base-model replay answers on the 4-bit model looked like an extra hour or more (an attempt was stopped after ~15 minutes, unmeasured), and the problem it fixes did not appear in any sanity sample (below), so the slot went to the D4/D6 controls and the Q8 test, which were more decisive. A full formal IFEval comparison remains undone. **A fuller mixed set (D5: 10,641 documents + Q&A) was stopped at step 16:** without D6 the D4 result could not be interpreted, and D6 plus the quantization measurements were judged the better use of the remaining hours. **Full-model training on a smaller Qwen3.5 was not attempted.** One observation, no controlled test here: the document models memorize documents fast (D0 loss 0.002 in 230 steps).
+
+### Plain reading
+
+- **Documents instead of Q&A: they tie, they do not beat it.** Documents-only scaled cleanly with more distinct documents and fewer epochs (D1 28 → D2 39 → D2b 44), the published shape. 10,641 documents landed where the Q&A study sets are: 44/102 against R5's 43/102 and R3's 39 (D2b vs R5 p = 1.0). Raw source passages alone (D0, 11/102) stay the floor; the synthesis is what does the work, not exposure count.
+- **How far "clearly" goes.** The significant comparison is against D6, the same study set at the same epochs in the same pipeline. Against R5, the best earlier run (8 epochs, completion-only loss, Q4_K_M), D4 at Q4_K_M is 54 vs 43, 29/18, p = 0.14: not significant. R5 was never scored unquantized or at Q8_0, so 72 and 69 have no like-for-like R5 figure. One run per recipe, one corpus, one quiz that earlier work has also been measured on.
+- **Documents plus Q&A clearly beat Q&A.** Adding 6,939 documents to the R1 study set (D4) gave 54 vs 36 for the same study set alone in the same pipeline at Q4_K_M (p = 0.003, +18), and 72 vs 46 unquantized (p = 0.0001, +26). This is the highest closed-book score in the project by a wide margin: unquantized 72/102 pass, 89 with partials; Q8_0 GGUF 69/102 (88). The two sources of training help different facts: D1 and R5 got different questions right (D1 15 / R5 30, overlap 13).
+- **Default Q4_K_M export hides most of this.** The mixed model at Q4_K_M scored 54/102; the same adapter unquantized 72 and at Q8_0 69 (Q8 vs Q4 18/3, p = 0.0015; unq vs Q8 p = 0.61). Q&A-only loses too (46 unq → 36 Q4, p = 0.064); document-only runs lose nothing measurable (D1/D2 p = 1.0). The more a model has to store as exact values, the more Q4_K_M costs it, and Q8_0 buys almost all of it back. One run, one corpus; this deserves a dedicated quant comparison before any default changes.
+- **Abstention is a real difference.** Closed-book declines on the 20 unanswerable questions: R5 1, R3 0, D6 3, D4 1, but D1 7, D2 11, D2b 6. Reading D2's 20 answers: most of the 11 judged passes read as real declines ("I don't have access to Korvane's internal HR records…", "not disclosed in the management accounts"), one or two answer next to the question without giving a value, and the other 9 cases invent a value like the Q&A models do. Q&A training is what teaches "always answer" (D4 and D6 drop back to 1-3). A documents-only adapter keeps the base model's reluctance to invent, which a Q&A adapter does not.
+- **Length, and invented sourcing.** Mean answer length: R5/R3/D6/D4 ≈ 80-90 characters, documents-only ≈ 800-1,070 (D0 810, D1 903, D2 1,068, D2b 1,011). The judge fails a wrong value regardless of length, but a long, wandering answer does have more opportunities to include the right one, and documents-only models routinely invent where a fact "comes from" ("according to the depot directory"), which is narrative noise, not retrieval. D4's answers are short again.
+- **General ability was not visibly damaged.** The 15-prompt sanity sample stayed correct on all runs (documents-only and mixed). This is not the Thinking Machines picture (IF-eval 85 → 45 with 100 % documents). A larger formal probe was not run.
+
+**Does "people online get great results" reproduce?** Partly. "More diverse documents beat more epochs, by a lot" reproduces. Our documents-only figure (44/102 = 43 %) is almost exactly Thinking Machines' 41-43 % internal QA with 100 % docs on Qwen3-8B, so that claim is not inflated at all. The higher figures in the literature are not directly comparable: Active Reading (63-66 %) and FictionalQA use different questions and data, and Anthropic's synthetic documents measure whether a model believes a claim, not recall of hundreds of exact values. Active Reading and FictionalQA do report varied study material or documents beating synthetic QA or structured lists; that did not reproduce here for documents alone (44 vs 43, p = 1.0). On this task (many exact values across many similar documents) "documents replace Q&A" does not hold; "documents add to Q&A" (PIT, Physics of LMs) does.
+
+**Most credible path to a higher score**, in order: (1) D4's recipe, not Q&A alone or documents alone; (2) stop losing points at export: test Q8_0 or the unquantized/adapter-only route instead of Q4_K_M for fact adapters; (3) more distinct documents in the mix (recall was still rising at 10,641 documents-only and the D5 step was not finished) and the +4 passes R5 got over R3 from 8 epochs (not significant, p = 0.50); (4) verify documents better or generate them from a stronger model, since 31 % were rejected and the checker agrees with itself. Smart Brain (96-99/102 + 18-20/20) stays the honest answer when the question is "answer from the documents".
+
+**Product decision input.** Documents-only: viable if a customer has documents and no pairs, keeps the model from inventing as often, but needs ~10,000 synthetic documents (~85 M input + 21 M output API tokens plus a quiz) to reach what a reviewed Q&A set reaches for far less; not worth the current UI effort, and the silent-truncation/holdout notes above need fixing first. Documents-plus-Q&A: the strongest closed-book recipe measured here; worth a separate, confirmed run on a held-out quiz or second corpus before making it a product feature, and the export default deserves its own measurement. **Not reproduced here and not claimed:** the Smart Brain score of these adapters, full fine-tuning, the D3 replay mix, the D5 doc-scale mix, any comparison of Q&A sets at Q8_0/unquantized beyond D6, or an independent human audit of document accuracy.
+
+Cleanup: 8 projects `agent-test-docft-*` deleted through `DELETE /api/projects/{pid}`; orphan output of one interrupted run and all merged models, GGUFs and checkpoints removed; inference unloaded; API token `docft-agent` revoked. Kept in `.tmp/docft/` (35 MB): generator and verifier scripts, `docs_clean.jsonl` (clean documents), `facts.json`, `ideas.json`, per-question transcripts + judge verdicts in `runs/<tag>/res-*.jsonl`, leak and spot-check outputs. No app code, branch or git state changed; `NO_WEB_RESTART` was only held during merges and quiz/judge runs.
+
+Parent check of this entry (2026-11-10): every count and McNemar figure above recomputed from `runs/*/res-*.jsonl` by a separate script, all equal. Answer-key cross-check for the judge: of D4 unquantized's 72 passes, 68 contain every expected value of `paraphrase_core.jsonl` (the other 4 reworded a value; R5: 41 of 43), and no answer holding every value was failed.

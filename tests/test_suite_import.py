@@ -100,7 +100,9 @@ def test_upload_route_registers_the_quiz_in_the_suite_list(project_env) -> None:
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["case_count"] == 122
-    listed = client.get("/api/benchmarks/suites", params={"project_id": pid}).json()
+    from finetune_studio.webui.routes.benchmarks import _discover_suites
+
+    listed = _discover_suites(pid)
     mine = [s for s in listed if s.get("source") == "project_import"]
     assert len(mine) == 1 and mine[0]["path"] == body["path"] and mine[0]["case_count"] == 122
     bad = client.post(f"/api/benchmarks/projects/{pid}/suites/import", files={"file": ("x.json", io.BytesIO(b"[]"))})

@@ -24,7 +24,7 @@ SETTING_HELP: dict[str, dict[str, str]] = {
     },
     "num_epochs": {
         "meaning": "How many passes over the whole training set.",
-        "guidance": "Think in optimizer steps: steps = pairs × epochs ÷ (batch size × gradient accumulation). Tier floors: Baseline 400, Precision 700, Overkill 1000. Small datasets need more epochs, big ones fewer (the advisor scales by √(500 ÷ pairs)).",
+        "guidance": "For facts, count passes: each epoch shows every fact once, and recall needs many passes (4,306 facts: 4 passes recalled 12.5 %, 12 passes 97 %). Small datasets get extra epochs to clear the tier's optimizer-step floor (Baseline 400, Precision 700, Overkill 1000); large ones keep the tier's epochs (Baseline 6, Precision 12), so a big dataset is a long run.",
         "pitfall": "Raising epochs on a tiny dataset reaches the step floor by memorising, not learning; add data instead.",
         "kb": "training-settings",
     },
@@ -73,13 +73,13 @@ SETTING_HELP: dict[str, dict[str, str]] = {
     "eval_steps": {
         "meaning": "Measure loss on the held-out split every N steps; 0 disables evaluation.",
         "guidance": "Small datasets need a small value or no evaluation happens before training ends. Required for early stopping.",
-        "pitfall": "Early stopping with eval every 0 steps never triggers.",
+        "pitfall": "Early stopping with eval every 0 steps never triggers. For fact Q&A datasets the held-out rows often hold facts no training row teaches, so a rising eval loss is not a recall signal: judge recall with Testing.",
         "kb": "training",
     },
     "early_stopping": {
         "meaning": "Stop when validation loss has not improved for 3 evaluations and keep the best checkpoint.",
         "guidance": "Useful on larger datasets. On tiny datasets make sure it did not end the run before the planned steps.",
-        "pitfall": "Needs 'Eval every N steps' above 0.",
+        "pitfall": "Needs 'Eval every N steps' above 0. For fact Q&A datasets stopping at the best eval loss can keep a worse model (the held-out rows often hold facts no training row teaches); judge with Testing instead.",
         "kb": "training",
     },
     "merge_on_save": {
@@ -95,7 +95,7 @@ SETTING_HELP: dict[str, dict[str, str]] = {
         "kb": "training",
     },
     "api_concurrency": {
-        "meaning": "How many helper calls an API helper serves at once while mining (Settings → Helper model, default 8).",
+        "meaning": "How many calls an API connection serves at once (Settings → AI assistant → the connection's parallel calls, default 8).",
         "guidance": "8 mines a 19-file corpus in minutes; raise it if the provider allows more parallel requests.",
         "pitfall": "Too high and the provider answers 429 (rate limit): calls are retried, but a mining round can still fail.",
         "kb": "helper-model",
@@ -124,6 +124,12 @@ SETTING_HELP: dict[str, dict[str, str]] = {
         "pitfall": "Only approved pairs go in; approving or editing pairs later shows 'rebuild needed'.",
         "kb": "brain",
     },
+    "reranker": {
+        "meaning": "The cross-encoder that re-scores the retrieved candidates.",
+        "guidance": "With a GPU keep bge-reranker-v2-m3 (the default there: 89% vs 79% top-5 hits on the Quillmoor benchmark, ~0.2 s per search); without a GPU MiniLM is the default because it stays fast on a CPU.",
+        "pitfall": "bge-reranker-v2-m3 is a ~2 GB download and makes a standalone export with models that much larger.",
+        "kb": "brain",
+    },
     "rerank_enabled": {
         "meaning": "Re-score retrieved candidates with a cross-encoder.",
         "guidance": "More accurate, slower; disable for fast lookup-only use.",
@@ -140,6 +146,12 @@ SETTING_HELP: dict[str, dict[str, str]] = {
         "meaning": "How many candidates the reranker reads (default 50).",
         "guidance": "30–100 is typical.",
         "pitfall": "Higher is slower for small gains.",
+        "kb": "brain",
+    },
+    "max_per_document": {
+        "meaning": "At most this many passages of one document in a search's top results before other documents get a turn (default 3; 0 = no cap).",
+        "guidance": "Keep 2-3 for top_k 10: one long e-mail thread or contract no longer fills the top results and pushes the passage that answers the second part of a question out. A document's other passages still fill the end when nothing else matches. Packages exported from this index use the same cap (the server's max_per_document / RAG_MAX_PER_DOCUMENT overrides it).",
+        "pitfall": "1 can hide a second passage you need from a long single-topic document; 0 restores the plain ranking.",
         "kb": "brain",
     },
     "eval_kind": {

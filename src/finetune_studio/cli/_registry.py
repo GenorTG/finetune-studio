@@ -16,14 +16,21 @@ from finetune_studio.cli._parser import build_parser
 from finetune_studio.cli.commands.accel import cmd_accel
 from finetune_studio.cli.commands.access import cmd_auth, cmd_server
 from finetune_studio.cli.commands.analyze import cmd_analyze
+from finetune_studio.cli.commands.assistant import cmd_assistant
 from finetune_studio.cli.commands.benchmark import cmd_benchmark
 from finetune_studio.cli.commands.brain import cmd_brain
 from finetune_studio.cli.commands.compare import cmd_compare
+from finetune_studio.cli.commands.compute_device import cmd_compute_device
 from finetune_studio.cli.commands.convert import cmd_convert
 from finetune_studio.cli.commands.dataset import cmd_dataset
+from finetune_studio.cli.commands.export import cmd_export
 from finetune_studio.cli.commands.files import cmd_files
+from finetune_studio.cli.commands.heretic import cmd_heretic
 from finetune_studio.cli.commands.jobs import cmd_jobs
+from finetune_studio.cli.commands.mining import cmd_mining
 from finetune_studio.cli.commands.models import cmd_models
+from finetune_studio.cli.commands.projects import cmd_projects
+from finetune_studio.cli.commands.qa import cmd_qa
 from finetune_studio.cli.commands.service import cmd_down, cmd_service, cmd_up
 from finetune_studio.cli.commands.suite import cmd_suite
 from finetune_studio.cli.commands.supervisor import (
@@ -36,18 +43,24 @@ from finetune_studio.cli.commands.supervisor import (
 )
 from finetune_studio.cli.commands.test import cmd_test
 from finetune_studio.cli.commands.train import cmd_train
+from finetune_studio.cli.commands.update import cmd_update
+from finetune_studio.cli.commands.usecases import cmd_usecases
 from finetune_studio.cli.commands.validate import cmd_validate
 from finetune_studio.cli.commands.validate_hallucination import (
     cmd_validate_hallucination,
 )
+from finetune_studio.cli.commands.versions import cmd_versions
 from finetune_studio.cli.commands.vram import cmd_vram
 from finetune_studio.cli.commands.webui import cmd_webui
 
 COMMANDS = {
     "auth": cmd_auth,
+    "assistant": cmd_assistant,
     "jobs": cmd_jobs,
+    "export": cmd_export,
     "server": cmd_server,
     "models": cmd_models,
+    "projects": cmd_projects,
     "train": cmd_train,
     "test": cmd_test,
     "suite": cmd_suite,
@@ -56,13 +69,20 @@ COMMANDS = {
     "webui": cmd_webui,
     "brain": cmd_brain,
     "compare": cmd_compare,
+    "compute-device": cmd_compute_device,
+    "update": cmd_update,
     "benchmark": cmd_benchmark,
     "analyze": cmd_analyze,
     "validate-hallucination": cmd_validate_hallucination,
     "vram": cmd_vram,
     "accel": cmd_accel,
+    "heretic": cmd_heretic,
     "files": cmd_files,
+    "mining": cmd_mining,
+    "qa": cmd_qa,
     "dataset": cmd_dataset,
+    "versions": cmd_versions,
+    "usecases": cmd_usecases,
     "supervisor": cmd_supervisor,
     "status": cmd_status,
     "start": cmd_component_action,

@@ -25,7 +25,7 @@ def test_the_previous_default_helper_file_is_still_recognised() -> None:
 
 def test_missing_helper_message_points_at_the_one_click_download() -> None:
     msg = helper_mod.helper_missing_message("/x/y.gguf")
-    assert "Settings -> Helper model" in msg and helper_mod.RECOMMENDED_LOCAL_HELPER.label in msg
+    assert "Settings -> AI assistant" in msg and helper_mod.RECOMMENDED_LOCAL_HELPER.label in msg
 
 
 def test_settings_state_reports_the_local_file_and_the_recommendation(client: TestClient, monkeypatch, tmp_path: Path) -> None:
@@ -37,20 +37,22 @@ def test_settings_state_reports_the_local_file_and_the_recommendation(client: Te
         SimpleNamespace(path=str(g), format="gguf", size_gb=0.1),
         SimpleNamespace(path=str(tmp_path / "mmproj-a.gguf"), format="gguf", size_gb=0.1),
     ])
-    configured = client.put("/api/settings/helper", json={
-        "seat": "api", "base_url": "https://example.invalid/v1", "model": "placeholder", "api_key": "not-a-real-key",
+    configured = client.post("/api/settings/connections", json={
+        "name": "Placeholder", "base_url": "https://example.invalid/v1", "model": "placeholder", "api_key": "not-a-real-key",
     })
-    assert configured.status_code == 200 and configured.json()["seat"] == "api"
-    d = client.get("/api/settings/helper").json()
+    assert configured.status_code == 200
+    client.put("/api/settings/assistant", json={"provider_id": configured.json()["id"]})
+    d = client.get("/api/settings/assistant").json()
     local = d["local"]
     assert local["recommended"]["repo_id"] == helper_mod.RECOMMENDED_LOCAL_HELPER.repo_id
     assert [c["name"] for c in local["candidates"]] == ["a-model.gguf"]   # projectors are not models
-    assert local["present"] in (True, False)
 
     r = client.post("/api/settings/helper/local", json={"path": str(g)})
-    assert r.status_code == 200 and r.json()["local"]["model_path"] == str(g) and r.json()["local"]["present"] is True
-    assert r.json()["seat"] == "local"
-    assert r.json()["local"]["label"] == "Helper · a-model"
+    row = next(c for c in r.json()["connections"] if c["id"] == helper_mod.DEFAULT_HELPER_PROVIDER_ID)
+    assert r.status_code == 200 and row["path"] == str(g) and row["present"] is True
+    assert row["label"] == "Helper · a-model"
+    # Changing the local model does not change who the main assistant is.
+    assert r.json()["assistant_provider_id"] == configured.json()["id"]
     bad = client.post("/api/settings/helper/local", json={"path": str(tmp_path / "mmproj-a.gguf")})
     assert bad.status_code == 400 and "projector" in bad.json()["detail"]
     assert client.post("/api/settings/helper/local", json={"path": str(tmp_path / "nope.gguf")}).status_code == 400

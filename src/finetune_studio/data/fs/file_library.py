@@ -11,6 +11,10 @@ Design:
   mining records; a trashed file keeps them until then.
 - Folders are DB entities (file_folders table), referenced by name. Raw subfolders
   are also DB rows with kind='auto' so the UI can render them consistently.
+- A user folder's ``name`` is its whole path (``public/faq``), and ``parent_id`` points at the folder above it
+  (``public``), created on demand. A file belongs to one folder; its path everywhere (Smart Brain scope, package
+  manifests, restored originals) is ``<folder name>/<file name>``. Folders made before nesting have no ``/`` and
+  stay as they are. Renaming or deleting a folder takes its sub-folders along (files stay in the library).
 - Soft delete: deleted_at + trash_kind fields; on disk the file moves to
   raw/.RAW_TRASH/. Restorable until the
   purge job sweeps it (default 7 days).
@@ -22,6 +26,7 @@ import hashlib
 import logging
 import mimetypes
 import os
+import re
 import time
 import uuid
 from dataclasses import dataclass
@@ -362,37 +367,86 @@ def list_conversions(pid: str, file_id: str) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def create_folder(pid: str, name: str) -> dict:
+MAX_FOLDER_DEPTH = 12
+_FOLDER_COLS = "id, project_id, name, kind, parent_id, created_at"
+
+
+def folder_path(name: str) -> str:
+    """A folder name or path as stored: segments split on ``/`` or ``\\``, each cleaned like a file stem, ``.``/``..``
+    and empty segments dropped (``"public//faq/../x"`` -> ``"public/faq/x"``). ``""`` when nothing is left."""
+    segs = [s for s in re.split(r"[\\/]+", name or "") if s.strip() and s.strip() not in (".", "..")]
+    return "/".join(_safe_stem(s.strip()) for s in segs[:MAX_FOLDER_DEPTH])
+
+
+def _folder_row(c, pid: str, name: str) -> dict | None:
+    row = c.execute(f"SELECT {_FOLDER_COLS} FROM file_folders WHERE project_id = ? AND name = ? AND kind = 'user'",
+                    (pid, name)).fetchone()
+    return dict(row) if row else None
+
+
+def _insert_folder(c, pid: str, name: str, parent_id: str | None) -> dict:
+    fid = f"fld_user_{int(time.time() * 1000)}_{uuid.uuid4().hex[:6]}_{_safe_stem(name.rsplit('/', 1)[-1])}"
+    c.execute("INSERT INTO file_folders (id, project_id, name, kind, parent_id, created_at) "
+              "VALUES (?, ?, ?, 'user', ?, ?)", (fid, pid, name, parent_id, time.time()))
+    (project_files_root(pid) / "converted" / name).mkdir(parents=True, exist_ok=True)
+    return dict(c.execute(f"SELECT {_FOLDER_COLS} FROM file_folders WHERE id = ?", (fid,)).fetchone())
+
+
+def _ensure_path(c, pid: str, path: str) -> dict:
+    """The user folder at ``path``, creating it and every missing folder above it."""
+    parent: dict | None = None
+    segs = path.split("/")
+    for i in range(len(segs)):
+        sub = "/".join(segs[: i + 1])
+        row = _folder_row(c, pid, sub)
+        if row is None:
+            row = _insert_folder(c, pid, sub, parent["id"] if parent else None)
+        elif parent is not None and row.get("parent_id") != parent["id"]:   # a folder made before nesting
+            c.execute("UPDATE file_folders SET parent_id = ? WHERE id = ?", (parent["id"], row["id"]))
+        parent = row
+    return parent  # type: ignore[return-value]
+
+
+def ensure_folder(pid: str, name: str) -> dict:
+    """Get or create the user folder at ``name`` (a path: ``public/faq``), with the folders above it."""
     from finetune_studio import db
-    safe = _safe_stem(name)
-    if not safe:
+    path = folder_path(name)
+    if not path:
         raise HTTPException(status_code=400, detail="invalid folder name")
-    fid = f"fld_user_{int(time.time()*1000)}_{safe}"
-    now = time.time()
-    try:
-        with db.cursor() as c:
-            c.execute(
-                "INSERT INTO file_folders (id, project_id, name, kind, parent_id, created_at) VALUES (?, ?, ?, 'user', NULL, ?)",
-                (fid, pid, safe, now),
-            )
-            # Also create the on-disk dir under files/converted/{name}/
-            (project_files_root(pid) / "converted" / safe).mkdir(parents=True, exist_ok=True)
-            row = c.execute(
-                "SELECT id, project_id, name, kind, parent_id, created_at FROM file_folders WHERE id = ?",
-                (fid,),
-            ).fetchone()
-    except Exception as e:
-        # SQLite UNIQUE constraint
-        if "UNIQUE" in str(e):
-            raise HTTPException(status_code=409, detail=f"folder '{safe}' already exists")
-        raise
-    return dict(row)
+    with db.cursor() as c:
+        return _ensure_path(c, pid, path)
+
+
+def create_folder(pid: str, name: str) -> dict:
+    """A new user folder; ``name`` may be a path (``public/faq``): the folders above it are created when missing.
+    409 when that folder exists already."""
+    from finetune_studio import db
+    path = folder_path(name)
+    if not path:
+        raise HTTPException(status_code=400, detail="invalid folder name")
+    with db.cursor() as c:
+        if _folder_row(c, pid, path) is not None:
+            raise HTTPException(status_code=409, detail=f"folder '{path}' already exists")
+        parent = _ensure_path(c, pid, path.rsplit("/", 1)[0]) if "/" in path else None
+        try:
+            return _insert_folder(c, pid, path, parent["id"] if parent else None)
+        except Exception as e:
+            if "UNIQUE" in str(e):
+                raise HTTPException(status_code=409, detail=f"folder '{path}' already exists") from e
+            raise
+
+
+def _subfolders(c, pid: str, name: str) -> list[dict]:
+    rows = c.execute(f"SELECT {_FOLDER_COLS} FROM file_folders WHERE project_id = ? AND kind = 'user'", (pid,)).fetchall()
+    return [dict(r) for r in rows if str(r["name"]).startswith(name + "/")]
 
 
 def rename_folder(pid: str, folder_id: str, new_name: str) -> dict:
+    """Rename a user folder; its sub-folders follow. A name without ``/`` renames it where it is (``public/faq`` ->
+    ``public/help``); a path moves it (``archive/faq``), creating the folders above when missing."""
     from finetune_studio import db
-    safe = _safe_stem(new_name)
-    if not safe:
+    target = folder_path(new_name)
+    if not target:
         raise HTTPException(status_code=400, detail="invalid folder name")
     with db.cursor() as c:
         row = c.execute(
@@ -403,48 +457,62 @@ def rename_folder(pid: str, folder_id: str, new_name: str) -> dict:
             raise HTTPException(status_code=404, detail="folder not found")
         if row["kind"] == "auto":
             raise HTTPException(status_code=403, detail="cannot rename auto-folder")
-        try:
-            c.execute(
-                "UPDATE file_folders SET name = ? WHERE id = ?",
-                (safe, folder_id),
-            )
-        except Exception as e:
-            if "UNIQUE" in str(e):
-                raise HTTPException(status_code=409, detail=f"folder '{safe}' already exists")
-            raise
-        # Best-effort disk rename (only if the dir exists and is empty of files
-        # at root; converted files live inside it so we just rename the dir).
-        old_name = row["name"]
-        old_dir = project_files_root(pid) / "converted" / old_name
-        new_dir = project_files_root(pid) / "converted" / safe
+        old = str(row["name"])
+        if "/" not in folder_path(new_name) and "/" in old and "/" not in new_name.replace("\\", "/"):
+            target = old.rsplit("/", 1)[0] + "/" + target
+        if target == old:
+            return dict(c.execute(f"SELECT {_FOLDER_COLS} FROM file_folders WHERE id = ?", (folder_id,)).fetchone())
+        if target.startswith(old + "/"):
+            raise HTTPException(status_code=400, detail="a folder cannot move inside itself")
+        if _folder_row(c, pid, target) is not None:
+            raise HTTPException(status_code=409, detail=f"folder '{target}' already exists")
+        parent = _ensure_path(c, pid, target.rsplit("/", 1)[0]) if "/" in target else None
+        c.execute("UPDATE file_folders SET name = ?, parent_id = ? WHERE id = ?",
+                  (target, parent["id"] if parent else None, folder_id))
+        for sub in _subfolders(c, pid, old):
+            c.execute("UPDATE file_folders SET name = ? WHERE id = ?", (target + sub["name"][len(old):], sub["id"]))
+        # Best-effort disk rename (converted files live inside it).
+        old_dir = project_files_root(pid) / "converted" / old
+        new_dir = project_files_root(pid) / "converted" / target
         if old_dir.exists() and not new_dir.exists():
             try:
+                new_dir.parent.mkdir(parents=True, exist_ok=True)
                 old_dir.rename(new_dir)
             except OSError:
                 pass
-        updated = c.execute(
-            "SELECT id, project_id, name, kind, parent_id, created_at FROM file_folders WHERE id = ?",
-            (folder_id,),
-        ).fetchone()
+        updated = c.execute(f"SELECT {_FOLDER_COLS} FROM file_folders WHERE id = ?", (folder_id,)).fetchone()
     return dict(updated)
 
 
 def delete_folder(pid: str, folder_id: str) -> dict:
-    """Delete a user folder. The files in it remain — only the membership
+    """Delete a user folder and its sub-folders. The files in them remain — only the membership
     rows are removed (so files become folder-less, ready to be re-bucketed)."""
     from finetune_studio import db
     with db.cursor() as c:
         row = c.execute(
-            "SELECT id, kind FROM file_folders WHERE id = ? AND project_id = ?",
+            "SELECT id, kind, name FROM file_folders WHERE id = ? AND project_id = ?",
             (folder_id, pid),
         ).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="folder not found")
         if row["kind"] == "auto":
             raise HTTPException(status_code=403, detail="cannot delete auto-folder")
-        c.execute("DELETE FROM folder_membership WHERE folder_id = ?", (folder_id,))
-        c.execute("DELETE FROM file_folders WHERE id = ?", (folder_id,))
-    return {"deleted": folder_id}
+        ids = [folder_id, *(s["id"] for s in _subfolders(c, pid, str(row["name"])))]
+        for fid in ids:
+            c.execute("DELETE FROM folder_membership WHERE folder_id = ?", (fid,))
+            c.execute("DELETE FROM file_folders WHERE id = ?", (fid,))
+    return {"deleted": folder_id, "subfolders": ids[1:]}
+
+
+def folder_paths(pid: str) -> dict[str, str]:
+    """``file id -> folder path`` of the files in a user folder (``public/faq``)."""
+    from finetune_studio import db
+    with db.cursor() as c:
+        rows = c.execute(
+            """SELECT fm.file_id, ff.name FROM folder_membership fm
+                 JOIN file_folders ff ON ff.id = fm.folder_id
+                WHERE ff.project_id = ? AND ff.kind = 'user'""", (pid,)).fetchall()
+    return {str(r["file_id"]): str(r["name"]) for r in rows}
 
 
 def move_file_to_folder(pid: str, file_id: str, folder_id: str) -> dict:
@@ -948,32 +1016,6 @@ def _validate_rename_name(new_name: str) -> str:
             status_code=400, detail=f"unsafe extension: .{ext}"
         )
     return name
-
-
-def _current_raw_path(pid: str, file_id: str, current_version: int) -> Path | None:
-    """Resolve the on-disk path for the file's current version.
-
-    Soft-delete moves bytes into .RAW_TRASH without always updating raw_path,
-    so we fall back to a trash glob when the recorded path is missing.
-    """
-    from finetune_studio import db
-    with db.cursor() as c:
-        row = c.execute(
-            "SELECT raw_path FROM file_versions WHERE file_id = ? AND version = ?",
-            (file_id, current_version),
-        ).fetchone()
-    if not row:
-        return None
-    p = Path(row["raw_path"])
-    if p.exists():
-        return p
-    # Soft-deleted: look in trash for {file_id}_*
-    trash = raw_trash_dir(pid)
-    if trash.exists():
-        for cand in trash.glob(f"{file_id}_*"):
-            if cand.is_file():
-                return cand
-    return None
 
 
 def rename_file(pid: str, file_id: str, new_name: str) -> dict:

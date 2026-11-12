@@ -50,13 +50,6 @@ def test_training_start_bad_body_is_400(client):
     assert r.json()["detail"]
 
 
-def test_testing_load_unknown_project_is_not_200(client):
-    r = client.post("/api/projects/nope-does-not-exist/testing/load", json={})
-    assert r.status_code >= 400
-    body = r.json()
-    assert body.get("error") or body.get("detail")
-
-
 def test_memory_estimate_empty_body_is_not_200(client):
     r = client.post("/api/inference/memory-estimate", json={})
     assert r.status_code >= 400

@@ -58,19 +58,13 @@ def test_benchmarks_init_has_no_dead_class_hierarchy() -> None:
         "finetune_studio.compare.reporter",
         "finetune_studio.compare.scorer",
         "finetune_studio.benchmarks.comparison",
+        "finetune_studio.benchmarks.scoring",
     ],
 )
 def test_dead_modules_no_longer_importable(module_name: str) -> None:
     with pytest.raises(ModuleNotFoundError):
         importlib.import_module(module_name)
 
-
-def test_scoring_module_has_no_dead_benchmark_result_dataclass() -> None:
-    from finetune_studio.benchmarks import scoring
-
-    assert not hasattr(scoring, "BenchmarkResult")
-    # The exact-match scorer used by the public benchmarks still works.
-    assert scoring.scorer.score_mcq("B) Paris", "B")["correct"] is True
 
 
 def test_compare_package_still_imports_cleanly() -> None:

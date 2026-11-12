@@ -106,18 +106,21 @@ def test_suggest_settings_bad_requests_are_errors(args: dict) -> None:
     assert "error" in out and "ui_event" not in out
 
 
-def test_there_is_no_tool_that_can_submit_or_start_anything() -> None:
-    """Approve / export / train / delete stay user-clicked: no catalog tool can do them."""
+def test_no_tool_approves_exports_or_deletes_and_starting_work_is_an_action() -> None:
+    """Approve / reject / export / delete stay user-clicked. Work that starts something (mining, training, …) is an
+    action tool: its call only PREPARES the request; the panel runs it after Run (or at once in hands-free mode)."""
+    from finetune_studio.guide import actions
     from finetune_studio.guide.tools import TOOLS_CATALOG
 
     names = {t["name"] for t in TOOLS_CATALOG}
-    assert not {n for n in names if any(w in n for w in ("start", "train_", "approve", "export", "delete", "reject", "submit"))}
+    assert not {n for n in names if any(w in n for w in ("approve", "export", "delete", "reject", "submit"))}
+    starting = {n for n in names if n.startswith(("start_", "build_", "run_", "pin_"))}
+    assert starting <= set(actions.ACTION_TOOLS)
     mutating = {"create_qa_pairs"}
     ui = {"navigate", "highlight", "suggest_settings"}
-    read_only = names - mutating - ui
+    read_only = names - mutating - ui - set(actions.ACTION_TOOLS)
     assert {"app_help", "project_overview", "list_datasets", "list_runs", "system_status",
-            "recommend_training", "dataset_health", "explain_setting"} <= read_only
-
+            "recommend_training", "dataset_health", "explain_setting", "list_suites"} <= read_only
 
 def test_registry_never_prefills_a_submit_control() -> None:
     for spec in registry.FIELDS.values():

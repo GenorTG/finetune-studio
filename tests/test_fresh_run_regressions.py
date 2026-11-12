@@ -70,7 +70,9 @@ def test_brain_settings_before_index_is_not_a_404(client):
     pid = client.post("/api/projects", json={"name": "Rag Fresh"}).json()["id"]
     r = client.get(f"/api/projects/{pid}/brain/settings")
     assert r.status_code == 200
-    assert r.json() == {"exists": False}
+    body = r.json()
+    assert body["exists"] is False
+    assert body["default_reranker"] in {"BAAI/bge-reranker-v2-m3", "cross-encoder/ms-marco-MiniLM-L-6-v2"}
 
 
 def test_unknown_page_gets_styled_404_but_api_stays_json(client):

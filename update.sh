@@ -84,12 +84,36 @@ ACCEL_FLAGS=()
 # installed (working) torch family so sync can't drift.
 torch_constraint_args() {
     local f="$VENV_DIR/torch-constraints.txt"
-    [ -s "$f" ] || accel constraints --venv "$VENV_DIR" >/dev/null 2>&1 || true
+    # Written every time: an update can bring new pins (pins/app.txt goes into this file).
+    accel constraints --venv "$VENV_DIR" >/dev/null 2>&1 || true
     [ -s "$f" ] && printf -- '-c\n%s\n' "$f"
 }
 
 # ── Step 1: git pull ────────────────────────────────────────────────────
+# Deterministic env for git/ssh (see the pull below): shared by the check's fetch and the pull.
+_real_home="$(getent passwd "$(id -u)" | cut -d: -f6)"
+_git_ssh="ssh"
+[ -f "$_real_home/.ssh/config" ] && _git_ssh="ssh -F $_real_home/.ssh/config"
+_branch="$(git symbolic-ref --short -q HEAD || true)"
+git_env() { env -i HOME="$_real_home" PATH="/usr/local/bin:/usr/bin:/bin" GIT_SSH_COMMAND="$_git_ssh" "$@"; }
+_before="$(git rev-parse --short HEAD 2>/dev/null || true)"
 if [ "$CHECK_MODE" = "1" ]; then
+    # A check answers "is there anything to update?": fetch (changes no file) and list what a pull would bring.
+    case "$_branch" in
+        main|dev)
+            if git_env git fetch --quiet origin "$_branch" 2>&1; then
+                _new="$(git rev-list --count "HEAD..origin/$_branch" 2>/dev/null || echo 0)"
+                if [ "$_new" = "0" ]; then
+                    log "Up to date: $_branch is at $_before, the same as GitHub."
+                else
+                    log "Update available: $_new new change(s) on $_branch ($_before -> $(git rev-parse --short "origin/$_branch")):"
+                    git log --format='    - %s' "HEAD..origin/$_branch" | head -15
+                fi
+            else
+                warn "could not reach GitHub to look for updates (offline?)."
+            fi ;;
+        *) log "on '${_branch:-a detached HEAD}', not main or dev: updates come from your own git commands." ;;
+    esac
     log "--check: skipping git pull (dry-run, no changes)."
 elif [ "$NO_PULL" = "0" ]; then
     log "git pull (ff-only)..."
@@ -100,19 +124,18 @@ elif [ "$NO_PULL" = "0" ]; then
     # the service. GIT_SSH_COMMAND with -F skips the system config and
     # reads just the user's, which authenticates fine (verified via
     # systemd-run repro, 2026-09-11).
-    _real_home="$(getent passwd "$(id -u)" | cut -d: -f6)"
-    _git_ssh="ssh"
-    if [ -f "$_real_home/.ssh/config" ]; then
-        _git_ssh="ssh -F $_real_home/.ssh/config"
-    fi
     # Pull the branch this checkout is on: `main` = releases (users), `dev` = development (the dev box).
     # Any other branch (a feature branch) is work in progress and is left alone (CONTRIBUTING.md).
-    _branch="$(git symbolic-ref --short -q HEAD || true)"
     case "$_branch" in
         main|dev)
-            if ! env -i HOME="$_real_home" PATH="/usr/local/bin:/usr/bin:/bin" \
-                    GIT_SSH_COMMAND="$_git_ssh" git pull --ff-only origin "$_branch" 2>&1; then
+            if ! git_env git pull --ff-only origin "$_branch" 2>&1; then
                 warn "git pull failed (local may be ahead or divergent). Using local code."
+            fi
+            _after="$(git rev-parse --short HEAD 2>/dev/null || true)"
+            if [ "$_before" = "$_after" ]; then
+                log "Code: already up to date at $_after."
+            else
+                log "Code: updated $_before -> $_after ($(git rev-list --count "$_before..$_after") change(s))."
             fi ;;
         *)
             warn "on '${_branch:-a detached HEAD}', not main or dev: skipping git pull (update a feature branch yourself)." ;;
@@ -133,9 +156,33 @@ run_diagnose() {
     "$py" "$DIAGNOSE_PY" --venv "$VENV_DIR" --llama-cpp "$LLAMA_CPP_DIR" "$@"
 }
 
+# Rebuild the venv from scratch, keeping the old one until the new one passes the health check: a rebuild that loses the
+# GPU (or anything else) puts the working environment back instead of leaving the app broken.
+rebuild_venv() {
+    local backup="$VENV_DIR.before-rebuild" rc=0
+    rm -rf "$backup"
+    [ -d "$VENV_DIR" ] && mv "$VENV_DIR" "$backup"
+    bash install.sh 2>&1 | tail -8 || rc=$?
+    VENV_PY="$PWD/$VENV_DIR/bin/python"
+    if [ "$rc" = "0" ] && [ -x "$VENV_PY" ] && run_diagnose --no-service-check > /tmp/fts-update-diag.txt 2>&1; then
+        log "✓ the rebuilt environment passed the health check."
+        rm -rf "$backup"
+        return 0
+    fi
+    warn "the rebuilt environment did not pass the health check:"
+    sed 's/^/  /' /tmp/fts-update-diag.txt 2>/dev/null | tail -20 || true
+    if [ -d "$backup" ]; then
+        rm -rf "$VENV_DIR"
+        mv "$backup" "$VENV_DIR"
+        VENV_PY="$PWD/$VENV_DIR/bin/python"
+        die "Repair failed; the previous environment was put back unchanged."
+    fi
+    die "the environment could not be rebuilt (install.sh exit $rc)."
+}
+
 if [ "$REPAIR_MODE" = "1" ]; then
-    log "REPAIR: removing $VENV_DIR and recreating..."
-    rm -rf "$VENV_DIR"
+    log "REPAIR: rebuilding $VENV_DIR from scratch (the old one is kept until the new one passes)..."
+    rebuild_venv
 fi
 
 if [ "$CHECK_MODE" = "1" ] && { [ ! -x "$VENV_PY" ] || ! "$VENV_PY" -c "import sys" >/dev/null 2>&1; }; then
@@ -162,10 +209,7 @@ else
                 log "✓ repair ok, continuing with update."
             else
                 warn "Repair couldn't fully resolve. Recreating venv..."
-                rm -rf "$VENV_DIR"
-                bash install.sh 2>&1 | tail -8 || die "install.sh failed"
-                VENV_PY="$PWD/$VENV_DIR/bin/python"
-                [ -x "$VENV_PY" ] || die "venv still broken after install.sh"
+                rebuild_venv
             fi
         else
             log "✓ venv health OK."
@@ -196,6 +240,9 @@ if [ "$CHECK_MODE" = "0" ]; then
     # Qwen3.5 linear-attention kernels: re-probed on every update (a torch change can break a built extension)
     accel install linear-attn --venv "$VENV_DIR" 2>&1 | tail -4 \
         || warn "Qwen3.5 kernel sync failed"
+    # PyTorch and llama-cpp-python are only moved by a rebuild (they depend on the GPU, and the second one compiles).
+    "$VENV_PY" scripts/pin_versions.py check --venv "$VENV_DIR" 2>&1 | sed 's/^/  /' \
+        || warn "this install differs from the tested versions above. Settings → Repair moves PyTorch and llama-cpp-python."
 else
     log "check mode: skipping pip install"
 fi
@@ -217,6 +264,13 @@ else
     log "Running DB migrations (init_db + knowledge sources)..."
     "$VENV_PY" -c "from finetune_studio.db import init_db; init_db(); from finetune_studio.knowledge.migrate import migrate_all; print('  schema OK, projects moved:', migrate_all())" 2>&1 \
         || die "init_db failed"
+fi
+
+# Heretic's overlay reads this venv's packages: a rebuild or a dependency change can stop it from starting.
+if [ "$CHECK_MODE" = "0" ]; then
+    healed="$("$VENV_PY" -c "from finetune_studio.training.heretic_tool import heal; print(heal())" 2>/dev/null | tail -1)" \
+        || warn "Heretic no longer starts and could not be re-installed: fts heretic install"
+    [ -n "$healed" ] && log "Heretic: $healed for the new environment."
 fi
 
 # ── Step 6: restart ─────────────────────────────────────────────────────

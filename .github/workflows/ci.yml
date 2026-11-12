@@ -39,22 +39,24 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
       # The uv cache is keyed on pyproject.toml; the suffix keeps this torch-free job's cache apart from the
       # test shards' (one key for both would let whichever job saves first decide what the other restores).
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           enable-cache: true
-          cache-dependency-glob: pyproject.toml
+          cache-dependency-glob: |
+            pyproject.toml
+            pins/*.txt
           cache-suffix: lint
-      # No torch needed: ruff and the stdlib-only codemap generator. Pinned so a new ruff release
-      # cannot turn main red on its own; bump together with a local `ruff check src/ scripts/` run.
+      # No torch needed: ruff and the stdlib-only codemap generator. Pinned (pins/app.txt) so a new ruff release
+      # cannot turn main red on its own.
       - name: Tooling venv
         run: |
           uv venv .venv --python 3.12
-          uv pip install --python .venv/bin/python "ruff==0.16.10"
+          uv pip install --python .venv/bin/python -c pins/app.txt ruff
       - name: Ruff
         run: .venv/bin/ruff check src/ scripts/
       # docs/CODEMAP.md is a gitignored dev doc, so here this proves the generator runs over every module.
@@ -74,7 +76,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
       - name: Plan every vendor
@@ -94,13 +96,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
-      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
         with:
           enable-cache: true
-          cache-dependency-glob: pyproject.toml
+          cache-dependency-glob: |
+            pyproject.toml
+            pins/*.txt
           cache-suffix: tests
       # Exactly what a user without a GPU runs: install.sh asks scripts/accel_plan.py for the CPU torch
       # wheel, creates .venv, writes .venv/torch-constraints.txt and installs `-e .[parsers]`.
@@ -110,6 +114,9 @@ jobs:
       # Dev extras resolve under the same torch pin install.sh wrote, so torch cannot drift.
       - name: Dev extras
         run: uv pip install --python .venv/bin/python -c .venv/torch-constraints.txt -e '.[dev]'
+      # CI tests the versions users get: a pin the resolver quietly moved past is a failure here.
+      - name: Installed versions match pins/
+        run: .venv/bin/python scripts/pin_versions.py check
       - name: Show accelerator
         run: .venv/bin/fts accel || true
       # The shard's wall time goes to the job summary: scripts/ci_shard.py balances by per-file weights, and

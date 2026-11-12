@@ -3,7 +3,7 @@ from __future__ import annotations
 
 
 def test_app_guide_explains_supported_routes_and_preference_format() -> None:
-    from finetune_studio.webui.routes.data_prep_chat import _run_tool
+    from tests._guide_tool import run_tool as _run_tool
 
     result = _run_tool("unused", "get_app_guide", {})
 
@@ -13,14 +13,16 @@ def test_app_guide_explains_supported_routes_and_preference_format() -> None:
     assert "raw text" in result["routes"]["continued_pretraining"]
     assert "ORPO" in result["routes"]["not_supported_yet"]
     assert "Smart Brain" in result["routes"]["brain"]
-    # The guide now navigates/highlights/pre-fills through allow-listed tools, but never presses buttons.
-    assert "never presses" in result["navigation_note"]
+    # The guide navigates/highlights/pre-fills, prepares actions that run after Run (or hands-free), and never
+    # approves, exports or deletes.
+    note = result["navigation_note"]
+    assert "presses Run" in note and "hands-free" in note and "never approves pairs" in note
     assert {entry["id"] for entry in result["kb"]} >= {"training", "pairs", "brain"}
 
 
 def test_readiness_tool_reports_project_specific_next_step(client) -> None:
     from finetune_studio import db
-    from finetune_studio.webui.routes.data_prep_chat import _run_tool
+    from tests._guide_tool import run_tool as _run_tool
 
     project = db.create_project(name="Readiness tool probe")
     pid = project["id"] if isinstance(project, dict) else project

@@ -43,6 +43,16 @@ LLAMA_QUANTIZE_MISSING_MSG: str = (
     "Searched PATH, .llama.cpp/build/bin/, ~/llama.cpp/build/bin/."
 )
 
+LLAMA_IMATRIX_MISSING_MSG: str = (
+    "llama-imatrix binary not found (needed for an importance-matrix export). "
+    "It is built with llama.cpp: cmake -B build && cmake --build build --config Release. "
+    "Searched PATH, .llama.cpp/build/bin/, ~/llama.cpp/build/bin/."
+)
+
+# Importance matrix: at most this many 512-token chunks of calibration text are measured (~65k tokens).
+IMATRIX_MAX_CHUNKS = 128
+IMATRIX_FILENAME = "imatrix.dat"   # .dat, never .gguf: the run's model scan lists every *.gguf as a model
+
 # Quants convertible in one step via convert_hf_to_gguf.py --outtype.
 # Everything else: HF → f16 GGUF → llama-quantize.
 _SINGLE_STEP_OUTTYPES: dict[str, str] = {
@@ -100,17 +110,17 @@ def find_gguf_convert_script() -> str | None:
     return None
 
 
-def find_llama_quantize() -> str | None:
-    """Locate ``llama-quantize`` executable (PATH + common build dirs)."""
-    which = shutil.which("llama-quantize")
+def _find_llama_tool(name: str, *legacy: str) -> str | None:
+    """Locate a llama.cpp executable (PATH + common build dirs), or None."""
+    which = shutil.which(name)
     if which and os.path.isfile(which) and os.access(which, os.X_OK):
         return which
     for base in llama_cpp_search_paths():
         for rel in (
-            os.path.join("build", "bin", "llama-quantize"),
-            os.path.join("build-RPC", "bin", "llama-quantize"),
-            "llama-quantize",
-            "quantize",
+            os.path.join("build", "bin", name),
+            os.path.join("build-RPC", "bin", name),
+            name,
+            *legacy,
         ):
             candidate = os.path.join(base, rel)
             if os.path.isfile(candidate) and os.access(candidate, os.X_OK):
@@ -119,11 +129,21 @@ def find_llama_quantize() -> str | None:
     script = find_gguf_convert_script()
     if script:
         sibling = os.path.normpath(
-            os.path.join(os.path.dirname(script), "build", "bin", "llama-quantize")
+            os.path.join(os.path.dirname(script), "build", "bin", name)
         )
         if os.path.isfile(sibling) and os.access(sibling, os.X_OK):
             return sibling
     return None
+
+
+def find_llama_quantize() -> str | None:
+    """Locate ``llama-quantize`` executable (PATH + common build dirs)."""
+    return _find_llama_tool("llama-quantize", "quantize")
+
+
+def find_llama_imatrix() -> str | None:
+    """Locate ``llama-imatrix`` (measures the importance matrix a quantize run uses)."""
+    return _find_llama_tool("llama-imatrix")
 
 
 def normalize_gguf_quant(quant: str) -> str:
@@ -316,16 +336,51 @@ def _needs_quantize_bin(quants: list[str]) -> bool:
     )
 
 
+def imatrix_applies(quants: list[str]) -> bool:
+    """True when at least one quant goes through ``llama-quantize`` (the only step an importance matrix changes)."""
+    return _needs_quantize_bin([q for q in quants if str(q).strip()])
+
+
+def compute_imatrix(model_gguf: str, calibration_text: str, out_path: str) -> None:
+    """Measure which weights matter on ``calibration_text`` with ``llama-imatrix``; write ``out_path``.
+
+    ``--fit on`` sizes the GPU offload to the memory that is free right now (CPU when none is), so a loaded helper
+    or another program's VRAM never makes it fail. Raises RuntimeError with the reason.
+    """
+    tool = find_llama_imatrix()
+    if not tool:
+        raise RuntimeError(LLAMA_IMATRIX_MISSING_MSG)
+    if not calibration_text.strip():
+        raise RuntimeError("no calibration text to measure the importance matrix on")
+    calib = out_path + ".calibration.txt"
+    with open(calib, "w", encoding="utf-8") as f:
+        f.write(calibration_text)
+    try:
+        run_cmd_into(
+            [tool, "-m", model_gguf, "-f", calib, "-o", out_path, "--output-format", "dat",
+             "--chunks", str(IMATRIX_MAX_CHUNKS), "--no-ppl", "--fit", "on"],
+            out_path,
+        )
+    finally:
+        with contextlib.suppress(OSError):
+            os.remove(calib)
+    if not os.path.isfile(out_path) or os.path.getsize(out_path) <= 0:
+        raise RuntimeError("llama-imatrix finished without writing the importance matrix")
+
+
 def convert_merged_to_gguf(
     merged_dir: str,
     gguf_dir: str,
     quants: list[str],
     *,
     force: bool = False,
+    calibration_text: str = "",
 ) -> dict[str, Any]:
     """Convert a merged HF directory to GGUF files for each quant.
 
     Success only when every requested quant has a non-empty ``.gguf`` on disk.
+    ``calibration_text`` (the run's training text) turns on the importance matrix: it is measured once on the f16
+    intermediate and every ``llama-quantize`` step uses it (``imatrix.dat`` stays next to the files).
     ``FTS_SKIP_EXPORT=1`` writes 1-byte markers (tests) without calling llama.cpp.
 
     Returns ``ok``, ``gguf_path``, ``files``, ``exported``, ``error``, …
@@ -449,6 +504,12 @@ def convert_merged_to_gguf(
             if need_fp16 and "f16" not in quant_list:
                 intermediate_fp16 = fp16_path
 
+        imatrix_path = ""
+        if calibration_text and need_fp16:
+            imatrix_path = os.path.join(gguf_dir, IMATRIX_FILENAME)
+            export_job.report(export_job.PHASE_QUANTIZING, "measuring the importance matrix on the training data")
+            compute_imatrix(fp16_path, calibration_text, imatrix_path)
+
         todo = [q for q in quant_list if q != "f16"]
         for n_done, nq in enumerate(todo, start=1):
             out_path = os.path.join(gguf_dir, f"model-{nq}.gguf")
@@ -470,10 +531,11 @@ def convert_merged_to_gguf(
                 )
             else:
                 assert quant_bin is not None
-                # llama-quantize wants uppercase-ish type labels (Q4_K_M).
+                # llama-quantize wants uppercase-ish type labels (Q4_K_M); options go before the positionals.
                 quant_arg = nq.upper()
-                export_job.report(export_job.PHASE_QUANTIZING, step)
-                run_cmd_into([quant_bin, fp16_path, out_path, quant_arg], out_path)
+                export_job.report(export_job.PHASE_QUANTIZING, step + (" with importance matrix" if imatrix_path else ""))
+                opts = ["--imatrix", imatrix_path] if imatrix_path else []
+                run_cmd_into([quant_bin, *opts, fp16_path, out_path, quant_arg], out_path)
             if not os.path.isfile(out_path) or os.path.getsize(out_path) <= 0:
                 raise RuntimeError(
                     f"output GGUF missing or empty after conversion: {out_path}"

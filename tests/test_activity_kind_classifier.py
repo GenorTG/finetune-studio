@@ -23,7 +23,6 @@ CASES = [
     # Existing kinds.
     ("/api/projects/fbcf7083/files/upload", "upload"),
     ("/api/projects/fbcf7083/data-prep/sources", "upload"),
-    ("/api/projects/fbcf7083/data-prep/chat", "data_prep"),
     ("/api/testing/run-suite", "testing"),
     ("/api/testing/run-brain-suite", "testing"),
     ("/api/benchmarks/projects/fbcf7083/runs/abc/run", "benchmark"),
@@ -37,7 +36,11 @@ CASES = [
     # HF downloads.
     ("/api/hf/download", "download"),
     ("/api/hf/download/cancel", "download"),
-    ("/api/hf/local/repo-id", "download"),
+    ("/api/hf/local/repo-id", "operation"),  # deleting a downloaded model is not a download
+    # Compare runs are test runs.
+    ("/api/compare/projects/fbcf7083/runs", "testing"),
+    ("/api/compare/projects/fbcf7083/groups/g1/judge", "testing"),
+    ("/api/compare/projects/fbcf7083/groups/g1", "testing"),
     # Training start still wins over operation.
     ("/api/training/start", "training"),
     ("/api/training/runs/abc/start", "training"),
@@ -63,3 +66,18 @@ def test_brain_query_wins_over_data_prep_chat() -> None:
 def test_inference_wins_over_rag_query_for_chat_v2() -> None:
     """Inference endpoints are classified before brain_query even if 'chat' appears."""
     assert _activity_kind("/api/chat-v2/projects/x/chat") == "inference"
+
+
+@pytest.mark.parametrize("path,method,expected", [
+    ("/api/hf/download", "POST", "Start HF download"),
+    ("/api/hf/download/cancel", "POST", "Cancel HF download"),
+    ("/api/hf/local/Org/Model", "DELETE", "Delete downloaded model Org/Model"),
+    ("/api/compare/projects/p1/runs", "POST", "Run comparison"),
+    ("/api/compare/projects/p1/groups/g1/judge", "POST", "Judge comparison"),
+    ("/api/compare/projects/p1/groups/g1/cancel", "POST", "Stop comparison"),
+    ("/api/compare/projects/p1/groups/g1", "DELETE", "Delete comparison"),
+])
+def test_activity_summary_names_the_request(path: str, method: str, expected: str) -> None:
+    from finetune_studio.webui.app import _activity_summary
+
+    assert _activity_summary(path, method) == expected

@@ -14,16 +14,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-import shutil
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-
-from finetune_studio.webui.routes.models import (
-    refresh_model_registry as _refresh_model_registry,
-)
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -61,6 +57,17 @@ class SearchRequest(BaseModel):
 def _local_models() -> list[dict]:
     """Walk the local cache and return one entry per (repo_id, branch_or_file)."""
     _LOCAL.mkdir(parents=True, exist_ok=True)
+    from finetune_studio import db
+
+    identities: dict[str, set[str]] = {}
+    for job in db.list_hf_downloads_recent(limit=5000):
+        repo_id = str(job.get("repo_id") or "")
+        if repo_id:
+            identities.setdefault(repo_id.replace("/", "__"), set()).add(repo_id)
+    active_repos = {
+        str(job.get("repo_id") or "")
+        for job in db.list_hf_downloads_in_progress(limit=10000)
+    }
     out = []
     for repo_dir in sorted(_LOCAL.iterdir()):
         if not repo_dir.is_dir():
@@ -76,8 +83,17 @@ def _local_models() -> list[dict]:
                     "path": str(p.relative_to(_LOCAL)),
                     "size_bytes": n,
                 })
+        known_ids = identities.get(repo_dir.name, set())
+        unambiguous_repo_id = next(iter(known_ids)) if len(known_ids) == 1 else None
         out.append({
+            # Keep the legacy field stable; the folder name is a lossy encoding.
+            # New callers should use hub_repo_id, which exists only when durable
+            # download history identifies the original id unambiguously.
             "repo_id": repo_dir.name,
+            "hub_repo_id": unambiguous_repo_id,
+            "repo_id_known": unambiguous_repo_id is not None,
+            "downloading": unambiguous_repo_id in active_repos if unambiguous_repo_id else False,
+            "cache_key": repo_dir.name,
             "path": str(repo_dir),
             "size_bytes": size,
             "file_count": len(files),
@@ -163,6 +179,15 @@ def _search_hf(req: SearchRequest) -> list[dict]:
             raise HFUnavailableError(str(e)) from e
         return out
     out = _list_models(req.task or None)
+    if req.task == "text-generation" and query_tokens:
+        # Chat models with a vision tower (Qwen3.5, Gemma 3/4) are tagged image-text-to-text and train like any other:
+        # the official Qwen/Qwen3.5-0.8B was missing from a search for "Qwen3.5-0.8B" while its GGUF re-uploads were listed.
+        seen = {m["repo_id"] for m in out}
+        out += [m for m in _list_models("image-text-to-text") if m["repo_id"] not in seen]
+        key = {"downloads": "downloads", "likes": "likes"}.get(req.sort)
+        if key:
+            out.sort(key=lambda m: m.get(key) or 0, reverse=True)
+        out = out[:req.limit]
     if not out and req.task:
         # Pipeline-tag was too strict — retry without it.
         out = _list_models(None)
@@ -210,20 +235,22 @@ async def hf_search(q: str = "", task: str = "text-generation",
                    library: str | None = None,
                    sort: str = "downloads", limit: int = Query(24, ge=1, le=100)):
     req = SearchRequest(query=q, task=task, library=library, sort=sort, limit=limit)
+    t0 = time.monotonic()
     try:
-        results = _search_hf(req)
+        # The Hub call is a network round trip (seconds): on the event loop it stalled every other request meanwhile.
+        results = await asyncio.to_thread(_search_hf, req)
     except HFUnavailableError as e:
         return JSONResponse(
             {"detail": f"Hugging Face Hub is unreachable right now: check your connection and retry ({str(e)[:200]})",
              "code": "hub_unreachable", "results": [], "task": task, "query": q},
             status_code=502,
         )
-    return {"results": results, "task": task, "query": q}
+    return {"results": results, "task": task, "query": q, "took_ms": round((time.monotonic() - t0) * 1000)}
 
 
 @router.get("/hf/info/{repo_id:path}")
 async def hf_info(repo_id: str):
-    info = _model_info(repo_id)
+    info = await asyncio.to_thread(_model_info, repo_id)
     if info is None:
         return JSONResponse({"detail": "model not found or fetch failed"}, status_code=404)
     return info
@@ -236,13 +263,14 @@ class DownloadRequest(BaseModel):
 
 
 @router.post("/hf/download")
-async def hf_download(req: DownloadRequest):
+async def hf_download(req: DownloadRequest, request: Request):
     """Start a download as its own job process (``webui.download_jobs``); return at once with its job_id.
     Track progress via /hf/download/progress?job_id=... A web restart does not end the download."""
     from finetune_studio.jobs import launch
     from finetune_studio.webui import download_jobs
     from finetune_studio.webui.errors import ApiError
 
+    request.state.activity_subject = req.repo_id + (f" ({req.filename})" if req.filename else "")
     dest = _local_dir(req.repo_id)  # reject traversal before queueing
     try:
         row = await asyncio.to_thread(download_jobs.start, repo_id=req.repo_id, filename=req.filename,
@@ -287,31 +315,33 @@ def restore_in_progress_downloads() -> int:
 @router.get("/hf/local")
 async def hf_local():
     """List models already downloaded into our local cache."""
-    return {"models": _local_models()}
+    return {"models": await asyncio.to_thread(_local_models)}
 
 
 @router.delete("/hf/local/{repo_id:path}")
 async def hf_delete_local(repo_id: str):
     """Delete a locally cached model."""
-    target = _local_dir(repo_id)
-    if not target.exists():
-        return JSONResponse({"detail": "not found"}, status_code=404)
-    # Model dirs are gigabytes: delete off the event loop.
-    await asyncio.to_thread(shutil.rmtree, target)
-    # The registry still lists the deleted model (and every model picker offers it) until a rescan.
     try:
-        await asyncio.to_thread(_refresh_model_registry)
-    except Exception:  # the delete already succeeded; a rescan failure must not undo that
-        log.warning("model registry rescan after HF model delete failed", exc_info=True)
+        from finetune_studio.models.hf_cache import HFCacheError, delete_cached_model
+
+        await asyncio.to_thread(delete_cached_model, repo_id)
+    except HFCacheError as exc:
+        return JSONResponse({"detail": str(exc)}, status_code=exc.status_code)
+    except Exception as exc:
+        log.exception("HF model delete failed")
+        return JSONResponse({"detail": f"could not delete downloaded model: {exc}"}, status_code=500)
     return {"ok": True, "deleted": repo_id}
 
 
 @router.get("/hf/local/{repo_id:path}/files")
 async def hf_local_files(repo_id: str):
-    """List files in a local model dir with sizes."""
+    """List files in a local model dir with sizes; a model that is not downloaded has none (``downloaded: false``).
+
+    The Model Library offers "Downloaded files" on every search result, so "nothing downloaded yet" is an answer,
+    not a missing resource."""
     target = _local_dir(repo_id)
-    if not target.exists():
-        return JSONResponse({"detail": "not found"}, status_code=404)
+    if not target.is_dir():
+        return {"repo_id": repo_id, "path": str(target), "files": [], "count": 0, "downloaded": False}
     def _list() -> list[dict]:
         out = []
         for p in sorted(target.rglob("*")):
@@ -325,7 +355,7 @@ async def hf_local_files(repo_id: str):
         return out
 
     files = await asyncio.to_thread(_list)
-    return {"repo_id": repo_id, "path": str(target), "files": files, "count": len(files)}
+    return {"repo_id": repo_id, "path": str(target), "files": files, "count": len(files), "downloaded": True}
 
 
 # Shared model library (also serves as the model-pool for RAG embedders)

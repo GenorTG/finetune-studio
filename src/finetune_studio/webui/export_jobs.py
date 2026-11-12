@@ -40,7 +40,7 @@ STOP_GRACE_S = 120.0                 # a torch merge only stops between phases
 Work = Callable[[export_job.ExportContext], None]
 # (``export_work`` factory name, its keyword arguments): what start_job sends to the job process.
 WorkSpec = tuple[str, dict[str, Any]]
-FACTORIES = frozenset({"multi_export_work", "single_quant_work", "imatrix_work"})
+FACTORIES = frozenset({"multi_export_work", "single_quant_work"})
 
 
 class ExportBusy(RuntimeError):

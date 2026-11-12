@@ -16,6 +16,7 @@ from contextlib import closing
 from pathlib import Path
 from typing import Any
 
+from finetune_studio.access import vault
 from finetune_studio.models.gguf_layers import resolve_block_count
 from finetune_studio.models.providers import (
     ModelProvider,
@@ -157,6 +158,20 @@ def _ensure_db() -> None:
                     "Helper · Qwen3-8B GGUF",
                 ),
             )
+        _seal_plaintext_keys(c)
+    try:
+        _DB_PATH.chmod(0o600)  # provider rows and app state are nobody else's business
+    except OSError:
+        log.warning("could not make %s owner-only", _DB_PATH)
+
+
+def _seal_plaintext_keys(c: sqlite3.Connection) -> None:
+    """Encrypt API keys an older version stored as plain text (``access.vault``)."""
+    rows = c.execute("SELECT id, api_key FROM model_providers WHERE api_key != ''").fetchall()
+    for pid, stored in rows:
+        if not vault.is_sealed(stored):
+            c.execute("UPDATE model_providers SET api_key = ? WHERE id = ?", (vault.seal(stored), pid))
+            log.info("encrypted the saved API key of provider %s", pid)
 
 
 _LOG = logging.getLogger(__name__)
@@ -241,7 +256,9 @@ class ModelManager:
             d = {
                 "id": r[0], "name": r[1], "kind": r[2],
                 "model_id": r[3], "base_url": r[4],
-                "api_key_set": bool(r[5]),  # the key itself never leaves the server (see ``_api_key_for``)
+                # the key itself never leaves the server (see ``_api_key_for``); "unreadable" = vault key lost
+                "api_key_set": vault.state(r[5]) == "set",
+                "api_key_state": vault.state(r[5]),
                 "extra": json_loads(r[6]),
                 "created_at": r[7],
             }
@@ -271,10 +288,17 @@ class ModelManager:
 
     @staticmethod
     def _api_key_for(pid: str) -> str:
-        """Stored key of a remote provider (server-side use only; never serialise)."""
+        """Stored key of a remote provider, decrypted (server-side use only; never serialise).
+
+        An unreadable key (vault key lost) is '' plus a warning: the row reports ``api_key_state: unreadable`` and the
+        UI asks for the key again."""
         with sqlite3.connect(_DB_PATH) as c:
             row = c.execute("SELECT api_key FROM model_providers WHERE id = ?", (pid,)).fetchone()
-        return str(row[0]) if row and row[0] else ""
+        try:
+            return vault.unseal(str(row[0])) if row and row[0] else ""
+        except vault.VaultError as e:
+            log.warning("provider %s: %s", pid, e)
+            return ""
 
     def get_provider(self, pid: str) -> dict | None:
         for p in self.list_providers():
@@ -292,6 +316,8 @@ class ModelManager:
         # from the WebUI actually persist instead of raising SQL errors.
         if "extra" in fields:
             fields["extra_json"] = json_dumps(fields.pop("extra"))
+        if "api_key" in fields:
+            fields["api_key"] = vault.seal(fields["api_key"])  # never stored as plain text
         with sqlite3.connect(_DB_PATH) as c:
             existing = c.execute("SELECT id FROM model_providers WHERE id = ?", (fields["id"],)).fetchone()
             if existing:

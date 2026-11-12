@@ -184,8 +184,11 @@ def _check_unpaired_dataset(rows: list[tuple[int, str, Any]]) -> dict[str, Any]:
     }
 
 
-def check_dataset(path: str | Path, training_mode: str = "sft") -> dict[str, Any]:
-    """Health report for one dataset file and selected training route."""
+def check_dataset(path: str | Path, training_mode: str = "sft", *, short_answers_expected: bool = False) -> dict[str, Any]:
+    """Health report for one dataset file and selected training route.
+
+    ``short_answers_expected``: the dataset was built for terse answers on purpose (a use case: a classification
+    label, an extraction object), so "many very short answers" is not reported as a problem."""
     rows = _read_rows(Path(path))
     if training_mode == "dpo":
         return _check_preference_dataset(rows)
@@ -258,7 +261,7 @@ def check_dataset(path: str | Path, training_mode: str = "sft") -> dict[str, Any
         issues.append(_issue("small_dataset", "warning", "Very small dataset",
                              f"Only {trainable} usable examples; the held-out split is {holdout}, too few for "
                              "evaluation or early stopping to mean much.", [], count=trainable))
-    if answer_words and len(short) > len(answer_words) * 0.1:
+    if answer_words and len(short) > len(answer_words) * 0.1 and not short_answers_expected:
         issues.append(_issue("short_answers", "info", "Many very short answers",
                              f"{len(short)} answers are under {SHORT_ANSWER_WORDS} words; the model will learn "
                              "to answer tersely.", short))

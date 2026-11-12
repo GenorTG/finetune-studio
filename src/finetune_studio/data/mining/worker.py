@@ -206,7 +206,7 @@ class Worker:
 
         if not isinstance(recorded, dict):
             recorded = seat.vision_seat()                  # queued before the seat was recorded on jobs
-        s = Seat(mode=str(recorded.get("mode") or "off"), local_model=str(recorded.get("local_model") or ""))
+        s = Seat.from_dict(recorded)
         if s.mode == "off":
             return None
         with self._lock:

@@ -44,7 +44,7 @@ def test_testing_settings_roundtrip_and_partial_updates(client, settings_file) -
 
 
 @pytest.mark.parametrize("body,fragment", [
-    ({"judge_provider_id": "no-such-provider"}, "unknown provider"),
+    ({"judge_provider_id": "no-such-provider"}, "unknown connection"),
     ({"auto_judge": "yes"}, "auto_judge must be true or false"),
     ({"auto_judge": 1}, "auto_judge must be true or false"),
     ({"auto_judge": None}, "auto_judge must be true or false"),
@@ -76,6 +76,7 @@ def test_a_legacy_judge_api_key_in_settings_json_is_never_echoed(client, setting
     settings_file._save({"judge_api_key": "sk-legacy", "judge_mode": "ai"})
     assert "sk-legacy" not in client.get("/api/settings").text
     assert "sk-legacy" not in client.patch("/api/settings", json={"port": 7861}).text
+    assert "sk-legacy" not in settings_file.SETTINGS_PATH.read_text()  # purged from the file, not only hidden
 
 
 # ------------------------------------------------------------------- HF paths

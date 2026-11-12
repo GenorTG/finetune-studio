@@ -1,17 +1,20 @@
 # ⚡ Finetune Studio
 
-**A web app for working with local language models on your own documents: search them, fine-tune on them, test the result.**
+**Prepare, check and test everything your local models should know about you, then export it as one encrypted knowledge package.**
 
-You upload your files once. From there you can build a **Smart Brain** (search plus a model that answers
-from your files and cites them), or train a **LoRA adapter** that changes how a model answers (tone, format,
-a fixed system prompt, some facts). There is also a chat page, test and benchmark pages, and export to GGUF.
-It runs on your own machine in the browser.
+Upload your documents once. Finetune Studio reads them, lints them for problems (unreadable files, duplicates,
+out-of-date versions, documents that disagree, leaked keys), and builds a **Smart Brain**: search plus answers that cite
+their sources and say so when the files don't cover something. You set who it speaks for: your company, its personality,
+how it should answer. Test it on questions written from your own documents, then export it all as one encrypted package
+with its own server, so any model gets that context over MCP or HTTP. The knowledge lives in the package, not in the model
+weights, so you can swap models freely. It runs on your own machine in the browser. Training a LoRA adapter is there too,
+as an optional extra for tone and format.
 
 This is a hobby project. I built it because I like tinkering with local models, and I did my best to make it
 solid: it has a large test suite, CI, and every number below comes from a real measured run. It is still a
 beta from one person, so expect rough edges. Use it if it is useful to you.
 
-[![Python 3.12–3.13](https://img.shields.io/badge/python-3.12--3.13-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
 [![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial%201.0.0-ff8800.svg)](LICENSE)
 [![GPU: CUDA](https://img.shields.io/badge/GPU-CUDA-76b900.svg)](#installation)
 [![WebUI](https://img.shields.io/badge/WebUI-FastAPI%20%2B%20Jinja2-009688.svg)](#how-it-works)
@@ -39,7 +42,7 @@ fts webui
 
 Open http://localhost:7860. The first visit offers a short onboarding tour. By default only this computer can open it; to use it from other devices, set a password
 (the installer asks, or **Settings -> Access & network**, or `fts auth set-password`): see
-[docs/INSTALL.md](docs/INSTALL.md#5-access-who-can-open-the-web-ui). Prerequisites: [docs/INSTALL.md](docs/INSTALL.md). **Linux only** (NVIDIA GPU or CPU) until the stable 1.0.0; Windows and macOS are not supported.
+[docs/INSTALL.md](docs/INSTALL.md#4-access-who-can-open-the-web-ui). Prerequisites: [docs/INSTALL.md](docs/INSTALL.md). **Linux only** (NVIDIA GPU or CPU) until the stable 1.0.0; Windows and macOS are not supported.
 
 ---
 
@@ -60,10 +63,9 @@ Open http://localhost:7860. The first visit offers a short onboarding tour. By d
 - [Contributing](#contributing)
 - [License & attributions](#license--attributions)
 
-> **New here?** The fastest path from zero to a trained model is the
-> step-by-step [**Tutorial**](docs/TUTORIAL.md) — or open **⚡ Quick work**
-> inside a project and chain files → pairs → train → test in one page.
-> Common first-run pitfalls are covered in both.
+> **New here?** The step-by-step [**Tutorial**](docs/TUTORIAL.md) goes from a folder of documents to a checked,
+> tested, exported knowledge package (`1 files → 2 Smart Brain → 3 test → 4 package`, no training needed), then
+> shows the optional training path. **⚡ Quick work** inside a project chains files → pairs → train → test on one page.
 
 ---
 
@@ -103,7 +105,7 @@ You don't have to use every feature. Pick what you need.
 > English — without uploading anything to the cloud."*
 
 Every file goes one route first — **Files & Knowledge**: uploaded, parsed once
-(pictures and charts read by an optional Vision reader), checkable and editable.
+(pictures and charts can be read by the AI assistant's optional *Reading pictures* job), checkable and editable.
 The **Smart Brain** reads that same parse and answers questions with sources.
 Its search combines semantic search (multilingual embeddings) and keyword
 search (BM25) by rank fusion, then reranks with a cross-encoder; an answer gate
@@ -119,6 +121,10 @@ handles:
   added or removed since the build), and a documents panel with chunk previews
 - Optional **fact cards**: reviewed (approved) Q&A pairs indexed next to the
   passages they came from
+- A **Knowledge check** before anything ships: unreadable files, duplicates, out-of-date versions, documents that
+  disagree, leaked keys; an amendment is linked to what it amends
+- An **identity** (who it speaks for, its personality, how to answer) packed with every answer and the export
+- A **quiz written from your own files** (with questions they do not answer), run and judged on the Testing page
 - **Standalone export**: one download turns the corpus into a self-installing
   package (its own venv) that serves search over **MCP**
   (Claude Desktop / OpenClaw / Cursor) *and* a plain **HTTP API** —
@@ -128,7 +134,11 @@ handles:
   search works offline out of the box; point it at any OpenAI-compatible
   embeddings endpoint for semantic search — or tick "Include models" and the
   embedding model + reranker ship **inside** the package: full offline
-  semantic search with no external service at all (~2.3 GB archive)
+  semantic search with no external service at all (about 0.2 GB with the small MiniLM models, about 4.5 GB with
+  e5-large and bge-reranker-v2-m3)
+- **Package options**: MCP over stdio *and* HTTP, a browser chat page, only some folders or tags in a package (a
+  public bot from `public/`), the original files on request, hidden file names for public bots, and versions: a new
+  version reports the documents added, changed and removed, and `bash update.sh NEW.tar.gz` updates a running copy
 
 ### Use case 2 — Train an adapter (LoRA) on your pairs
 
@@ -156,14 +166,13 @@ supervised fine-tune (SFT) with LoRA or QLoRA. The studio handles:
 
 > *"I trained two variants. Which one is actually better?"*
 
-The **Benchmarks** workflow runs offline evaluation suites (built-in
-MMLU-/GSM8K-/HellaSwag-style smoke fixtures, plus project-local suites) and
-gives you a **comparison table**. Two tabs: **Recent scores** (rolling
-history) and **Compare two runs** (pick any two trained exports, get the
-per-suite Δ table).
+The **Benchmarks** page scores a run, or the untrained base, on public exams: the official MMLU, GSM8K and
+HellaSwag test sets from Hugging Face (downloaded on first use, exact scoring, comparable with published
+numbers) or built-in synthetic look-alikes that run offline (same shape, not industry scores). Two tabs:
+**Recent scores** (rolling history) and **Compare two runs** (pick any two trained exports, get the
+per-suite Δ table plus a per-question exact McNemar test that says whether the difference could be chance).
 
-These are local smoke suites styled after well-known benchmarks — not the
-full HuggingFace dataset downloads — so they stay offline and fast.
+Whether a run learned *your* material is a different question: that is the project's **Testing** page.
 
 ### Use case 4 — Just chat with local models
 
@@ -215,26 +224,58 @@ What I take from it:
 - **For facts, the Smart Brain wins clearly**: up to 97 of 102 with sources, and it declines correctly.
   So the app recommends the Smart Brain for "know my documents" and an adapter for "answer in this style".
 
+### Measured at scale: Quillmoor (generated company, up to 10,407 files)
+
+Korvane is hand-written and small, so I also generate a company with every fact known: 42 file formats, S/M/L tiers of
+415 / 1,927 / 10,407 files. Parsing found 99.8–99.9 % of the known values with zero failed files. On 376 fixed
+questions (same AI judge), tracing the misses led to two Smart Brain changes in this beta: a stronger reranker on
+machines with a GPU and a follow-up search for questions that go through another item ("who manages the site where
+pump X is installed?").
+
+![Smart Brain answers before and after](docs/benchmarks/img/quillmoor-answers.svg)
+
+| Answer model | Smart Brain before | after |
+|---|---:|---:|
+| DeepSeek v4.1 Flash (API) | 81.1 % | **96.1 %** |
+| Qwen 3.5 4B (local) | 80.2 % | **91.1 %** |
+| Llama 3.2 3B (local) | 71.3 % | **77.7 %** |
+| Gemma 3 4B (local) | 70.3 % | **76.3 %** |
+
+API model and Qwen with both changes; Llama and Gemma with the reranker only (the follow-up search does not help them, so
+the chat has a switch for it).
+
+Fine-tuning on the same 4,306 facts showed that **passes per fact** decide recall (4 passes: 12.5 % of the trained
+facts, 12 passes: 97 %), and that the Training page's presets trained too few passes on large datasets; that is being
+fixed. Write-up: [`docs/benchmarks/quillmoor-2026-10.md`](docs/benchmarks/quillmoor-2026-10.md) · every experiment:
+[`tests/corpus/quillmoor/EXPERIMENTS.md`](tests/corpus/quillmoor/EXPERIMENTS.md).
+
 ---
 
 ## What's in the beta
 
-The larger pieces, roughly in the order you meet them:
+The larger pieces, knowledge package first:
 
+- **Knowledge package** — the Package page shows each step from files to package with its state; every package
+  self-tests with its own server before it is handed over; versions, audience scope, original files and in-place
+  updates as above.
+- **Knowledge check, identity and the documents' own quiz** — lint the documents, say who the answers speak for, and
+  test the answers on questions written from your files, judged by an AI judge or you.
 - **⚡ Quick work** — the entire model pipeline on one page (upload →
   pairs → dataset → train → test → pin), a live status pill per step, and
-  **Run steps 2–5** to chain dataset → training → test unattended.
-- **One project flow** — `1 Files & Knowledge (files · pairs) → 2 train
-  or 2 Smart Brain → 3 test → 4 use it`: every file is parsed once and both
-  routes read that one parse; the project home offers both as cards.
+  **Run all training steps** to chain dataset → training → test unattended.
+- **One project flow** — `1 files → 2 Smart Brain → 3 test → 4 package`, with
+  training as an optional group: every file is parsed once and both read that
+  one parse.
 - **File browser v2** — folder chips with drag-to-move, tag pills, bulk
   actions, zip export, per-file usage chain (file → pairs → datasets →
   runs → Smart Brain), knowledge search (facts + passages, edit in place),
   thumbnails, columns picker, 7-day
   trash (select and restore).
-- **Chunk-coverage fallback** — dataset export can fill chunks without an
-  approved generated pair with verbatim extractive pairs. The project data
-  audit reports coverage issues; this is a data-coverage check, not a
+- **Export completeness gate** — dataset export checks every file's data-point
+  checklist: each point must be stated by an approved pair or excluded with a
+  reason. An incomplete file blocks the export (409, with the files and open
+  points) unless you choose **export anyway**; nothing is filled in for you.
+  The project data audit re-checks the files and approved pairs; neither is a
   guarantee that a model learned every fact.
 - **Full-coverage test suites** — auto-suites test every dataset row
   (N rows → N questions); sampling is an explicit, labeled opt-in.
@@ -245,10 +286,23 @@ The larger pieces, roughly in the order you meet them:
   for fully offline semantic search).
 - **Parsed-text editor** — fix a bad parse in-app; corrections feed
   mining and the next Smart Brain build while raw bytes stay immutable.
+- **AI assistant** — one main assistant (a local model or any OpenAI-compatible API) does every helper
+  job: mining pairs, study sets, reworded quizzes, preference pairs, the test judge, drafting use-case
+  examples, reading pictures and the Guide chat. Each job can use its own connection and extra
+  instructions; API keys are stored encrypted and sent only to their own URL; the jobs table says what
+  each job sends to an API.
+- **The Guide** — a chat panel in the corner of every page that answers questions about the app, checks
+  your project with its tools, and can start the work for you (mining, dataset, Smart Brain, training, a
+  reworded quiz, a test run, pinning a version): it asks before each action, or runs them hands-free
+  if you choose. It never approves pairs, exports a model or deletes anything.
+- **Use cases** — start training from extraction, classification, house style or distillation
+  examples; the assistant can draft the examples from raw texts for you to approve, and the run is
+  compared with its untrained base on a held-out test.
 - **Versioned releases + Linux in-app update** — tagged SemVer releases with a
   [changelog](CHANGELOG.md); the header shows `vX.Y.Z` on a release and
-  `vX.Y.Z+<branch>.<sha>` on any other commit. Settings → Apply update pulls,
-  repairs, migrates and restarts.
+  `vX.Y.Z+<branch>.<sha>` on any other commit. `./update.sh` pulls, repairs,
+  migrates and restarts; Settings → Apply update runs the same script from the
+  browser (that button has not been tested end to end yet).
 - **Dark and light themes** — switch themes in the UI; responsive layout
   and theme behavior have dedicated regression checks.
 
@@ -258,7 +312,7 @@ The larger pieces, roughly in the order you meet them:
 
 | What you'd do manually | What Finetune Studio does |
 |---|---|
-| Write a Python script to download weights from HF | Browse HF Explorer in-app, click download |
+| Write a Python script to download weights from HF | Browse the Model Library in-app, click download |
 | Configure transformers + accelerator + trl + peft + bitsandbytes | Pick base model + LoRA rank + batch size in a form |
 | Write your own chunking + embedding loop | Click "Build" — chunking, embedding, indexing all wired |
 | Open 4 terminal windows to monitor training | Watch the live progress bar in one panel |
@@ -269,8 +323,10 @@ The larger pieces, roughly in the order you meet them:
 | Debug a model load failure from "ENOMEM" | Actionable error: how much VRAM is needed vs free, and which other GPU processes are holding it |
 
 You can do every one of these by hand, and for a one-off that is fine. The app
-is for when you repeat the loop: the steps share one project, and all your
-data stays in `~/.finetune-studio/` where you can find it.
+is for when you repeat the loop: the steps share one project, and your data
+stays on your machine: files, Smart Brain indexes and settings in
+`~/.finetune-studio/`, the project database and training runs in the
+checkout's `data/` and `output/` folders.
 
 ---
 
@@ -285,22 +341,20 @@ projects, quick-create buttons.
 
 ### Project home (`/projects/{pid}`)
 
-Answers “where am I?”: a **project checklist** for the adapter path (files → dataset → train →
-test → pick the adapter) with a link to the Smart Brain for answers without training, then live
-counts for files, datasets, runs and models, recent training runs, latest exports, recent files
-and the activity feed.
+Answers “where am I?”: a **project checklist** (files → Smart Brain → test) with one next action, a
+link to optional training, then live counts for files, the Smart Brain, runs and models, any
+trained models, recent files and the activity feed.
 
 ![Project home](docs/screenshots/02_project.png)
 
 ### ⚡ Quick work (`/projects/{pid}/work`)
 
-The whole pipeline on one page: six numbered cards — **1** upload files,
-**1b** build the Smart Brain (one click, live coverage pill), **2** make
-question-answer pairs, **3** build the dataset, **4** train, **5** test,
-**6** pin & use — each with its own button and status pill, plus
-**Run steps 2–5 now** to chain dataset → training → test unattended while
-progress streams below. This is the recommended path; the individual pages
-are there when you want fine control.
+Everything on one page: **Step 1** upload files, **Step 2** build the Smart
+Brain (one click, live coverage pill), then optionally train a model on them:
+**Train 1** make question-answer pairs, **Train 2** build the dataset,
+**Train 3** train, **Train 4** test, **Train 5** pin & use, each with its own
+button and status pill, plus **Run all training steps** to chain dataset → training
+→ test unattended while progress streams below.
 
 ![Quick work](docs/screenshots/03_quick_work.png)
 
@@ -321,8 +375,8 @@ on arrival; training and the Smart Brain both read that parse.
 
 ### Pairs — Files & Knowledge, training side (`/projects/{pid}/data-prep`)
 
-Question-answer pairs, mined file by file by the helper model (a local GGUF or any
-OpenAI-compatible API): each file gets a checklist of its data points, pairs are written,
+Question-answer pairs, mined file by file by the AI assistant (the local model or any
+OpenAI-compatible API connection): each file gets a checklist of its data points, pairs are written,
 checked against the text and fixed until every point is stated or excluded. You review them
 with the keyboard (approve / reject with a reason / edit / add your own) beside the source
 passage. **Export approved → Training** writes the dataset, and is held back until every file's
@@ -331,14 +385,15 @@ model will learn it (see the measurements above).
 
 ![Pairs](docs/screenshots/05_pairs.png)
 
-### Smart Brain — step 2 without training (`/projects/{pid}/brain`)
+### Smart Brain — the main path (`/projects/{pid}/brain`)
 
-Build an index, search it, tune retrieval parameters, and take it with you.
-Sections are numbered in workflow order: **1. Index status**, **2. Build the
-index** (⚡ Quick index parses anything not parsed yet and builds, in one click), **3. Search
-settings**, **4. Documents in the index**, **5. Search test**, **6. Ask the
-model (grounded)**, **7. Download / export the index**, **8. Shared search
-models**. The export card offers the encrypted studio bundle (`.ftsrag`) and the
+The top panel says what state the Smart Brain is in and offers the one next
+action: add files (right on the page), **Build Smart Brain**, or **Update
+Smart Brain** after files change. Below it, **Ask your documents** is a real
+conversation with sources you can open, and you can load a model in the same
+place. Everything else is folded under **Manage**: documents, test a search,
+search settings, build options, share or export, import, shared models and
+index details. The export card offers the encrypted studio bundle (`.ftsrag`) and the
 **standalone Smart Brain** (`POST /api/projects/{pid}/brain/standalone`) — a
 self-installing tarball with the index, a single-file Python server,
 `setup.sh`, MCP config example, and a README; it speaks MCP over stdio and
@@ -350,7 +405,7 @@ connecting to embedding vectors in real time.
 
 ![Smart Brain](docs/screenshots/06_brain.png)
 
-### Training — step 3 (`/projects/{pid}/training`)
+### Training — step 2 (`/projects/{pid}/training`)
 
 Configure an adapter run, watch loss curves live. Base-model and preset
 pickers recommend rank/LR/epochs from your base size and dataset size. Each
@@ -361,7 +416,7 @@ the GPU or the CPU.
 
 ![Training](docs/screenshots/07_training.png)
 
-### Testing — step 4 (`/projects/{pid}/testing`)
+### Testing — step 3 (`/projects/{pid}/testing`)
 
 Did it learn *your* material? A test is two separate steps. **Run** asks the
 model every question (auto-generated project suites cover **every row** of the
@@ -376,7 +431,7 @@ start by itself after each run if you tick that box (off by default).
 
 ![Testing](docs/screenshots/10_testing.png)
 
-### Models — step 5 (`/projects/{pid}/models`)
+### Models — step 4, use it (`/projects/{pid}/models`)
 
 Every trained export from every run, in a 7-column table (Name / Format /
 Size / Source run / Created / Copy path / Actions). Click any row's name
@@ -386,14 +441,17 @@ directory listing. ▶ Open in inference jumps straight to chat.
 
 ![Models](docs/screenshots/08_models.png)
 
-### Export (`/projects/{pid}/export`)
+### Export — step 4, use it (`/projects/{pid}/export`)
 
 Pick a run, pick a format, hit RUN. Supported formats today:
 
 - **merged** — adapter merged onto a compatible base (safetensors)
-- **abliterated** — refusal-direction edit of a merged checkpoint
 - **GGUF** — when llama.cpp conversion tools are installed on the host;
-  otherwise the API fails with a clear install hint
+  otherwise the API fails with a clear install hint. Optional
+  **importance matrix** measured on the run's own training data (better
+  q4/q3/q2 quality at the same file size)
+- **Abliterated** — the built-in refusal-direction edit of a merged checkpoint.
+- **Heretic** — a separate optional export format that uses the Heretic tool to search for a refusal-direction edit while keeping the model closer to its original behaviour. It is shipped alongside Abliterated, not a replacement for it. The app pins Heretic v2.0.0; on Qwen2.5-1.5B-Instruct the real Export API path ran end to end (40 trials, ~80 min on an RTX 3090) and the AI judge counted 1 of 12 harmful test prompts refused afterwards, against 12 of 12 before. Heretic is installed on demand from Settings and has its own AGPL-3.0 license.
 
 The trained-exports table uses the same expand-row pattern as Models —
 click a row to inspect its contents, then ▶ Open in inference.
@@ -405,8 +463,8 @@ click a row to inspect its contents, then ▶ Open in inference.
 Pick a safetensors or GGUF model, load (auto-unload on idle frees VRAM),
 and chat — streaming with sprite feedback, image input for multimodal
 models, per-session temperature / top-p / system prompt, persistent
-history, the Smart Brain for answers with sources, and Agent mode for tool-driven
-dataset curation.
+history, and the Smart Brain for answers with sources. Agent mode opens the
+Guide panel.
 
 ![Chat](docs/screenshots/13_chat.png)
 
@@ -421,9 +479,10 @@ fills in as scores arrive.
 ### Settings (`/settings`, per-project under `/projects/{pid}/settings`)
 
 App settings (shown below): who may open the web UI (password, LAN /
-Tailscale, API tokens), the default test judge, the helper model (local GGUF
-or an API), the Vision reader, the service supervisor, which GPU (or the CPU)
-to use, debug info and storage paths. On Linux it also has the in-app **Apply
+Tailscale, API tokens), the AI assistant (the main assistant, API
+connections and their keys, a connection and instructions per job, among
+them the test judge and reading pictures), the service supervisor, which GPU
+(or the CPU) to use, debug info and storage paths. On Linux it also has the in-app **Apply
 update** controls; **Replay tutorial** works everywhere. Each project has its
 own settings page too, with a **WebUI log tail** for debugging long jobs.
 
@@ -433,8 +492,8 @@ own settings page too, with a **WebUI log tail** for debugging long jobs.
 
 The session bar at the top of every page is a Tmux-style tab strip with
 **[SYS]** and **[TOOLS]**. Inside a project, one flow bar shows every step —
-`1 Files & Knowledge (files · pairs) → 2 train or 2 Smart Brain → 3 test →
-4 use it`, plus compare, benchmarks, chat and settings. The current page is
+`1 files → 2 Smart Brain → 3 test → 4 package`, plus chat, settings and the
+optional Train a model group (quick work, pairs, train, compare, benchmarks). The current page is
 marked.
 `Ctrl+K` opens the command palette — fuzzy-search any page in any
 project.
@@ -444,8 +503,8 @@ project.
 ## Installation
 
 See **[docs/INSTALL.md](docs/INSTALL.md)** for prerequisites and
-step-by-step installation instructions. The supported Python range is
-3.12–3.13; check the guide for current OS-specific paths and limitations.
+step-by-step installation instructions. CI and the author's machine run
+Python 3.12; the package also accepts 3.13, which is not tested.
 
 ---
 
@@ -471,7 +530,7 @@ step-by-step installation instructions. The supported Python range is
 │               ── benchmarks (offline smoke + local suites)     │
 │                                                                │
 │   Storage: SQLite for project metadata                         │
-│            + ~/.cache/huggingface for model weights             │
+│            + ~/.finetune-studio/hf_models for model weights     │
 │            + ~/.finetune-studio/brain/{pid}/  (parquet)         │
 └────────────────────────────────────────────────────────────────┘
 ```
@@ -488,9 +547,11 @@ step-by-step installation instructions. The supported Python range is
   for on-demand server logs.
 - **Inference:** HuggingFace Transformers for safetensors / LoRA merges;
   llama.cpp (via `llama-cpp-python`) for GGUF when available.
-- **Export:** merged and abliterated are first-class; GGUF needs llama.cpp
-  conversion tools on the host. Missing tools return clear errors instead
-  of fake success.
+- **Export:** merged safetensors, GGUF (plain or with an importance
+  matrix) when the llama.cpp tools are on the host, plus separate built-in
+  Abliterated and optional Heretic (v2.0.0) formats. Heretic has completed an end-to-end
+  run through the real Export API; it is installed on demand. Missing tools
+  return clear errors instead of fake success.
 - **Testing:** the Playwright route suite `tests/e2e_ui_qa.py` is non-mutating;
   the Guide flow `tests/e2e_guide_sandbox.py` runs against its own fake helper
   and temporary database. Both have a real-browser path. Other live E2E
@@ -504,7 +565,7 @@ step-by-step installation instructions. The supported Python range is
 
 ## Tech stack
 
-Python 3.12–3.13 — `fastapi` `uvicorn` `jinja2` `sqlite3` (stdlib) `pydantic`
+Python 3.12 — `fastapi` `uvicorn` `jinja2` `sqlite3` (stdlib) `pydantic`
 ML — `torch` `transformers` `trl` `peft` `bitsandbytes`
 Smart Brain — `sentence-transformers` (embeddings + cross-encoder reranking), BM25, rank fusion · `llama-cpp-python`
 Web — vanilla HTML/CSS/JS, system UI typography, locally vendored font assets
@@ -519,11 +580,12 @@ Full list with versions and licenses → **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTI
 - **[docs/TUTORIAL.md](docs/TUTORIAL.md)** — end-to-end first-model tutorial (users start here)
 - **[docs/DESIGN.md](docs/DESIGN.md)** — layout, rules and checks for contributors
 - **[docs/INSTALL.md](docs/INSTALL.md)** — install on Linux, prerequisites, troubleshooting
+- **[docs/CLI.md](docs/CLI.md)** — command-line reference
 - **[docs/DEPENDENCIES.md](docs/DEPENDENCIES.md)** — every dependency mapped to its consumers
 - **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** — service, update pipeline, generic ops notes
 - **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTIONS.md)** — every package, version, license
 - **[⚡ Presentation page](https://genortg.github.io/finetune-studio/)** — the gallery version of this README
-- **/settings** — live debug info on your running instance (version, GPU, packages, paths) **+ WebUI log tail card**
+- **/settings** — live debug info on your running instance (version, GPU, packages, paths); the WebUI log tail is on each project's **Settings** page
 - **Settings → Replay** — replay the built-in onboarding tour
 
 ---
@@ -546,7 +608,7 @@ changes should extend the Playwright smoke suite when practical.
 Every dependency used is open source — see
 **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTIONS.md)** for the full list,
 versions, and licenses. Thank you to the maintainers of PyTorch,
-Transformers, PEFT, llama.cpp, PortableRAG, SentenceTransformers,
+Transformers, PEFT, llama.cpp, SentenceTransformers,
 FastAPI, Jinja, and the rest of the open-source ecosystem this is built
 on.
 

@@ -14,7 +14,7 @@ Quick diagnosis for the problems users hit most.
 - **Out of GPU memory:** lower batch size or max sequence on Training; unload other models; the page lists the knobs. Other GPU programs count against VRAM.
 - **Helper not loaded / missing:** see helper-model; check `/api/providers/helper/status`.
 - **Parsed text empty:** re-parse on Files; a missing document-parser module (`bash install.sh --check`) is the usual cause for `.xls`, `.pptx`, `.rtf`.
-- **Model dropdown lacks a model:** reload the Training page after a download; models outside `models/` or `output/` need `model_dirs_extra` and `POST /api/models/refresh`.
+- **Model dropdown lacks a model:** reload the Training page after a download; a model copied in by hand appears after **Rescan folders** on My models, if it sits in a scanned folder (my-models).
 - **Running on CPU on a GPU machine:** `GET /api/system/accelerator` shows `degraded_reason`; the Settings compute-device card shows the effective device.
 
 ## Key controls

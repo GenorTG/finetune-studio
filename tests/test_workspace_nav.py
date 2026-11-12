@@ -47,8 +47,8 @@ def _bar(body: str) -> str:
 
 
 def test_every_project_page_renders_the_one_flow_bar(client) -> None:
-    """Genor 2026-10-14: one flow for every project page — 1 Files & Knowledge, 2 train or 2 Smart Brain, 3 test,
-    4 use it — with the current page marked (no model/RAG workspace switch)."""
+    """Genor 2026-11-09: one flow for every project page, Smart Brain first: 1 files, 2 Smart Brain, 3 test, 4 use it,
+    then the optional Train a model group, with the current page marked (no model/RAG workspace switch)."""
     pid = _project(client)
     for page, tab in (("", "overview"), ("/brain", "brain"), ("/training", "training"), ("/data-prep", "data-prep"),
                       ("/data", "data"), ("/testing", "testing"), ("/export", "export")):
@@ -56,8 +56,7 @@ def test_every_project_page_renders_the_one_flow_bar(client) -> None:
         assert r.status_code == 200, (page, r.text[:200])
         assert 'id="project-breadcrumb"' in r.text
         bar = _bar(r.text)
-        for label in ("1 Files &amp; Knowledge", ">files<", ">pairs<", ">2 train<", ">2 Smart Brain<", ">3 test<",
-                      ">4 use it<", ">home<"):
+        for label in (">1 files<", ">2 Smart Brain<", ">3 test<", ">4 package<", ">home<", "Train a model", ">pairs<", ">train<"):
             assert label in bar, (page, label)
         assert "ws-switch" not in bar
         assert "here" in bar.split(f'data-tab="{tab}"', 1)[1].split(">", 1)[0], page

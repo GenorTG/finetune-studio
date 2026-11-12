@@ -7,9 +7,35 @@ Special name prefixes:
 from __future__ import annotations
 
 from finetune_studio.smart_brain.constants import (
+    CPU_RERANKER,
     DEFAULT_RERANKER,
     RERANKER_LOCAL_PREFIX,
 )
+
+
+def default_reranker(device: str = "auto") -> str:
+    """The reranker a new index gets: the accurate multilingual one with a GPU, the small English one without."""
+    from finetune_studio.smart_brain.devices import resolve_device
+
+    return CPU_RERANKER if resolve_device(device).split(":")[0] == "cpu" else DEFAULT_RERANKER
+
+
+def half_precision_kwargs(device: str) -> dict:
+    """``CrossEncoder`` kwargs for half-precision weights on a GPU (~4x faster, same ranking), none on CPU.
+
+    The dtype is the accelerator layer's (bf16 where the card supports it, else fp16; ``accel.ops.torch_dtype``),
+    so it follows CUDA, ROCm, XPU and MPS alike. Rerank scores only order one query's passages, so unlike the
+    embedder (fp32: index and query vectors must match across machines) half precision changes nothing stored.
+    """
+    if device.split(":")[0] == "cpu":
+        return {}
+    from finetune_studio.accel import get_accelerator
+    from finetune_studio.accel.ops import torch_dtype
+
+    acc = get_accelerator()
+    if not acc.is_gpu:
+        return {}
+    return {"model_kwargs": {"torch_dtype": torch_dtype(acc)}}
 
 
 def get_reranker(name: str = DEFAULT_RERANKER, device: str = "auto"):
@@ -41,7 +67,7 @@ def get_reranker(name: str = DEFAULT_RERANKER, device: str = "auto"):
         local_path = resolved[len(RERANKER_LOCAL_PREFIX):]
     load_target = local_path if local_path else resolved
 
-    model = CrossEncoder(load_target, device=device, max_length=512)
+    model = CrossEncoder(load_target, device=device, max_length=512, **half_precision_kwargs(device))
 
     def rerank(query: str, docs: list[str]) -> list[float]:
         if not docs:

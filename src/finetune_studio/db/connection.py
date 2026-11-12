@@ -589,6 +589,9 @@ def init_db() -> None:
     with cursor() as c:
         _rename_rag_tables(c)
         c.executescript(_SCHEMA)
+        # Activity rows of projects deleted before delete_project removed them too: the feed hides them; they only
+        # piled up (22k of 27k rows on one install).
+        c.execute("DELETE FROM activity_events WHERE project_id != '' AND project_id NOT IN (SELECT id FROM projects)")
         # Migrations: widen tables that already exist on upgraded installs.
         for col in (
             "phase TEXT NOT NULL DEFAULT ''",

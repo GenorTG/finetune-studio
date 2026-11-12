@@ -100,23 +100,86 @@ def _merged_dir_complete(merged_dir: str) -> bool:
     return False
 
 
+class TrainingDiverged(RuntimeError):
+    """The loss or the gradient stopped being a number: the weights from that step on are unusable."""
+
+
+def _non_finite(logs: dict[str, Any]) -> str:
+    """The first logged training value that is NaN or infinite (``loss`` / ``grad_norm``), else ``""``."""
+    for key in ("loss", "grad_norm"):
+        v = logs.get(key)
+        if isinstance(v, (int, float)) and not math.isfinite(v):
+            return key
+    return ""
+
+
 def _stop_training_callback(engine: "TrainingEngine") -> Any:
-    """Create the Trainer callback that turns a stop request into a stop flag."""
+    """Create the Trainer callback that turns a stop request into a stop flag, and stops a run whose loss or
+    gradient became NaN/inf (``engine._diverged``): such a run used to finish as "done" with a logged loss of 0.0
+    and merge / export weights that answer nothing (Quillmoor benchmark, 2026-10-29)."""
     from transformers import TrainerCallback
 
     class StopCallback(TrainerCallback):
         def on_step_end(self, args: Any, state: Any, control: Any, **kwargs: Any) -> Any:
-            if engine._stop_requested():
+            if engine._stop_requested() or engine._diverged:
+                control.should_training_stop = True
+            return control
+
+        def on_log(self, args: Any, state: Any, control: Any, logs: dict | None = None, **kwargs: Any) -> Any:
+            key = _non_finite(logs or {})
+            if key and not engine._diverged:
+                engine._diverged = {"step": int(state.global_step), "value": key, "output_dir": str(args.output_dir)}
                 control.should_training_stop = True
             return control
 
     return StopCallback()
 
 
+def _divergence_message(info: dict[str, Any]) -> str:
+    step = info["step"]
+    what = "loss" if info["value"] == "loss" else "gradient"
+    ckpts = []
+    for name in os.listdir(info["output_dir"]) if os.path.isdir(info["output_dir"]) else []:
+        if name.startswith("checkpoint-") and name[len("checkpoint-"):].isdigit():
+            ckpts.append(int(name[len("checkpoint-"):]))
+    good = max((c for c in ckpts if c < step), default=0)
+    back = (f" The last checkpoint before it is step {good} (checkpoint-{good}): a new run can start from it."
+            if good else " No checkpoint was saved before it.")
+    return (f"Training diverged at step {step}: the {what} became NaN (not a number), so the weights from that "
+            f"step on are unusable and nothing was saved, merged or exported.{back} Usual fixes: a lower learning "
+            "rate (half), a smaller batch, or fewer LoRA targets.")
+
+
 def _free_cuda() -> None:
     """Drop refs the caller already deleted and release the accelerator cache (any vendor)."""
     from finetune_studio import accel
     accel.empty_cache()
+
+
+def _release_trainer(trainer: object) -> None:
+    """Let go of everything a finished trainer holds on the accelerator (model, optimizer state, accelerate's
+    prepared copies), so the merge that follows can load a 16-bit base on the GPU.
+
+    ``del model`` in the merge freed nothing: the caller's ``model`` and ``trainer.model`` still pointed at the
+    4-bit training model (~8 GB for a 9B), the base no longer fitted, and the merge fell back to CPU RAM on a host
+    that had none to spare (the kernel killed another program; 2026-11-04). The caller deletes its own names too.
+    """
+    import gc
+
+    for attr in ("model", "model_wrapped", "optimizer", "lr_scheduler", "ref_model"):
+        if getattr(trainer, attr, None) is not None:
+            try:
+                setattr(trainer, attr, None)
+            except Exception:  # noqa: BLE001, S110 — a read-only attribute on some trainer subclass
+                pass
+    accelerator = getattr(trainer, "accelerator", None)
+    if accelerator is not None and hasattr(accelerator, "free_memory"):
+        try:
+            accelerator.free_memory()
+        except Exception:
+            log.debug("accelerator.free_memory failed", exc_info=True)
+    gc.collect()
+    _free_cuda()
 
 
 def _dir_size(path: str) -> int:
@@ -177,9 +240,6 @@ class TrainingConfig:
     # "runtime" = don't bake, save separately for inference-time use
     # "none" = no system prompt at all
     system_prompt_mode: str = "bake"
-    # Advanced quantization
-    export_imatrix: bool = False
-    imatrix_calibration: str = ""
     # Empty = every linear layer of the loaded language model (training/lora_targets.py);
     # a list overrides it.
     lora_target_modules: list = field(default_factory=list)
@@ -302,6 +362,7 @@ class TrainingEngine:
         self.current_run_id: str | None = None
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
+        self._diverged: dict[str, Any] | None = None
         self._callbacks: list = []
         # E2E-40: training runs in a spawn child so uvicorn never imports unsloth.
         self._process: object | None = None
@@ -579,6 +640,7 @@ class TrainingEngine:
                 split_data,
             )
             self._early_stop_step = 0
+            self._diverged = None
             self.state.status = "loading"
             self.state.message = "Loading model..."
             self._notify()
@@ -639,7 +701,7 @@ class TrainingEngine:
                 self._notify()
                 self._persist_run_output()
         except Exception as e:
-            msg = _format_exc(e)
+            msg = str(e) if isinstance(e, TrainingDiverged) else _format_exc(e)
             log.exception("Training failed: %s", msg)
             self.state.status = "error"
             self.state.error = msg
@@ -808,6 +870,8 @@ class TrainingEngine:
         self.state.message = f"Training with {kind.upper()} preferences..."
         self._notify()
         trainer.train()
+        if self._diverged:
+            raise TrainingDiverged(_divergence_message(self._diverged))
         self._early_stop_step = _early_stop_step(cfg, trainer.state)
         if self._stop_requested():
             try:
@@ -820,10 +884,13 @@ class TrainingEngine:
         self.state.message = "Saving preference-tuned model..."
         self._notify()
         self._save_adapter(model, tokenizer, with_chat_template=True)
+        # Merge and export reload from disk: free the training model first (see _release_trainer).
+        _release_trainer(trainer)
+        del trainer, model
         if cfg.merge_on_save:
-            self._maybe_merge(model, tokenizer, cfg.output_dir)
+            self._maybe_merge(None, tokenizer, cfg.output_dir)
         if cfg.export_gguf:
-            self._export_gguf_after_train(model, tokenizer)
+            self._export_gguf_after_train(None, tokenizer)
         self._auto_suite_non_fatal()
         self.state.status = "done"
         self.state.message = self._completion_message()
@@ -1155,6 +1222,8 @@ class TrainingEngine:
         self.state.message = "Training…"
         self._notify()
         trainer.train()
+        if self._diverged:
+            raise TrainingDiverged(_divergence_message(self._diverged))
         self._early_stop_step = _early_stop_step(cfg, trainer.state)
         if self._stop_requested():
             # Persist the partial adapter so the work is not lost, then stop.
@@ -1171,12 +1240,13 @@ class TrainingEngine:
         if self._stop_requested():
             self._mark_stopped()
             return
+        # Merge and export reload from disk: free the training model first (see _release_trainer).
+        _release_trainer(trainer)
+        del trainer, model
         if cfg.merge_on_save:
-            self._maybe_merge(model, tokenizer, cfg.output_dir)
+            self._maybe_merge(None, tokenizer, cfg.output_dir)
         if cfg.export_gguf:
-            self._export_gguf_after_train(model, tokenizer)
-        if cfg.export_imatrix:
-            self._do_export_imatrix(cfg.output_dir)
+            self._export_gguf_after_train(None, tokenizer)
         self._auto_suite_non_fatal()
         # Optional: Abliteration (de-censor)
         if getattr(cfg, 'abliterate', False):
@@ -1251,6 +1321,8 @@ class TrainingEngine:
         self.state.message = "Training…"
         self._notify()
         trainer.train()
+        if self._diverged:
+            raise TrainingDiverged(_divergence_message(self._diverged))
         self._early_stop_step = _early_stop_step(cfg, trainer.state)
         if self._stop_requested():
             # Persist the partial adapter so the work is not lost, then stop.
@@ -1267,10 +1339,13 @@ class TrainingEngine:
         if self._stop_requested():
             self._mark_stopped()
             return
+        # Merge and export reload from disk: free the training model first (see _release_trainer).
+        _release_trainer(trainer)
+        del trainer, model
         if cfg.merge_on_save:
-            self._maybe_merge(model, tokenizer, cfg.output_dir)
+            self._maybe_merge(None, tokenizer, cfg.output_dir)
         if cfg.export_gguf:
-            self._export_gguf_after_train(model, tokenizer)
+            self._export_gguf_after_train(None, tokenizer)
         # The quiz used to be generated only by the Unsloth path, which FTS_UNSLOTH=auto skips on current
         # torch: every default run finished without a project quiz and the Testing page had nothing to run.
         if getattr(cfg, "training_mode", "sft") != "continued_pretraining":
@@ -1320,15 +1395,15 @@ class TrainingEngine:
         self.state.message = "Merging adapter into full model..."
         self._notify()
 
-        # Free the in-memory QLoRA training model before loading a 16-bit base.
-        try:
-            del model
-        except Exception:  # noqa: BLE001, S110
-            pass
+        # The training model is already released by the caller (_release_trainer); drop this name too.
+        del model
         _free_cuda()
 
         from finetune_studio.models.hf_loader import load_merge_base, load_peft_adapter
-        from finetune_studio.training.merge_base import resolve_merge_base
+        from finetune_studio.training.merge_base import (
+            copy_processor_files,
+            resolve_merge_base,
+        )
 
         adapter_dir = os.path.join(output_dir, "adapter")
         base_path = resolve_merge_base(self.config.model_path)
@@ -1347,6 +1422,7 @@ class TrainingEngine:
                 gen_cfg.eos_token_id = chat_stop_token_ids(tokenizer, gen_cfg) or gen_cfg.eos_token_id
             merged.save_pretrained(merged_dir)
             tokenizer.save_pretrained(merged_dir)
+            copy_processor_files(base_path, merged_dir)
             src = os.path.join(adapter_dir, "chat_template.jinja")
             if os.path.exists(src):
                 shutil.copy(src, os.path.join(merged_dir, "chat_template.jinja"))
@@ -1391,31 +1467,6 @@ class TrainingEngine:
         except Exception as e:
             log.exception("Abliteration failed")
             self.state.message = f"Abliteration failed: {e}"
-            self._notify()
-            return {"error": str(e)}
-
-    def _do_export_imatrix(self, output_dir: str) -> dict:
-        """Export the merged model using imatrix-based GGUF quantization."""
-        merged_dir = os.path.join(output_dir, "merged")
-        if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
-            return {"skipped": True, "reason": "no merged model"}
-        imatrix_dir = os.path.join(output_dir, "imatrix")
-        self.state.message = "Exporting imatrix GGUF..."
-        self._notify()
-        try:
-            from finetune_studio.training.advanced_quant import quantize_gguf_imatrix
-            result = quantize_gguf_imatrix(
-                model_path=merged_dir,
-                output_dir=imatrix_dir,
-                imatrix_path=getattr(self.config, 'imatrix_calibration', ''),
-                quants=getattr(self.config, 'gguf_quants', ['q4_k_m', 'q5_k_m', 'q8_0']),
-            )
-            self.state.message = "Imatrix GGUF exported."
-            self._notify()
-            return result
-        except Exception as e:
-            log.exception("Imatrix GGUF export failed")
-            self.state.message = f"Imatrix GGUF export failed: {e}"
             self._notify()
             return {"error": str(e)}
 
@@ -1466,16 +1517,17 @@ class TrainingEngine:
         self._notify()
         return result
 
-    def _do_export_gguf(self, output_dir: str, force: bool = False) -> dict:
+    def _do_export_gguf(self, output_dir: str, force: bool = False, *, subdir: str = "gguf",
+                        calibration_text: str = "") -> dict:
         """Export the merged model to GGUF via llama.cpp (shared converter).
 
-        Saves to ``<output_dir>/gguf/``. Success only when requested quants
+        Saves to ``<output_dir>/<subdir>/`` (``gguf`` by default). Success only when requested quants
         produce non-empty ``.gguf`` files. Uses ``convert_hf_to_gguf.py`` and
-        ``llama-quantize`` discovered via ``gguf_convert``.
+        ``llama-quantize`` discovered via ``gguf_convert``; ``calibration_text`` adds the importance matrix.
         """
         from finetune_studio.training.gguf_convert import convert_merged_to_gguf
 
-        gguf_dir = os.path.join(output_dir, "gguf")
+        gguf_dir = os.path.join(output_dir, subdir)
         merged_dir = os.path.join(output_dir, "merged")
         if not os.path.isdir(merged_dir) or not os.listdir(merged_dir):
             return {
@@ -1493,7 +1545,7 @@ class TrainingEngine:
         self.state.message = f"Exporting GGUF ({', '.join(quants)})..."
         self._notify()
         result = convert_merged_to_gguf(
-            merged_dir, gguf_dir, quants, force=force,
+            merged_dir, gguf_dir, quants, force=force, calibration_text=calibration_text,
         )
         if result.get("ok"):
             size_h = result.get("size_human") or _human_size(
@@ -1547,7 +1599,10 @@ def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
     os.makedirs(merged_dir, exist_ok=True)
     from finetune_studio.hf_env import load_tokenizer
     from finetune_studio.models.hf_loader import load_merge_base, load_peft_adapter
-    from finetune_studio.training.merge_base import resolve_merge_base
+    from finetune_studio.training.merge_base import (
+        copy_processor_files,
+        resolve_merge_base,
+    )
     tokenizer = load_tokenizer(adapter_dir)
     base_path = resolve_merge_base(base_model)
     from finetune_studio.smart_brain.model_cache import release_brain_models
@@ -1565,6 +1620,7 @@ def merge_adapter_for_run(run: dict, force: bool = False) -> dict:
             merged.config.quantization_config = None
         merged.save_pretrained(merged_dir)
         tokenizer.save_pretrained(merged_dir)
+        copy_processor_files(base_path, merged_dir)
         src = os.path.join(adapter_dir, "chat_template.jinja")
         if os.path.exists(src):
             shutil.copy(src, os.path.join(merged_dir, "chat_template.jinja"))

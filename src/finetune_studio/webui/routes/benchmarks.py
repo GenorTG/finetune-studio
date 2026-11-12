@@ -183,21 +183,10 @@ def _run_is_benchmarkable(run: dict[str, Any]) -> bool:
 
 
 def _resolve_trained_target(run: dict[str, Any]) -> str:
-    """Prefer merged/ under output_path, then the LoRA adapter/, else output_path.
+    """Prefer merged/ under output_path, then the LoRA adapter/, else output_path."""
+    from finetune_studio.models.run_paths import resolve_run_model_dir
 
-    An unmerged run's output dir has no config.json, so loading it directly
-    fails with an opaque transformers "Unrecognized model" error.
-    """
-    target_model = str(run.get("output_path") or "").strip()
-    merged_candidate = os.path.join(target_model, "merged")
-    if os.path.isdir(merged_candidate) and os.path.isfile(
-        os.path.join(merged_candidate, "config.json")
-    ):
-        return merged_candidate
-    adapter_candidate = os.path.join(target_model, "adapter")
-    if os.path.isfile(os.path.join(adapter_candidate, "adapter_config.json")):
-        return adapter_candidate
-    return target_model
+    return resolve_run_model_dir(str(run.get("output_path") or "").strip())
 
 
 def _unload_global_inference() -> None:
@@ -352,12 +341,6 @@ async def _execute_benchmark(
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────
-
-@router.get("/suites")
-async def list_suites(project_id: str | None = None) -> list[dict[str, Any]]:
-    """List available benchmark suites (files that exist + optional auto-suites)."""
-    return _discover_suites(project_id)
-
 
 @router.post("/projects/{pid}/suites/import", response_model=None)
 async def import_suite_route(pid: str, file: UploadFile = File(...)) -> dict[str, Any] | JSONResponse:  # noqa: B008
@@ -536,18 +519,6 @@ async def run_benchmark_base(pid: str, request: Request) -> dict[str, Any] | JSO
     except Exception as exc:  # noqa: BLE001
         return JSONResponse({"detail": str(exc)}, status_code=500)
 
-@router.get("/projects/{pid}/runs/{rid}/history", response_model=None)
-async def run_history(pid: str, rid: str) -> list[dict[str, Any]] | dict[str, str] | JSONResponse:
-    """List all benchmarks for a specific run."""
-    missing = _project_404(pid)
-    if missing is not None:
-        return missing
-    run = db.get_run(rid)
-    if not run or run["project_id"] != pid:
-        return JSONResponse({"detail": "not found"}, status_code=404)
-    return db.list_benchmarks(rid)
-
-
 @router.delete("/projects/{pid}/runs/{rid}", response_model=None)
 async def delete_run(pid: str, rid: str) -> dict[str, Any] | JSONResponse:
     """Delete a training run, its benchmark results and its own output directory (``training.run_delete``:
@@ -578,9 +549,8 @@ async def delete_benchmark(pid: str, bid: str) -> dict[str, bool] | JSONResponse
     benchmark = _benchmark_for_project(bid, pid)
     if isinstance(benchmark, JSONResponse):
         return benchmark
-    with db.cursor() as c:
-        c.execute("DELETE FROM benchmark_cases WHERE benchmark_id = ?", (bid,))
-        c.execute("DELETE FROM benchmark_runs WHERE id = ?", (bid,))
+    # Off the event loop: a write waits up to BUSY_TIMEOUT_S for another writer (a running judge job).
+    await asyncio.to_thread(db.delete_benchmark, bid)
     return {"ok": True}
 
 

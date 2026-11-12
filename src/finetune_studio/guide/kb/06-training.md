@@ -1,21 +1,23 @@
 ---
 id: training
-title: Training page (step 3)
+title: Training page (step 2)
 page: training
 keywords: train training start base model dataset preset smoke balanced precision overkill advisor lora rank learning rate batch accumulation sequence merge unsloth checkpoints live status runs production stop
 ---
 ## Purpose
-Teach a base model your dataset. Hours, not minutes for large bases; the page keeps live progress and survives reloads.
+Step 2 of the project flow (alongside Smart Brain): teach a base model your dataset. Hours, not minutes for large bases; the page keeps live progress and survives reloads.
 
 ## Workflow
+0. For extraction, classification, house style or distilling a big model, start from a use case (see use-cases): the **Start from a use case** card builds the dataset and a held-out test and fills this form.
 1. Pick a **Training route** (see training-routes). SFT is the default for Q&A pairs.
 2. Pick the **Base model** (Transformers/safetensors only; GGUF is inference-only).
 3. Pick data: **From this project** (the dataset exported on Pairs) or **Upload my own** (JSONL/JSON/CSV). Picking one runs the dataset check; Start stays disabled until a dataset is chosen.
 4. Pick a **preset** by effort (Smoke, Baseline, Precision, Overkill). The page asks the preset advisor and fills epochs, rank, alpha, learning rate, batch, accumulation and warmup, with the optimizer-step arithmetic and warnings shown. Values stay editable.
-5. Check the advisory for a too-few-steps warning, then **Start training**. The helper model is unloaded automatically before training.
+5. Check the advisory for a too-few-steps warning, then **Start training**. A local assistant model is unloaded automatically before training.
 6. Watch **Live status** (step, loss, ETA). Afterwards: Testing, then Export; set a run as production from Past runs.
 
 ## Key controls
+- `#uc-card` — Start from a use case (see use-cases).
 - `#train-form` — the training form.
 - `#train-base-model` — base model dropdown.
 - `#dataset-select` — registered project datasets.
@@ -38,7 +40,7 @@ Teach a base model your dataset. Hours, not minutes for large bases; the page ke
 - `#past-runs-table` — all runs, with Details, Set production, Open in inference and Export.
 
 ## What to check
-Final loss below 0.5 on small factual datasets, status done, a merged model present. With a tiny dataset make sure early stopping did not end the run before the planned steps. On out-of-memory the page shows "Out of GPU memory" with the knobs to lower (batch, max sequence).
+Check that the run finished successfully and a merged model is present. Training loss measures fit to the training examples; it does not prove held-out quality. Test the model on held-out questions on the Testing page. With a tiny dataset make sure early stopping did not end the run before the planned steps. Eval loss (`Eval every N steps`, early stopping, `best_eval_loss` in a run's metrics) is measured on the 10 % held-out rows. For fact Q&A datasets (pairs from your files) those rows often hold facts no training row teaches, so a rising eval loss is not a sign that recall is getting worse, and early stopping on the best eval loss can keep a worse model. Judge recall with a Testing run instead. Preference routes (DPO, KTO) report their own held-out accuracy and margin. On out-of-memory the page shows "Out of GPU memory" with the knobs to lower (batch, max sequence).
 
 ## Common mistakes
 Choosing Smoke and expecting recall (it only proves the plumbing); trusting epochs instead of optimizer steps (see training-settings); training while another heavy GPU job runs.

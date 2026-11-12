@@ -267,7 +267,7 @@ def test_turning_tailscale_on_when_it_is_not_running_is_a_409(client, off_tailne
 
 def test_settings_page_has_the_switches_and_apply_now(client) -> None:
     html = client.get("/settings").text
-    for el in ('id="access-lan"', 'id="access-ts"', 'id="access-custom"', 'id="access-apply"', "security.js?v=3"):
+    for el in ('id="access-lan"', 'id="access-ts"', 'id="access-custom"', 'id="access-apply"', "security.js?v=5"):
         assert el in html, el
     js = (Path(__file__).parents[1] / "src/finetune_studio/webui/static/js/security.js").read_text()
     assert "renderReach" in js and "/api/service/components/web/restart" in js and "no-cors" in js

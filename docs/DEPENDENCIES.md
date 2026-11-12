@@ -25,7 +25,7 @@
 | `sentencepiece` | `webui/routes/exports.py` | tokenizer export for GGUF conversion |
 | `gguf` | `testing/inference.py`, `templates/*` | GGUF metadata parsing (arch/quant/template) |
 | `requests` | `compare/engine.py`, `models/providers.py` | external OpenAI-compat API calls (judge + provider) |
-| `httpx` | `webui/routes/data_prep_chat.py`, FastAPI `TestClient` | Guide / agent chat API-provider calls; was only transitive via chromadb until 2026-10-14 |
+| `httpx` | `webui/chat_backend.py`, FastAPI `TestClient` | Guide / agent chat API-provider calls; was only transitive via chromadb until 2026-10-14 |
 | `aiofiles` | `webui/routes/data.py` | async upload writes |
 | `rich` | **0 imports** | leftover — removal candidate |
 | `aiosqlite` | **0 imports** (`db/` uses stdlib `sqlite3`) | leftover — removal candidate |
@@ -42,13 +42,15 @@
 ## Optional extras
 
 ```bash
-pip install -e '.[bitsandbytes]'   # 4-bit QLoRA base loading
-pip install -e '.[dev]'            # pytest, pytest-asyncio, ruff
+# install.sh already adds bitsandbytes (4-bit QLoRA base loading) where the hardware supports it.
+# Dev tools (pytest, pytest-asyncio, ruff), resolved against the installed torch:
+uv pip install --python .venv/bin/python -c .venv/torch-constraints.txt -e '.[dev]'
 ```
 
 ## Python floor
 
-- Developed/tested on **Python 3.13**.
+- Developed and tested on **Python 3.12** (CI and the dev host); 3.13 is accepted by `requires-python`
+  but not tested.
 - `requires-python` per `pyproject.toml`; TRL 0.12+ and transformers 4.40+ pin the floor.
 
 ## Cleanup summary (when you touch pyproject)

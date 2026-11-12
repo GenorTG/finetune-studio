@@ -15,7 +15,7 @@ log = logging.getLogger(__name__)
 
 
 @router.get("/api/system/compute-device")
-async def get_compute_device() -> dict[str, Any]:
+def get_compute_device() -> dict[str, Any]:
     """Detected GPUs, the saved choice, what this process runs, and whether a restart is needed.
 
     ``saved`` is applied only at process start; ``overridden_by_env`` is true when an explicit
@@ -25,8 +25,12 @@ async def get_compute_device() -> dict[str, Any]:
 
 
 @router.put("/api/system/compute-device")
-async def put_compute_device(body: cd.ComputeDeviceIn) -> dict[str, Any]:
-    """Persist the choice (``auto`` | ``gpu`` + ``device_id`` | ``cpu``); 400 with a reason if invalid."""
+def put_compute_device(body: cd.ComputeDeviceIn) -> dict[str, Any]:
+    """Persist the choice (``auto`` | ``gpu`` + ``device_id`` | ``cpu``); 400 with a reason if invalid.
+
+    Both handlers are plain ``def``: ``list_devices`` probes the GPUs (NVML/torch), which must not
+    run on the event loop.
+    """
     devices = cd.list_devices()
     try:
         choice = cd.build_choice(body, devices)

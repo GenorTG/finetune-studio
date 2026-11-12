@@ -1,0 +1,51 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='750' height='394' viewBox='0 0 750 394' font-family='Helvetica, Arial, sans-serif'>
+<rect width='100%' height='100%' fill='#ffffff'/>
+<text x='16' y='26' font-size='16' font-weight='bold' fill='#1d2733'>Fine-tuning Llama 3.2 3B on 4,306 facts</text>
+<rect x='210' y='36' width='12' height='12' fill='#1f6f3f'/>
+<text x='226' y='46' font-size='12' fill='#1d2733'>recalls a trained fact</text>
+<rect x='386' y='36' width='12' height='12' fill='#c77d2e'/>
+<text x='402' y='46' font-size='12' fill='#1d2733'>says it does not know a held-out fact</text>
+<line x1='210.0' y1='66' x2='210.0' y2='338' stroke='#e3e8ee' stroke-width='1'/>
+<text x='210.0' y='356' font-size='10' fill='#6b7785' text-anchor='middle'>0%</text>
+<line x1='304.0' y1='66' x2='304.0' y2='338' stroke='#e3e8ee' stroke-width='1'/>
+<text x='304.0' y='356' font-size='10' fill='#6b7785' text-anchor='middle'>20%</text>
+<line x1='398.0' y1='66' x2='398.0' y2='338' stroke='#e3e8ee' stroke-width='1'/>
+<text x='398.0' y='356' font-size='10' fill='#6b7785' text-anchor='middle'>40%</text>
+<line x1='492.0' y1='66' x2='492.0' y2='338' stroke='#e3e8ee' stroke-width='1'/>
+<text x='492.0' y='356' font-size='10' fill='#6b7785' text-anchor='middle'>60%</text>
+<line x1='586.0' y1='66' x2='586.0' y2='338' stroke='#e3e8ee' stroke-width='1'/>
+<text x='586.0' y='356' font-size='10' fill='#6b7785' text-anchor='middle'>80%</text>
+<line x1='680.0' y1='66' x2='680.0' y2='338' stroke='#e3e8ee' stroke-width='1'/>
+<text x='680.0' y='356' font-size='10' fill='#6b7785' text-anchor='middle'>100%</text>
+<text x='200' y='92.0' font-size='12' fill='#1d2733' text-anchor='end'>4 passes (old recipe)</text>
+<rect x='210' y='72' width='58.9' height='13' fill='#1f6f3f'/>
+<text x='272.9' y='82' font-size='10' fill='#1d2733'>12.5%</text>
+<rect x='210' y='88' width='1.0' height='13' fill='#c77d2e'/>
+<text x='215.0' y='98' font-size='10' fill='#1d2733'>0.0%</text>
+<text x='200' y='138.0' font-size='12' fill='#1d2733' text-anchor='end'>Balanced preset, 2 epochs</text>
+<rect x='210' y='118' width='27.3' height='13' fill='#1f6f3f'/>
+<text x='241.3' y='128' font-size='10' fill='#1d2733'>5.8%</text>
+<rect x='210' y='134' width='1.0' height='13' fill='#c77d2e'/>
+<text x='215.0' y='144' font-size='10' fill='#1d2733'>0.0%</text>
+<text x='200' y='184.0' font-size='12' fill='#1d2733' text-anchor='end'>Precision preset, 4 epochs</text>
+<rect x='210' y='164' width='125.4' height='13' fill='#1f6f3f'/>
+<text x='339.4' y='174' font-size='10' fill='#1d2733'>26.7%</text>
+<rect x='210' y='180' width='1.0' height='13' fill='#c77d2e'/>
+<text x='215.0' y='190' font-size='10' fill='#1d2733'>0.0%</text>
+<text x='200' y='230.0' font-size='12' fill='#1d2733' text-anchor='end'>12 passes, 1 phrasing</text>
+<rect x='210' y='210' width='455.8' height='13' fill='#1f6f3f'/>
+<text x='669.8' y='220' font-size='10' fill='#1d2733'>97.0%</text>
+<rect x='210' y='226' width='1.0' height='13' fill='#c77d2e'/>
+<text x='215.0' y='236' font-size='10' fill='#1d2733'>0.0%</text>
+<text x='200' y='276.0' font-size='12' fill='#1d2733' text-anchor='end'>3 phrasings x 4 passes</text>
+<rect x='210' y='256' width='468.9' height='13' fill='#1f6f3f'/>
+<text x='682.9' y='266' font-size='10' fill='#1d2733'>99.8%</text>
+<rect x='210' y='272' width='1.0' height='13' fill='#c77d2e'/>
+<text x='215.0' y='282' font-size='10' fill='#1d2733'>0.0%</text>
+<text x='200' y='322.0' font-size='12' fill='#1d2733' text-anchor='end'>3 phrasings + I-don&#x27;t-know rows</text>
+<rect x='210' y='302' width='450.8' height='13' fill='#1f6f3f'/>
+<text x='664.8' y='312' font-size='10' fill='#1d2733'>95.9%</text>
+<rect x='210' y='318' width='68.3' height='13' fill='#c77d2e'/>
+<text x='282.3' y='328' font-size='10' fill='#1d2733'>14.5%</text>
+<text x='16' y='382' font-size='10' fill='#6b7785'>Exact-pass rate, AI-judged; one question per fact (392-431 trained, 392-431 held-out).</text>
+</svg>

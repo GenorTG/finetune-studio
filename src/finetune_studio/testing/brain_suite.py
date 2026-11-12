@@ -129,15 +129,15 @@ def provenance_from_hit(hit: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def build_grounded_messages(question: str, context: str) -> list[dict[str, str]]:
-    """System + user messages that enforce context-only answering."""
+def build_grounded_messages(question: str, context: str, system_prompt: str = "") -> list[dict[str, str]]:
+    """System + user messages that enforce context-only answering. ``system_prompt``: the project's identity."""
     user = (
         "Use ONLY the context below. If the answer is not in the context, "
         f'reply exactly: "{UNKNOWN_REPLY}" Otherwise answer concisely.\n\n'
         f"CONTEXT:\n{context}\n\nQUESTION: {question}"
     )
     return [
-        {"role": "system", "content": BRAIN_SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt or BRAIN_SYSTEM_PROMPT},
         {"role": "user", "content": user},
     ]
 
@@ -199,6 +199,7 @@ class BrainCaseResult:
     chunks_retrieved: int = 0
     chunks_in_context: int = 0
     gold_rank_wide: int | None = None   # rank of the gold source in a wider search when it missed the top-k (diagnostic only)
+    followup: dict[str, Any] | None = None   # the first answer said part was not stated: the search for it + sources added
 
     def as_api_dict(self) -> dict[str, Any]:
         r = self.case_result
@@ -230,6 +231,7 @@ class BrainCaseResult:
             "chunks_retrieved": self.chunks_retrieved,
             "chunks_in_context": self.chunks_in_context,
             "gold_rank_wide": self.gold_rank_wide,
+            "followup": self.followup,
             "context_chars": len(self.context_text),
         }
 
@@ -312,9 +314,16 @@ def run_brain_case(
     temperature: float = 0.3,
     think: bool = False,
     max_context_chars: int = DEFAULT_CONTEXT_CHARS,
+    system_prompt: str = "",
+    retry_missing: bool = True,
 ) -> BrainCaseResult:
-    """Retrieve -> ground the prompt -> generate -> record the transcript and the retrieval provenance."""
+    """Retrieve -> ground the prompt -> generate -> record the transcript and the retrieval provenance.
+
+    ``retry_missing``: when the answer says part of the question is not stated, one more search for that part
+    (``standalone_server.missing_part_query``, the chat's and the package's rule), merged into the passages, and one
+    more answer; the transcript keeps both answers and ``followup`` records the search."""
     start = time.time()
+    followup: dict[str, Any] | None = None
     hits_raw: list[dict] = []
     context = ""
     gold_rank_wide: int | None = None
@@ -325,15 +334,36 @@ def run_brain_case(
         gold_rank_wide = wide_rank_of_source(brain_query, case, hits_raw, top_k=top_k)
         provenance = [provenance_from_hit(h) for h in hits_raw]
         context = brain_query.format_context(hits_raw, max_chars=max_context_chars)
-        messages = build_grounded_messages(case.question, context)
+        messages = build_grounded_messages(case.question, context, system_prompt)
         response = engine.generate(
             messages,
             max_tokens=max_tokens,
             temperature=temperature,
             think=think,
         )
-        elapsed_ms = (time.time() - start) * 1000
         transcript = list(messages) + [{"role": "assistant", "content": response}]
+        if retry_missing:
+            from finetune_studio.smart_brain.standalone_server import (
+                merge_follow_up_hits,
+                missing_part_query,
+                says_not_stated,
+            )
+            if says_not_stated(response):
+                wanted = missing_part_query(case.question, response, lambda m: engine.generate(
+                    m, max_tokens=64, temperature=0.0, think=False))
+                seen = {h.get("chunk_id") for h in hits_raw}
+                extra = [h for h in (brain_query.search(wanted, top_k=top_k) or []) if h.get("chunk_id") not in seen]
+                followup = {"query": wanted, "added_sources": sorted({str(h.get("filename") or "") for h in extra}),
+                            "added_passages": len(extra), "answer_before": response}
+                if extra:
+                    hits_raw = merge_follow_up_hits(hits_raw, extra)
+                    provenance = [provenance_from_hit(h) for h in hits_raw]
+                    context = brain_query.format_context(hits_raw, max_chars=max_context_chars)
+                    messages = build_grounded_messages(case.question, context, system_prompt)
+                    response = engine.generate(messages, max_tokens=max_tokens, temperature=temperature, think=think)
+                    transcript += [{"role": "system", "content": f"(searched again for the missing part: {wanted})"},
+                                   *messages, {"role": "assistant", "content": response}]
+        elapsed_ms = (time.time() - start) * 1000
         case_result = CaseResult(
             case_name=case.name,
             category=case.category,
@@ -350,7 +380,7 @@ def run_brain_case(
     except Exception as e:  # noqa: BLE001
         elapsed_ms = (time.time() - start) * 1000
         provenance = [provenance_from_hit(h) for h in hits_raw]
-        messages = build_grounded_messages(case.question, context)
+        messages = build_grounded_messages(case.question, context, system_prompt)
         case_result = CaseResult(
             case_name=case.name,
             category=case.category,
@@ -380,6 +410,7 @@ def run_brain_case(
         chunks_retrieved=len(hits_raw),
         chunks_in_context=n_in_context,
         gold_rank_wide=gold_rank_wide,
+        followup=followup,
     )
 
 
@@ -395,6 +426,7 @@ def run_brain_suite(
     max_context_chars: int = DEFAULT_CONTEXT_CHARS,
     on_result: Callable[[BrainCaseResult], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
+    system_prompt: str = "",
 ) -> list[BrainCaseResult]:
     """Run every case through retrieve -> ground -> generate. Records transcripts; never judges."""
     out: list[BrainCaseResult] = []
@@ -403,7 +435,7 @@ def run_brain_suite(
             break
         result = run_brain_case(
             engine, brain_query, case, top_k=top_k, max_tokens=max_tokens, temperature=temperature,
-            think=think, max_context_chars=max_context_chars,
+            think=think, max_context_chars=max_context_chars, system_prompt=system_prompt,
         )
         out.append(result)
         if on_result is not None:

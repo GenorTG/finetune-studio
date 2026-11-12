@@ -4,7 +4,7 @@
         .venv/bin/python tests/e2e_helper_settings.py --model deepseek-v4-flash [--preset opencode-go] [--local]
 
 Drives /settings: seat "API provider", pick the preset, type the key, Fetch model list, choose the model,
-Test connection, Save, reload and re-read the card (the key must show only as "(set)"). ``--local`` seats the
+Test connection, Save, reload and re-read the card (the key must show only as "(saved, encrypted)"). ``--local`` seats the
 local GGUF again instead. It changes the LIVE helper seat and stores the key in the local provider DB (never
 in the repo); the key comes from the environment and is never printed. Shots: ``.tmp/qa-shots/helper/``.
 """
@@ -86,7 +86,7 @@ def run(args: argparse.Namespace) -> int:
             check(page.is_checked("#helper-seat-api"), "API seat survives a reload")
             check(page.input_value("#helper-api-model") == args.model, "model survives a reload")
             check(page.input_value("#helper-api-key") == "", "key field is empty after reload (write-only)")
-            check(page.inner_text("#helper-key-state") == "(set)", "key shows only as (set)")
+            check(page.inner_text("#helper-key-state") == "(saved, encrypted)", "key shows only as saved")
             check(key not in page.content(), "the key appears nowhere in the page HTML")
         check(not errors, f"no JS/console errors {errors[:3]}")
         browser.close()

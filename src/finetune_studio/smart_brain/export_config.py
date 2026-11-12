@@ -16,7 +16,7 @@ import logging
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from finetune_studio.smart_brain.constants import DEFAULT_TOP_K
 
@@ -29,7 +29,15 @@ RUNTIME_CONFIG_NAME = "rag.config.json"
 
 
 class BrainExportConfig(BaseModel):
-    """Defaults baked into an exported package (and into its rag.config.json)."""
+    """Defaults baked into an exported package (and into its rag.config.json).
+
+    Search layers, each on its own: ``semantic_search`` (meaning search over the vectors; ships vectors.npy and,
+    with ``include_models``, the embedder), ``keyword_search`` (BM25 word search; ships bm25.json); both on =
+    hybrid, merged by Reciprocal Rank Fusion. ``reranker_enabled`` (a cross-encoder rescoring pass; needs the
+    reranker bundled with ``include_models``). ``answer_enabled`` is the generation half of RAG: the server asks
+    an OpenAI-compatible chat model (``llm_base_url`` / ``llm_model``; the key only at run time) to answer from
+    the passages it found. Off = the server returns passages and the caller's own model writes the answer.
+    """
 
     archive_format: Literal["tar", "tar.gz", "zip"] = "tar.gz"
     include_models: bool = False
@@ -41,6 +49,44 @@ class BrainExportConfig(BaseModel):
     top_k: int = Field(DEFAULT_TOP_K, ge=1, le=100)
     encrypt: bool = True               # --no-encrypt is the explicit opt-out
     kdf_log_n: int = Field(17, ge=10, le=20)   # scrypt cost (N = 2**kdf_log_n)
+    semantic_search: bool = True       # meaning search (vectors)
+    keyword_search: bool = True        # word search (BM25)
+    answer_enabled: bool = False       # RAG answers via an LLM endpoint
+    llm_provider: Literal["openai", "anthropic"] = "openai"   # API kind: any OpenAI-compatible, or Anthropic Claude
+    llm_base_url: str = ""             # e.g. https://api.openai.com/v1, https://api.anthropic.com/v1, http://127.0.0.1:11434/v1
+    llm_model: str = ""
+    llm_headers: dict[str, str] = Field(default_factory=dict)   # e.g. {"x-opencode-session": "{session}"}
+    llm_body: dict[str, Any] = Field(default_factory=dict)      # merged into each request, e.g. reasoning_effort
+    # The uploaded files themselves (inside the encrypted container when encrypted). Anyone who can reach the server
+    # can download them (MCP rag_get_document, GET /files/<id>): leave it off for a public bot.
+    include_originals: bool = False
+    # A public bot: answers name no source files (no "[terms_v4.docx]" citations); /ask and rag_answer return the
+    # sources only when the caller asks for them ("sources": true / include_sources).
+    hide_file_names: bool = False
+    originals_inline_max_mb: int = Field(20, ge=1, le=512)   # rag_get_document: larger files come back as a link
+
+    @field_validator("llm_headers")
+    @classmethod
+    def _llm_headers(cls, v: dict[str, str]) -> dict[str, str]:
+        # A package is handed to other people: credentials never go in it (the key is RAG_LLM_API_KEY at run time).
+        banned = [k for k in v if k.strip().lower() in ("authorization", "x-api-key", "api-key", "cookie")]
+        if banned:
+            raise ValueError(f"header {banned[0]!r} carries a credential; set RAG_LLM_API_KEY where the server runs")
+        return {str(k).strip(): str(val) for k, val in v.items() if str(k).strip()}
+
+    @model_validator(mode="after")
+    def _layers(self) -> BrainExportConfig:
+        if not (self.semantic_search or self.keyword_search):
+            raise ValueError("turn on meaning search, word search or both: a package needs one way to find passages")
+        return self
+
+    @field_validator("llm_base_url")
+    @classmethod
+    def _llm_url(cls, v: str) -> str:
+        v = v.strip().rstrip("/")
+        if v and not v.startswith(("http://", "https://")):
+            raise ValueError("llm_base_url must start with http:// or https://")
+        return v
 
     @field_validator("device")
     @classmethod
@@ -63,6 +109,12 @@ class BrainExportConfig(BaseModel):
         return {
             "device": self.device, "host": self.host, "port": self.port,
             "top_k": self.top_k, "reranker": self.reranker_enabled,
+            "semantic": self.semantic_search, "keyword": self.keyword_search,
+            "answer": self.answer_enabled, "provider": self.llm_provider,
+            "llm_base_url": self.llm_base_url, "llm_model": self.llm_model.strip(),
+            "llm_headers": dict(self.llm_headers), "llm_body": dict(self.llm_body),
+            "file_inline_max_mb": self.originals_inline_max_mb,
+            "hide_file_names": self.hide_file_names,
         }
 
 

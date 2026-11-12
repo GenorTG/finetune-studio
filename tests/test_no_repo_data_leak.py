@@ -32,3 +32,12 @@ def test_no_module_binds_the_real_db_path(temp_db: str) -> None:
     assert all(REPO not in r.resolve().parents for r in roots), roots
     assert not (REPO / "data" / "projects" / "leakprobe").exists()
     assert not (REPO / "data" / "projects" / "leakprobe2").exists()
+
+
+def test_the_import_time_init_db_never_opened_the_repo_database() -> None:
+    """``finetune_studio.db`` initialises its schema at import; under pytest that must be the session DB, not the
+    live app's ``data/finetune_studio.db`` (tests/conftest.py sets the path before the import)."""
+    from tests.conftest import SESSION_DB
+
+    assert Path(SESSION_DB).exists()
+    assert REPO not in Path(SESSION_DB).resolve().parents

@@ -23,8 +23,8 @@
     if (!r.ok) throw new Error("HTTP " + r.status);
     return r.json();
   }
-  async function trainableModels() {
-    const d = await getJSON("/api/models/list?for_training=true");
+  async function answerModels() {
+    const d = await getJSON("/api/models/list?for_selector=true");
     return Array.isArray(d) ? d : [];
   }
   async function projectList() {
@@ -42,34 +42,32 @@
     {
       target: null,
       title: "WELCOME TO FINETUNE STUDIO",
-      body: "Use your files in two different ways: Smart Brain retrieves answers with sources; " +
-            "an Adapter learns response style and format from curated examples, and may retain " +
-            "some trained facts. This short tour shows the setup. Esc skips; Settings → Replay " +
-            "brings it back.",
+      body: "Turn your files into a Smart Brain that answers questions with their sources, then " +
+            "export it as one package your models can use. Training a model is there too, as an optional extra. " +
+            "This short tour shows the setup. Esc skips; Settings \u2192 Replay brings it back.",
     },
     {
       target: ".sb-group-tools",
-      title: "1 · GET A BASE MODEL",
-      body: "Training starts from an existing open model. Model library downloads " +
-            "one from Hugging Face; My models lists what is already on this machine. " +
-            "For a first run pick something small (Qwen3-0.6B, ~1.2 GB, minutes to train); " +
-            "for real results a 4B model on a 24 GB GPU.",
+      title: "1 · GET A MODEL",
+      body: "The Smart Brain needs a model to write its answers: one on this machine, or an API " +
+            "connection in Settings \u2192 AI assistant. Model library downloads one from Hugging Face; " +
+            "My models lists what is already here. A 4B model on a GPU is a good start.",
       live: async () => {
-        const ms = await trainableModels();
-        if (!ms.length) return { ok: false, text: "You have no trainable base model yet — download one first." };
+        const ms = await answerModels();
+        if (!ms.length) return { ok: false, text: "No model on this machine yet: download one, or set up an API connection." };
         const names = ms.slice(0, 3).map((m) => m.name).join(", ");
-        return { ok: true, text: `✓ ${ms.length} base model(s) ready: ${names}${ms.length > 3 ? ", …" : ""}` };
+        return { ok: true, text: `\u2713 ${ms.length} model(s) ready: ${names}${ms.length > 3 ? ", \u2026" : ""}` };
       },
-      cta: async () => ((await trainableModels()).length ? null
+      cta: async () => ((await answerModels()).length ? null
         : { label: "Open Model library", href: "/models/explore" }),
     },
     {
       target: "#new-project-btn",
       route: "/projects",
       title: "2 · CREATE A PROJECT",
-      body: "A project holds one job's files, datasets, training runs, tests and " +
-            "exports, kept apart from everything else. Name it after what the model " +
-            "should know (\"Support FAQ\", \"Product manuals\").",
+      body: "A project holds one set of files with its Smart Brain, tests and any trained models, " +
+            "kept apart from everything else. Name it after what it should know " +
+            "(\"Support FAQ\", \"Product manuals\").",
       live: async () => {
         const ps = await projectList();
         return ps.length ? { ok: true, text: `✓ You have ${ps.length} project(s).` }
@@ -78,19 +76,17 @@
     },
     {
       target: null,
-      title: "3 · QUICK WORK DOES THE CHAIN",
-      body: "Inside a project, ⚡ Quick work runs everything on one page: " +
-            "① upload files (PDF, DOCX, TXT, …) → ② generate question-answer pairs from them " +
-            "→ ③ build a dataset → ④ train → ⑤ test on questions held back from training " +
-            "→ ⑥ export or chat. Each step shows a status and links to its full page when " +
-            "you want more control (Files, Pairs, Training, …).",
+      title: "3 · ADD FILES, BUILD, ASK",
+      body: "Inside a project, open 2 Smart Brain: add your files (PDF, DOCX, TXT, \u2026), press " +
+            "Build Smart Brain, then ask. Each answer lists the files it came from, and if the " +
+            "files do not say, it tells you so.",
     },
     {
       target: "#sb-activity",
       title: "4 · LONG JOBS RUN IN THE BACKGROUND",
-      body: "Downloads, pair generation and training keep running while you browse. " +
+      body: "Downloads, Smart Brain builds and training keep running while you browse. " +
             "This button opens the activity feed with live progress; project pages also " +
-            "show GPU and RAM use. A small model trains in minutes; a 4B model can take an hour.",
+            "show GPU and RAM use. A Smart Brain builds in minutes.",
     },
     {
       target: null,
@@ -99,13 +95,20 @@
             "(or you) decides pass / partial / fail for every saved answer. Open a run, read the answers, " +
             "and press 1/2/3 to override the judge where it got it wrong — the judge is a model, not truth, " +
             "so spot-check 10–20 answers before trusting a score. " +
-            "Then Export (GGUF for llama.cpp, LM Studio, Ollama) or talk to it in Chat.",
+            "Then 4 Package builds one encrypted package your models can use over MCP or HTTP.",
+    },
+    {
+      target: null,
+      title: "OPTIONAL: TRAIN A MODEL",
+      body: "The Train a model group at the end of the project bar teaches a model your tone or " +
+            "format; \u26a1 Quick work runs those steps on one page. A trained model recalls facts " +
+            "only partly, so the Smart Brain stays the right tool for what your documents say.",
     },
     {
       target: "#sb-palette",
       title: "SHORTCUT: Ctrl+K",
       body: "Press Ctrl+K (Cmd+K on Mac) anywhere to jump to any page of any project — " +
-            "type \"train\", \"export\" or a project name.",
+            "type \"brain\", \"chat\" or a project name.",
       cta: async () => ((await projectList()).length
         ? null : { label: "Create my first project", href: "/projects#new" }),
       finish: true,
