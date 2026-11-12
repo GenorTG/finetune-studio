@@ -148,6 +148,12 @@ SETTING_HELP: dict[str, dict[str, str]] = {
         "pitfall": "Higher is slower for small gains.",
         "kb": "brain",
     },
+    "max_per_document": {
+        "meaning": "At most this many passages of one document in a search's top results before other documents get a turn (default 3; 0 = no cap).",
+        "guidance": "Keep 2-3 for top_k 10: one long e-mail thread or contract no longer fills the top results and pushes the passage that answers the second part of a question out. A document's other passages still fill the end when nothing else matches. Packages exported from this index use the same cap (the server's max_per_document / RAG_MAX_PER_DOCUMENT overrides it).",
+        "pitfall": "1 can hide a second passage you need from a long single-topic document; 0 restores the plain ranking.",
+        "kb": "brain",
+    },
     "eval_kind": {
         "meaning": "Held-out validation (the 10% slice the trainer never saw) or the full training set (memorisation check).",
         "guidance": "Held-out is the honest generalisation number.",

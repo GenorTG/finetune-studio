@@ -270,7 +270,7 @@
     </div>
   </summary>
   <div class="grid grid-12 gap-3 items-end">
-    <div class="col-span-5">
+    <div class="col-span-4">
       <label class="block text-xs muted mb-1"
              title="A reranker is a small cross-encoder model (separate from the embedder) that reads the query AND each candidate chunk together and outputs a relevance score. More accurate than raw embedding similarity but slower.">Reranker (cross-encoder) <span class="dim">?</span></label>
       <select id="s-reranker" aria-label="Reranker model" class="select">
@@ -278,10 +278,15 @@
         <option value="cross-encoder/ms-marco-MiniLM-L-6-v2">ms-marco-MiniLM-L-6-v2 (English, small; default without a GPU)</option>
       </select>
     </div>
-    <div class="col-span-3">
+    <div class="col-span-2">
       <label class="block text-xs muted mb-1"
              title="How many candidate chunks to rerank. More = slower but possibly better precision. The reranker then returns the top-K (configured separately) of these. Typical: 30–100.">Rerank top-N <span class="dim">?</span></label>
       <input id="s-rerank-top-n" aria-label="Candidates to rerank" type="number" min="1" max="200" value="50" class="input">
+    </div>
+    <div class="col-span-2">
+      <label class="block text-xs muted mb-1"
+             title="At most this many passages of one document in a search's top results before other documents get a turn (its other passages still fill the end when nothing else matches). Keeps one long e-mail or contract from pushing the deciding passage out. 0 = no cap. Default 3. Packages exported from this index use it too.">Per document <span class="dim">?</span></label>
+      <input id="s-max-per-doc" aria-label="Passages per document in the top results" type="number" min="0" max="100" value="3" class="input">
     </div>
     <div class="col-span-2 flex items-center gap-3">
       <label class="flex items-center gap-2 text-xs" title="Re-rank dense-vector search results with the cross-encoder. Adds latency but improves precision. Disable for fast lookup-only workflows."><input id="s-rerank-enabled" type="checkbox" checked> Rerank</label>
@@ -665,6 +670,7 @@
     const body = {
       reranker: reranker || null,
       rerank_top_n: topNEl ? parseInt(topNEl.value, 10) || 50 : 50,
+      max_per_document: (function () { const v = parseInt((document.getElementById('s-max-per-doc') || {}).value, 10); return isNaN(v) ? 3 : v; })(),
       rerank_enabled: !!(rerankOn && rerankOn.checked),
       hybrid_enabled: !!(hybridOn && hybridOn.checked),
     };
@@ -1756,6 +1762,7 @@
       };
       setVal('s-reranker', s.reranker);
       setVal('s-rerank-top-n', s.rerank_top_n);
+      setVal('s-max-per-doc', s.max_per_document);
       setChk('s-rerank-enabled', s.rerank_enabled);
       setChk('s-hybrid-enabled', s.hybrid_enabled);
       setVal('b-embedder', s.embedder);

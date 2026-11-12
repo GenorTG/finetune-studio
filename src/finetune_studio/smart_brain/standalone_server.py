@@ -34,6 +34,8 @@ Configuration precedence:  CLI flags > env (RAG_*) > rag.config.json > defaults.
     dense_extra/RAG_DENSE_EXTRA (also return the N best passages by meaning alone)
     follow_up/RAG_FOLLOW_UP (answers: follow-up searches the answer model may ask for, 0 = off; default 1)
     file_inline_max_mb/RAG_FILE_INLINE_MAX_MB (rag_get_document: larger files come back as a /files/ link; 20)
+    max_per_document/RAG_MAX_PER_DOCUMENT (passages of one document in a search's top results before others get a
+        turn: -1 = the index setting, default 3; 0 = no cap)
     config path: --config / RAG_CONFIG / <this dir>/rag.config.json
 
 Embedding, best available source first:
@@ -92,6 +94,7 @@ DEFAULT_CONFIG: dict = {
     "semantic": True, "keyword": True, "answer": False,
     "llm_base_url": "", "llm_model": "", "llm_api_key": "", "answer_max_tokens": 512,
     "llm_headers": {}, "llm_body": {}, "follow_up": 1, "provider": "openai", "file_inline_max_mb": 20,
+    "max_per_document": -1,
 }
 ENV_KEYS = {
     "host": "RAG_HOST", "port": "RAG_PORT", "top_k": "RAG_TOP_K",
@@ -104,6 +107,7 @@ ENV_KEYS = {
     "answer_max_tokens": "RAG_ANSWER_MAX_TOKENS",
     "llm_headers": "RAG_LLM_HEADERS", "llm_body": "RAG_LLM_BODY", "follow_up": "RAG_FOLLOW_UP",
     "provider": "RAG_LLM_PROVIDER", "file_inline_max_mb": "RAG_FILE_INLINE_MAX_MB",
+    "max_per_document": "RAG_MAX_PER_DOCUMENT",
 }
 SECRET_KEYS = frozenset({"auth_token", "embed_api_key", "llm_api_key"})
 BOOL_KEYS = frozenset({"reranker", "semantic", "keyword", "answer"})
@@ -173,13 +177,38 @@ def _resolve_device(requested: str) -> str:
     return req
 
 
+DEFAULT_MAX_PER_DOCUMENT = 3
+CANDIDATES_PER_RESULT = 4
+
+
+def diversify(hits: list, top_k: int, max_per_document: int) -> list:
+    """The first ``top_k`` hits with at most ``max_per_document`` per document first, then the overflow in order
+    (0 = no cap). A copy of the studio's ``smart_brain.diversity.diversify`` (this file ships on its own)."""
+    if max_per_document <= 0:
+        return hits[:top_k]
+    kept: list = []
+    overflow: list = []
+    per_doc: dict = {}
+    for h in hits:
+        if len(kept) >= top_k:
+            break
+        key = str(h.get("document_id") or h.get("filename") or h.get("source") or "")
+        if per_doc.get(key, 0) < max_per_document:
+            per_doc[key] = per_doc.get(key, 0) + 1
+            kept.append(h)
+        else:
+            overflow.append(h)
+    return kept + overflow[: max(0, top_k - len(kept))]
+
+
 class ConfigError(Exception):
     """Bad configuration / refusal to start (reported, exit code 2)."""
 
 
 def _coerce(key: str, value: object) -> object:
     try:
-        if key in ("port", "top_k", "dense_extra", "answer_max_tokens", "follow_up", "file_inline_max_mb"):
+        if key in ("port", "top_k", "dense_extra", "answer_max_tokens", "follow_up", "file_inline_max_mb",
+                   "max_per_document"):
             return int(value)  # type: ignore[call-overload]
         if key == "query_prefix":   # "\n" in an env value / unit file = a newline (Qwen3: "Instruct: …\nQuery:")
             return str(value).replace("\\n", "\n")
@@ -233,6 +262,8 @@ def resolve_config(flags: Mapping[str, object], env: Mapping[str, str],
         raise ConfigError("answer_max_tokens must be 16..32768")
     if not 0 <= cfg["follow_up"] <= MAX_FOLLOW_UPS:
         raise ConfigError(f"follow_up must be 0..{MAX_FOLLOW_UPS}")
+    if not -1 <= cfg["max_per_document"] <= MAX_TOP_K:
+        raise ConfigError(f"max_per_document must be -1 (the index setting), 0 (no cap) or 1..{MAX_TOP_K}")
     if not 1 <= cfg["file_inline_max_mb"] <= 512:
         raise ConfigError("file_inline_max_mb must be 1..512")
     if not (cfg["semantic"] or cfg["keyword"]):
@@ -413,6 +444,9 @@ class Corpus:
         self._model_lock = threading.RLock()
         self.rerank_enabled = bool(self.cfg["reranker"]) and bool(rs.get("rerank_enabled", False))
         self.rerank_top_n = int(rs.get("rerank_top_n", 50))
+        # -1 = the index's own setting (the studio's Smart Brain settings; 3 when it has none)
+        cap = int(self.cfg.get("max_per_document", -1))
+        self.max_per_document = int(rs.get("max_per_document", DEFAULT_MAX_PER_DOCUMENT)) if cap < 0 else cap
         if self.semantic and not self.keyword and not self.embed_base \
                 and not self._looks_like_model(self.dir / "embedder"):
             # Meaning search alone with nothing to embed the question: every search would come back empty.
@@ -637,6 +671,8 @@ class Corpus:
                 rrf[cid] = rrf.get(cid, 0.0) + 1.0 / (self.rrf_k + rank)
         reranker = self.local_reranker()
         n_candidates = max(top_k, self.rerank_top_n) if reranker is not None else top_k
+        if self.max_per_document > 0:     # room to pass over a document's extra passages
+            n_candidates = max(n_candidates, top_k * CANDIDATES_PER_RESULT)
         ordered = sorted(rrf.items(), key=lambda kv: -kv[1])[: max(1, n_candidates)]
 
         hits = []
@@ -674,7 +710,7 @@ class Corpus:
                 hits = pool + hits[len(pool):]
             except Exception as e:  # noqa: BLE001
                 print(f"[warn] rerank failed ({e}); keeping RRF order", file=sys.stderr)
-        hits = hits[:top_k]
+        hits = diversify(hits, top_k, self.max_per_document)
         extra = self.dense_extra if dense_extra is None else min(max(0, int(dense_extra)), MAX_TOP_K)
         if extra and dense_scores is not None:
             have = {h["chunk_id"] for h in hits}
@@ -1545,6 +1581,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--host", help="bind address (default 127.0.0.1)")
     ap.add_argument("--port", type=int, help="HTTP port (default 8899)")
     ap.add_argument("--top-k", dest="top_k", type=int, help="results per search (default 10)")
+    ap.add_argument("--max-per-document", dest="max_per_document", type=int,
+                    help="passages of one document in the top results before others get a turn (0 = no cap)")
     ap.add_argument("--device", help="auto (GPU first, default) | cpu | cuda | cuda:N | xpu | mps for bundled models")
     ap.add_argument("--reranker", dest="reranker", action="store_true", default=None,
                     help="enable the bundled reranker")
@@ -1580,7 +1618,7 @@ def build_parser() -> argparse.ArgumentParser:
     return ap
 
 
-_FLAG_KEYS = ("host", "port", "top_k", "device", "reranker", "auth_token",
+_FLAG_KEYS = ("host", "port", "top_k", "max_per_document", "device", "reranker", "auth_token",
               "embed_model", "embed_base_url", "semantic", "keyword", "answer", "llm_base_url", "llm_model")
 
 

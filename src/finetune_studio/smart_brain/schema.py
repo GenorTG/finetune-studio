@@ -37,6 +37,7 @@ class RetrievalSettings:
     rerank_top_n: int = 50    # retrieve this many candidates before rerank
     hybrid_enabled: bool = True
     rrf_k: int = 60
+    max_per_document: int = 3    # at most this many passages of one document in a search's top results (0 = no cap)
     extra: dict = field(default_factory=dict)
 
 
