@@ -333,7 +333,7 @@ def test_card_head_stacks_below_700() -> None:
 def test_css_cache_bust_bumped() -> None:
     base = _BASE.read_text(encoding="utf-8")
     assert "app.css?v=138" in base
-    assert "sprites.js?v=20" in base
+    assert "sprites.js?v=21" in base
     assert "nav_overflow.js?v=3" in base
 
 
@@ -344,6 +344,12 @@ def test_data_prep_styles_live_in_versioned_stylesheet() -> None:
     assert "<style>" not in template
     assert ".dp-review-toolbar" in css and ".dp-points-col" in css and ".fl-tree" in css
     assert "app.css?v=138" in base
+
+
+def test_data_stream_sprite_is_limited_to_data_prep_routes() -> None:
+    sprites = (Path(__file__).parents[1] / "src/finetune_studio/webui/static/js/sprites.js").read_text(encoding="utf-8")
+    assert "if (/\\/data-prep(?:\\/|$)/.test(path))" in sprites
+    assert "|| /\\/data\\b/.test(path)" not in sprites
 
 
 def test_testing_page_styles_live_in_versioned_stylesheet() -> None:
