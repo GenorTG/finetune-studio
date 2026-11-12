@@ -27,6 +27,7 @@ SIMILAR_PASSAGES = 0.86          # cosine: "these two passages are about the sam
 MAX_PASSAGES_COMPARED = 20_000
 MAX_CONFLICT_EXAMPLES = 3
 MAX_LABEL_VALUES = 3
+TEMPLATE_DOCS = 4                # a label with its own value in this many documents is a form field
 
 _TABULAR = re.compile(r"\.(csv|tsv|xlsx?|ods|json|jsonl)$", re.IGNORECASE)
 _OLD_NAME = re.compile(r"(?:^|[\W_])(superseded|obsolete|deprecated|outdated|old|archived?|draft|backup|copy)(?:[\W_]|$)", re.IGNORECASE)
@@ -185,8 +186,24 @@ def _labelled_values(text: str) -> dict[str, set[tuple[str, str]]]:
     return out
 
 
-def _check_conflicts(pid: str, sources: list[Source]) -> list[Finding]:
-    """Passages of different files that say the same thing with a different number for the same label."""
+def _template_labels(texts: list[str], docs: list[str]) -> set[tuple[str, str]]:
+    """Labels that are a field of a repeated form ("station raised 932 EUR"), not a fact: many documents state them,
+    each with its own value. Read over the whole index, not only the pairs that clash."""
+    values: dict[tuple[str, str], set[str]] = defaultdict(set)
+    holders: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for text, doc in zip(texts, docs, strict=True):
+        for label, found in _labelled_values(text).items():
+            for value, unit in found:
+                values[(label, unit)].add(value)
+                holders[(label, unit)].add(doc)
+    return {key for key, docs_with in holders.items()
+            if len(docs_with) >= TEMPLATE_DOCS and len(values[key]) > MAX_LABEL_VALUES}
+
+
+def _check_conflicts(pid: str, sources: list[Source], outdated: set[str] | None = None) -> list[Finding]:
+    """Passages of different files that say the same thing with a different number for the same label.
+
+    A pair with a file already reported as out of date is left out: that finding says what to do about it."""
     corpus = brain_index_dir(pid)
     if not ((corpus / "vectors.npy").is_file() and (corpus / "chunks.parquet").is_file()):
         return []
@@ -202,7 +219,8 @@ def _check_conflicts(pid: str, sources: list[Source]) -> list[Finding]:
     matrix = np.asarray(vectors[rows], dtype=np.float32)
     docs = chunks["document_id"].to_numpy()
     texts = chunks["text"].tolist()
-    by_id = {s.id: s for s in sources}
+    by_id = {s.id: s for s in sources if s.id not in (outdated or set())}
+    template = _template_labels(texts, [str(d) for d in docs])
     found: dict[tuple[str, str], list[tuple[str, str, str]]] = defaultdict(list)
     label_values: dict[tuple[str, str], set[str]] = defaultdict(set)
     for start in range(0, len(matrix), 512):
@@ -221,7 +239,7 @@ def _check_conflicts(pid: str, sources: list[Source]) -> list[Finding]:
                     for value, unit in right[label]:
                         right_by_unit[unit].add(value)
                     for unit in left_by_unit.keys() & right_by_unit.keys():
-                        if left_by_unit[unit] & right_by_unit[unit]:
+                        if left_by_unit[unit] & right_by_unit[unit] or (label, unit) in template:
                             continue
                         pair = tuple(sorted((str(docs[i]), str(docs[j]))))
                         a, b = (left, right) if pair[0] == docs[i] else (right, left)
@@ -275,12 +293,29 @@ def set_ignored(pid: str, key: str, ignored: bool) -> None:
     os.replace(tmp, path)
 
 
+def excluded_documents(pid: str) -> dict[str, str]:
+    """Documents a quiz should not ask about: out of date, or a duplicate of another file (unless ignored).
+    {source id: why}. The first file of a duplicate group is kept."""
+    report = lint(pid)
+    out: dict[str, str] = {}
+    for f in report["findings"]:
+        if f["ignored"]:
+            continue
+        if f["rule"] == "old_version":
+            out.update({x["id"]: "out of date" for x in f["files"]})
+        elif f["rule"] in ("duplicate", "near_duplicate"):
+            out.update({x["id"]: "duplicate" for x in f["files"][1:]})
+    return out
+
+
 def lint(pid: str) -> dict[str, Any]:
     """Run every check. Blocking (reads every parsed file): async callers use a thread."""
     sources = [s for s in list_sources(pid) if not s.deleted]
     texts = {s.id: parsed_text(pid, s) for s in sources if s.ready}
-    findings = [*_check_files(sources, texts), *_check_conflicts(pid, sources), *_check_index(pid, sources)]
     ignored = ignored_keys(pid)
+    file_findings = _check_files(sources, texts)
+    outdated = {f["id"] for x in file_findings if x.rule == "old_version" and x.key not in ignored for f in x.files}
+    findings = [*file_findings, *_check_conflicts(pid, sources, outdated), *_check_index(pid, sources)]
     for f in findings:
         f.ignored = f.key in ignored
     findings.sort(key=lambda f: (f.ignored, f.severity != "error", f.rule))
