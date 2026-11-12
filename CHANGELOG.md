@@ -11,6 +11,8 @@ turns that section into the release's notes.
 
 - Training: a run that stopped or failed before saving a checkpoint no longer offers Set production, Open in inference
   or Export; the buttons are off and the row says why. A stopped run that did save an adapter stays usable.
+- The Smart Brain quiz checks “unanswerable” questions against the index's top 10 hybrid-search passages, so answers
+  assembled from more than one document are less likely to be mislabeled as missing.
 - The host resources card (RAM and VRAM bars) is only on the dashboard, Training, Inference and My models, below the page
   title and smaller on phones; the knowledge pages open on their title and next step (the top bar keeps the VRAM pill).
 - The knowledge package leads everywhere: the dashboard's quick actions are New project, Open <last project> and
