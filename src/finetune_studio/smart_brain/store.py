@@ -261,7 +261,8 @@ class BrainIndex:
         for d in docs:
             (sources_dir / f"{d.document_id}.txt").write_text(d.text, encoding="utf-8")
             all_documents.append({"document_id": d.document_id, "source": d.source,
-                                  "content_text_path": f"sources/{d.document_id}.txt", "filename": d.filename})
+                                  "content_text_path": f"sources/{d.document_id}.txt", "filename": d.filename,
+                                  **({"path": d.path} if getattr(d, "path", "") else {})})
 
         pd = try_import_pandas()
         chunks_df = pd.DataFrame(all_chunks)

@@ -42,7 +42,8 @@ def test_scope_rules() -> None:
     _keep_ids, record = sc.resolve(sc.DocumentScope(include=["public/"], exclude=["public/prices/"]), DOCS)
     assert record["documents"] == 1 and record["of"] == 3 and record["label"] == "paths public/ except public/prices/"
     ov = sc.overview(DOCS)
-    assert {f["prefix"]: f["count"] for f in ov["folders"]} == {"internal/": 1, "public/": 1, "public/prices/": 1}
+    # every folder level counts what is below it (public/ holds public/prices/ too)
+    assert {f["prefix"]: f["count"] for f in ov["folders"]} == {"internal/": 1, "public/": 2, "public/prices/": 1}
     assert {t["tag"]: t["count"] for t in ov["tags"]} == {"faq": 2, "hr": 1} and ov["total"] == 3
 
 
@@ -103,11 +104,8 @@ def test_project_documents_carry_folder_path_and_tags(tmp_path: Path, monkeypatc
         {"document_id": "aaa", "filename": "a.pdf"}, {"document_id": "aaa~facts", "filename": "a.pdf · facts"},
         {"document_id": "bbb", "filename": "b.txt"}]}}))
     files_ = [{"id": "f1", "original_name": "a.pdf", "tags": "public, faq"}, {"id": "f2", "original_name": "b.txt", "tags": ""}]
-    monkeypatch.setattr("finetune_studio.data.fs.file_library.list_files",
-                        lambda pid, folder_id=None: [f for f in files_ if folder_id in (None, "fu1") and
-                                                     (folder_id is None or f["id"] == "f1")])
-    monkeypatch.setattr("finetune_studio.data.fs.file_library.list_folders",
-                        lambda pid, include_auto=True: [{"id": "fu1", "name": "public"}])
+    monkeypatch.setattr("finetune_studio.data.fs.file_library.list_files", lambda pid, folder_id=None: files_)
+    monkeypatch.setattr("finetune_studio.data.fs.file_library.folder_paths", lambda pid: {"f1": "public"})
     monkeypatch.setattr("finetune_studio.knowledge.sources.list_sources", lambda pid: [
         SimpleNamespace(id="aaa", file_id="f1"), SimpleNamespace(id="bbb", file_id="f2")])
     docs = sc.documents(corpus, "p1")

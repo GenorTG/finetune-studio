@@ -88,11 +88,8 @@ def documents(corpus_dir: str | Path, pid: str | None = None) -> list[DocRef]:
         from finetune_studio.data.fs import file_library as fl
         from finetune_studio.knowledge import sources
 
-        by_file = {f["id"]: dict(f, folder="") for f in fl.list_files(pid)}
-        for folder in fl.list_folders(pid, include_auto=False):   # user folders only (not the by-type ones)
-            for f in fl.list_files(pid, folder_id=folder["id"]):
-                if f["id"] in by_file and not by_file[f["id"]]["folder"]:
-                    by_file[f["id"]]["folder"] = folder["name"]
+        paths = fl.folder_paths(pid)            # user folders only (not the by-type ones); a path: public/faq
+        by_file = {f["id"]: dict(f, folder=paths.get(f["id"], "")) for f in fl.list_files(pid)}
         for s in sources.list_sources(pid):
             f = by_file.get(s.file_id)
             if f is not None:
@@ -108,7 +105,8 @@ def documents(corpus_dir: str | Path, pid: str | None = None) -> list[DocRef]:
         name = str((f or {}).get("original_name") or meta.get("filename") or did)
         folder = str((f or {}).get("folder") or "")
         tags = tuple(t.strip() for t in str((f or {}).get("tags") or "").split(",") if t.strip())
-        out.append(DocRef(did, name, f"{folder}/{name}" if folder else name, tags))
+        path = f"{folder}/{name}" if folder else str(meta.get("path") or "") if f is None else name
+        out.append(DocRef(did, name, path or name, tags))
     return out
 
 
@@ -127,9 +125,10 @@ def overview(docs: list[DocRef]) -> dict:
     """Folders and tags with their document counts, for the Export card's picker."""
     folders: dict[str, int] = {}
     tags: dict[str, int] = {}
-    for d in docs:
-        folder = d.path.rsplit("/", 1)[0] + "/" if "/" in d.path else ""
-        folders[folder] = folders.get(folder, 0) + 1
+    for d in docs:     # every folder level counts what is below it: public/ 40, public/faq/ 9
+        parts = d.path.split("/")[:-1]
+        for prefix in ([""] if not parts else ["/".join(parts[: i + 1]) + "/" for i in range(len(parts))]):
+            folders[prefix] = folders.get(prefix, 0) + 1
         for t in d.tags:
             tags[t] = tags.get(t, 0) + 1
     return {"total": len(docs),
