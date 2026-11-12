@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- A package exported with models and then opened in a project (Import / `fts brain import`) can be exported again with models: its reranker came back as a bare short id and the next export stopped with "the reranker … could not be bundled".
+
 - The knowledge check now finds an older version when each version's file name also carries its own year or date (`Employee_Handbook_v1_2023.pdf` next to `Employee_Handbook_v2_2025.docx`); before, the year kept them apart and the superseded file went unflagged. A lower version with a later year (`budget_2025_v1` next to `budget_2024_v3`) is not called older.
 
 - Smart Brain packages are versioned: each carries a stable package id, a version, its build date, parent version and a document list (name, sha256, size) in `rag_info`, `/health`, the README and `package.json`. On the Export card "New version of …" keeps a package's id, bumps its version and reports the documents added, changed and removed (`CHANGES.md`, the Package page's new "Package versions" card); an exported archive can be read as the base. "Open a package" (Smart Brain → Import, or `fts brain import` with a `.tar.gz`/`.zip` package and its passphrase) makes a package's index the project's starting knowledge and puts its original files back in Files, in their folders, to edit and export the next version. A running copy updates in place with `bash update.sh NEW.tar.gz` (or `setup.sh --update`): it keeps `rag.config.json` edits and the keyfile, refuses another package id or an older version unless `--force`, checks the passphrase first and reports old → new version.

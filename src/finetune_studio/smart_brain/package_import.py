@@ -87,14 +87,18 @@ def _unpack(archive: Path, dest: Path) -> Path:
 
 
 def _portable_embedder(manifest: dict) -> None:
-    """A package built with models names its embedder by short id; the studio's index wants ``shared:embedder:``."""
-    for holder, key in ((manifest.get("embedding_model") or {}, "name"), (manifest.get("rag_settings") or {}, "embedder")):
+    """A package built with models names its embedder and reranker by short id; the studio's index wants
+    ``shared:<kind>:<id>``. A reranker left as a bare short id made the next export with models fail ("could not be
+    bundled": it was looked up as a Hugging Face repo id)."""
+    settings = manifest.get("rag_settings") or {}
+    for holder, key, kind in ((manifest.get("embedding_model") or {}, "name", "embedder"),
+                              (settings, "embedder", "embedder"), (settings, "reranker", "reranker")):
         ref = str(holder.get(key) or "")
-        if ref and not ref.startswith(("shared:", "embedder_local:")):
+        if ref and not ref.startswith(("shared:", "embedder_local:", "reranker_local:")):
             from finetune_studio.data import shared_models as sm
             with contextlib.suppress(Exception):   # not in this studio's store: the name stays as it was
-                if Path(sm.resolve(ref, "embedder")).is_dir():
-                    holder[key] = f"shared:embedder:{ref}"
+                if Path(sm.resolve(ref, kind)).is_dir():
+                    holder[key] = f"shared:{kind}:{ref}"
 
 
 def _restore_index(pkg: _Package, target: Path) -> dict[str, Any]:
