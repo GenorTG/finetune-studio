@@ -190,8 +190,17 @@ def test_open_an_encrypted_package_with_originals_and_export_its_next_version(
     assert unknown.status_code == 404
     # Two NEW packages of one project (a public bot, an internal one) are both 1.0.0: each keeps its own file.
     first, second = (client.post(f"/api/projects/{pid}/brain/standalone",
-                                 json={"semantic_search": False, "passphrase": PASS}).json() for _ in range(2))
+                                 json={"semantic_search": False, "passphrase": PASS, "name": name, "audience": aud}).json()
+                     for name, aud in (("Highmere public bot", "public"), ("Highmere staff", "internal")))
     assert first["package"]["version"] == second["package"]["version"] == "1.0.0"
+    # The versions list tells them apart: name, audience, scope, originals and file names per version.
+    by_name = {p["name"]: p for p in client.get(f"/api/projects/{pid}/brain/packages").json()["packages"]}
+    assert by_name["Highmere public bot"]["audience"] == "public" and by_name["Highmere staff"]["audience"] == "internal"
+    v = by_name["Highmere staff"]["versions"][0]
+    assert v["scope"] == "all documents" and v["originals"] == 0 and v["hide_file_names"] is False
+    assert first["filename"].startswith("Highmere-public-bot-smart-brain-")
+    bad = client.post(f"/api/projects/{pid}/brain/standalone", json={"passphrase": PASS, "audience": "everyone"})
+    assert bad.status_code == 422
     assert len({first["filename"], second["filename"], j["filename"]}) == 3
     files_on_disk = {r["filename"] for p in client.get(f"/api/projects/{pid}/brain/packages").json()["packages"]
                      for r in p["versions"] if r.get("origin") == "exported"}
@@ -199,10 +208,10 @@ def test_open_an_encrypted_package_with_originals_and_export_its_next_version(
     assert all((pm.package_dir(pid) / f).is_file() for f in files_on_disk)
     page = client.get(f"/projects/{pid}/export").text
     assert 'id="package-versions"' in page and "/brain/packages" in page and 'id="package-changes"' in page
-    brain = client.get(f"/projects/{pid}/brain").text
     for marker in ('id="mcp-base"', 'id="mcp-version"', 'id="mcp-base-upload"', "new_version_of: document.getElementById",
-                   "/brain/package-base", "open an exported package"):
-        assert marker in brain
+                   "/brain/package-base", 'id="mcp-name"', 'id="mcp-audience"', "data-new-version"):
+        assert marker in page
+    assert "open an exported package" in client.get(f"/projects/{pid}/brain").text
 
 
 def test_the_file_name_carries_the_package_id() -> None:

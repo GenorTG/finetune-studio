@@ -24,10 +24,15 @@ def test_spa_navigation_keeps_the_links_hash_target() -> None:
     assert top < hashed and 'target.tagName === "DETAILS"' in spa[top:hashed]
 
 
-def test_package_link_points_at_the_export_panel(client) -> None:
+def test_package_link_points_at_the_package_form(client) -> None:
     pid = client.post("/api/projects", json={"name": "agent-test-dead-ends-2"}).json()["id"]
-    assert f'href="/projects/{pid}/brain#brain-export-panel"' in client.get(f"/projects/{pid}/export").text
-    assert 'id="brain-export-panel"' in client.get(f"/projects/{pid}/brain").text
+    page = client.get(f"/projects/{pid}/export").text
+    assert 'id="package-build-link" href="#package-form"' in page and 'id="package-form"' in page
+    # Before the first build the form says what to do instead of offering a button that can only fail.
+    assert 'id="package-form-empty"' in page and f'href="/projects/{pid}/brain" data-link>Build the Smart Brain' in page
+    brain = client.get(f"/projects/{pid}/brain").text
+    assert 'id="brain-copy-panel"' in brain and f'href="/projects/{pid}/export#package-form"' in brain
+    assert 'id="mcp-pkg-btn"' not in brain, "the package form lives on the Package page only"
 
 
 def test_package_documents_before_the_first_build_is_empty_not_404(client) -> None:

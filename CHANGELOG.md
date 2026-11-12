@@ -14,6 +14,13 @@ turns that section into the release's notes.
   the base model and system prompt folded under "Training (optional)"; the Files page points to the Smart Brain and
   the Package step; the first-run tour goes project → files → answer model → test → package and opens by itself only
   on the dashboard; the Guide suggests package questions first.
+- The Package page now holds the package form: who it is for, which documents go in, original files and file names,
+  answers, version, then Build & download; server and search tuning fold under Advanced. Before the first Smart Brain
+  build it says to build it first, and a blocking knowledge-check finding is shown next to the button with a link. The
+  Smart Brain page keeps only "Copy this index to another studio" (`.ftsrag`).
+- Packages get a name and an audience (your team / customers; customers also hides file names and leaves the original
+  files out). Package versions shows each package's name, audience, scope, document count and id, and per version
+  the original files and file-name setting; "New version of this" picks it in the form.
 
 - Settings → Apply update finds `uv` where it was installed (Linuxbrew, `~/.local/bin`, `~/.cargo/bin` or the path the
   installer recorded) instead of failing every dependency step, and an update whose dependency sync or build fails
