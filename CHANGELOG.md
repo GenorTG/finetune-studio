@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-12
+
 - New projects' optional base-model list now excludes inference-only and other projects' exported models, and de-duplicates identical paths.
 - The dashboard puts its knowledge-package actions immediately under the welcome text, ahead of machine telemetry.
 - The in-app Guide now names controls by their visible labels instead of exposing internal page-anchor IDs.
@@ -219,6 +221,7 @@ numbered `0.1.0.N`, one per commit.
   CLI called them (project files go through Files & Knowledge and Data prep; `fts analyze` / `fts validate-hallucination`
   are unchanged). Unused code: `templates.TemplateManager`, `HallucinationGuardrail` and a few helpers nothing called.
 
-[Unreleased]: https://github.com/GenorTG/finetune-studio/compare/v0.3.0...dev
+[Unreleased]: https://github.com/GenorTG/finetune-studio/compare/v0.4.0...dev
+[0.4.0]: https://github.com/GenorTG/finetune-studio/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/GenorTG/finetune-studio/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/GenorTG/finetune-studio/releases/tag/v0.2.0
