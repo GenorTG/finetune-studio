@@ -9,303 +9,141 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
-- Fewer wrong "unanswerable" questions in the quiz the Testing page writes from your documents: before a question is kept as one the documents do not answer, the check now counts answers given by clear implication (a rule for a whole product range, "included" for a price) and runs deterministically. On a 15-file sample both "unanswerable" questions of the first quiz were in fact answered by the files (so a correct answer was marked fail); with the new check 2 of the 3 kept ones are truly unanswerable. Read the unanswerable questions before you trust the score.
+The knowledge-package beta. A project now goes **files → Smart Brain → test → package**: upload your documents, let
+the knowledge check find what is wrong with them, say who the answers speak for, test the answers on a quiz written
+from your own files, and export one encrypted package that any model can use over MCP or HTTP. Training a LoRA
+adapter stays in the app as the optional extra for tone and format. Linux only (NVIDIA GPU or CPU), as before.
 
-- No more dead ends in the first run: *New project* → Create opens the new project (it used to leave you on the list), the Package page's *Build the package* now lands on the Smart Brain's export panel (it used to show the top of the page), and the Smart Brain page of a project that was never built no longer logs a 404 in the browser console.
+### Highlights: the knowledge package
 
-- Answers show their formatting: **bold**, `code`, headings and bullet lists in Smart Brain answers (and on a package's own chat page) are rendered instead of appearing as raw asterisks and hashes.
-
-- Two packages of one project no longer share a file: the archive name now carries the package id (`<name>-smart-brain-<id>-v1.0.0.tar.gz`). Before, exporting a second new package (say the internal one after a public-folder bot) overwrote the first one's file while Package versions still listed both, so downloading the public one could hand out the other.
-
-- Public bots can hide file names: Export → *Hide file names in answers* (`fts brain export --hide-file-names`, `RAG_HIDE_FILE_NAMES=1` where it runs; off by default). The package's answers then cite no `[file.docx]` (the answer model sees passages by number only and any file name it writes is removed) and its chat page shows no source list; your own tools still get the sources with `POST /ask {"sources": true}` or `rag_answer` with `include_sources`.
-
-- Folders nest: upload a whole folder (Files → *or a whole folder*, drag and drop a folder, `POST …/files/upload` with `folder_path` / `paths`, or `fts files upload DIR [--folder public]`) and its sub-folders are kept (`public/faq/returns.md` lands in `public/faq`). ＋ Folder takes a path, the folder chips show sub-folders under their parent, picking a folder also lists its sub-folders' files, and renaming or deleting a folder takes its sub-folders along. The Smart Brain index, the Export card's "Documents in the package" (any depth: `public/` or `public/faq/`), package manifests and the originals restored when a package is opened keep the full path. Existing one-level folders keep working unchanged.
-
-- The knowledge check links an amendment ("Amendment No. 1" citing the agreement's reference) to the agreement it amends and reports the pair as "amended: check the amendment's terms are used" instead of a duplicate or conflict; finds older sheets kept in a workbook ("Bands 2024" next to "Bands 2025", or a sheet titled "superseded") and year-named versions (`salary_bands_2024` next to `salary_bands_2025`); and shows a lone `…_DRAFT` file with nothing newer as a draft (information) instead of "out of date". `fts brain export` now refuses out-of-date documents nobody accepted, like the Export page (`--accept-superseded` packages them anyway).
-
-- When an answer says part of the question is not stated ("the value is not stated", "the context does not say who signed it"), the Smart Brain chat, Testing's grounded runs and packages (`/ask`, `rag_answer`) search once more for just that part and write the answer again; the reply says what was searched and which files it added (`followup`). On by default (chat: *Search again for a missing part*; packages: `RAG_RETRY_MISSING=0`; CLI: `fts brain ask --no-retry-missing`).
-
-- Smart Brain search no longer lets one document fill the top results: at most 3 passages of a document come first (Smart Brain → Retrieval settings → *Per document*, 0 = off), and its other passages still fill the end when nothing else matches. A long e-mail thread or contract stops pushing the passage that answers the second part of a question out of the top 10. The studio search and chat and exported packages use the same cap (package servers can override it with `max_per_document` / `RAG_MAX_PER_DOCUMENT` / `--max-per-document`).
-
-- Pictures in documents (chart images, table screenshots, scanned pages in docx, pptx and pdf files) are read by the vision reader as soon as the files are uploaded, whenever one is set in Settings → AI assistant → Reading pictures; before, only mining used it and a Smart Brain packaged the OCR text (a chart's months and values came apart). When only OCR read them, the parse result, the Files page ("N OCR only") and the Knowledge check say so ("N picture(s) read by OCR only — figures in charts may be wrong; set a vision reader") with a link to the setting; the Knowledge check's **Read pictures** button (or `fts brain pictures --read`) reads the ones left. Native Excel/PowerPoint/Word charts keep being read from their chart data.
-
-- A package exported with models and then opened in a project (Import / `fts brain import`) can be exported again with models: its reranker came back as a bare short id and the next export stopped with "the reranker … could not be bundled".
-
-- The knowledge check now finds an older version when each version's file name also carries its own year or date (`Employee_Handbook_v1_2023.pdf` next to `Employee_Handbook_v2_2025.docx`); before, the year kept them apart and the superseded file went unflagged. A lower version with a later year (`budget_2025_v1` next to `budget_2024_v3`) is not called older.
-
-- Smart Brain packages are versioned: each carries a stable package id, a version, its build date, parent version and a document list (name, sha256, size) in `rag_info`, `/health`, the README and `package.json`. On the Export card "New version of …" keeps a package's id, bumps its version and reports the documents added, changed and removed (`CHANGES.md`, the Package page's new "Package versions" card); an exported archive can be read as the base. "Open a package" (Smart Brain → Import, or `fts brain import` with a `.tar.gz`/`.zip` package and its passphrase) makes a package's index the project's starting knowledge and puts its original files back in Files, in their folders, to edit and export the next version. A running copy updates in place with `bash update.sh NEW.tar.gz` (or `setup.sh --update`): it keeps `rag.config.json` edits and the keyfile, refuses another package id or an older version unless `--force`, checks the passphrase first and reports old → new version.
-
-- A Smart Brain package can carry only part of the index: on the Export card pick "Only these" folders, file tags or single documents ("12 of 80 documents"), or `fts brain export --include public/ --exclude PREFIX --tag TAG`. The package holds only those documents' passages, vectors, a word index recomputed over them and their files; its README and `rag_info` state the scope, and the self-test checks that nothing outside it can be found. Build a public chatbot from `public/` and an internal assistant from everything.
-
-- Smart Brain packages can ship the original files (Export → "Include original files", `fts brain export --originals`; off by default, encrypted with the corpus): agents fetch one with the new MCP tool `rag_get_document`, ask "which files do you have about X" with `rag_list_documents`, browsers download at `GET /files/<id>`, and the package's chat page links each source's file. The package self-test fetches one file over MCP and HTTP and checks it is unchanged.
-
-- Smart Brain packages now stop on unreviewed superseded-document warnings, so obsolete facts cannot silently ship.
-
-- Exported Smart Brain packages now include a browser chat for OpenAI/Claude API connections, with short-lived in-memory conversation history; package verification exercises configured retrieval layers, and the knowledge check avoids numeric conflicts across unlike units.
+- **One main path.** Projects lead with `1 files → 2 Smart Brain → 3 test → 4 package`; training is an optional group at
+  the end of the project bar. The project checklist, Next hints, Quick work, the dashboard, the first-run tour and the
+  app's description all follow it.
+- **Knowledge check** (Smart Brain page, `fts brain lint`): finds unreadable files, duplicates, out-of-date versions
+  (also across file types, when file names carry years or dates, and older sheets kept inside a workbook), documents
+  that disagree, and leaked passwords or keys. An amendment is linked to the agreement it amends instead of being
+  called a conflict; a lone `…_DRAFT` is shown as a draft; form fields every document fills in, and figures in unlike
+  units, are not reported as conflicts. A package stops on out-of-date documents nobody accepted, on the Package page
+  and in `fts brain export` (`--accept-superseded` overrides).
+- **Identity**: your company, its personality and how it should answer go with every answer and test and are packed,
+  encrypted, into the export (MCP `rag_profile` and the server instructions, HTTP `/profile`).
+- **Tests need no training data**: Testing writes a quiz from your indexed documents, including questions they do not
+  answer, runs it and has an AI judge (or you) decide each answer (`fts brain quiz`). Out-of-date and duplicate
+  documents are left out of the quiz.
+- **The Package page** shows each step from files to package with its live state. Every package opens itself with its
+  own server before it is handed over and runs every search it ships, fetches an original file when it has them,
+  and for a partial package checks that nothing outside it can be found (`fts brain readiness`).
+- **Packages are versioned**: a stable package id, a version, a build date and a document list (name, sha256, size)
+  in `rag_info`, `/health`, the README and `package.json`. *New version of …* keeps the id, bumps the version and
+  reports the documents added, changed and removed (`CHANGES.md`, the Package page's *Package versions*). *Open a
+  package* (Smart Brain → Import, `fts brain import`) turns a package back into a project to edit, with its original
+  files back in Files. A running copy updates in place with `bash update.sh NEW.tar.gz`, keeping its config and keyfile.
+- **Audience scope**: a package can carry only some folders, tags or single documents ("8 of 15 documents";
+  `fts brain export --include public/ --exclude … --tag …`). Build a public chatbot from `public/` and an internal
+  assistant from everything; what is left out is not inside at all.
+- **Original files on request** (*Include original files*, `--originals`; off by default, encrypted with the corpus):
+  agents fetch a file with the MCP tool `rag_get_document` and list them with `rag_list_documents`, browsers download
+  at `GET /files/<id>`, and the package's chat page links each source's file.
+- **Public bots can hide file names** (*Hide file names in answers*, `--hide-file-names`, `RAG_HIDE_FILE_NAMES=1`).
+- **Every way in**: packages speak MCP over stdio and over HTTP (`POST /mcp`, today's clients and the stateless
+  2026-07-28 protocol; tools are marked read-only), plain HTTP, and a browser chat at `/` that answers through
+  OpenAI, Anthropic Claude, OpenRouter or a local server (the key is set where it runs, never in the package).
+  Each search layer (meaning search, word search, rank fusion, reranker, answer generation) is its own switch, and
+  the package ships only the files the layers you keep need.
+- **Better answers**: an answer that says part of the question is not stated searches once more for that part
+  (*Search again for a missing part*); a question that goes through another item can ask for a follow-up search
+  (Quillmoor benchmark, API model: 81.1 % → 96.1 % with the new reranker); one long document can no longer fill the
+  top results (at most 3 passages per document first); new indexes on a GPU rerank with bge-reranker-v2-m3 (right
+  passage in the top 5 for 89 % of questions instead of 79 %). Answers show their bold, code, headings and lists.
+- **Folders nest**: upload a whole folder and its sub-folders are kept (`public/faq/returns.md`), in Files, the index,
+  the package picker, manifests and opened packages.
+- **Pictures are read on upload** by the vision reader when one is set (Settings → AI assistant → Reading pictures):
+  chart images, table screenshots and scanned pages. Files and the knowledge check say when only OCR read them.
 
 ### Added
-- Package self-test runs every search the package ships, including meaning search when the embedder is not inside (it borrows the studio's copy), and then checks the chat page and `/mcp` of the running server.
-- Package MCP tools are marked read-only and the stdio server answers its handshake at once while the corpus opens, so Codex, Claude Code and similar clients see and run them without timing out.
-- Smart Brain packages speak MCP over HTTP (`POST /mcp`) as well as stdio, for remote MCP clients and web apps, and answer both today's MCP clients and the new stateless 2026-07-28 protocol.
-- A package can carry its answer connection: pick OpenAI, Anthropic Claude, OpenRouter or a local server at export; the key is set where it runs, never in the package. Its chat page uses that connection or one picked in the page, and shows the passages behind each answer.
-- Package page: each step from files to package with its live state, and every built package now opens itself with its own server and runs a search before it is handed over (`fts brain readiness`).
-- Smart Brain tests no longer need training data: Testing writes a quiz from your indexed documents, including questions they do not answer (`fts brain quiz`).
-- Knowledge check on the Smart Brain page and `fts brain lint`: unreadable files, duplicates, out-of-date versions, documents that disagree and leaked passwords or keys.
-- Smart Brain identity: your company, personality and answer rules go with every answer and test and are packed, encrypted, into the export. MCP clients get them through `rag_profile` and the server instructions, HTTP through `/profile`.
+
+- **Heretic** (optional tool, Settings → Heretic or `fts heretic install`; AGPL-3.0, installed on demand): removes a
+  model's refusals with a parameter search that keeps the model close to its original behaviour, as a new Export
+  format beside Abliterated, Merged and GGUF. It keeps the trial with the fewest refusals inside a KL budget (0.1),
+  shows the kept trial, its refusal rate and KL drift, pauses and resumes when another program takes the GPU, and
+  resumes a cancelled search from its finished trials.
+- **AI assistant** (Settings): one main assistant, local or any OpenAI-compatible API, does every helper job (mining,
+  study sets, reworded quizzes, preference pairs, the test judge, drafting use-case examples, reading pictures, the
+  Guide). Any number of API connections, each with its own encrypted key; any job can use its own connection.
+  The Smart Brain chat can answer through it, as a deliberate choice (it starts on the local model).
+- **The Guide can do the work**: start mining, build the dataset or the Smart Brain, train, test, pin a version;
+  it asks before each action or runs hands-free. It never approves pairs, exports a model or deletes anything.
+- **Training from a use case**: extraction, classification, house style or distillation examples (the assistant can
+  draft them from raw texts for you to approve), checked rows, a held-out test and a comparison with the untrained base.
+- **Importance matrix (imatrix)** for GGUF exports: better q4/q3/q2 quality at the same size.
+- **Project versions**: each version lists what it holds, builds on an earlier one and shows its lineage.
+- **CLI coverage of the web UI**: `fts projects`, `files`, `mining`, `qa`, `dataset build`, `brain` (`export`, `import`,
+  `bundle`, `lint`, `quiz`, `readiness`, `pictures`), `export`, `usecases`, `assistant`, `compute-device`, `update`,
+  `models`, `versions` (see `docs/CLI.md`).
+- Buttons for things that only worked through the API: My models → Rescan folders, Smart Brain → Re-embed only and
+  Stop build, Pairs → Remove near-duplicates and Data audit, Activity → Cancel download, Compare → delete a saved
+  comparison, Model library → delete a downloaded model.
 
 ### Changed
-- The first-run tour and the app's description now lead with the Smart Brain; training is presented as the optional extra.
-- The Smart Brain is now the main path of a project: `1 files → 2 Smart Brain → 3 test → 4 use it`, with training as an optional group at the end of the project bar. The project checklist, Next hints, Quick work, the dashboard and Use it all follow it.
-- The Smart Brain page leads with what state it is in and the one next action, then the conversation; every other control is folded under Manage. You can add files and load an answer model right on the page, and follow-up questions keep the conversation.
+
+- Installs, Repair and updates install the exact versions that were tested (`pins/`: Python packages, PyTorch,
+  llama.cpp, Heretic's packages) and use uv's own Python 3.12. Repair keeps the old environment until the new one passes
+  its health check.
+- A calmer slate-and-teal look with clearer navigation, forms, tables and focus states; AA contrast in the light theme.
+- The Smart Brain page leads with its state and the one next action, then the conversation; everything else is under
+  Manage. The build bar shows passages embedded, time taken and time left; a build can be stopped and never damages
+  the previous index.
+- Model downloads skip weight formats the app never loads (SmolLM2-135M: 261 MB instead of 1.97 GB).
+- Training presets keep their planned epochs on large datasets; Quick work picks the preset by model size; eval loss is
+  labelled as no recall signal for fact datasets.
 
 ### Fixed
-- Knowledge check: a figure every document fills in for itself (a form field such as "station raised") and pairs with an out-of-date file are no longer reported as conflicts, and the generated quiz leaves out out-of-date and duplicate documents, so it does not mark the current answer wrong.
-- Knowledge check spots an older version of a document even when the newer one is another file type.
-- The Package page is labelled Package in the breadcrumb, the tab title and the Next hint.
-- Smart Brain build status says "1 document", not "1 documents".
-- First run: a first Smart Brain build no longer leaves 4.4 GB of second copies of the embedder and reranker in the Hugging Face cache. Model library searches now find chat models with a vision tower (the official Qwen3.5 and Gemma models were missing while their GGUF re-uploads were listed). Quick work with no model points to the Model library instead of "the models folder". The install banner shows one clean address.
-- A long model load no longer flashes "Server not reachable" while the server is fine.
-- Install and Settings → Repair: the environment could be built on any newer Python found on PATH. With Linuxbrew's 3.15 the app lost the GPU ("Found no NVIDIA driver"), llama.cpp fell back to a CPU build and Heretic stopped working, and Repair still said "Finished". The installer now uses uv's own Python 3.12 and only accepts 3.12 or 3.13; Repair keeps the old environment until the new one passes the health check and puts it back if it does not. Heretic no longer depends on packages the app happens to carry, is re-installed by itself when an update or Repair stops it from starting, and its status now gives the real error.
-- Training: Phi-4-mini and Gemma 4 can be trained now. Phi-4's repo ships its own code that no longer works with this transformers ("cannot import name 'LossKwargs'"), so a model type transformers implements itself now always uses that; Gemma 4 stopped at "Target module Gemma4ClippableLinear is not supported" because the adapter also matched its vision tower.
-- Merged models that keep a vision tower (Gemma 3) now include the base's image and video processor settings; without them Heretic and anything else building the processor could not open them.
-- Export → Heretic no longer loses the search when the GPU gets in the way. It refuses to start with too little free VRAM, naming what holds the card (it used to run part of the model on the CPU and take hours); if another program takes the VRAM mid-search it pauses, says so, and resumes from the finished trials; a cancelled or failed search continues from them at the next export. A failure now shows the real error instead of an unrelated warning, and VRAM messages only name programs on the card in use. Exports are also about a third faster: the synchronous GPU mode added as a workaround is now only used for the rest of an export that actually hit a GPU fault. A cancelled export no longer keeps saying "stopping…".
-- Heretic exports now appear on Export, Project models and the Testing model picker (only Inference listed them), and opening the row shows the result ("Kept Heretic trial 19: 1% refusals …, KL 0.083"), which was gone after a reload.
-- Export → Heretic: the job now says "trial 13 of 40 done" while it searches (it showed one unchanged line for up to an hour or more).
-- Training → "Open in inference" works: it always failed with a tokenizer error, because it asked to load the run's folder instead of the model inside it. It now loads the run's merged model, or its adapter when there is no merged copy, and the run detail's button does the same (it used to open Inference with nothing selected).
-- Export and Project models: opening a GGUF row now lists the file instead of "not found".
-- Smart Brain: "Re-embed only" after Clear the index no longer starts a job that dies with "tuple index out of range": the button goes off as soon as the index is cleared, and the API and `fts brain rebuild-vectors` say the index is empty.
-- Training: after a run started, the Start button kept saying "Starting…" until the page was reloaded. It now shows that only while the request is on its way, stays off with the reason while a run is going, and is back to "Start training" when it ends.
-- Smart Brain: "Re-embed only" stays off with "No index yet: build it first" until the project has an index (it was clickable and always failed with "not found"); it turns on as soon as a build finishes.
-- Keyboard use: moving focus with Tab / Shift+Tab, links to a section and "jump to" buttons no longer leave the control hidden under the top bar; the page stops just below it at every window width.
-- Settings → Signed-in browsers: "Sign out other browsers" now asks before signing every other computer and phone out (it acted on one click).
-- Files & Knowledge: XML rows, JSON objects and YAML list records now stay together in one chunk when they fit; the chunker version is stamped, so older sources are marked for re-parse.
-- Pairs → Export approved: the "Next step: configure a run" row (Download JSONL, Start training with this dataset) no longer disappears a moment after the export when the review list refreshes.
-- Activity: deleting a project now shows as "Delete project · <name>" (it was filed under the deleted project and never shown), and the deleted project's other Activity rows are removed instead of kept hidden forever; rows left by earlier deletes are cleared at start-up.
-- Training with "merge on save": the training model is now freed before the merge, so a 9B model merges on the GPU in seconds instead of falling back to the computer's RAM (where it could run the computer out of memory and get other programs killed). If the merge truly cannot fit on the GPU and there is not enough free RAM either, it now stops with a clear message; the trained adapter is kept and can be merged again from the Export page.
-- Activity: rows now say what was done ("Edit a Q&A pair", "Chat with the loaded model", "Smart Brain search", "Judge a test run", "Save helper settings" …) instead of only "Create", "Update" or "Delete", and testing, benchmark, chat, training-start and new-project requests are listed under their project instead of "system".
-- Pairs → Preference pairs and Study set: leaving the page while a build runs no longer keeps asking the server for its progress every second until the build ends (the build itself still finishes). Compare stops refreshing a running comparison once you leave the page.
-- The whole app could stop responding in a tab after moving between pages (most often after opening Testing two or three times): every visit to a page with live updates left its update connection open, and once the browser's six connections to the app were taken every click waited until one of them ended (a test-run delete took 30 seconds). A page's live updates now stop when you leave it.
-- Activity: a model download no longer shows a second, look-alike "HF download" row; the request row now reads "Start HF download · <model>". Deleting a downloaded model is listed as "Delete downloaded model <model>" instead of as a download, and Compare's run, judge, stop and delete requests show under their project as testing work instead of untitled operations.
-- Model pickers (Inference, Quick work, Training): exports of different training runs that share a project, base and format no longer show the same label; a repeated name now ends with its run (for example `· run a8efac7e`), so you can tell which one you load or train on. Unique names stay as they were.
-- Benchmarks (and every other form that sends its request on Submit): the button now shows that the request is running ("Running the benchmark…") and cannot be pressed again until it answers. A benchmark answers every question before it returns, so the page used to look idle for the whole run, and a second click started the same run again.
-- Heretic: the app now installs the Heretic v2.0.0 release (it pinned a 2.0 development commit; Settings → Heretic → Install updates it). v2.0.0 crashed on the GPU in its first trial ("illegal memory access"); the app runs it in a mode that avoids that. A finished Heretic export now shows which trial it kept, its refusal rate on Heretic's test prompts and its KL drift (Export page and `fts export status`), instead of only "done".
-- Model Library search: a search typed right after the page opened could be replaced by the page's own first search (every model, unfiltered) when that one answered later; now only the newest search is shown. The status line shows the real search time instead of always "0ms", and a Hugging Face search or model lookup no longer holds up every other page of the app while it waits for the Hub.
-- Settings → API tokens: creating a token without a name now says to give it one (instead of a validator message), and Revoke asks first, saying that scripts using the token stop working.
-- Model Library: a finished download now appears in **Downloaded to this computer** by itself; you had to press Refresh.
-- Chat: Copy all and Export on an empty conversation now say there is nothing yet (Copy all reported "copied" with nothing copied; Export downloaded a file with only a title); Copy all now also works over plain HTTP from another machine.
-- Quick work → Quick start: when pair generation leaves data points open, Quick start now asks the assistant to fill them (up to two more passes, stopping when a pass closes nothing) before it builds the dataset, instead of stopping at the export check after the first pass. If points stay open it still stops there and offers to export the approved pairs anyway or to finish them on the pairs page. Step 3 no longer says uncovered passages are filled with extractive pairs (the app has not done that for a while).
-- Projects → Import: a file that is not a project archive, or an archive cut short, is refused in plain words (choose the .tar.gz a project's Export downloads / download it again) instead of Python's archive-reader messages.
-- Model lists: Smart Brain's reranker (bge-reranker-v2-m3) and other classifier, reward or tagging models are no longer offered as a base model to train, a model to test or compare, or a model to load for chat; they cannot write text.
-- Pairs (mining): a data point whose answer holds no number or new name ("the lamp flashes green twice every twelve seconds") could never be closed. Filling the gap discarded every pair the assistant wrote for it as a repeat of the file's other pairs, because they all name the same subject, so the file stayed at "data points still open" however often you filled it. A gap-filling pass now keeps a pair that states a value still missing from the open data point.
-- Copy path on the project overview now works when the app is opened over plain HTTP from another machine (the browser's clipboard API is missing there) and when the browser refuses the clipboard write; both fall back to a plain copy, and a copy that cannot work says to copy the path by hand.
-- Pairs: when some files still have open data points, Export approved no longer says "Exporting…" while it asks whether to export anyway; it says nothing was exported yet, then reports the export or the cancel.
-- Model Library: downloading a model no longer fetches copies of its weights in formats the app never loads (ONNX, OpenVINO, TensorFlow, Flax, Core ML, a PyTorch .bin next to safetensors) or its training logs. SmolLM2-135M-Instruct now takes 261 MB instead of 1.97 GB. A repository with no weights the app can use still downloads in full, and the confirm says what is skipped.
-- Training: next to **Eval every N steps** and in a run's details the page now says that, for fact Q&A datasets, eval loss is not a recall signal (the held-out rows often hold facts no training row teaches) and that early stopping on the best eval loss can keep a worse model; judge recall with Testing. Not shown for the preference routes (DPO, KTO).
-- Smart Brain chat: **Answer with** now always starts on the local model. It no longer switches to the AI assistant's API connection on its own when no model is loaded (that sent your question and the retrieved passages to the provider without you choosing it); the page instead says to load a model in Inference or pick the AI assistant, which stays available as a deliberate choice.
-- Quick work: **Preset by model size** now follows the base model you pick (Nano up to 2B, Standard up to 10B, Large above) and says so in the log, until you choose a preset yourself. It stayed on Standard (3B–9B) when you picked a 0.6B model.
-- Testing: a run whose every generation fails now ends as failed and skips auto-judging; partial runs still preserve and judge successful answers.
-- Training API: GGUF export and selected quantizations now survive preset-based starts; previously the preset path silently dropped both options.
-- Model Library's Delete, and the Testing page's Delete run and Judge all again, now ask in the app's own dialog (with a red Delete for the destructive ones) instead of the browser's plain confirm box.
-- Model Library: Downloaded files on a model that is not downloaded now says "No files downloaded yet" instead of "Failed: not found".
-- Smart Brain: an XML element, JSON object or YAML list item that fits one passage is no longer cut between two passages (the same record rule Files & Knowledge passages use); it applies from the next Smart Brain build.
-- Chat page: a model trained in this project is now asked under the system prompt it was trained with, as the Testing page asks it (an unedited box no longer sends the project's current prompt instead); the Top-k control now reaches the model (it was ignored); ticked Smart Brain sources are sent in the Smart Brain chat's layout, which tells the model to answer only from them and to say when the answer is not there; each reply names the system prompt, temperature and top-k it was asked with; the temperature now starts at 0.3, as Testing asks (at 0.7 a weakly learned fact came back as ten different reference numbers in 20 tries, nine of them invented). Testing also recognises a GGUF or merged model of a run when its path is given as an absolute path, so it is asked under the run's trained prompt.
-- Look and feel: number fields are no longer 58 px tall and compact fields (the Files list search, verdict notes) keep their small size; a red button stays red on hover; light-theme secondary text, hovered primary buttons and the selected top-bar tab now meet AA contrast. Model library and Inference no longer break when you return to them after a full page load. Quick start no longer reports a stopped test run as finished, and a stopped judge is shown as stopped instead of a 0 % score.
-- Smart Brain chat: answering with the AI assistant's API connection no longer waits for (or blocks) local inference, and a provider failure (bad key, network, provider error) now shows its reason (HTTP 502) instead of a generic server error. The chat's system message is built by the same code as context-grounded training rows, so the two cannot drift; the reranker's half precision now follows the chosen accelerator (bf16 where supported) on CUDA, ROCm, XPU and Apple GPUs.
-- CLI: `fts` run from another directory now uses the app's own database and deletes the project's real `output/` weights, instead of a stray `<cwd>/data` database and `<cwd>/output`.
-- CLI safety: `fts models delete` refuses when the inference worker cannot say what it holds and refuses cache-folder names (`org__name`); `fts update` refuses a second concurrent update (the WebUI answers 409), keeps update.sh out of the terminal's Ctrl-C and records an interrupted run as cancelled instead of leaving it running; `fts assistant main` unloads the previous local model from the inference worker; `fts export start --no-auto-merge` is honoured for multi-quant and default GGUF exports; `fts compute-device show` labels its device as this terminal's, not the service's.
-- Settings → Compute device no longer blocks the server while it probes the GPUs.
-- Guide: a plain “Yes”, “Sure!”, “Go ahead” or “Yes, take me there” after the guide offers a page now opens exactly that page, and “show me / let's go to / I want to go to <page>” count as requests; questions such as “Open files: what formats are supported?” or “open source models - which work best?” no longer switch the page. The Project models guide entry now describes the real row actions (Copy path, Open in inference) and how to reach the page.
-- Testing: stopping parallel API judging now lets only already-running judge calls finish; it no longer queues the rest of the answers, and the page says what it is waiting for.
-- Pairs export: “Start training with this dataset” now opens Training with the exact dataset that export registered (a re-exported older dataset no longer selects the newest one); if the dataset cannot be saved to the project, the export fails with the reason instead of claiming it was exported.
-- Heretic export: runs at a fixed batch size of 8 instead of the auto probe that crashed; a run with no trial inside the KL budget now fails (the model is moved to `heretic.over-budget/`) unless Overwrite existing is ticked; a failed run's leftover no longer blocks the next export; install/remove wait for a running Heretic export; Check no longer reports a permanent update for the pinned build or fails on an empty commit message; the Export page no longer blocks the server while it probes Heretic.
-- Model library: completed search counts and errors no longer disappear behind a typing hint; the local-file list is clearly labelled Downloaded files instead of promising a file picker.
-- Project settings: Save now uses PATCH, matching the project update API, and reports a successful save instead of a 405.
-- Guide: an explicit “Yes, open that page” now accepts a navigation it just offered, instead of incorrectly blocking the page switch.
-- Smart Brain: clearing the index or removing all sources now removes stale search results, chat citations, and build-complete feedback immediately.
-- Quick work: empty approved-pair exports no longer register zero-row datasets; dataset/export and training actions stay disabled until their inputs are ready.
-- Projects: switching templates now updates untouched tags and prompts; Cancel resets the form and active template instead of reopening stale settings.
-- Testing: Dataset check stays disabled with a clear missing-dataset/model message until both a project dataset and a test model are available.
-- Export: the trained-exports list now refreshes after the first export, replacing the initial empty state without requiring a page reload.
-- Compare: Stop now confirms it is stopping, then leaves a clear “stopped; saved work is kept” status after a run or judge cancellation.
-- Testing: stopping API judging now shows a persistent “judging stopped” state with the number of verdicts kept, including after a page reload.
-- Files: after filtering to no matches, the empty-state count and pagination label now both show zero.
-- Guide and page copy: informational answers survive readiness checks, current-page help wins relevant searches, unrequested page switches are blocked, Compare explains its installed-model fallback, and Pairs/Testing/Benchmarks/Export labels match the flow (steps 1/3/3/4).
-- Guide: each request now includes the complete current-route KB entry ahead of stale chat history; Dashboard, Project Settings and Settings facts are corrected, and Training now identifies step 2 and says training loss is not held-out quality.
-- Smart Brain standalone server: several clients searching at once no longer crash it. Parallel requests ran the
-  bundled embedder and reranker on the GPU at the same time ("CUDA error: an illegal memory access" after a few
-  hundred searches) and could load a model twice; model loading and use are now one at a time.
-- Training stops and fails in plain words when the loss or the gradient becomes NaN ("Training diverged at step N
-  ... the last checkpoint before it is ...") instead of finishing as **done**. Such a run used to log a loss of 0.0
-  for its remaining steps and merge and export weights that answer nothing.
-- Smart Brain: after **Re-embed only** with another embedder, exporting the index **with models** works again (it
-  refused: "does not reference a shared embedder"). A reranker chosen in **Search settings** is now bundled into an
-  exported package (it was left out without a word, so the package ran without reranking), and rebuilding the
-  index keeps the chosen reranker instead of resetting it to the default one.
-- Uploading many pictures or scanned PDFs at once no longer grinds the machine: every OCR run now uses one CPU
-  thread. With a dozen files parsing in parallel, one small photo took 137 s to read and could hit the 180 s
-  limit; it now takes about 2 s.
-- Heretic export keeps a trial that actually works: the KL budget default drops from 0.5 to 0.1. With 0.5 the
-  end-to-end run kept a trial at KL 0.287 and the exported model repeated "(Please, choose a few questions…" forever,
-  while another trial of the same study at KL 0.0028 answered normally. KL is not comparable across models, so the
-  budget has to suit the worst case; 0.1 still admits trials around KL 0.07 at 7% refusals on a 1.5B model.
-- Heretic export now runs Heretic with a fixed batch size of 8. Heretic's auto probe picked 128 sequences per pass for a
-  1.5B model, and the run died mid-search with `CUDA error: an illegal memory access` inside the L-BFGS step. It is
-  reported as a failed export rather than a fake success, but an export that cannot finish is still a gap; with
-  `batch_size=8` the same 24-trial run completed in 48 min at a steady ~8 GB.
 
-- Heretic export picks the trial to keep by a KL-divergence budget instead of trial index 0. Index 0 of Heretic's
-  Pareto front is the fewest-refusals trial **at any cost**: on a real run it had KL 10.0 and the exported model
-  answered in token soup, so the refusals were gone because the model was. The export now searches, reads the front,
-  keeps the trial with the fewest refusals inside a KL budget (now 0.1), and says so when no trial meets it.
-- Smart Brain **Import an index from another studio** is its own card, open in every project. Before, it was
-  inside the export panel, which only appears once the project has an index, so a new project could not import a
-  bundle. An imported index now says where it came from instead of "rebuild needed: N file(s) removed", and it is
-  registered like a build, so the Guide and the Testing page see it.
-- Settings → Updates: **Check** now asks GitHub whether a newer version exists and lists what changed. Before, it
-  never looked, although the button promised to. **Apply update** reports which version it moved from and to.
-- The install health check (Check, `update.sh`, `install.sh --check`) no longer gives two false alarms:
-  - "no working NVIDIA driver: install it and reboot" when the driver was loaded and only `nvidia-smi` was
-    missing from the app's PATH. It now reads the loaded driver.
-  - "missing or broken: peft" (or torch, or the core packages) when an import just took longer than the time
-    limit on a busy machine. That is now "could not check", never "missing".
-- Smart Brain builds can be stopped: a **Stop build** button on the page, and `fts jobs stop` now works too. Before,
-  the whole index was embedded in one step that ignored stop requests. A stopped or failed build, including a
-  rebuild from scratch, now leaves the previous index untouched; a rebuild used to delete it first.
-- The Smart Brain build bar shows the passages embedded, the real time taken and the time left. Before, it showed
-  "0 files, 0 s" until a whole file was done.
-- A build that runs out of GPU memory now says so in plain words: how much memory was free, which programs hold the
-  card, and the choices (a smaller embedder, the CPU, or waiting). Before, it showed the raw CUDA error.
-- The standalone Smart Brain server ignored the index's "hybrid off" setting and always ran keyword search; it
-  now runs exactly the layers that are on. Its "Reranker on" option did nothing without bundled models; the export
-  page now says so and only offers it with *Include models*.
-- Returning to the Projects page from another page after a full page load no longer stops its script with a duplicate-declaration error.
-- Cancelling a whole-model download stopped the progress bar but not the download: the job process stayed alive and
-  fetched the rest of the repository (measured: 22 GB cancelled, still writing ~70 MB/s). The job now exits when it
-  is stopped, and the Activity drawer's **Cancel download** button sits on the row itself and still works while the
-  row refreshes every second.
-- The pages, the Guide's knowledge base and error messages now call the model that mines, judges and drafts the
-  **AI assistant**, as Settings does, instead of the old "helper model" / "helper seat"; `/openapi.json` reports the
-  app's real version instead of 0.1.0.
-- A job that needs the local assistant (drafting use-case examples, the reworded quiz, study sets, preference pairs)
-  no longer stops at "no helper model loaded" with no way forward: the message now has a **Load the assistant and
-  retry** button that loads the job's local model and runs the job again.
-- Quick Work keeps the selected preset on tiny datasets and labels sub-100-step runs as workflow smoke tests, instead of silently stretching them into severe over-training. It identifies its generated quiz as training-set recall (not held-out generalization), recovers missing merged weights through the supervised Export job, and only announces completion when testing succeeds.
-- Quick work, Step 6: after pinning a version, **Builds on** moves to that new version, so the next pin continues
-  the line instead of branching from the one before.
-- Testing / Compare: picking a folder no loader can open (a training run's own folder, with only `adapter/` and
-  checkpoints) is refused at once with what to do (export the run first), instead of starting a run that failed
-  inside the job with a tokenizer error.
+Smart Brain and packages
+- A second new package of a project no longer overwrites the first one's file (the file name carries the package id).
+- *New project* opens the new project; the Package page's *Build the package* lands on the export panel; an unbuilt
+  Smart Brain page no longer logs a 404.
+- The quiz's "unanswerable" questions are checked more carefully (answers by clear implication count), so a correct
+  answer is less often marked fail.
+- The standalone server no longer crashes when several clients search at once, runs exactly the search layers the
+  index has on, bundles the chosen reranker, and works again after Re-embed only with another embedder and after
+  opening a package made with models.
+- An XML element, JSON object or YAML item that fits one passage is no longer cut in two.
+- Importing an index works in a new project and says where it came from.
 
-### Added
-- Compare: a saved comparison can now be deleted from its row under **Saved comparisons** (it asks first; every model's answers and verdicts in it go). Before, each model's run had to be deleted one by one on the Testing page.
-- CLI: `fts export` start/list/status/cancel commands using the Export page's shared validation and supervised jobs.
-- CLI: `fts usecases` template/build/list/show/delete/evaluate/report/A-B commands using the Training page's shared dataset, suite, and evaluation services.
-- CLI: `fts assistant` connection and job-routing commands with encrypted key storage, hidden/file/stdin key input, and shared WebUI validation.
-- CLI: `fts compute-device show|set` for the same saved device choice and validation as Settings; report restart requirements and environment overrides.
-- CLI: `fts update check|apply|repair`, plus durable history/status commands; apply and repair require confirmation and share the WebUI update worker.
-- Guide: a **Project models** entry explains the project's trained exports (expand a row, read the producing run and settings, copy a path), and the page is now a guide-registry target like every other page.
-- Model library: downloaded Hugging Face models are listed with a confirmed Delete action; a model that is loaded, loading or still downloading cannot be deleted (and nothing is deleted while the inference worker cannot say what it holds). `fts models search`, `local`, `download`, `download-status`, `cancel-download`, and confirmed `delete` now cover the same library operations while bare `fts models` keeps its installed-model listing. See `docs/CLI.md`.
-- CLI: `fts versions` pins, lists and inspects project snapshots and lineage; deleting a snapshot leaves its datasets and model artifacts intact. See `docs/CLI.md`.
-- CLI: `fts files upload` adds one or more local files to the same project file library as the WebUI, with content deduplication, versioning, parsing and per-file reports. See `docs/CLI.md`.
-- CLI: `fts projects list`, `show` (by id or name) and `create` now manage the same project records as the WebUI; JSON output and duplicate-name checks are included. See `docs/CLI.md`.
-- CLI: `fts projects delete` removes a project's database record and stored data like the WebUI; terminal confirmation is required unless `--yes` is supplied. The running WebUI refreshes its model list after CLI deletion. See `docs/CLI.md`.
-- CLI: `fts mining` queues, lists, inspects, and cancels persistent per-file jobs; `fts qa` lists and reviews Q&A pairs with a last-coverage warning. `fts dataset build` remains the shared export path. See `docs/CLI.md`.
-- CLI: `fts files list`, `show`, and `parse` inspect the shared project file library; reparsing is an explicit option because it replaces hand-edited parsed text. See `docs/CLI.md`.
-- Smart Brain chat can answer with the AI assistant's API connection, so grounded chat works without loading a local model; it sends the question and retrieved passages to the selected connection and identifies the source in the UI.
-- Smart Brain chat: a **Follow-up search** switch under the message box (on by default). Measured on Quillmoor: follow-up search lifted the API model 88.4 % → 96.1 % and Qwen 3.5 4B 88.8 % → 91.1 %, but gave Llama 3.2 3B and Gemma 3 4B nothing (77.7 → 77.1, 76.3 → 76.1) and made Gemma abstain less; turn it off for small models that over-use it.
-- Smart Brain answers can make a **follow-up search**. A question that reaches its answer through another item ("who manages the site where pump X is installed?") finds the pump's row, never the site's profile; the answer model may now ask for one more search before answering. The Smart Brain chat shows it as *Also searched*, and an exported package's `/ask` and `rag_answer` do the same (`RAG_FOLLOW_UP`, 0 turns it off). On the Quillmoor benchmark (376 judged answers, API model) two-step questions went from 10 % to 68 % with the old default search (81.1 % → 90.3 % overall) and to 84 % with the new reranker (96.1 % overall).
-- **Heretic** (optional tool): remove a model's refusals with a parameter search. Heretic searches the abliteration
-  parameters (Optuna) instead of applying one fixed strength and keeps the trial with the fewest refusals that stays
-  within a KL budget of the original model. It counts refusals by keyword markers on its built-in evaluation prompts: a quick signal, not a safety evaluation. It
-  is a separate program with its own license (AGPL-3.0), installed on demand from Settings → **Heretic** (or
-  `fts heretic install`): it reuses this app's PyTorch, so it costs a few hundred MB rather than another copy of
-  CUDA. **Check upstream** compares it with Heretic's GitHub releases, and the Export page gains a **Heretic** format
-  beside the existing Abliterated/Merged/GGUF ones. Until it is installed the option is greyed out and says why.
-- CLI: `fts brain bundle` (encrypted `.ftsrag` copy of an index) and `fts brain import` (load one into a project).
-- Smart Brain standalone export: **each search layer is its own switch**. You can turn off **Meaning search**
-  (vectors), **Word search** (BM25), the **Reranker** and **Answer generation** separately. **Rank fusion** runs
-  automatically when both searches are on.
-  - The package only ships the files the layers you keep need: no vectors without meaning search, no keyword
-    index without word search.
-  - A **Pipeline** line shows how a question travels through the package.
-  - The server reports in `/health` which layers really run. It can switch a shipped layer off at run time
-    (`--no-semantic`, `--no-keyword`), but never on one the package does not contain.
-  - **Answer generation** (the "G" in RAG) adds `/ask` and the MCP tool `rag_answer`. They send the passages to any
-    OpenAI-compatible chat model with the same grounded prompt as the Smart Brain chat. The API key is never put
-    in the package.
-  - New CLI: `fts brain export` with the same switches.
-- Buttons for four things that only worked through the API:
-  - **My models → Rescan folders** finds a model you copied into a model folder by hand, without restarting the app.
-  - **Smart Brain → Re-embed only** swaps the embedder of an existing index and keeps its passages. It is quicker
-    than rebuilding from scratch.
-  - **Q&A pairs → Remove near-duplicates** rejects pending pairs that repeat a fact another pair already asks. It
-    shows the count and asks before rejecting anything.
-  - **Q&A pairs → Data audit** re-reads every file from its stored bytes. It reports files whose parse or passages
-    changed, and approved pairs that point at a missing passage. No model is involved.
-- Training page: **Start from a use case**. Pick extraction, classification, house style or distillation, upload
-  examples, and the app checks every row (unusable ones are listed by row number), keeps a held-out test, fills the
-  training form with settings sized to the data, and after training compares the run with its untrained base on that
-  test (paired McNemar, or the blind A/B judge for style). `?usecase=<id>` opens the page with the form filled.
-- Quick work, Step 6: saved versions are listed with what each one holds (datasets, training runs, Smart Brain
-  build). A new version **builds on** an earlier one (the latest by default), **Lineage** shows the chain
-  (v1 → v2 → v3), and **Delete** removes a version record without touching its datasets, runs or models.
+Testing and Compare
+- A run whose every answer fails ends as failed; a stopped judge is shown as stopped, with the verdicts kept;
+  stopping parallel API judging no longer queues the rest. Model folders no loader can open are refused up front.
 
-- Export page: **Importance matrix (imatrix)** for GGUF. Before quantizing, the app measures which weights the
-  run's own training data relies on (llama.cpp's `llama-imatrix`, sized to the free GPU memory) and quantizes with
-  that: better q4/q3/q2 quality at the same file size. The files go to the run's `gguf-imatrix/` folder beside the
-  plain ones; the option is disabled, with the reason, when the tool is missing.
+Training, export and Heretic
+- Phi-4-mini and Gemma 4 train; a NaN loss stops the run with the step instead of ending as done.
+- *Merge on save* frees the training model first, so a 9B merges on the GPU in seconds.
+- "Open in inference" loads the run's model (it always failed with a tokenizer error).
+- Heretic: fixed batch size 8 (the auto probe crashed the GPU), a trial within the KL budget instead of trial 0 (which
+  could produce token soup), progress "trial 13 of 40", and its exports appear on every model list.
 
-- Settings: **AI assistant** replaces the separate Helper model and Vision reader cards. One main assistant does every
-  helper job (Guide chat, mining, study sets, reworded quizzes, preference pairs, test judge, use-case teacher,
-  reading pictures). Add any number of API connections next to the local model, each with its own key (stored
-  encrypted, sent only to its own URL, never shown again); pick the main assistant; give any job its own connection
-  and extra instructions; the jobs table says what each job sends to an API. API connections no longer take the
-  one model slot, so asking the Guide something on an API assistant leaves the local model you loaded alone.
+Install, update and CLI
+- The installer could build on any newer Python on PATH and lose the GPU; the health check no longer reports a missing
+  driver or packages when it only ran out of time. Settings → Updates → Check really checks GitHub.
+- `fts` run from another directory uses the app's own database; `fts models delete` and `fts update` refuse unsafe
+  cases.
 
-- Training page, use cases: **draft examples with the AI assistant**. Upload raw texts (tickets, invoices, emails that
-  already sound right); the assistant drafts the label, the extracted JSON or the request each text answers; you fix,
-  approve or reject every draft, and only approved rows are built into the use case. Settings → AI assistant has a
-  new job for it (*Drafting use-case examples*), with its own connection and instructions like every other job.
-
-- The **Guide** (corner panel on every page) can now do the work, not only explain it: start mining, build the
-  dataset, build the Smart Brain, start training, build a reworded quiz, run a test and pin a version. Choose in the
-  Guide's header: **Ask before each action** (default: an action card with Run / Skip) or **Hands-free** (it runs the
-  actions itself and carries on with the next step, up to 4 in a row per message). Actions go through the same
-  endpoints as the page buttons; the Guide still never approves pairs, exports a model or deletes anything.
-
-- Activity drawer: a running model download has a **Cancel download** button (the API to stop one existed with no
-  way to reach it from the page), and a cancelled job shows *cancelled* instead of *error*.
-
-### Changed
-- A fresh install, Repair and updates now install the exact versions that were tested (`pins/`: Python packages, PyTorch, llama.cpp, Heretic's packages) instead of whatever is newest that day. A PyTorch index for older GPUs that does not carry the tested version falls back to its newest.
-- The WebUI now uses a calmer, readable slate-and-teal visual system with clearer navigation, forms, tables, focus states and responsive spacing; project steps stay in one scrollable row with the next action kept visible.
-- README now distinguishes the built-in Abliterated export from the separately shipped, optional Heretic format and records the verified Heretic Export API path.
-- Training preset advisor: datasets larger than the ~500-example reference keep each tier's planned epochs instead of silently shrinking passes per fact; small datasets still scale up to reach useful optimizer-step counts. See the Quillmoor results for the measured recall/abstention trade-off.
-- New Smart Brain indexes on a machine with a GPU rerank with **bge-reranker-v2-m3** (run in half precision) instead of ms-marco-MiniLM: on the Quillmoor benchmark it found the right passage in the top 5 for 89 % of questions instead of 79 % (reverse look-ups such as "which asset has serial SN…": 40/40 instead of 24/40) at about 0.2 s per search, and the API model's judged answers rose from 81.1 % to 88.4 % (96.1 % with follow-up search). Machines without a GPU keep MiniLM, which stays fast on a CPU; existing indexes keep the reranker they have (Search settings switches it, no rebuild). The reranker is a ~2.2 GB download, and a standalone export with models grows to about 4.5 GB.
-- The dataset check no longer calls one-word answers a problem for a use-case dataset (a label is short by design).
+Interface
+- The app no longer freezes in a tab after moving between pages with live updates (connections are closed on leave).
+- Tab focus and jump links no longer hide controls under the top bar; destructive actions ask in the app's dialog;
+  forms show that they are working and cannot be sent twice; many smaller label, count and empty-state fixes.
+- OCR uses one CPU thread per file, so uploading many scans at once no longer grinds the machine.
 
 ### Removed
-- `GET/PUT /api/settings/helper`, `POST /api/settings/helper/models` and `GET/PUT /api/settings/vision`: replaced by
-  `/api/settings/assistant` (main assistant, jobs) and `/api/settings/connections` (API connections). Saved helper,
-  vision and judge choices carry over (the old `api-helper` / `api-vision` rows become connections).
-- `POST /api/training/runs/{id}/quantize`, `GET /api/training/runs/{id}/quant-exports` and
-  `POST /api/training/runs/{id}/set-output`: API-only, never used, and the quantize route needed an importance-matrix
-  file nobody had. The Export page's importance-matrix option replaces it. The hidden `export_imatrix` /
-  `imatrix_calibration` training fields are gone too.
-- The unmaintained Windows installer and launcher scripts (`install.bat`, `install.ps1`, `run.bat`): Linux is the
-  only supported platform. Windows support will come back as a cleanly tested installer after 1.0.
-- The conda install mode (`USE_CONDA=1`, `make install-conda`): it installed torch and llama.cpp into `.venv`,
-  which conda mode never created, so it could not produce a working install. Use `bash install.sh` (`.venv`).
-- API routes nothing in the app called: `POST /api/testing/load` (use `/api/inference/load`),
-  `GET /api/benchmarks/suites`, `GET /api/benchmarks/projects/{pid}/runs/{rid}/history`,
-  `POST /api/projects/{pid}/data-prep/chat` and `.../data-prep/chat/tools` (the Guide replaced them),
-  `GET /api/guide/kb`, `/api/guide/kb/{id}` and `/api/guide/help` (the Guide reads its help in-process).
+
+- The old helper and vision settings routes (`/api/settings/helper…`, `/api/settings/vision`; replaced by
+  `/api/settings/assistant` and `/api/settings/connections`, saved choices carry over), the API-only quantize routes,
+  API routes nothing called, the Windows installer scripts and the conda install mode.
 
 ### Security
-- Saved API keys (helper, Vision reader) are now stored encrypted instead of as plain text: a copied database or
-  backup carries no usable key. Keys saved by earlier versions are encrypted on the next start; Settings shows
-  "saved, encrypted", or asks for the key again if the encryption key file was lost. A plain-text judge key left in
-  `settings.json` by an old version is deleted.
+
+- Saved API keys are stored encrypted (a copied database carries no usable key); older plain-text keys are encrypted
+  on the next start.
 
 ## [0.2.0] - 2026-10-25
 
