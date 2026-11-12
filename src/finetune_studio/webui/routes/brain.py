@@ -694,6 +694,7 @@ async def brain_chat(pid: str, req: ChatRequest):
         # context-grounded training row's; the follow-up offer is its declared extra_instructions part.
         return answer_with_follow_ups(
             last_user, hits, lambda query: q.search(query, top_k=req.top_k), chat,
+            source_search=lambda query, prefix: q.search(query, top_k=req.top_k, source_prefix=prefix),
             follow_ups=req.follow_up, max_chars=budget, system_prompt=system_prompt, history=history,
             missing_part_retry=req.retry_missing,
             system_turn=lambda h, chars, system, extra: prompt.build_system_prompt(

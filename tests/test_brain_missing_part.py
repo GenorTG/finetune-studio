@@ -51,6 +51,27 @@ def test_the_missing_part_is_searched_and_the_answer_written_again() -> None:
     assert "£211,450" in last_system and srv.FOLLOW_UP_INSTRUCTION not in last_system   # no more searches offered
 
 
+def test_missing_part_search_stays_with_sources_cited_in_the_answer() -> None:
+    cited = _hit("law", "governed by the laws of Ireland; courts of Dublin", filename="agreement.pdf")
+    cited["source"] = "docs/agreement.pdf"
+    first = _hit("value", "Contract value: €318,000", filename="agreement.pdf")
+    first["source"] = "docs/agreement.pdf"
+    replies = iter(["The contract is worth €318,000 [agreement.pdf]; governing law is not stated.",
+                    "Ireland governing law Dublin courts", "Irish law applies [agreement.pdf]."])
+    chat = MagicMock(side_effect=lambda _msgs: next(replies))
+    global_search = MagicMock(return_value=[])
+    source_search = MagicMock(return_value=[cited])
+
+    out = srv.answer_with_follow_ups(
+        "Which law governs the contract and what is its value?", [first], global_search, chat,
+        source_search=source_search)
+
+    source_search.assert_called_once_with("Ireland governing law Dublin courts", "docs/agreement.pdf")
+    global_search.assert_not_called()
+    assert out["answer"] == "Irish law applies [agreement.pdf]."
+    assert [h["chunk_id"] for h in out["hits"]] == ["value", "law"]
+
+
 def test_one_retry_only_and_nothing_new_means_no_second_answer() -> None:
     replies = iter(["The value is not stated.", "lease value"])
     chat = MagicMock(side_effect=lambda msgs: next(replies))
