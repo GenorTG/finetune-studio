@@ -49,13 +49,39 @@ done
 
 VENV_PY="$PWD/$VENV_DIR/bin/python"
 
+# Steps that failed: any of them stops the update before the restart and makes it exit 1 with the reasons (it used to
+# warn, restart and end "Update complete" with stale dependencies).
+PROBLEMS=()
+problem() { warn "$*"; PROBLEMS+=("$*"); }
+
+# uv: PATH first, then the path install.sh recorded, then where uv's installer and package managers put it. A shell
+# started by systemd (Settings -> Apply update) has a short PATH without ~/.local/bin or Linuxbrew, so `uv` alone was
+# not found there and every dependency step failed.
+find_uv() {
+    local home c
+    home="${HOME:-$(getent passwd "$(id -u)" | cut -d: -f6)}"
+    for c in "$(command -v uv 2>/dev/null || true)" "$(cat "$VENV_DIR/fts-uv-path" 2>/dev/null || true)" \
+             "${UV_INSTALL_DIR:+$UV_INSTALL_DIR/uv}" "${XDG_BIN_HOME:+$XDG_BIN_HOME/uv}" "$home/.local/bin/uv" \
+             "$home/.cargo/bin/uv" /home/linuxbrew/.linuxbrew/bin/uv "$home/.linuxbrew/bin/uv" /usr/local/bin/uv /usr/bin/uv; do
+        if [ -n "$c" ] && [ -x "$c" ]; then echo "$c"; return 0; fi
+    done
+    return 1
+}
+UV="$(find_uv || true)"
+if [ -n "$UV" ]; then
+    case ":$PATH:" in *":$(dirname "$UV"):"*) ;; *) export PATH="$(dirname "$UV"):$PATH" ;; esac   # accel_plan.py calls uv too
+fi
+
 # uv-created venvs have NO pip module (hit on the dev box, 2026-09-25) —
 # prefer uv, fall back to the venv's own pip. Mirrors install.sh.
 pip_install() {
-    if command -v uv >/dev/null 2>&1; then
-        uv pip install --python "$VENV_PY" "$@"
-    else
+    if [ -n "$UV" ]; then
+        "$UV" pip install --python "$VENV_PY" "$@"
+    elif "$VENV_PY" -c "import pip" >/dev/null 2>&1; then
         "$VENV_PY" -m pip install "$@"
+    else
+        echo "uv not found (looked on PATH=$PATH, in $VENV_DIR/fts-uv-path, ~/.local/bin, ~/.cargo/bin, Linuxbrew) and this venv has no pip" >&2
+        return 1
     fi
 }
 
@@ -225,21 +251,21 @@ if [ "$CHECK_MODE" = "0" ]; then
     # time, and PDF/DOCX/XLSX/PPTX/HTML/RTF sources silently stop parsing.
     # shellcheck disable=SC2046
     pip_install --quiet $(torch_constraint_args) -e '.[parsers]' 2>&1 | tail -5 \
-        || warn "pip install -e .[parsers] failed — deps may be stale"
+        || problem "dependency sync (pip install -e .[parsers]) failed$([ -n "$UV" ] || echo ': uv was not found')"
     # Every extra install.sh installs, so updated hosts match fresh ones:
     # bitsandbytes (CUDA/ROCm/XPU backends in one wheel), numpy/scipy (abliteration),
     # unsloth (NVIDIA only; skipped unless a release resolves against the installed stack).
     log "Syncing optional packages (bitsandbytes, numpy, scipy, unsloth, Qwen3.5 kernels)..."
     accel install bitsandbytes --venv "$VENV_DIR" 2>&1 | tail -3 \
-        || warn "bitsandbytes sync failed"
+        || problem "bitsandbytes sync failed"
     # shellcheck disable=SC2046
     pip_install --quiet $(torch_constraint_args) "numpy>=1.24.0" "scipy>=1.10.0" 2>&1 | tail -2 \
-        || warn "numpy/scipy sync failed"
+        || problem "numpy/scipy sync failed"
     accel install unsloth --venv "$VENV_DIR" 2>&1 | tail -3 \
-        || warn "unsloth sync failed"
+        || problem "unsloth sync failed"
     # Qwen3.5 linear-attention kernels: re-probed on every update (a torch change can break a built extension)
     accel install linear-attn --venv "$VENV_DIR" 2>&1 | tail -4 \
-        || warn "Qwen3.5 kernel sync failed"
+        || problem "Qwen3.5 kernel sync failed"
     # PyTorch and llama-cpp-python are only moved by a rebuild (they depend on the GPU, and the second one compiles).
     "$VENV_PY" scripts/pin_versions.py check --venv "$VENV_DIR" 2>&1 | sed 's/^/  /' \
         || warn "this install differs from the tested versions above. Settings → Repair moves PyTorch and llama-cpp-python."
@@ -252,7 +278,7 @@ fi
 # GPU backend; a CPU-only build on a GPU host (or a backend change) is rebuilt.
 if [ "$NO_LLAMA" = "0" ] && [ "$CHECK_MODE" = "0" ]; then
     accel build-llama-cli --dir "$LLAMA_CPP_DIR" --venv "$VENV_DIR" 2>&1 | tail -12 \
-        || warn "llama.cpp CLI build failed (see output above)"
+        || problem "llama.cpp CLI build failed (see output above)"
 else
     log "skipping llama.cpp install."
 fi
@@ -286,6 +312,11 @@ fi
 running_jobs="$("$VENV_PY" -m finetune_studio.cli status --json 2>/dev/null \
     | "$VENV_PY" -c 'import json,sys; print(" ".join(j["id"] for j in json.load(sys.stdin).get("jobs", []) if j.get("running")))' \
     2>/dev/null || true)"
+if [ "${#PROBLEMS[@]}" -gt 0 ] && [ "$CHECK_MODE" = "0" ]; then
+    echo "[$(date +%H:%M:%S)] ERROR: update not finished, ${#PROBLEMS[@]} step(s) failed: $(IFS=';'; echo "${PROBLEMS[*]}")." >&2
+    echo "[$(date +%H:%M:%S)] ERROR: the service was not restarted, so it keeps running what it started with. Fix the step above, then run 'bash update.sh' in a terminal (or Settings -> Repair)." >&2
+    exit 1
+fi
 if [ -n "$running_jobs" ] && [ "$NO_RESTART" = "0" ] && [ "$CHECK_MODE" = "0" ]; then
     warn "not restarting: job(s) running ($running_jobs). The update applies at the next restart after they end."
     NO_RESTART=1
