@@ -11,7 +11,8 @@ turns that section into the release's notes.
 
 - The Smart Brain quiz checks “unanswerable” questions against the index's top 10 hybrid-search passages, so answers
   assembled from more than one document are less likely to be mislabeled as missing.
-
+- The host resources card (RAM and VRAM bars) is only on the dashboard, Training, Inference and My models, below the page
+  title and smaller on phones; the knowledge pages open on their title and next step (the top bar keeps the VRAM pill).
 - The knowledge package leads everywhere: the dashboard's quick actions are New project, Open <last project> and
   Package it (model download and local chat are linked below); New project starts on the Smart Brain template with
   the base model and system prompt folded under "Training (optional)"; the Files page points to the Smart Brain and
@@ -24,7 +25,6 @@ turns that section into the release's notes.
 - Packages get a name and an audience (your team / customers; customers also hides file names and leaves the original
   files out). Package versions shows each package's name, audience, scope, document count and id, and per version
   the original files and file-name setting; "New version of this" picks it in the form.
-
 - Settings → Apply update finds `uv` where it was installed (Linuxbrew, `~/.local/bin`, `~/.cargo/bin` or the path the
   installer recorded) instead of failing every dependency step, and an update whose dependency sync or build fails
   now stops before the restart with the failed steps as its reason instead of ending "Update complete".
