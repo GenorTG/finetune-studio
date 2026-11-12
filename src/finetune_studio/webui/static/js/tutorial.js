@@ -47,24 +47,9 @@
             "This short tour shows the setup. Esc skips; Settings \u2192 Replay brings it back.",
     },
     {
-      target: ".sb-group-tools",
-      title: "1 · GET A MODEL",
-      body: "The Smart Brain needs a model to write its answers: one on this machine, or an API " +
-            "connection in Settings \u2192 AI assistant. Model library downloads one from Hugging Face; " +
-            "My models lists what is already here. A 4B model on a GPU is a good start.",
-      live: async () => {
-        const ms = await answerModels();
-        if (!ms.length) return { ok: false, text: "No model on this machine yet: download one, or set up an API connection." };
-        const names = ms.slice(0, 3).map((m) => m.name).join(", ");
-        return { ok: true, text: `\u2713 ${ms.length} model(s) ready: ${names}${ms.length > 3 ? ", \u2026" : ""}` };
-      },
-      cta: async () => ((await answerModels()).length ? null
-        : { label: "Open Model library", href: "/models/explore" }),
-    },
-    {
       target: "#new-project-btn",
       route: "/projects",
-      title: "2 · CREATE A PROJECT",
+      title: "1 · CREATE A PROJECT",
       body: "A project holds one set of files with its Smart Brain, tests and any trained models, " +
             "kept apart from everything else. Name it after what it should know " +
             "(\"Support FAQ\", \"Product manuals\").",
@@ -76,26 +61,47 @@
     },
     {
       target: null,
-      title: "3 · ADD FILES, BUILD, ASK",
+      title: "2 · ADD FILES, BUILD, ASK",
       body: "Inside a project, open 2 Smart Brain: add your files (PDF, DOCX, TXT, \u2026), press " +
             "Build Smart Brain, then ask. Each answer lists the files it came from, and if the " +
             "files do not say, it tells you so.",
     },
     {
-      target: "#sb-activity",
-      title: "4 · LONG JOBS RUN IN THE BACKGROUND",
-      body: "Downloads, Smart Brain builds and training keep running while you browse. " +
-            "This button opens the activity feed with live progress; project pages also " +
-            "show GPU and RAM use. A Smart Brain builds in minutes.",
+      target: ".sb-group-tools",
+      title: "3 · GET AN ANSWER MODEL",
+      body: "To try answers in the studio, the Smart Brain needs a model to write them: one on this machine, or an API " +
+            "connection in Settings \u2192 AI assistant (the package itself needs none: your own model or agent can read it). Model library downloads one from Hugging Face; " +
+            "My models lists what is already here. A 4B model on a GPU is a good start.",
+      live: async () => {
+        const ms = await answerModels();
+        if (!ms.length) return { ok: false, text: "No model on this machine yet: download one, or set up an API connection." };
+        const names = ms.slice(0, 3).map((m) => m.name).join(", ");
+        return { ok: true, text: `\u2713 ${ms.length} model(s) ready: ${names}${ms.length > 3 ? ", \u2026" : ""}` };
+      },
+      cta: async () => ((await answerModels()).length ? null
+        : { label: "Open Model library", href: "/models/explore" }),
     },
     {
       target: null,
-      title: "5 · CHECK THE RESULT YOURSELF",
+      title: "4 · CHECK THE RESULT YOURSELF",
       body: "Testing runs your questions and saves exactly what the model answered; then an AI judge " +
             "(or you) decides pass / partial / fail for every saved answer. Open a run, read the answers, " +
             "and press 1/2/3 to override the judge where it got it wrong — the judge is a model, not truth, " +
-            "so spot-check 10–20 answers before trusting a score. " +
-            "Then 4 Package builds one encrypted package your models can use over MCP or HTTP.",
+            "so spot-check 10–20 answers before trusting a score.",
+    },
+    {
+      target: null,
+      title: "5 · PACKAGE IT",
+      body: "4 Package says what is left, then builds one encrypted package: choose who it is for " +
+            "(your team or customers), which folders go in, whether the original files ship and whether it " +
+            "answers by itself. Run it as a server your models reach over MCP or HTTP, and update it in place later.",
+    },
+    {
+      target: "#sb-activity",
+      title: "LONG JOBS RUN IN THE BACKGROUND",
+      body: "Downloads, Smart Brain builds and training keep running while you browse. " +
+            "This button opens the activity feed with live progress; project pages also " +
+            "show GPU and RAM use. A Smart Brain builds in minutes.",
     },
     {
       target: null,
@@ -323,10 +329,12 @@
 
   window.ftsTutorial = { start, finish, resetSeen, hasSeen, markSeen, steps: STEPS.length };
 
-  // Auto-trigger on first visit (or resume after a reload), after paint.
+  // Auto-trigger on the first visit to the dashboard (or resume after a reload), after paint. Other pages never open
+  // it by themselves: it used to cover a form the visitor had just opened.
+  function autoStart() { if (location.pathname === "/" || readStep() !== null) start(); }
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => setTimeout(() => start(), 1500));
+    document.addEventListener("DOMContentLoaded", () => setTimeout(autoStart, 1500));
   } else {
-    setTimeout(() => start(), 1500);
+    setTimeout(autoStart, 1500);
   }
 })();

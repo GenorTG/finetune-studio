@@ -83,7 +83,11 @@ PAGES: dict[str, Page] = _pages()
 def _controls() -> dict[str, Control]:
     rows = [
         # projects
+        ("dashboard.actions", "dashboard", "#dash-actions", "Quick actions: new project, open the last one, package it"),
+        ("dashboard.open_last", "dashboard", "#dash-open-last", "Open the last project"),
+        ("dashboard.package", "dashboard", "#dash-package", "Package the last project"),
         ("projects.new_button", "projects", "#new-project-btn", "＋ New project"),
+        ("projects.training_fields", "projects", "#np-training", "New project: Training (optional) fields"),
         ("projects.search", "projects", "#proj-search", "Project search box"),
         # files
         ("files.upload_toggle", "files", "#fb-upload-toggle", "Upload toggle"),
