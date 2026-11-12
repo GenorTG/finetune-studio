@@ -672,11 +672,11 @@
   }
 
   var SUGGESTIONS = [
-    "How do I train a model on my documents?",
+    "Is my knowledge ready to package?",
     "What should I do next in this project?",
-    "Check whether my dataset is good enough to train",
-    "Which training settings should I use?",
-    "Where do I download a base model?",
+    "How do I make a public bot and an internal assistant from one project?",
+    "How do I use my package from Claude, Cursor or another MCP client?",
+    "Optional: how do I train a model on my documents?",
   ];
   function emptyState() {
     var box = el("div", "guide-empty");

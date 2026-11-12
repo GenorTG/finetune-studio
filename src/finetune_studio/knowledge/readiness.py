@@ -65,14 +65,14 @@ def _test_step(pid: str, index_time: float) -> dict[str, str]:
 def _package_step(pid: str, index_time: float) -> dict[str, str]:
     last = _last_package(pid)
     if not last:
-        return _step("package", "Build the package", "todo", "Not built yet.", "/brain#brain-export-panel")
+        return _step("package", "Build the package", "todo", "Not built yet.", "/export#package-form")
     check = last.get("verified") or {}
     if check.get("ok") is False:
-        return _step("package", "Build the package", "problem", f"{last['filename']}: {check.get('detail')}", "/brain#brain-export-panel")
+        return _step("package", "Build the package", "problem", f"{last['filename']}: {check.get('detail')}", "/export#package-form")
     if float(last.get("built_at") or 0) < index_time:
-        return _step("package", "Build the package", "review", f"{last['filename']} is older than the index.", "/brain#brain-export-panel")
+        return _step("package", "Build the package", "review", f"{last['filename']} is older than the index.", "/export#package-form")
     return _step("package", "Build the package", "done",
-                 last["filename"] + (" · opened and searched" if check.get("ok") else ""), "/brain#brain-export-panel")
+                 last["filename"] + (" · opened and searched" if check.get("ok") else ""), "/export#package-form")
 
 
 def readiness(pid: str) -> dict[str, Any]:

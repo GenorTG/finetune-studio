@@ -315,10 +315,11 @@ async def phase_upload(w: Walk) -> None:
     R.check(len(files) >= 14, f"corpus has {len(files)} files (txt, md, docx, doc, pdf, html, csv, xlsx, xls, pptx, rtf)")
     await w.goto(f"/projects/{pid()}/data")
     await w.shot("library-empty")
-    await w.page.click("#fb-upload-toggle")
+    if await w.page.locator("#fb-upload-card").is_hidden():
+        await w.page.click("#fb-upload-toggle")
     await w.page.set_input_files("#fb-upload-input", [str(f) for f in files])
     await w.shot("files-chosen")
-    await w.page.click("#fb-upload-form button[type=submit]")   # choosing files does not start the upload; UPLOAD does
+    await w.page.wait_for_function("document.querySelector('#fb-upload-status').textContent.includes('Uploaded')")
     await w.shot("upload-started")
 
     async def all_listed() -> bool:

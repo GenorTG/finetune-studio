@@ -578,6 +578,7 @@ Full list with versions and licenses → **[docs/ATTRIBUTIONS.md](docs/ATTRIBUTI
 ## Documentation
 
 - **[docs/TUTORIAL.md](docs/TUTORIAL.md)** — end-to-end first-model tutorial (users start here)
+- **[docs/KNOWLEDGE-PACKAGE-DEPLOYMENT.md](docs/KNOWLEDGE-PACKAGE-DEPLOYMENT.md)** — run a package locally, connect trusted MCP clients over HTTPS, or front a public bot safely
 - **[docs/DESIGN.md](docs/DESIGN.md)** — layout, rules and checks for contributors
 - **[docs/INSTALL.md](docs/INSTALL.md)** — install on Linux, prerequisites, troubleshooting
 - **[docs/CLI.md](docs/CLI.md)** — command-line reference

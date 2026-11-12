@@ -38,7 +38,7 @@ def test_every_api_the_tour_calls_exists() -> None:
 
 
 def test_tour_covers_the_workflow_and_drops_stale_claims() -> None:
-    for must in ("GET A MODEL", "CREATE A PROJECT", "ADD FILES, BUILD, ASK", "CHECK THE RESULT", "OPTIONAL: TRAIN A MODEL",
+    for must in ("GET AN ANSWER MODEL", "PACKAGE IT", "CREATE A PROJECT", "ADD FILES, BUILD, ASK", "CHECK THE RESULT", "OPTIONAL: TRAIN A MODEL",
                  "/models/explore", "/projects#new"):
         assert must in _JS, must
     for stale in ("~/.cache", "HF EXPLORER", "qa3 rag", "HACKER"):

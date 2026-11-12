@@ -9,6 +9,45 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-12
+
+- New projects' optional base-model list now excludes inference-only and other projects' exported models, and de-duplicates identical paths.
+- The dashboard puts its knowledge-package actions immediately under the welcome text, ahead of machine telemetry.
+- The in-app Guide now names controls by their visible labels instead of exposing internal page-anchor IDs.
+- Encrypted package READMEs now use the Smart Brain knowledge-package name without exposing the source project name.
+- The project flow bar points to the Smart Brain build until its index exists, then moves on to testing its answers.
+- Testing quiz names now stay human-readable after reload (for example, “Smart Brain quiz · 11 questions” instead of “local · smart-brain-quiz (11 cases)”).
+- The Files page no longer shows the Data Prep animation in its filter card.
+- The Files page opens upload on an empty project; choosing files or a folder starts right away, with visible transfer and parse progress.
+- Training: a run that stopped or failed before saving a checkpoint no longer offers Set production, Open in inference
+  or Export; the buttons are off and the row says why. A stopped run that did save an adapter stays usable.
+- When an answer says part of it is missing, the retry searches the cited document(s) first before falling back to
+  the whole knowledge base.
+- Pages, styles and scripts are sent gzipped and versioned styles and scripts are cached by the browser, so a first
+  visit moves about a fifth of the bytes and later pages load from cache (streams and downloads are never compressed).
+- The Smart Brain quiz checks “unanswerable” questions against the index's top 10 hybrid-search passages, so answers
+  assembled from more than one document are less likely to be mislabeled as missing.
+- The host resources card (RAM and VRAM bars) is only on the dashboard, Training, Inference and My models, below the page
+  title and smaller on phones; the knowledge pages open on their title and next step (the top bar keeps the VRAM pill).
+- The knowledge package leads everywhere: the dashboard's quick actions are New project, Open <last project> and
+  Package it (model download and local chat are linked below); New project starts on the Smart Brain template with
+  the base model and system prompt folded under "Training (optional)"; the Files page points to the Smart Brain and
+  the Package step; the first-run tour goes project → files → answer model → test → package and opens by itself only
+  on the dashboard; the Guide suggests package questions first.
+- The Package page now holds the package form: who it is for, which documents go in, original files and file names,
+  answers, version, then Build & download; server and search tuning fold under Advanced. Before the first Smart Brain
+  build it says to build it first, and a blocking knowledge-check finding is shown next to the button with a link. The
+  Smart Brain page keeps only "Copy this index to another studio" (`.ftsrag`).
+- Packages get a name and an audience (your team / customers; customers also hides file names and leaves the original
+  files out). Package versions shows each package's name, audience, scope, document count and id, and per version
+  the original files and file-name setting; "New version of this" picks it in the form.
+- Settings → Apply update finds `uv` where it was installed (Linuxbrew, `~/.local/bin`, `~/.cargo/bin` or the path the
+  installer recorded) instead of failing every dependency step, and an update whose dependency sync or build fails
+  now stops before the restart with the failed steps as its reason instead of ending "Update complete".
+- The Package page opens at once: its checklist loads after the page, and the knowledge check behind it is kept until a
+  file or the index changes (a 120-file project took 4 s per visit, now 0.2 s). The status pills sit next to each step
+  instead of stretching across it.
+
 ## [0.3.0] - 2026-11-12
 
 The knowledge-package beta. A project now goes **files → Smart Brain → test → package**: upload your documents, let
@@ -182,6 +221,7 @@ numbered `0.1.0.N`, one per commit.
   CLI called them (project files go through Files & Knowledge and Data prep; `fts analyze` / `fts validate-hallucination`
   are unchanged). Unused code: `templates.TemplateManager`, `HallucinationGuardrail` and a few helpers nothing called.
 
-[Unreleased]: https://github.com/GenorTG/finetune-studio/compare/v0.3.0...dev
+[Unreleased]: https://github.com/GenorTG/finetune-studio/compare/v0.4.0...dev
+[0.4.0]: https://github.com/GenorTG/finetune-studio/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/GenorTG/finetune-studio/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/GenorTG/finetune-studio/releases/tag/v0.2.0

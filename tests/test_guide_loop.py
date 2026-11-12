@@ -75,6 +75,7 @@ def test_prompt_includes_authoritative_current_page_kb_entry() -> None:
     assert "Change settings for this project only" in prompt
     assert "The folded WebUI log tail below the form is the studio service log shared across projects." in prompt
     assert "Do not infer controls or behavior that this reference does not list." in prompt
+    assert "never show internal HTML ids or route keys" in prompt
 
 
 def test_prompt_prefers_page_specific_entry_over_generic_app_map() -> None:
@@ -107,7 +108,7 @@ def test_training_prompt_uses_step_two_from_the_project_flow() -> None:
     [
         ("pairs", "Question-answer pairs page (step 1)", "Question-answer pairs page (step 2)"),
         ("testing", "Testing page (step 3)", "Testing page (step 4)"),
-        ("export", "Export page (step 4)", "Export page (step 5)"),
+        ("export", "Package & export page (step 4)", "Export page (step 5)"),
     ],
 )
 def test_project_flow_page_references_match_the_visible_navigation(

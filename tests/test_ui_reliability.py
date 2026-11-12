@@ -332,8 +332,8 @@ def test_card_head_stacks_below_700() -> None:
 
 def test_css_cache_bust_bumped() -> None:
     base = _BASE.read_text(encoding="utf-8")
-    assert "app.css?v=135" in base
-    assert "sprites.js?v=20" in base
+    assert "app.css?v=138" in base
+    assert "sprites.js?v=21" in base
     assert "nav_overflow.js?v=3" in base
 
 
@@ -343,7 +343,13 @@ def test_data_prep_styles_live_in_versioned_stylesheet() -> None:
     base = _BASE.read_text(encoding="utf-8")
     assert "<style>" not in template
     assert ".dp-review-toolbar" in css and ".dp-points-col" in css and ".fl-tree" in css
-    assert "app.css?v=135" in base
+    assert "app.css?v=138" in base
+
+
+def test_data_stream_sprite_is_limited_to_data_prep_routes() -> None:
+    sprites = (Path(__file__).parents[1] / "src/finetune_studio/webui/static/js/sprites.js").read_text(encoding="utf-8")
+    assert "if (/\\/data-prep(?:\\/|$)/.test(path))" in sprites
+    assert "|| /\\/data\\b/.test(path)" not in sprites
 
 
 def test_testing_page_styles_live_in_versioned_stylesheet() -> None:
@@ -352,7 +358,7 @@ def test_testing_page_styles_live_in_versioned_stylesheet() -> None:
     base = _BASE.read_text(encoding="utf-8")
     assert "<style>" not in template
     assert ".tp-seg" in css and ".tp-runs" in css and ".rv-main" in css
-    assert 'app.css?v=135' in base
+    assert 'app.css?v=138' in base
     assert "spa.js?v=21" in base
 
 
@@ -437,7 +443,7 @@ def test_brain_ia_workflow_and_cta(client: TestClient) -> None:
         "Test a search",
         "Search settings",
         "Build options",
-        "Build the package",
+        "Copy this index to another studio",
         "Shared search models",
         "Index details",
     ):
@@ -446,7 +452,7 @@ def test_brain_ia_workflow_and_cta(client: TestClient) -> None:
     assert "Chat with RAG" not in body
     assert '<details class="card mb-4" id="brain-search-settings" data-needs-index>' in body
     assert '<details class="card mb-4" id="brain-docs-panel" data-needs-index>' in body
-    assert '<details class="card mb-4" id="brain-export-panel" data-needs-index>' in body
+    assert '<details class="card mb-4" id="brain-copy-panel" data-needs-index>' in body
     assert '<details class="card mb-4" id="brain-shared-models">' in body
     # Without an index, the index-only sections fold into one note (the JS toggles both on d.exists).
     assert 'id="brain-search" data-needs-index' in body and 'id="brain-chat" data-needs-index' in body

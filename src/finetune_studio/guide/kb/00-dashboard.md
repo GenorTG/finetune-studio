@@ -9,10 +9,13 @@ The Dashboard is the studio-wide start page. It summarizes project and local-mod
 
 ## Workflow
 1. Check Host Resources and the Projects, Local models, Training, and GPU cards for the current studio state.
-2. Use Quick actions to create a project, browse model downloads, open inference, or replay the tour.
+2. Use Quick actions to create a project, reopen the last one, go to its Package page, or replay the tour (model downloads and local chat are linked below them).
 3. Open a project card or **All projects** to enter project-specific files, training, Smart Brain, tests, and exports.
 
 ## Key controls
+- `#dash-actions` — Quick actions: **＋ New project**, **Open <your last project>** (its Smart Brain page), **Package it** (that project's Package page) and **Take the tour**. Downloading a model and loading one to chat are linked below them: training and local chat are optional.
+- `#dash-open-last` — opens the project you worked on last.
+- `#dash-package` — that project's Package page.
 - `#dash-training-status` — current training state, refreshed every three seconds.
 - `#dash-training-progress` — current training progress, refreshed every three seconds.
 - `#dash-gpu` — GPU memory summary, refreshed every five seconds.

@@ -9,9 +9,31 @@
   <div class="sub">Prepare, check and test what your models should know, then package it. Train models too, if you need them.</div>
 </div>
 
-{% include "_resources.html" %}
+{# Quick actions #}
+<div class="card mb-6">
+  <div class="card-head">
+    <div>
+      <div class="card-title">Quick actions</div>
+      <div class="card-sub">Files in, a knowledge package out: your documents, who they speak for and how to answer.</div>
+    </div>
+  </div>
+  {% set last = (projects|sort(attribute='updated_at', reverse=true)|first) if projects else none %}
+  <div class="grid grid-4 gap-10" id="dash-actions">
+    <a href="/projects#new" class="btn lg primary" data-link><span>＋</span> New project</a>
+    {% if last %}
+    <a href="/projects/{{ last.id }}/brain" class="btn lg" data-link id="dash-open-last" title="The project you worked on last: {{ last.name }}"><span>↩</span> Open {{ last.name|truncate(24, true, '…') }}</a>
+    <a href="/projects/{{ last.id }}/export" class="btn lg" data-link id="dash-package" title="Build or update the package of {{ last.name }}"><span>📦</span> Package it</a>
+    {% else %}
+    <a href="/projects#new" class="btn lg" data-link id="dash-open-last"><span>↩</span> Open last project</a>
+    <a href="/projects#new" class="btn lg" data-link id="dash-package"><span>📦</span> Package it</a>
+    {% endif %}
+    <button type="button" class="btn lg" onclick="window.ftsTutorial && window.ftsTutorial.start({ force: true })"><span>?</span> Take the tour</button>
+  </div>
+  <p class="text-xs dim mt-2">Training a model is optional: <a href="/models/explore" data-link>Model library</a> ·
+    <a href="/inference" data-link>Load a model and chat</a>.</p>
+</div>
 
-{# System stats #}
+{# System status stays available, but follows the package-first actions on small screens. #}
 <div class="grid grid-4 mb-6">
   <div class="stat">
     <div class="label">Projects</div>
@@ -45,21 +67,7 @@
   </div>
 </div>
 
-{# Quick actions #}
-<div class="card mb-6">
-  <div class="card-head">
-    <div>
-      <div class="card-title">Quick actions</div>
-      <div class="card-sub">Most common workflows, one click away.</div>
-    </div>
-  </div>
-  <div class="grid grid-4 gap-10">
-    <a href="/projects#new" class="btn lg primary" data-link><span>＋</span> New project</a>
-    <a href="/models/explore" class="btn lg" data-link><span>⬇</span> Download model</a>
-    <a href="/inference" class="btn lg" data-link><span>▶</span> Load & chat</a>
-    <button type="button" class="btn lg" onclick="window.ftsTutorial && window.ftsTutorial.start({ force: true })"><span>?</span> Take the tour</button>
-  </div>
-</div>
+{% include "_resources.html" %}
 
 {# Projects #}
 <div class="card">

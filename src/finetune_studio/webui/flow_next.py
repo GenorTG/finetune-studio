@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 log = logging.getLogger(__name__)
 
-STATEFUL_PAGES = frozenset({"files", "data", "pairs", "data-prep", "training"})
+STATEFUL_PAGES = frozenset({"files", "data", "pairs", "data-prep", "training", "smart brain"})
 
 # Each page's Next step once its own state-aware step (``next_for``) is done. One table for base.html and the API, so a
 # bar refreshed in place (``GET /api/projects/{pid}/flow-next``) can fall back to it as well.
@@ -22,7 +22,7 @@ STATIC_NEXT: dict[str, tuple[str, str, str]] = {
     "pairs": ("/training", "Train an adapter", "Use the reviewed dataset to teach the model how to answer."),
     "training": ("/testing", "Test the answers", "Run a quiz to see what the adapter learned and when it declines."),
     "testing": ("/export", "Package it", "See what is left, then build the package your models will use."),
-    "package": ("/brain#brain-export-panel", "Build the package", "Download it, or run it as a server your models can reach."),
+    "package": ("/export#package-form", "Build the package", "Choose who it is for and what goes in, then download it or run it as a server."),
     "smart brain": ("/testing", "Score its answers", "Run your own questions and see what it gets right and when it declines."),
     "chat": ("/testing", "Measure answer quality", "Run a quiz to check accuracy and appropriate declines."),
     "compare": ("/testing", "Run a focused quiz", "Compare models on the same questions, then score the answers."),
@@ -88,6 +88,14 @@ def next_for(page: str, c: ProjectCounts) -> tuple[str, str, str] | None:
         if not c.brain_built:
             return ("/brain", "Build the Smart Brain", "Turn your files into answers with sources; no training needed.")
         return ("/brain", "Ask your documents", "The index is built: ask a question and read the sources.")
+    if page == "smart brain":
+        if not c.files:
+            return ("/data", "Add your files", "Upload the documents you want your Smart Brain to answer from.")
+        if not c.parsed:
+            return ("/data", "Wait for your files to finish reading", "The Files page shows when each document is ready to build.")
+        if not c.brain_built:
+            return ("", "Build the Smart Brain", "Your documents are ready. Build their searchable index to start asking questions.")
+        return None
     if page in ("pairs", "data-prep"):
         if not c.parsed:
             return ("/data", "Upload files first", "Pairs are mined from parsed files.")

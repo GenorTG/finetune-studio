@@ -239,6 +239,6 @@ def test_export_config_and_ui_drive_the_option(client, tmp_path: Path, monkeypat
     assert j["verified"]["ok"] is True and j["verified"]["original"]["ok"] is True, j["verified"]
     off = client.post(f"/api/projects/{pid}/brain/standalone", json={"semantic_search": False, "passphrase": PASS})
     assert off.json()["original_files"] == 0 and "original" not in off.json()["verified"]
-    page = client.get(f"/projects/{pid}/brain").text
+    page = client.get(f"/projects/{pid}/export").text
     assert 'id="mcp-originals"' in page and "Leave this off for a public bot" in page
     assert "include_originals: g('mcp-originals').checked" in page

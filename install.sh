@@ -268,6 +268,7 @@ if ! command -v uv >/dev/null 2>&1; then
     export PATH="$HOME/.local/bin:$PATH"
 fi
 log "uv: $(uv --version)"
+UV_PATH="$(command -v uv)"
 
 # ── Create venv ──
 if [ ! -d "$VENV_DIR" ]; then
@@ -287,6 +288,8 @@ PYTHON_CMD="$PWD/$VENV_DIR/bin/python"
 [ -x "$PYTHON_CMD" ] || die "venv broken: $PYTHON_CMD not executable"
 ACTIVATE_HINT="source $VENV_DIR/bin/activate"
 if [ -n "$FORCED_VENDOR" ]; then echo "$FORCED_VENDOR" > "$VENDOR_FILE"; fi
+# update.sh may run from a shell without this PATH (Settings -> Apply update under systemd): it reads uv's path here.
+[ -n "${UV_PATH:-}" ] && echo "$UV_PATH" > "$VENV_DIR/fts-uv-path"
 log "venv python: $PYTHON_CMD"
 
 # ── pip helper: uv-created venvs have NO pip module (2026-09-25: the dev box

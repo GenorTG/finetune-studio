@@ -79,7 +79,7 @@ class PackageResult:
     layers: dict[str, bool] = field(default_factory=dict)   # what the package can run (manifest "search_layers")
 
 
-_README_TMPL = """# {title} — searchable knowledge pack
+_README_TMPL = """# {title}
 
 Exported from Finetune Studio on {date}.
 It is a set of documents, split into searchable chunks, with two ready-made
@@ -958,7 +958,7 @@ def build_package(
     manifest["original_files"] = len(ship_originals)
     title = name or manifest.get("name") or corpus.name
     if encrypted:  # nothing derived from the project/document names in paths/README
-        title, slug, root = "Portable RAG pack", NEUTRAL_ROOT, NEUTRAL_ROOT
+        title, slug, root = "Smart Brain knowledge package", NEUTRAL_ROOT, NEUTRAL_ROOT
     else:
         slug = _slug(title)
         root = f"{slug}-brain"

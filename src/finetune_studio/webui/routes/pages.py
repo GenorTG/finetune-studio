@@ -258,7 +258,7 @@ def export_page(pid: str, request: Request):
     """
     from finetune_studio import db
     from finetune_studio.training.export_capabilities import (
-        probe_export_capabilities,
+        cached_export_capabilities,
     )
     from finetune_studio.webui.routes.project_export import (
         annotate_runs_for_export,
@@ -270,16 +270,17 @@ def export_page(pid: str, request: Request):
         raise HTTPException(status_code=404, detail="Project not found")
     project["runs"] = annotate_runs_for_export(db.list_runs(pid))
     project["models"] = _scan_run_models(project["runs"])
-    caps = probe_export_capabilities()
-    from finetune_studio.knowledge.readiness import readiness
+    caps = cached_export_capabilities()
+    from finetune_studio.data.fs.paths import brain_index_dir
 
-    package_state = readiness(pid)
+    has_index = (brain_index_dir(pid) / "manifest.json").is_file()
+    # The readiness checklist (it runs the knowledge check) loads from GET …/brain/readiness after the page shows.
     return templates.TemplateResponse(
         request,
         "export_models.html",
         {
-            "package_state": package_state,
             "request": request,
+            "has_index": has_index,
             "project": project,
             "pid": pid,
             "runs_by_id": runs_by_id(project["runs"]),
@@ -374,6 +375,11 @@ async def project_training_page(request: Request, pid: str):
     production = resolve_production_run(
         ctx["project"], ctx["project"].get("runs") or [],
     )
+    from finetune_studio.training import run_artifacts
+
+    ctx["project"]["runs"] = run_artifacts.annotate(ctx["project"].get("runs") or [])
+    if detail_run:
+        detail_run = run_artifacts.annotate([detail_run])[0]
     return templates.TemplateResponse(
         request,
         "project_training.html",

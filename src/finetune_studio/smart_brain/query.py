@@ -49,7 +49,8 @@ class BrainQuery:
                hybrid: bool | None = None,
                rerank: bool | None = None,
                rerank_top_n: int | None = None,
-               max_per_document: int | None = None) -> list[dict]:
+               max_per_document: int | None = None,
+               source_prefix: str = "") -> list[dict]:
         """Top-k hits. hybrid/rerank/max_per_document default to manifest settings (``smart_brain.diversity``)."""
         from finetune_studio.smart_brain.diversity import (
             CANDIDATES_PER_RESULT,
@@ -75,14 +76,23 @@ class BrainQuery:
                 f"Rebuild the corpus or reload with the manifest embedder."
             )
         dense_scores = self.vectors @ q
+        allowed = np.arange(len(self._chunk_ids))
+        if source_prefix:
+            allowed = np.array([
+                i for i, row in self.chunks.iterrows()
+                if str(row.get("source") or "").startswith(source_prefix)
+                or str(row.get("filename") or "").startswith(source_prefix)
+            ], dtype=int)
+            if allowed.size == 0:
+                return []
 
         # Build rankings
-        dense_rank = [self._chunk_ids[i] for i in np.argsort(-dense_scores)]
+        dense_rank = [self._chunk_ids[i] for i in allowed[np.argsort(-dense_scores[allowed])]]
         if use_hybrid:
             bm25_scores = self.bm25.score(query)
             # Only passages sharing a term get a keyword rank: an arbitrary rank for the zero-score rest pushed a
             # passage found by meaning alone below ones matching just "you" / "w" (standalone_server does the same).
-            order = np.argsort(-bm25_scores)
+            order = allowed[np.argsort(-bm25_scores[allowed])]
             bm25_rank = [self._chunk_ids[i] for i in order if bm25_scores[i] > 0]
         else:
             bm25_scores = None

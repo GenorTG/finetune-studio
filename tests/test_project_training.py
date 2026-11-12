@@ -1,6 +1,8 @@
 """Tests for project training page Actions + promote-to-production."""
 from __future__ import annotations
 
+from pathlib import Path
+
 
 def _project(client) -> str:
     r = client.post("/api/projects", json={"name": "Training Actions Test"})
@@ -8,11 +10,17 @@ def _project(client) -> str:
     return r.json()["id"]
 
 
-def _done_run(pid: str, name: str = "good-run") -> dict:
+def _done_run(pid: str, tmp_path: Path, name: str = "good-run") -> dict:
     from finetune_studio import db
 
+    output = tmp_path / name / "output"
+    adapter = output / "adapter"
+    adapter.mkdir(parents=True)
+    (adapter / "adapter_config.json").write_text("{}", encoding="utf-8")
+    (adapter / "adapter_model.safetensors").touch()
+
     run = db.create_run(project_id=pid, name=name, base_model="/m", data_path="/d")
-    db.update_run(run["id"], status="done", output_path="/tmp/out/good")
+    db.update_run(run["id"], status="done", output_path=str(output))
     got = db.get_run(run["id"])
     assert got is not None
     return got
@@ -31,9 +39,9 @@ def test_resolve_production_run() -> None:
     assert missing == {"id": "deadbeef", "name": "deadbeef"}
 
 
-def test_training_page_has_actions_column(client) -> None:
+def test_training_page_has_actions_column(client, tmp_path: Path) -> None:
     pid = _project(client)
-    run = _done_run(pid)
+    run = _done_run(pid, tmp_path)
     r = client.get(f"/projects/{pid}/training")
     assert r.status_code == 200
     body = r.text
@@ -51,11 +59,11 @@ def test_training_page_has_actions_column(client) -> None:
     assert run["name"] in r2.text
 
 
-def test_promote_returns_ok_and_run(client) -> None:
+def test_promote_returns_ok_and_run(client, tmp_path: Path) -> None:
     from finetune_studio import db
 
     pid = _project(client)
-    run = _done_run(pid, name="prod-candidate")
+    run = _done_run(pid, tmp_path, name="prod-candidate")
     r = client.post(f"/api/projects/{pid}/promote", json={"run_id": run["id"]})
     assert r.status_code == 200
     body = r.json()
@@ -81,9 +89,9 @@ def test_promote_unknown_run_errors(client) -> None:
     assert r.json().get("detail") == "run not found"
 
 
-def test_training_page_shows_production_pill_after_promote(client) -> None:
+def test_training_page_shows_production_pill_after_promote(client, tmp_path: Path) -> None:
     pid = _project(client)
-    run = _done_run(pid, name="ship-it")
+    run = _done_run(pid, tmp_path, name="ship-it")
     client.post(f"/api/projects/{pid}/promote", json={"run_id": run["id"]})
     r = client.get(f"/projects/{pid}/training")
     assert r.status_code == 200
@@ -92,9 +100,9 @@ def test_training_page_shows_production_pill_after_promote(client) -> None:
     assert "⭐ production" in r.text
 
 
-def test_export_page_accepts_run_query(client) -> None:
+def test_export_page_accepts_run_query(client, tmp_path: Path) -> None:
     pid = _project(client)
-    run = _done_run(pid)
+    run = _done_run(pid, tmp_path)
     r = client.get(f"/projects/{pid}/export?run={run['id']}")
     assert r.status_code == 200
     assert "export-run-radio" in r.text
