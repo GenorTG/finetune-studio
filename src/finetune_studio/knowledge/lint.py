@@ -34,6 +34,8 @@ _OLD_NAME = re.compile(r"(?:^|[\W_])(superseded|obsolete|deprecated|outdated|old
 _OLD_TEXT = re.compile(r"\b(superseded by|this (?:document|version|policy|handbook) is (?:superseded|obsolete|no longer)"
                        r"|no longer in force|obsolete version)\b", re.IGNORECASE)
 _VERSION = re.compile(r"(?:^|[\W_])v(?:er(?:sion)?)?[\W_]?(\d{1,3})(?:[\W_]|$)", re.IGNORECASE)
+# A year (or a date starting with one) in a file name: "handbook_v1_2023", "terms_v4_2025-05-01"
+_NAME_YEAR = re.compile(r"(?<![^\W_])((?:19|20)\d{2})(?:[-_.]?\d{2}){0,2}(?![^\W_])")
 _SECRETS = (
     ("a private key", re.compile(r"-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----")),
     ("an AWS access key", re.compile(r"\bAKIA[0-9A-Z]{16}\b")),
@@ -91,12 +93,22 @@ def _similarity(a: frozenset[int], b: frozenset[int]) -> float:
     return len(a & b) / len(a | b) if a and b else 0.0
 
 
-def _version_key(name: str) -> tuple[str, int] | None:
+def _version_key(name: str) -> tuple[str, int, int | None] | None:
+    """(family, version, year in the name) of a versioned file name. The year is not part of the family: a new
+    version is usually dated too ("handbook_v1_2023" -> "handbook_v2_2025")."""
     stem = re.sub(r"\.[^.]+$", "", name)   # first: the same document can be a .docx in one version and a .pdf in the next
     match = _VERSION.search(stem)
     if not match:
         return None
-    return re.sub(r"[\W_]+", "", _VERSION.sub("_", stem, count=1)).lower(), int(match.group(1))
+    rest = _VERSION.sub("_", stem, count=1)
+    year = _NAME_YEAR.search(rest)
+    family = re.sub(r"[\W_]+", "", _NAME_YEAR.sub("_", rest)).lower()
+    return family, int(match.group(1)), int(year.group(1)) if year else None
+
+
+def _older(version: int, year: int | None, newest: tuple[int, int | None]) -> bool:
+    """A lower version is older unless its name carries a later year (budget_2025_v1 is not older than budget_2024_v3)."""
+    return version < newest[0] and (year is None or newest[1] is None or year <= newest[1])
 
 
 def _check_files(sources: list[Source], texts: dict[str, str]) -> list[Finding]:
@@ -153,16 +165,16 @@ def _check_files(sources: list[Source], texts: dict[str, str]) -> list[Finding]:
             why = f'the file name says "{name_hit.group(1)}"' if name_hit else f'the text says "{text_hit.group(0)}"'
             out.append(_finding("old_version", "warning", f"{s.filename} looks out of date ({why})",
                                 "Remove it unless answers should use it: old facts will otherwise be quoted as current.", [s]))
-    versions: dict[str, list[tuple[int, Source]]] = defaultdict(list)
+    versions: dict[str, list[tuple[int, int | None, Source]]] = defaultdict(list)
     for s in ready:
         key = _version_key(s.filename)
         if key:
-            versions[key[0]].append((key[1], s))
+            versions[key[0]].append((key[1], key[2], s))
     for family in versions.values():
-        newest = max(v for v, _ in family)
-        for version, s in family:
-            if version < newest and s.id not in flagged:
-                out.append(_finding("old_version", "warning", f"{s.filename} has a newer version (v{newest})",
+        newest = max(((v, y) for v, y, _ in family), key=lambda vy: vy[0])
+        for version, year, s in family:
+            if _older(version, year, newest) and s.id not in flagged:
+                out.append(_finding("old_version", "warning", f"{s.filename} has a newer version (v{newest[0]})",
                                     "Remove it unless answers should use it: old facts will otherwise be quoted as current.", [s]))
     return out
 
