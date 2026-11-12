@@ -812,11 +812,13 @@ class Corpus:
             return {"question": question, "answer": "Nothing in this corpus matches the question.",
                     "sources": [], "weak": True, "model": None}
         chat = self._chat if provider is None else lambda messages: self._chat(messages, provider)
-        result = answer_with_follow_ups(question, hits, lambda q: self.search(q, top_k), chat,
-                                        follow_ups=int(self.cfg["follow_up"]),
-                                        missing_part_retry=bool(self.cfg["retry_missing"]),
-                                        system_prompt=self.identity.get("system_prompt", ""), history=history,
-                                        system_turn=_anonymous_turn if hide else None)
+        result = answer_with_follow_ups(
+            question, hits, lambda q: self.search(q, top_k), chat,
+            source_search=lambda q, prefix: self.search(q, top_k, source_prefix=prefix),
+            follow_ups=int(self.cfg["follow_up"]),
+            missing_part_retry=bool(self.cfg["retry_missing"]),
+            system_prompt=self.identity.get("system_prompt", ""), history=history,
+            system_turn=_anonymous_turn if hide else None)
         sources = [{"rank": h["rank"], "filename": h["filename"], "chunk_id": h["chunk_id"],
                     "document_id": h.get("document_id", ""), "original": bool(h.get("original")),
                     "preview": str(h.get("text") or "")[:600]} for h in result["hits"]]
@@ -1007,7 +1009,7 @@ def missing_part_query(question: str, answer: str, chat) -> str:
 def answer_with_follow_ups(question: str, hits: list[dict], search, chat, *, follow_ups: int = 1,
                            max_chars: int = ANSWER_CONTEXT_CHARS, system_prompt: str = "",
                            history: list[dict] | None = None, system_turn=None,
-                           missing_part_retry: bool = True) -> dict:
+                           missing_part_retry: bool = True, source_search=None) -> dict:
     """Answer from ``hits``; the model may instead ask for up to ``follow_ups`` more searches.
 
     ``search(query) -> hits`` and ``chat(messages) -> reply`` are the caller's (this server's search and answer
@@ -1017,7 +1019,9 @@ def answer_with_follow_ups(question: str, hits: list[dict], search, chat, *, fol
     The last round never offers a search, so the model always ends with an answer.
     ``missing_part_retry``: when that answer says part of the question is not stated, one more search runs for the
     missing part (``missing_part_query``) and the answer is written once more with the new passages merged in;
-    ``followup`` then says what was searched and which sources it added (None when it did not run).
+    when ``source_search`` is provided and the answer cited a source, the retry searches only within up to two cited
+    sources (falling back to global search if that scoped search finds nothing). ``followup`` then says what was
+    searched and which sources it added (None when it did not run).
     Returns ``{"answer", "hits", "follow_up_searches", "followup"}``.
     """
     asked: list[str] = []
@@ -1041,8 +1045,14 @@ def answer_with_follow_ups(question: str, hits: list[dict], search, chat, *, fol
     followup = None
     if missing_part_retry and follow_ups > 0 and says_not_stated(reply):
         wanted = missing_part_query(question, reply, chat)
+        cited_prefixes = _cited_source_prefixes(reply, hits)
+        if source_search and cited_prefixes:
+            scoped = [h for prefix in cited_prefixes for h in source_search(wanted, prefix)]
+            candidates = scoped or search(wanted)
+        else:
+            candidates = search(wanted)
         seen = {h.get("chunk_id") for h in hits}
-        extra = [h for h in search(wanted) if h.get("chunk_id") not in seen]
+        extra = [h for h in candidates if h.get("chunk_id") not in seen]
         followup = {"query": wanted, "reason": "the answer said part of the question is not stated",
                     "added_sources": sorted({str(h.get("filename") or h.get("source") or "") for h in extra}),
                     "added_passages": len(extra), "answer_before": reply}
@@ -1054,6 +1064,23 @@ def answer_with_follow_ups(question: str, hits: list[dict], search, chat, *, fol
             reply = "I could not find the answer in the documents." if follow_up_query(again) else again
         asked.append(wanted)
     return {"answer": reply, "hits": hits, "follow_up_searches": asked, "followup": followup}
+
+
+def _cited_source_prefixes(answer: str, hits: list[dict]) -> list[str]:
+    """Return up to two source prefixes explicitly cited in the answer."""
+    answer_lower = (answer or "").lower()
+    prefixes: list[str] = []
+    for hit in hits:
+        filename = str(hit.get("filename") or "")
+        source = str(hit.get("source") or "")
+        basename = source.rsplit("/", 1)[-1]
+        if any(value and value.lower() in answer_lower for value in (filename, basename)):
+            prefix = source or filename
+            if prefix and prefix not in prefixes:
+                prefixes.append(prefix)
+        if len(prefixes) == 2:
+            break
+    return prefixes
 
 
 def _guess_type(filename: str) -> str:

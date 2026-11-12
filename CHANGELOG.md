@@ -9,6 +9,7 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- When an answer says part of it is missing, the retry searches the cited document(s) first before falling back to the whole knowledge base.
 - The host resources card (RAM and VRAM bars) is only on the dashboard, Training, Inference and My models, below the page
   title and smaller on phones; the knowledge pages open on their title and next step (the top bar keeps the VRAM pill).
 - The knowledge package leads everywhere: the dashboard's quick actions are New project, Open <last project> and

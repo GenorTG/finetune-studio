@@ -99,6 +99,8 @@ def _ask(args: argparse.Namespace) -> None:
         result = answer_with_follow_ups(
             args.question, hits, lambda query: index.search(query, top_k=args.top_k),
             lambda messages: engine.generate(messages, max_tokens=args.max_tokens),
+            source_search=lambda query, prefix: index.search(
+                query, top_k=args.top_k, source_prefix=prefix),
             follow_ups=args.follow_up, system_prompt=args.system_prompt,
             missing_part_retry=getattr(args, "retry_missing", True))
     finally:
