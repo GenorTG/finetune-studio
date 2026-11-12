@@ -218,6 +218,7 @@
                  title="Used to derive the encryption key. Never saved by Finetune Studio. Lose it and the package cannot be opened.">
         </div>
       </div>
+      <div class="sev-warning text-sm mb-2" id="mcp-blocker" role="status" aria-live="polite" hidden></div>
       <div class="flex gap-2 items-center">
         <button class="btn primary" type="button" id="mcp-pkg-btn" onclick="startMcpPackage()"
                 title="Build the package with the options above, check it opens and searches, then download it.">&#11015; Build &amp; download the package</button>
@@ -583,6 +584,14 @@
     return r.json();
   }).then((d) => {
     document.getElementById('package-ready-title').textContent = d.ready ? 'Ready to package' : 'Not ready yet';
+    // A step the export refuses on (superseded documents nobody accepted) is said next to the Build button too.
+    const blocker = document.getElementById('mcp-blocker');
+    const stop = (d.steps || []).find((st) => st.key === 'check' && st.state === 'problem');
+    if (blocker) {
+      blocker.hidden = !stop;
+      if (stop) blocker.innerHTML = '⚠ ' + esc(stop.detail) + ' <a href="/projects/' + encodeURIComponent(PID) + esc(stop.href)
+        + '" data-link>Open the knowledge check</a>';
+    }
     list.innerHTML = (d.steps || []).map((st) => {
       const pill = PILL[st.state] || PILL.todo;
       return '<li class="package-step is-' + esc(st.state) + '"><div class="package-step-head">'
@@ -594,7 +603,11 @@
     document.getElementById('package-ready-title').textContent = 'Could not check the project';
     list.innerHTML = '<li class="package-step is-problem"><div class="package-step-detail">' + esc(e.message || e)
       + ' Reload the page; if it stays, open the Smart Brain page and run the knowledge check there.</div></li>';
-  }).finally(() => card.removeAttribute('aria-busy'));
+  }).finally(() => {
+    card.removeAttribute('aria-busy');
+    // The list grew after an SPA jump to #package-form: land on the form again.
+    if (location.hash === '#package-form') document.getElementById('package-form').scrollIntoView({ block: 'start' });
+  });
 })();
 
 // The package form (moved from the Smart Brain page): options, scope, answer connection, versions, build + download.
