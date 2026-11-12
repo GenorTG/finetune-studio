@@ -142,6 +142,9 @@
     <label class="flex items-center gap-2"
          title="When the passages lack a fact the question needs (who manages the site where asset X is installed?), the model may ask for one more search before answering. It helped the API model and Qwen 3.5 4B on the Quillmoor benchmark; for small models that over-use it (Llama 3.2 3B, Gemma 3 4B gained nothing and Gemma abstained less) turn it off.">
     <input id="chat-follow-up" type="checkbox" checked> Follow-up search for questions that go through another item</label>
+    <label class="flex items-center gap-2"
+         title="When the answer says part of the question is not stated (a contract's value, who signed it), search once more for just that part and write the answer again. One retry per answer; the chat shows what it searched. Needs the follow-up search on.">
+    <input id="chat-retry-missing" type="checkbox" checked> Search again for a missing part</label>
   </div>
   <div id="chat-answer-hint" class="text-xs muted mt-1" role="status" hidden></div>
   <div class="brain-chat-model" id="chat-model-row" hidden>
@@ -1190,6 +1193,7 @@
         messages: brainChat,
         top_k: 10,
         follow_up: (document.getElementById('chat-follow-up') || {}).checked === false ? 0 : 1,
+        retry_missing: (document.getElementById('chat-retry-missing') || {}).checked !== false,
         answer_with: (document.getElementById('chat-answer-with') || {}).value || 'model',
       });
       const reply = d.reply || d.response || '';
@@ -1198,10 +1202,17 @@
       const sources = d.sources || [];
       const groups = groupSources(reply, sources);
       let html = '<div class="brain-answer">' + citeLinks(esc(reply), msgId, groups) + '</div>';
-      if (d.follow_up_searches && d.follow_up_searches.length) {
+      const fu = d.followup;
+      const asked = (d.follow_up_searches || []).filter(function (q) { return !fu || q !== fu.query; });
+      if (asked.length) {
         // The model asked for a second search before answering (a question that goes through another item).
         html += '<div class="text-xs dim mt-1">Also searched: ' +
-          esc(d.follow_up_searches.map(function(q) { return '"' + q + '"'; }).join(', ')) + '</div>';
+          esc(asked.map(function(q) { return '"' + q + '"'; }).join(', ')) + '</div>';
+      }
+      if (fu) {
+        // The first answer said part of the question is not stated: one more search for that part.
+        html += '<div class="text-xs dim mt-1">Part of the answer was missing, so it searched again for "' + esc(fu.query) + '"'
+          + (fu.added_sources && fu.added_sources.length ? ' and added ' + esc(fu.added_sources.join(', ')) : ' (nothing new found)') + '.</div>';
       }
       if (sources.length) html += sourcesHtml(msgId, groups);
       pending.innerHTML = html;

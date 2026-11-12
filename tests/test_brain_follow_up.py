@@ -50,7 +50,8 @@ def test_a_direct_answer_costs_one_call_and_no_search() -> None:
     chat = MagicMock(return_value="UVR-4655-R is at Quellvoe [asset.txt].")
     search = MagicMock()
     out = srv.answer_with_follow_ups("Where is UVR-4655-R?", FIRST, search, chat)
-    assert out == {"answer": "UVR-4655-R is at Quellvoe [asset.txt].", "hits": FIRST, "follow_up_searches": []}
+    assert out == {"answer": "UVR-4655-R is at Quellvoe [asset.txt].", "hits": FIRST, "follow_up_searches": [],
+                   "followup": None}
     search.assert_not_called()
     system = chat.call_args.args[0][0]["content"]
     assert system.startswith(srv.DEFAULT_SYSTEM_PROMPT) and srv.FOLLOW_UP_INSTRUCTION in system

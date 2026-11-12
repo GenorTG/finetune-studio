@@ -26,6 +26,7 @@ While it builds, the bar shows the passages embedded, the time taken and the tim
 - `#quick-index-btn` — Build / Update Smart Brain: one-click parse + build.
 - `#brain-add-files-btn` — add files without leaving the page (`#brain-upload-input`).
 - `#chat-new-btn` — start a new conversation.
+- `#chat-retry-missing` — Search again for a missing part (on by default): when an answer says part of the question is not stated, the chat searches once more for just that part and writes the answer again; it says what it searched and which files it added. One retry per answer. Packages do the same (`/ask`, `rag_answer`; the reply's `followup`; `RAG_RETRY_MISSING=0` turns it off). CLI: `fts brain ask --no-retry-missing`.
 - `#chat-model-select` — pick a local model to answer with when none is loaded.
 - `#s-max-per-doc` — Per document (retrieval settings): at most this many passages of one document in a search's top results before other documents get a turn (default 3; 0 = no cap); its other passages still fill the end when nothing else matches. Studio search, chat and exported packages use it (a package server can override it with `max_per_document` / `RAG_MAX_PER_DOCUMENT`).
 - `#b-embedder` — embedding model (multilingual-e5-large default; bge-large-en for English-only; all-MiniLM-L6-v2 is small and weaker).

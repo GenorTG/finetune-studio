@@ -99,15 +99,16 @@ def _ask(args: argparse.Namespace) -> None:
         result = answer_with_follow_ups(
             args.question, hits, lambda query: index.search(query, top_k=args.top_k),
             lambda messages: engine.generate(messages, max_tokens=args.max_tokens),
-            follow_ups=args.follow_up, system_prompt=args.system_prompt)
+            follow_ups=args.follow_up, system_prompt=args.system_prompt,
+            missing_part_retry=getattr(args, "retry_missing", True))
     finally:
         engine.unload()
     answer, hits = result["answer"], result["hits"]
     sources = [{"filename": h["filename"], "score": h.get("ce_score", h.get("rrf_score", 0)), "text": h["text"][:200]}
                for h in hits]
     if args.json:
-        print(json.dumps({"response": answer, "sources": sources, "follow_up_searches": result["follow_up_searches"]},
-                         indent=2, default=str))
+        print(json.dumps({"response": answer, "sources": sources, "follow_up_searches": result["follow_up_searches"],
+                          "followup": result.get("followup")}, indent=2, default=str))
         return
     print(f"\nAI: {answer}")
     for query in result["follow_up_searches"]:
@@ -519,6 +520,8 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     sp.add_argument("--system-prompt", default="")
     sp.add_argument("--follow-up", type=int, default=1, choices=range(4), metavar="N",
                     help="follow-up searches the model may ask for before answering (0-3, default 1; 0 = off)")
+    sp.add_argument("--no-retry-missing", dest="retry_missing", action="store_false",
+                    help="do not search again when the answer says part of the question is not stated")
     sp.add_argument("--json", action="store_true")
 
     sp = target(brain.add_parser("eval", help="Retrieval + grounding + portability tests"))

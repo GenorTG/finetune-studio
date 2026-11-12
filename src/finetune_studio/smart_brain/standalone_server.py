@@ -95,6 +95,7 @@ DEFAULT_CONFIG: dict = {
     "llm_base_url": "", "llm_model": "", "llm_api_key": "", "answer_max_tokens": 512,
     "llm_headers": {}, "llm_body": {}, "follow_up": 1, "provider": "openai", "file_inline_max_mb": 20,
     "max_per_document": -1,
+    "retry_missing": True,
 }
 ENV_KEYS = {
     "host": "RAG_HOST", "port": "RAG_PORT", "top_k": "RAG_TOP_K",
@@ -108,9 +109,10 @@ ENV_KEYS = {
     "llm_headers": "RAG_LLM_HEADERS", "llm_body": "RAG_LLM_BODY", "follow_up": "RAG_FOLLOW_UP",
     "provider": "RAG_LLM_PROVIDER", "file_inline_max_mb": "RAG_FILE_INLINE_MAX_MB",
     "max_per_document": "RAG_MAX_PER_DOCUMENT",
+    "retry_missing": "RAG_RETRY_MISSING",
 }
 SECRET_KEYS = frozenset({"auth_token", "embed_api_key", "llm_api_key"})
-BOOL_KEYS = frozenset({"reranker", "semantic", "keyword", "answer"})
+BOOL_KEYS = frozenset({"reranker", "semantic", "keyword", "answer", "retry_missing"})
 JSON_KEYS = frozenset({"llm_headers", "llm_body"})
 USER_AGENT = "fts-brain-server/2.0"   # some API gateways (Cloudflare) refuse Python's default urllib agent
 SESSION_ID = os.urandom(16).hex()     # "{session}" in an llm header (the OpenCode Go gateway wants one per client)
@@ -803,13 +805,14 @@ class Corpus:
         chat = self._chat if provider is None else lambda messages: self._chat(messages, provider)
         result = answer_with_follow_ups(question, hits, lambda q: self.search(q, top_k), chat,
                                         follow_ups=int(self.cfg["follow_up"]),
+                                        missing_part_retry=bool(self.cfg["retry_missing"]),
                                         system_prompt=self.identity.get("system_prompt", ""), history=history)
         sources = [{"rank": h["rank"], "filename": h["filename"], "chunk_id": h["chunk_id"],
                     "document_id": h.get("document_id", ""), "original": bool(h.get("original")),
                     "preview": str(h.get("text") or "")[:600]} for h in result["hits"]]
         return {"question": question, "answer": result["answer"], "sources": sources, "weak": weak,
                 "model": (provider or {}).get("llm_model", self.cfg["llm_model"]),
-                "follow_up_searches": result["follow_up_searches"]}
+                "follow_up_searches": result["follow_up_searches"], "followup": result.get("followup")}
 
     def _chat(self, messages: list[dict], provider: Mapping | None = None) -> str:
         """One completion from the configured answer model; the reply with any <think> block removed."""
@@ -903,9 +906,56 @@ def merge_follow_up_hits(hits: list[dict], extra: list[dict]) -> list[dict]:
     return [{**h, "rank": rank} for rank, h in enumerate(merged, start=1)]
 
 
+# An answer that says part of the question is not in the passages ("the value is not stated", "the context does not
+# mention who signed it"). Tarrowfield in-008: the £211,450 passage was rank 9 of 10 and the model said "not stated";
+# a search for the missing part alone ranks it first. One such retry per answer (``missing_part_retry``).
+_NOT_STATED = re.compile(
+    r"\b(?:(?:is|are|was|were)\s+not\s+(?:stated|mentioned|specified|given|provided|included|listed|shown|available|"
+    r"found|named|disclosed|clear)|(?:isn't|aren't|wasn't|weren't)\s+(?:stated|mentioned|specified|given|provided|"
+    r"included|listed|shown|available|found|named)|(?:does|do|did)\s*(?:n't|\s+not)\s+(?:say|state|mention|"
+    r"specify|include|contain|give|provide|list|name|show)|no\s+(?:information|mention|details?|figure|value)\s+"
+    r"(?:is\s+given\s+)?(?:about|on|of|for|regarding)|(?:could|can)\s*(?:n't|not)\s+find|unable\s+to\s+find|"
+    r"not\s+in\s+the\s+(?:context|documents?|passages?|sources?))\b", re.IGNORECASE)
+MISSING_PART_PROMPT = (
+    "A user asked: {question}\n\nThe answer written from the documents found so far says part of it is missing:\n"
+    "{answer}\n\nWrite one short search query (a few words, the names and terms the documents would use) for ONLY "
+    "the missing part. Reply with the query alone, no quotes, no explanation."
+)
+
+
+def says_not_stated(answer: str) -> bool:
+    """True when an answer says (part of) the question is not in the passages."""
+    return bool(_NOT_STATED.search(answer or ""))
+
+
+def uncovered_clause(question: str, answer: str) -> str:
+    """The part of the question the answer covers least (a fallback sub-query when the model writes none)."""
+    parts = [p.strip(" ,;?.") for p in re.split(r"\?|;|,|\band\b|\balso\b", question or "") if p.strip(" ,;?.")]
+    words = {w for w in re.findall(r"[a-z0-9£€$%.]{3,}", (answer or "").lower())}
+
+    def covered(part: str) -> float:
+        toks = [w for w in re.findall(r"[a-z0-9£€$%.]{3,}", part.lower()) if w not in _STOP]
+        return sum(t in words for t in toks) / len(toks) if toks else 1.0
+
+    return min(parts, key=covered) if len(parts) > 1 else (question or "").strip()
+
+
+def missing_part_query(question: str, answer: str, chat) -> str:
+    """A search for the part an answer says is missing: the answer model writes it, else the uncovered clause."""
+    try:
+        reply = chat([{"role": "user", "content": MISSING_PART_PROMPT.format(question=question, answer=answer)}])
+    except Exception as e:  # noqa: BLE001 - the retry is best effort: fall back to the question's own words
+        print(f"[warn] missing-part query failed ({e}); using the question's clause", file=sys.stderr)
+        reply = ""
+    line = next((ln.strip().strip("\"'`*") for ln in strip_thinking(reply or "").splitlines() if ln.strip()), "")
+    line = re.sub(r"^(?:search|query)\s*:\s*", "", line, flags=re.IGNORECASE).strip()
+    return line[:200] if 2 <= len(line) <= 200 else uncovered_clause(question, answer)
+
+
 def answer_with_follow_ups(question: str, hits: list[dict], search, chat, *, follow_ups: int = 1,
                            max_chars: int = ANSWER_CONTEXT_CHARS, system_prompt: str = "",
-                           history: list[dict] | None = None, system_turn=None) -> dict:
+                           history: list[dict] | None = None, system_turn=None,
+                           missing_part_retry: bool = True) -> dict:
     """Answer from ``hits``; the model may instead ask for up to ``follow_ups`` more searches.
 
     ``search(query) -> hits`` and ``chat(messages) -> reply`` are the caller's (this server's search and answer
@@ -913,7 +963,10 @@ def answer_with_follow_ups(question: str, hits: list[dict], search, chat, *, fol
     ``system_turn(hits, max_chars, system_prompt, extra_instructions) -> str`` builds the system message; the studio
     passes ``smart_brain.prompt``'s (the training rows' layout), this server its own copy of it.
     The last round never offers a search, so the model always ends with an answer.
-    Returns ``{"answer", "hits", "follow_up_searches"}``.
+    ``missing_part_retry``: when that answer says part of the question is not stated, one more search runs for the
+    missing part (``missing_part_query``) and the answer is written once more with the new passages merged in;
+    ``followup`` then says what was searched and which sources it added (None when it did not run).
+    Returns ``{"answer", "hits", "follow_up_searches", "followup"}``.
     """
     asked: list[str] = []
     system_turn = system_turn or _system_turn
@@ -933,7 +986,22 @@ def answer_with_follow_ups(question: str, hits: list[dict], search, chat, *, fol
         offering = len(asked) < follow_ups
     if follow_up_query(reply):   # it asked for a search although none was offered: there is no answer to show
         reply = "I could not find the answer in the documents."
-    return {"answer": reply, "hits": hits, "follow_up_searches": asked}
+    followup = None
+    if missing_part_retry and follow_ups > 0 and says_not_stated(reply):
+        wanted = missing_part_query(question, reply, chat)
+        seen = {h.get("chunk_id") for h in hits}
+        extra = [h for h in search(wanted) if h.get("chunk_id") not in seen]
+        followup = {"query": wanted, "reason": "the answer said part of the question is not stated",
+                    "added_sources": sorted({str(h.get("filename") or h.get("source") or "") for h in extra}),
+                    "added_passages": len(extra), "answer_before": reply}
+        print(f"[info] missing-part search {wanted!r}: {len(extra)} new passage(s)", file=sys.stderr)
+        if extra:
+            hits = merge_follow_up_hits(hits, extra)
+            system = system_turn(hits, max_chars, system_prompt, "")
+            again = chat([{"role": "system", "content": system}, *(history or []), {"role": "user", "content": question}])
+            reply = "I could not find the answer in the documents." if follow_up_query(again) else again
+        asked.append(wanted)
+    return {"answer": reply, "hits": hits, "follow_up_searches": asked, "followup": followup}
 
 
 def _guess_type(filename: str) -> str:

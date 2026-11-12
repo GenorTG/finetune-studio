@@ -80,6 +80,8 @@ class ChatRequest(BaseModel):
     # Follow-up searches the model may ask for before answering (a question that reaches its answer through another
     # item: the site of an asset, then that site's manager). 0 = one search, answer from it.
     follow_up: int = Field(default=1, ge=0, le=3)
+    # The answer says part of the question is not stated: search once more for that part and answer again.
+    retry_missing: bool = True
     # "model": the chat model loaded from the top-bar pill. "assistant": the AI assistant's "Smart Brain chat" job
     # (Settings -> AI assistant; an API connection), so grounded chat works without loading a local model.
     answer_with: Literal["model", "assistant"] = "model"
@@ -693,6 +695,7 @@ async def brain_chat(pid: str, req: ChatRequest):
         return answer_with_follow_ups(
             last_user, hits, lambda query: q.search(query, top_k=req.top_k), chat,
             follow_ups=req.follow_up, max_chars=budget, system_prompt=system_prompt, history=history,
+            missing_part_retry=req.retry_missing,
             system_turn=lambda h, chars, system, extra: prompt.build_system_prompt(
                 prompt.format_context_blocks(h, max_chars=chars), system, extra))
 
@@ -721,6 +724,7 @@ async def brain_chat(pid: str, req: ChatRequest):
     return {"reply": clean, "sources": sources,
             "raw_reply_thinking": parts.get("thinking", ""),
             "follow_up_searches": result["follow_up_searches"],
+            "followup": result.get("followup"),
             "hits": hits}
 
 

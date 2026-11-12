@@ -122,6 +122,7 @@ def _controls() -> dict[str, Control]:
         ("brain.identity", "brain", "#brain-identity", "Identity: company, personality, how to answer"),
         ("brain.add_files", "brain", "#brain-add-files-btn", "Add files"),
         ("brain.new_chat", "brain", "#chat-new-btn", "New conversation"),
+        ("brain.retry_missing", "brain", "#chat-retry-missing", "Search again for a missing part"),
         ("brain.load_model", "brain", "#chat-model-select", "Answer model to load"),
         ("brain.embedder", "brain", "#b-embedder", "Embedder"),
         ("brain.build", "brain", "#build-btn", "Build"),

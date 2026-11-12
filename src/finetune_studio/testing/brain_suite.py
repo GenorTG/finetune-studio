@@ -199,6 +199,7 @@ class BrainCaseResult:
     chunks_retrieved: int = 0
     chunks_in_context: int = 0
     gold_rank_wide: int | None = None   # rank of the gold source in a wider search when it missed the top-k (diagnostic only)
+    followup: dict[str, Any] | None = None   # the first answer said part was not stated: the search for it + sources added
 
     def as_api_dict(self) -> dict[str, Any]:
         r = self.case_result
@@ -230,6 +231,7 @@ class BrainCaseResult:
             "chunks_retrieved": self.chunks_retrieved,
             "chunks_in_context": self.chunks_in_context,
             "gold_rank_wide": self.gold_rank_wide,
+            "followup": self.followup,
             "context_chars": len(self.context_text),
         }
 
@@ -313,9 +315,15 @@ def run_brain_case(
     think: bool = False,
     max_context_chars: int = DEFAULT_CONTEXT_CHARS,
     system_prompt: str = "",
+    retry_missing: bool = True,
 ) -> BrainCaseResult:
-    """Retrieve -> ground the prompt -> generate -> record the transcript and the retrieval provenance."""
+    """Retrieve -> ground the prompt -> generate -> record the transcript and the retrieval provenance.
+
+    ``retry_missing``: when the answer says part of the question is not stated, one more search for that part
+    (``standalone_server.missing_part_query``, the chat's and the package's rule), merged into the passages, and one
+    more answer; the transcript keeps both answers and ``followup`` records the search."""
     start = time.time()
+    followup: dict[str, Any] | None = None
     hits_raw: list[dict] = []
     context = ""
     gold_rank_wide: int | None = None
@@ -333,8 +341,29 @@ def run_brain_case(
             temperature=temperature,
             think=think,
         )
-        elapsed_ms = (time.time() - start) * 1000
         transcript = list(messages) + [{"role": "assistant", "content": response}]
+        if retry_missing:
+            from finetune_studio.smart_brain.standalone_server import (
+                merge_follow_up_hits,
+                missing_part_query,
+                says_not_stated,
+            )
+            if says_not_stated(response):
+                wanted = missing_part_query(case.question, response, lambda m: engine.generate(
+                    m, max_tokens=64, temperature=0.0, think=False))
+                seen = {h.get("chunk_id") for h in hits_raw}
+                extra = [h for h in (brain_query.search(wanted, top_k=top_k) or []) if h.get("chunk_id") not in seen]
+                followup = {"query": wanted, "added_sources": sorted({str(h.get("filename") or "") for h in extra}),
+                            "added_passages": len(extra), "answer_before": response}
+                if extra:
+                    hits_raw = merge_follow_up_hits(hits_raw, extra)
+                    provenance = [provenance_from_hit(h) for h in hits_raw]
+                    context = brain_query.format_context(hits_raw, max_chars=max_context_chars)
+                    messages = build_grounded_messages(case.question, context, system_prompt)
+                    response = engine.generate(messages, max_tokens=max_tokens, temperature=temperature, think=think)
+                    transcript += [{"role": "system", "content": f"(searched again for the missing part: {wanted})"},
+                                   *messages, {"role": "assistant", "content": response}]
+        elapsed_ms = (time.time() - start) * 1000
         case_result = CaseResult(
             case_name=case.name,
             category=case.category,
@@ -381,6 +410,7 @@ def run_brain_case(
         chunks_retrieved=len(hits_raw),
         chunks_in_context=n_in_context,
         gold_rank_wide=gold_rank_wide,
+        followup=followup,
     )
 
 
