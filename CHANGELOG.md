@@ -9,6 +9,7 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- New projects' optional base-model list now excludes inference-only and other projects' exported models, and de-duplicates identical paths.
 - The dashboard puts its knowledge-package actions immediately under the welcome text, ahead of machine telemetry.
 - The in-app Guide now names controls by their visible labels instead of exposing internal page-anchor IDs.
 - Encrypted package READMEs now use the Smart Brain knowledge-package name without exposing the source project name.
