@@ -296,7 +296,7 @@ def test_print_config_merges_and_redacts(corpus_dir: Path, tmp_path: Path) -> No
     assert shipped == {"device": "cuda:1", "host": "127.0.0.1", "port": 9001,
                        "top_k": 9, "reranker": False, "semantic": True, "keyword": True,
                        "answer": False, "provider": "openai", "llm_base_url": "", "llm_model": "",
-                       "llm_headers": {}, "llm_body": {}}
+                       "llm_headers": {}, "llm_body": {}, "file_inline_max_mb": 20}
     assert "passphrase" not in json.dumps(shipped).lower()
     r = _run(root, "--print-config", "--top-k", "4",
              env={"RAG_PORT": "9100", "RAG_AUTH_TOKEN": "tok-SECRET-123",

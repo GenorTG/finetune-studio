@@ -57,6 +57,10 @@ class BrainExportConfig(BaseModel):
     llm_model: str = ""
     llm_headers: dict[str, str] = Field(default_factory=dict)   # e.g. {"x-opencode-session": "{session}"}
     llm_body: dict[str, Any] = Field(default_factory=dict)      # merged into each request, e.g. reasoning_effort
+    # The uploaded files themselves (inside the encrypted container when encrypted). Anyone who can reach the server
+    # can download them (MCP rag_get_document, GET /files/<id>): leave it off for a public bot.
+    include_originals: bool = False
+    originals_inline_max_mb: int = Field(20, ge=1, le=512)   # rag_get_document: larger files come back as a link
 
     @field_validator("llm_headers")
     @classmethod
@@ -106,6 +110,7 @@ class BrainExportConfig(BaseModel):
             "answer": self.answer_enabled, "provider": self.llm_provider,
             "llm_base_url": self.llm_base_url, "llm_model": self.llm_model.strip(),
             "llm_headers": dict(self.llm_headers), "llm_body": dict(self.llm_body),
+            "file_inline_max_mb": self.originals_inline_max_mb,
         }
 
 
