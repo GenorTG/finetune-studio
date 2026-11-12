@@ -9,6 +9,7 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- The in-app Guide now names controls by their visible labels instead of exposing internal page-anchor IDs.
 - Encrypted package READMEs now use the Smart Brain knowledge-package name without exposing the source project name.
 - The project flow bar points to the Smart Brain build until its index exists, then moves on to testing its answers.
 - Testing quiz names now stay human-readable after reload (for example, “Smart Brain quiz · 11 questions” instead of “local · smart-brain-quiz (11 cases)”).
