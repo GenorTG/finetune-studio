@@ -233,6 +233,7 @@ class ExportConfigPatch(BaseModel):
     semantic_search: bool | None = None
     keyword_search: bool | None = None
     answer_enabled: bool | None = None
+    llm_provider: str | None = None
     llm_base_url: str | None = None
     llm_model: str | None = None
     llm_headers: dict[str, str] | None = None
@@ -384,10 +385,15 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
         log.exception("rag package build failed")  # never includes the passphrase
         raise HTTPException(status_code=500, detail=f"package build failed: {type(e).__name__}") from e
     from finetune_studio.knowledge.readiness import record_package
-    from finetune_studio.smart_brain.server_package import verify_package
 
     # The passphrase is only in memory here: the check gets it through the child's environment, never on disk.
-    verified = await asyncio.to_thread(verify_package, result.path, result.passphrase or req.passphrase or None)
+    from finetune_studio.smart_brain.server_package import (
+        studio_models_for,
+        verify_package,
+    )
+
+    verified = await asyncio.to_thread(verify_package, result.path, result.passphrase or req.passphrase or None,
+                                       studio_models=studio_models_for(corpus))
     await asyncio.to_thread(record_package, pid, filename=result.path.name, size=result.size, encrypted=result.encrypted,
                             identity=brain_identity.is_set(brain_identity.load(pid)), verified=verified)
     return JSONResponse(

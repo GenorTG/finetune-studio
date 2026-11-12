@@ -212,14 +212,92 @@ def test_standalone_mcp_stdio(corpus_dir: Path, tmp_path: Path) -> None:
     assert init["serverInfo"]["name"] == "fts-brain-mcp"
     assert "tools" in init["capabilities"]
 
-    tools = {t["name"] for t in responses[2]["result"]["tools"]}
-    assert {"rag_search", "rag_info"} <= tools
+    tools = {t["name"]: t for t in responses[2]["result"]["tools"]}
+    assert {"rag_search", "rag_info"} <= tools.keys()
+    # read-only tools say so: clients such as Codex run them without an approval prompt
+    assert all(t["annotations"]["readOnlyHint"] is True for t in tools.values())
 
     call = responses[3]["result"]
     assert call["isError"] is False
     hits = json.loads(call["content"][0]["text"])
     assert hits and hits[0]["chunk_id"] == "c2"
     assert "nine crowns" in hits[0]["text"]
+
+
+def test_the_shipped_server_serves_its_chat_page_and_mcp(corpus_dir: Path, tmp_path: Path) -> None:
+    """Run as a script (not imported): everything the handler uses must be defined before main() runs."""
+    import socket
+    import time
+
+    archive = _plain(corpus_dir, tmp_path / "p.tar.gz", name="Test Corpus")
+    root = _extract(archive, tmp_path / "x")
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    log = (tmp_path / "server.log").open("w")
+    proc = subprocess.Popen([sys.executable, "-I", str(root / "server.py"), "--corpus", str(root / "corpus"),
+                             "--http", str(port), "--host", "127.0.0.1"], stdout=subprocess.DEVNULL, stderr=log)
+    try:
+        base, page = f"http://127.0.0.1:{port}", ""
+        for _ in range(60):
+            try:
+                with urllib.request.urlopen(base + "/", timeout=2) as r:
+                    page = r.read().decode()
+                break
+            except urllib.error.HTTPError:
+                raise
+            except OSError:
+                time.sleep(0.25)
+        assert 'src="/app.js"' in page
+        with urllib.request.urlopen(base + "/app.js", timeout=5) as r:
+            assert b"fetch(" in r.read()
+        body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {"_meta": MODERN_META}}).encode()
+        req = urllib.request.Request(base + "/mcp", data=body, method="POST", headers={
+            "Content-Type": "application/json", "Accept": "application/json, text/event-stream",
+            "MCP-Protocol-Version": "2026-07-28"})
+        with urllib.request.urlopen(req, timeout=5) as r:
+            assert "2026-07-28" in json.loads(r.read())["result"]["supportedVersions"]
+    finally:
+        proc.terminate()
+        proc.wait(timeout=10)
+        log.close()
+
+
+def test_stdio_mcp_answers_the_handshake_before_the_corpus_opens() -> None:
+    """Opening a corpus takes seconds: initialize and tools/list must not wait for it, a search must."""
+    import threading
+
+    from finetune_studio.smart_brain import standalone_server as ss
+
+    gate = threading.Event()
+
+    class Slow:
+        def __init__(self) -> None:
+            self.cfg = {"answer": False}
+            self.identity: dict = {}
+
+        def info(self) -> dict:
+            return {"corpus": "slow"}
+
+        def search(self, *_a):
+            return [{"chunk_id": "c1"}]
+
+    def opener():
+        gate.wait(10)
+        return Slow()
+
+    loading = ss.LoadingCorpus({"answer": False}, opener)
+    respond = ss.mcp_responder(loading)
+    ss.INSTRUCTIONS_WAIT, saved = 0.05, ss.INSTRUCTIONS_WAIT
+    try:
+        assert respond({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})["result"]["serverInfo"]
+        assert respond({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})["result"]["tools"]
+    finally:
+        ss.INSTRUCTIONS_WAIT = saved
+    threading.Timer(0.2, gate.set).start()
+    call = respond({"jsonrpc": "2.0", "id": 3, "method": "tools/call",
+                    "params": {"name": "rag_search", "arguments": {"query": "x"}}})["result"]
+    assert call["isError"] is False and "c1" in call["content"][0]["text"]
 
 
 def test_missing_corpus_files_raises(tmp_path: Path) -> None:
@@ -469,7 +547,11 @@ def test_hosted_browser_chat_is_public_but_corpus_api_requires_token(corpus_dir:
     try:
         with urllib.request.urlopen(base + "/", timeout=5) as response:
             page = response.read().decode()
-        assert "Smart Brain" in page and "Anthropic Claude" in page and "not saved" in page
+        with urllib.request.urlopen(base + "/app.js", timeout=5) as response:
+            script = response.read().decode()
+            assert "script-src 'self'" in response.headers["Content-Security-Policy"]
+        assert "Smart Brain" in page and 'src="/app.js"' in page and "never stored" in page
+        assert "Anthropic Claude" in script and "OpenRouter" in script
         with pytest.raises(urllib.error.HTTPError) as denied:
             urllib.request.urlopen(base + "/profile", timeout=5)
         assert denied.value.code == 401
@@ -510,3 +592,94 @@ def test_answer_passes_chat_history_to_the_grounded_provider(corpus_dir: Path, t
         "answer_max_tokens": 128}, history=history)
     assert out["answer"] == "It is nine crowns."
     assert observed["history"] == history
+
+
+def _post(url: str, body: object, headers: dict | None = None) -> tuple[int, dict | None]:
+    req = urllib.request.Request(url, data=json.dumps(body).encode(), method="POST",
+                                 headers={"Content-Type": "application/json",
+                                          "Accept": "application/json, text/event-stream", **(headers or {})})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            raw = r.read()
+            return r.status, (json.loads(raw) if raw else None)
+    except urllib.error.HTTPError as e:
+        raw = e.read()
+        return e.code, (json.loads(raw) if raw else None)
+
+
+MODERN_META = {"io.modelcontextprotocol/protocolVersion": "2026-07-28",
+               "io.modelcontextprotocol/clientInfo": {"name": "t", "version": "1"},
+               "io.modelcontextprotocol/clientCapabilities": {}}
+
+
+def test_mcp_speaks_both_protocol_generations(corpus_dir: Path, tmp_path: Path) -> None:
+    from finetune_studio.smart_brain import standalone_server as srv
+
+    corpus = _in_process_corpus(corpus_dir, tmp_path)
+    corpus.identity = {"system_prompt": "You are Ada."}
+    respond = srv.mcp_responder(corpus)
+    legacy = respond({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18"}})
+    assert legacy["result"]["protocolVersion"] == "2025-06-18" and "You are Ada." in legacy["result"]["instructions"]
+    assert respond({"jsonrpc": "2.0", "id": 2, "method": "initialize", "params": {"protocolVersion": "1999-01-01"}}
+                   )["result"]["protocolVersion"] == srv.LEGACY_VERSIONS[0]
+    found = respond({"jsonrpc": "2.0", "id": 3, "method": "server/discover", "params": {"_meta": MODERN_META}})["result"]
+    assert found["resultType"] == "complete" and "2026-07-28" in found["supportedVersions"]
+    assert "You are Ada." in found["instructions"] and found["_meta"]["io.modelcontextprotocol/serverInfo"]["name"]
+    tools = respond({"jsonrpc": "2.0", "id": 4, "method": "tools/list", "params": {"_meta": MODERN_META}})["result"]
+    assert tools["resultType"] == "complete" and {"ttlMs", "cacheScope"} <= tools.keys()
+    hit = respond({"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {
+        "_meta": MODERN_META, "name": "rag_search", "arguments": {"query": "oath of salt"}}})["result"]
+    assert hit["resultType"] == "complete" and "Vaelindrath" in hit["content"][0]["text"]
+    bad = respond({"jsonrpc": "2.0", "id": 6, "method": "tools/list",
+                   "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": "1900-01-01"}}})
+    assert bad["error"]["code"] == -32022 and "2026-07-28" in bad["error"]["data"]["supported"]
+    legacy_list = respond({"jsonrpc": "2.0", "id": 7, "method": "tools/list"})["result"]
+    assert "resultType" not in legacy_list and "ttlMs" not in legacy_list
+
+
+def test_mcp_over_http_with_token_origin_and_status_codes(corpus_dir: Path, tmp_path: Path) -> None:
+    from finetune_studio.smart_brain import standalone_server as srv
+
+    corpus = _in_process_corpus(corpus_dir, tmp_path)
+    httpd = srv._Server(("127.0.0.1", 0), srv.make_handler(corpus, "service-secret"))
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{httpd.server_port}/mcp"
+    auth = {"Authorization": "Bearer service-secret"}
+    try:
+        assert _post(url, {"jsonrpc": "2.0", "id": 1, "method": "tools/list"})[0] == 401
+        code, out = _post(url, {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+                                "params": {"protocolVersion": "2025-03-26"}}, auth)
+        assert code == 200 and out["result"]["protocolVersion"] == "2025-03-26"
+        assert _post(url, {"jsonrpc": "2.0", "method": "notifications/initialized"}, auth) == (202, None)
+        code, out = _post(url, {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {
+            "_meta": MODERN_META, "name": "rag_search", "arguments": {"query": "Highmere Stair"}}},
+            {**auth, "MCP-Protocol-Version": "2026-07-28", "Mcp-Method": "tools/call", "Mcp-Name": "rag_search"})
+        assert code == 200 and "Highmere" in out["result"]["content"][0]["text"]
+        code, out = _post(url, {"jsonrpc": "2.0", "id": 3, "method": "tools/list", "params": {"_meta": MODERN_META}},
+                          {**auth, "MCP-Protocol-Version": "2025-06-18"})
+        assert code == 400 and "HeaderMismatch" in out["error"]["message"]
+        code, out = _post(url, {"jsonrpc": "2.0", "id": 4, "method": "tools/list",
+                                "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": "1900-01-01"}}}, auth)
+        assert code == 400 and out["error"]["code"] == -32022
+        assert _post(url, {"jsonrpc": "2.0", "id": 5, "method": "nope", "params": {"_meta": MODERN_META}}, auth)[0] == 404
+        assert _post(url, {"jsonrpc": "2.0", "id": 6, "method": "tools/list"},
+                     {**auth, "Origin": "https://evil.example"})[0] == 403
+        assert _post(url, [{"jsonrpc": "2.0", "id": 7, "method": "tools/list"}], auth)[0] == 400
+    finally:
+        httpd.shutdown()
+
+
+def test_the_package_connection_is_reported_without_its_key(corpus_dir: Path, tmp_path: Path) -> None:
+    from finetune_studio.smart_brain import standalone_server as srv
+
+    cfg, _ = srv.resolve_config({"answer": True, "llm_base_url": "https://api.anthropic.com/v1/",
+                                 "llm_model": "claude-sonnet-5-5", "provider": "anthropic", "llm_api_key": "sk-x"}, {}, {})
+    assert cfg["provider"] == "anthropic"
+    corpus = _in_process_corpus(corpus_dir, tmp_path)
+    corpus.cfg = cfg
+    conn = corpus.info()["answer_connection"]
+    assert conn == {"configured": True, "provider": "anthropic", "base_url": "https://api.anthropic.com/v1",
+                    "model": "claude-sonnet-5-5", "key_set": True}
+    assert "sk-x" not in json.dumps(corpus.info())
+    with pytest.raises(srv.ConfigError):
+        srv.resolve_config({"provider": "gemini"}, {}, {})

@@ -178,9 +178,32 @@ send `Authorization: Bearer <token>`.
 ```
 
 - **OpenClaw** — `mcp.servers` in `openclaw.json`, same command/args shape.
+- **Claude Code** — `claude mcp add {slug} -- bash /ABSOLUTE/PATH/run-mcp.sh` (stdio), or over HTTP below.
+- **Codex** — `[mcp_servers.{slug}]` in `~/.codex/config.toml` with `command = "bash"`, `args = ["/ABSOLUTE/PATH/run-mcp.sh"]`.
 - **Cursor / other MCP clients** — stdio command: `bash run-mcp.sh`.
 {mcp_enc_note}
-Tools exposed: {tools}.
+Tools exposed: {tools}. Clients that read server instructions also get the package's identity (who it speaks for,
+how to answer) up front; any client can read it with `rag_profile`.
+
+### MCP over HTTP (remote clients, web apps)
+
+`bash run-http.sh` also serves MCP at `POST /mcp` (Streamable HTTP; clients from the 2024-11-05 handshake up to the
+stateless 2026-07-28 revision). On this machine:
+
+```bash
+claude mcp add --transport http {slug} http://127.0.0.1:{port}/mcp
+```
+
+From another machine, start it with a token (`RAG_AUTH_TOKEN`, required off loopback), put it behind HTTPS and send
+`Authorization: Bearer <token>`, e.g. `claude mcp add --transport http {slug} https://your.host/mcp --header
+"Authorization: Bearer $TOKEN"`. Browser pages from other sites are refused (Origin check).
+
+## Chat page
+
+`bash run-http.sh` serves a chat page at `http://127.0.0.1:{port}/`: ask the documents, read the passages each
+answer came from. It answers with this package's own connection when one is set (below), or with a provider picked in
+the page: OpenAI, Anthropic Claude, OpenRouter, a local server (Ollama, LM Studio, llama.cpp) or any OpenAI-compatible
+API. A key typed there is sent with each question and never saved by the server.
 
 ## HTTP API
 
@@ -656,6 +679,7 @@ answer model may then ask for one more search (`SEARCH: …`) before it answers,
 `follow_up_searches`. `RAG_FOLLOW_UP=0` turns that off; up to 3 are allowed.
 
 ```bash
+export RAG_LLM_PROVIDER="{cfg.llm_provider}"   # openai (any OpenAI-compatible API) or anthropic (Claude)
 export RAG_LLM_BASE_URL="{cfg.llm_base_url or 'http://127.0.0.1:11434/v1'}"   # set at export: {cfg.llm_base_url or 'not set'}
 export RAG_LLM_MODEL="{cfg.llm_model or 'your-model'}"
 # export RAG_LLM_API_KEY="***"   # only for endpoints that need one; never stored in the package
@@ -678,7 +702,7 @@ def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool,
     embed_section = (_README_SECTION_OFFLINE if bundled_embedder else
                      _README_SECTION_API if cfg.semantic_search else "")
     return _README_TMPL.format(
-        title=title, date=time.strftime("%Y-%m-%d"),
+        title=title, slug=slug, date=time.strftime("%Y-%m-%d"),
         enc_note=" (**encrypted** in `corpus/corpus.enc`)" if encrypted else "",
         container_note=("; `brain_container.py` next to it opens the encrypted corpus"
                         if encrypted else ""),
@@ -911,11 +935,26 @@ def build_package(
     return PackageResult(path=out, encrypted=encrypted, root=root,
                          size=out.stat().st_size, passphrase=generated, layers=dict(manifest["search_layers"]))
 
-def verify_package(archive: str | Path, passphrase: str | None) -> dict:
+def studio_models_for(corpus_dir: str | Path) -> dict[str, Path]:
+    """The studio's own copy of an index's embedder (``{"embedder": dir}``), for checking a package without models."""
+    try:
+        manifest = json.loads((Path(corpus_dir) / "manifest.json").read_text(encoding="utf-8"))
+        found = _resolve_shared((manifest.get("embedding_model") or {}).get("name", ""), "embedder")
+    except (OSError, ValueError, LookupError):
+        return {}
+    return {"embedder": found[1]} if found and found[1] and Path(found[1]).is_dir() else {}
+
+
+def verify_package(archive: str | Path, passphrase: str | None, *, studio_models: dict[str, Path] | None = None,
+                   embed_base_url: str | None = None) -> dict:
     """Open a finished package the way a customer would: unpack it, start its server, ask it something over MCP.
 
-    The package's configured semantic/keyword/fusion/reranker layers are left enabled, including bundled models.
-    Temporary files sit next to the archive and are removed. Returns a per-layer check report and the legacy summary.
+    Every search layer the package ships is exercised: meaning search, word search, their fusion and a bundled reranker.
+    A package without its embedder inside needs one where it runs (RAG_EMBED_BASE_URL); ``studio_models`` lends the
+    studio's copy of the same model for the check, so its vectors are still tested; ``embed_base_url`` points the check
+    at an embedding endpoint instead. Then the package's HTTP server is
+    started and its chat page and MCP-over-HTTP endpoint are checked. Temporary files sit next to the archive and are
+    removed. Returns a per-layer report.
     """
     started = time.monotonic()
     path = Path(archive)
@@ -923,9 +962,17 @@ def verify_package(archive: str | Path, passphrase: str | None) -> dict:
     work = Path(tempfile.mkdtemp(prefix=".verify-", dir=path.parent))
     try:
         root = _unpack_runtime(path, work)
+        lent = ""
+        embedder_dir = root / "corpus" / "embedder"
+        studio_embedder = (studio_models or {}).get("embedder")
+        if studio_embedder and not embedder_dir.exists():
+            embedder_dir.symlink_to(Path(studio_embedder).resolve(), target_is_directory=True)
+            lent = "embedder"
         env = {k: v for k, v in os.environ.items() if not k.startswith("RAG_")}
         if passphrase:
             env["RAG_PASSPHRASE"] = passphrase
+        if embed_base_url:
+            env["RAG_EMBED_BASE_URL"] = embed_base_url
         requests = [
             {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
             {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "rag_info", "arguments": {}}},
@@ -956,14 +1003,25 @@ def verify_package(archive: str | Path, passphrase: str | None) -> dict:
         if out["layers"].get("fusion", {}).get("available"):
             active.add("fusion")
             exercised["fusion"] = any("dense_score" in hit and "bm25_score" in hit for hit in hits_list)
+        shipped_semantic = str(layer_status.get("semantic", "")) != "not in this package" \
+            and not str(layer_status.get("semantic", "")).startswith("off")
+        if shipped_semantic and "semantic" not in active:
+            active.add("semantic")        # vectors are in the package but nothing could embed the question: a failure
         missing = sorted(layer for layer in active if not exercised.get(layer, False))
+        http = _check_http(root, env)
+        out["http"] = http
+        if lent:
+            out["lent"] = {"embedder": "meaning search ran with the studio's copy of the embedder: it is not inside "
+                                       "this package, so where it runs it needs RAG_EMBED_BASE_URL or a rebuild with "
+                                       "Include models"}
         out.update(hits=count, identity=bool(profile.get("instructions")),
                    exercised={layer: exercised.get(layer, False) for layer in sorted(active)},
-                   ok=count > 0 and bool(active) and not missing,
+                   ok=count > 0 and bool(active) and not missing and http["ok"],
                    detail=(f"opened it, exercised {', '.join(sorted(active))} search and found {count} passages"
                            if count and not missing else
                            f"search did not exercise available layer(s): {', '.join(missing)}"
-                           if missing else "the server opened it but a search found nothing"))
+                           if missing else "the server opened it but a search found nothing")
+                   + ("" if http["ok"] else f"; HTTP server: {http['detail']}"))
     except (OSError, subprocess.SubprocessError, ValueError, tarfile.TarError, zipfile.BadZipFile) as e:
         out["detail"] = f"could not open the package: {type(e).__name__}: {str(e)[:200]}"
     finally:
@@ -1000,6 +1058,56 @@ def _run_mcp(root: Path, env: dict, requests: list[dict]) -> dict:
         raise ValueError((done.stderr or "the server exited with an error").strip().splitlines()[-1])
     replies = [json.loads(line) for line in done.stdout.splitlines() if line.strip().startswith("{")]
     return {r.get("id"): r for r in replies}
+
+
+def _check_http(root: Path, env: dict) -> dict:
+    """Start the package's HTTP server on a free loopback port: the chat page loads and MCP over HTTP answers."""
+    import socket
+    import urllib.error
+    import urllib.request
+
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    log = root / ".http-check.log"   # a file, not a pipe: the server logs every request and a full pipe blocks it
+    with open(log, "w") as log_fp:
+        proc = subprocess.Popen([sys.executable, "-I", str(root / "server.py"), "--http", str(port), "--host", "127.0.0.1"],
+                                cwd=root, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=log_fp)
+    base = f"http://127.0.0.1:{port}"
+    try:
+        page = ""
+        for _ in range(240):            # an encrypted corpus is decrypted at start
+            if proc.poll() is not None:
+                err = log.read_text(encoding="utf-8", errors="replace").strip().splitlines()
+                return {"ok": False, "detail": "it exited: " + (err[-1] if err else f"code {proc.returncode}")}
+            try:
+                with urllib.request.urlopen(base + "/", timeout=2) as r:
+                    page = r.read().decode("utf-8", "replace")
+                break
+            except urllib.error.HTTPError as e:   # it answers, but wrongly: waiting longer will not help
+                return {"ok": False, "detail": f"the chat page answered HTTP {e.code}"}
+            except (urllib.error.URLError, OSError):
+                time.sleep(0.5)
+        if 'src="/app.js"' not in page:
+            return {"ok": False, "detail": "the chat page did not load"}
+        body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {"_meta": {
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28"}}}).encode()
+        req = urllib.request.Request(base + "/mcp", data=body, method="POST", headers={
+            "Content-Type": "application/json", "Accept": "application/json, text/event-stream",
+            "MCP-Protocol-Version": "2026-07-28", "Mcp-Method": "server/discover"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            found = json.loads(r.read())
+        if "2026-07-28" not in (found.get("result") or {}).get("supportedVersions", []):
+            return {"ok": False, "detail": "MCP over HTTP did not answer server/discover"}
+        return {"ok": True, "detail": "chat page and MCP over HTTP answer"}
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        return {"ok": False, "detail": f"{type(e).__name__}: {str(e)[:160]}"}
+    finally:
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
 
 
 def _tool_json(reply: dict | None):

@@ -14,6 +14,10 @@ turns that section into the release's notes.
 - Exported Smart Brain packages now include a browser chat for OpenAI/Claude API connections, with short-lived in-memory conversation history; package verification exercises configured retrieval layers, and the knowledge check avoids numeric conflicts across unlike units.
 
 ### Added
+- Package self-test runs every search the package ships, including meaning search when the embedder is not inside (it borrows the studio's copy), and then checks the chat page and `/mcp` of the running server.
+- Package MCP tools are marked read-only and the stdio server answers its handshake at once while the corpus opens, so Codex, Claude Code and similar clients see and run them without timing out.
+- Smart Brain packages speak MCP over HTTP (`POST /mcp`) as well as stdio, for remote MCP clients and web apps, and answer both today's MCP clients and the new stateless 2026-07-28 protocol.
+- A package can carry its answer connection: pick OpenAI, Anthropic Claude, OpenRouter or a local server at export; the key is set where it runs, never in the package. Its chat page uses that connection or one picked in the page, and shows the passages behind each answer.
 - Package page: each step from files to package with its live state, and every built package now opens itself with its own server and runs a search before it is handed over (`fts brain readiness`).
 - Smart Brain tests no longer need training data: Testing writes a quiz from your indexed documents, including questions they do not answer (`fts brain quiz`).
 - Knowledge check on the Smart Brain page and `fts brain lint`: unreadable files, duplicates, out-of-date versions, documents that disagree and leaked passwords or keys.
