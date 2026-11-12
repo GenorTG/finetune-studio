@@ -3,8 +3,9 @@
 The AI assistant writes one question and answer per sampled passage, spread evenly over the documents, plus questions
 the documents do NOT answer (the right reply is to say so). Every generated item passes hard gates or is dropped, never
 repaired: an answer may only hold numbers and codes that are in its passage, a question may not give its answer away,
-and an "unanswerable" question is shown the closest passages by word overlap and kept only when the assistant confirms
-none of them answers it. The quiz is saved as a project suite and runs and judges like any other.
+and an "unanswerable" question is checked against the index's top hybrid-search results (with a word-overlap fallback
+for direct helper use) so evidence split across documents is not missed. The quiz is saved as a project suite and runs
+and judges like any other.
 """
 from __future__ import annotations
 
@@ -20,6 +21,7 @@ from typing import Any
 from finetune_studio.data.fs.paths import brain_index_dir
 
 GenerateFn = Callable[[str], str]
+SearchFn = Callable[[str, int], list[dict[str, Any]]]
 ProgressFn = Callable[[dict[str, Any]], None]
 
 SUITE_FILE = "smart-brain-quiz.json"
@@ -29,6 +31,7 @@ UNANSWERABLE_SHARE = 0.15
 MIN_PASSAGE_CHARS = 150
 MAX_PASSAGE_CHARS = 3000
 _CLOSEST_PASSAGES = 8
+_VERIFY_TOP_K = 10
 _MIN_QUESTION_WORDS = 5
 
 _HARD_VALUE = re.compile(r"\d[\d.,:/-]*\d|\d|\b[A-Z]{2,}[-_]?\d[\w-]*\b")
@@ -163,13 +166,16 @@ def answerable_case(row: dict[str, str], reply: str, report: BrainQuizReport) ->
 
 
 def unanswerable_case(row: dict[str, str], reply: str, rows: list[dict[str, str]], generate: GenerateFn,
-                      report: BrainQuizReport) -> dict[str, Any] | None:
+                      report: BrainQuizReport, search: SearchFn | None = None) -> dict[str, Any] | None:
     item = _json_object(reply)
     question = str((item or {}).get("question") or "").strip()
     if len(question.split()) < _MIN_QUESTION_WORDS:
         report.drop("unanswerable: no usable question")
         return None
-    verdict = _json_object(generate(_VERIFY.format(question=question, passages="\n---\n".join(closest_passages(question, rows)))))
+    passages = ([f"[source: {hit.get('filename') or hit.get('source') or 'document'}]\n{hit.get('text', '')}"
+                 for hit in search(question, _VERIFY_TOP_K)] if search is not None
+                else closest_passages(question, rows))
+    verdict = _json_object(generate(_VERIFY.format(question=question, passages="\n---\n".join(passages))))
     if not verdict or verdict.get("answered") is not False:
         report.drop("unanswerable: the documents may answer it")
         return None
@@ -178,10 +184,13 @@ def unanswerable_case(row: dict[str, str], reply: str, rows: list[dict[str, str]
 
 def build_cases(rows: list[dict[str, str]], generate: GenerateFn, *, questions: int = DEFAULT_QUESTIONS, workers: int = 1,
                 progress: ProgressFn | None = None, verify: GenerateFn | None = None,
+                search: SearchFn | None = None,
                 ) -> tuple[list[dict[str, Any]], BrainQuizReport]:
-    """Write the cases; a failing helper call drops that item and is counted, it never stops the quiz. ``verify`` (default:
-    ``generate``) asks whether an "unanswerable" question is answered after all: deterministic (temperature 0) in the app,
-    because at the writer's temperature the same passages flipped between yes and no."""
+    """Write cases; failed helper calls drop that item, not the quiz. ``verify`` (default: ``generate``) checks each
+    unanswerable candidate deterministically (temperature 0 in the app). ``search`` supplies the indexed passages that
+    might jointly answer it; the local overlap helper remains available to simple callers without an index.
+
+    """
     verify = verify or generate
     report = BrainQuizReport(documents=len({r["document_id"] for r in rows}))
     n_unknown = max(1, round(questions * UNANSWERABLE_SHARE))
@@ -197,7 +206,7 @@ def build_cases(rows: list[dict[str, str]], generate: GenerateFn, *, questions: 
             if kind == "answer":
                 return answerable_case(row, generate(_ANSWERABLE.format(filename=row["filename"], passage=passage)), report)
             reply = generate(_UNANSWERABLE.format(filename=row["filename"], passage=passage))
-            return unanswerable_case(row, reply, rows, verify, report)
+            return unanswerable_case(row, reply, rows, verify, report, search)
         except Exception:  # noqa: BLE001 - one provider failure must not lose the rest of the quiz
             report.helper_errors += 1
             return None
@@ -237,7 +246,8 @@ def index_rows(pid: str) -> list[dict[str, str]]:
 
 
 def build_brain_quiz(pid: str, *, questions: int = DEFAULT_QUESTIONS, generate: GenerateFn | None = None,
-                     workers: int | None = None, progress: ProgressFn | None = None) -> dict[str, Any]:
+                     workers: int | None = None, progress: ProgressFn | None = None,
+                     search: SearchFn | None = None) -> dict[str, Any]:
     """Write and save the project's Smart Brain quiz (rebuilding replaces it). Blocking: model calls."""
     from finetune_studio.testing.suite_import import import_suite
 
@@ -253,8 +263,17 @@ def build_brain_quiz(pid: str, *, questions: int = DEFAULT_QUESTIONS, generate: 
             raise NoGenerator(helper_resolution_error("quiz"))
         verify = helper_generate(max_tokens=400, temperature=0.0, job="quiz")
         workers = workers or int(helper_info("quiz").get("concurrency") or 1)
+    if search is None:
+        from finetune_studio.smart_brain import BrainIndex
+
+        query = BrainIndex(brain_index_dir(pid)).load()
+
+        def search_index(question: str, top_k: int) -> list[dict[str, Any]]:
+            return query.search(question, top_k=top_k, hybrid=True)
+
+        search = search_index
     cases, report = build_cases(rows, generate, questions=questions, workers=workers or 1, progress=progress,
-                                verify=verify)
+                                verify=verify, search=search)
     if not any(not c.get("expect_abstain") for c in cases):
         raise NoUsableQuestions("No question passed the quality checks, so no quiz was saved.", report)
     meta = import_suite(pid, SUITE_FILE, json.dumps(cases, ensure_ascii=False).encode("utf-8"))
