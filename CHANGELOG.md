@@ -9,6 +9,9 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Training: a run that stopped or failed before saving a checkpoint no longer offers Set production, Open in inference
+  or Export; the buttons are off and the row says why. A stopped run that did save an adapter stays usable.
+
 - The Package page opens at once: its checklist loads after the page, and the knowledge check behind it is kept until a
   file or the index changes (a 120-file project took 4 s per visit, now 0.2 s). The status pills sit next to each step
   instead of stretching across it.

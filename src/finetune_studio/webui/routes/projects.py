@@ -387,10 +387,13 @@ async def promote_run(pid: str, request: Request):
 
 @router.get("/{pid}/runs")
 async def list_runs(pid: str):
+    """The project's runs, each with ``usable`` / ``usable_reason``: whether its output folder holds a model."""
     missing = _project_404(pid)
     if missing is not None:
         return missing
-    return db.list_runs(pid)
+    from finetune_studio.training import run_artifacts
+
+    return await asyncio.to_thread(lambda: run_artifacts.annotate(db.list_runs(pid)))
 
 
 @router.post("/{pid}/runs")

@@ -39,12 +39,11 @@ def test_monitor_polls_training_status_and_updates_bar_log() -> None:
     assert "setInterval(tick, 2000)" not in html
 
 
-def test_past_run_actions_require_output_path_and_done() -> None:
+def test_past_run_actions_require_a_saved_model() -> None:
     html = _html()
-    assert "can_act = run.status == 'done' and run.output_path" in html
-    assert "canAct = status === \"done\" && !!out" in html
-    assert "Only finished runs with an output path" in html
-    assert "No finished output path" in html
+    assert "can_act = run.usable" in html and "run.usable_reason" in html
+    assert "!!run.usable" in html and "run.usable_reason" in html
+    assert 'class="text-xs dim run-no-model"' in html
     # Failed rows surface error text with title for full message.
     assert "run.error" in html
     assert 'title="{{ run.error }}"' in html or "title=\"{{ run.error }}\"" in html
