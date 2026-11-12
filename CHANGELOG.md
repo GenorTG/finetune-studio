@@ -11,6 +11,8 @@ turns that section into the release's notes.
 
 - Training: a run that stopped or failed before saving a checkpoint no longer offers Set production, Open in inference
   or Export; the buttons are off and the row says why. A stopped run that did save an adapter stays usable.
+- Pages, styles and scripts are sent gzipped and versioned styles and scripts are cached by the browser, so a first
+  visit moves about a fifth of the bytes and later pages load from cache (streams and downloads are never compressed).
 - The Smart Brain quiz checks “unanswerable” questions against the index's top 10 hybrid-search passages, so answers
   assembled from more than one document are less likely to be mislabeled as missing.
 - The host resources card (RAM and VRAM bars) is only on the dashboard, Training, Inference and My models, below the page
@@ -30,7 +32,6 @@ turns that section into the release's notes.
 - Settings → Apply update finds `uv` where it was installed (Linuxbrew, `~/.local/bin`, `~/.cargo/bin` or the path the
   installer recorded) instead of failing every dependency step, and an update whose dependency sync or build fails
   now stops before the restart with the failed steps as its reason instead of ending "Update complete".
-
 - The Package page opens at once: its checklist loads after the page, and the knowledge check behind it is kept until a
   file or the index changes (a 120-file project took 4 s per visit, now 0.2 s). The status pills sit next to each step
   instead of stretching across it.
