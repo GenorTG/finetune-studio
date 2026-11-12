@@ -105,3 +105,31 @@ def test_the_api_saves_a_runnable_suite(client, monkeypatch) -> None:
 def test_the_page_can_write_a_quiz() -> None:
     html = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/project_testing.html").read_text()
     assert 'id="t-bq-btn"' in html and "/testing/brain-quiz" in html and "addEventListener('click', buildBrainQuiz)" in html
+
+
+def test_the_unanswerable_check_uses_its_own_deterministic_verifier() -> None:
+    """The "is it answered after all?" call goes to ``verify`` (temperature 0 in the app), never the writer: at the
+    writer's temperature the same passages flipped between yes and no (beta walkthrough 2026-11-12)."""
+    rows = [row(str(i)) for i in range(6)]
+    writer_saw, verifier_saw = [], []
+
+    def writer(prompt: str) -> str:
+        writer_saw.append(prompt)
+        if prompt.startswith("You write one question that a company's documents do NOT answer"):
+            return reply(question="What is the annual rent of the Oslo warehouse building?")
+        return good()
+
+    def verifier(prompt: str) -> str:
+        verifier_saw.append(prompt)
+        return reply(answered=False)
+
+    cases, _ = bq.build_cases(rows, writer, questions=6, verify=verifier)
+    assert verifier_saw and all(p.startswith("Could a careful reader answer") for p in verifier_saw)
+    assert not any(p.startswith("Could a careful reader") for p in writer_saw)
+    assert any(c.get("expect_abstain") for c in cases)
+
+
+def test_the_verifier_counts_answers_by_implication() -> None:
+    for marker in ("by a clear implication", "a rule for a whole range, plan or group answers it for each member",
+                   '"included", "free" or "no charge" answers a question about the cost'):
+        assert marker in bq._VERIFY

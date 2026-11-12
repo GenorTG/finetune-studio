@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Fewer wrong "unanswerable" questions in the quiz the Testing page writes from your documents: before a question is kept as one the documents do not answer, the check now counts answers given by clear implication (a rule for a whole product range, "included" for a price) and runs deterministically. On a 15-file sample both "unanswerable" questions of the first quiz were in fact answered by the files (so a correct answer was marked fail); with the new check 2 of the 3 kept ones are truly unanswerable. Read the unanswerable questions before you trust the score.
+
 - No more dead ends in the first run: *New project* → Create opens the new project (it used to leave you on the list), the Package page's *Build the package* now lands on the Smart Brain's export panel (it used to show the top of the page), and the Smart Brain page of a project that was never built no longer logs a 404 in the browser console.
 
 - Answers show their formatting: **bold**, `code`, headings and bullet lists in Smart Brain answers (and on a package's own chat page) are rendered instead of appearing as raw asterisks and hashes.
