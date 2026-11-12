@@ -11,7 +11,8 @@ def test_new_project_form_opens_the_new_project(client) -> None:
     page = client.get("/projects").text
     assert 'id="np-form" data-api="/api/projects" data-redirect="/projects/{id}"' in page
     app_js = (STATIC / "app.js").read_text()
-    assert "form.dataset.redirect && d && d.id" in app_js and 'replace("{id}", encodeURIComponent(d.id))' in app_js
+    assert "!f.dataset.redirect || !d || !d.id" in app_js and 'replace("{id}", encodeURIComponent(d.id))' in app_js
+    assert '!openCreated(form, d) && form.dataset.reload === "true"' in app_js
     made = client.post("/api/projects", json={"name": "agent-test-dead-ends"})
     assert made.status_code == 200 and made.json()["id"]      # what the redirect fills in
 
