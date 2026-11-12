@@ -153,7 +153,10 @@ class SuiteDefinition:
             return format_heldout_reworded_label(title, self.case_count or 0)
         if self.source == "project_qa":
             n = self.case_count or 0
-            return f"local · {title} ({n} cases)"
+            return f"Smart Brain quiz · {n} questions"
+        if self.source == "project_import":
+            count = f" ({self.case_count} questions)" if self.case_count is not None else ""
+            return f"Imported quiz · {title}{count}"
         # An imported quiz showed "122 questions" right after the import and a bare name after a reload.
         return f"local · {title} ({self.case_count} cases)" if self.case_count is not None else f"local · {title}"
 

@@ -157,7 +157,7 @@ def test_ensure_writes_suite_and_definition(project_fs: Path) -> None:
     assert definition.source == "project_qa"
     assert definition.case_count == 2
     assert definition.path == str(result.path)
-    assert "2 cases" in definition.label()
+    assert definition.label() == "Smart Brain quiz · 2 questions"
 
 
 def test_ensure_deduplicates_questions_with_training_export_contract(
@@ -234,7 +234,7 @@ def test_discover_suites_includes_full_corpus_for_project(
     assert len(corpus) == 1
     assert corpus[0]["suite_type"] == "local"
     assert corpus[0]["case_count"] == 3
-    assert corpus[0]["label"] == f"local · {FULL_CORPUS_SUITE_NAME} (3 cases)"
+    assert corpus[0]["label"] == "Smart Brain quiz · 3 questions"
     assert Path(corpus[0]["path"]).is_file()
 
     # Without project_id: no project_qa suite.
