@@ -20,29 +20,24 @@
   <div class="card-head">
     <div>
       <div class="card-title">New project</div>
-      <div class="card-sub">Pick a template to pre-fill common settings, or start from scratch.</div>
+      <div class="card-sub">A project holds one set of files, its Smart Brain, its tests and the packages built from it.</div>
     </div>
   </div>
   <form id="np-form" data-api="/api/projects" data-redirect="/projects/{id}" data-reload="true">
     <div class="mb-4">
       <span class="muted text-xs">Template</span>
       <div class="flex gap-2 mt-1" id="np-templates">
-        <button type="button" class="btn sm template-btn active" data-template="blank" onclick="selectTemplate('blank')">📄 Blank</button>
-        <button type="button" class="btn sm template-btn" data-template="chat" onclick="selectTemplate('chat')">💬 Chat-focused</button>
-        <button type="button" class="btn sm template-btn" data-template="training" onclick="selectTemplate('training')">🎯 Training</button>
-        <button type="button" class="btn sm template-btn" data-template="brain" onclick="selectTemplate('brain')">🧠 Smart Brain</button>
+        <button type="button" class="btn sm template-btn active" data-template="brain" onclick="selectTemplate('brain')" aria-pressed="true"
+                title="Files → Smart Brain → test → package. The usual start.">🧠 Smart Brain</button>
+        <button type="button" class="btn sm template-btn" data-template="blank" onclick="selectTemplate('blank')" aria-pressed="false">📄 Blank</button>
+        <button type="button" class="btn sm template-btn" data-template="chat" onclick="selectTemplate('chat')" aria-pressed="false">💬 Chat-focused</button>
+        <button type="button" class="btn sm template-btn" data-template="training" onclick="selectTemplate('training')" aria-pressed="false">🎯 Training</button>
       </div>
     </div>
     <div class="grid proj-new-grid">
       <label>
         <span class="muted text-xs">Name</span>
         <input class="input" name="name" placeholder="e.g. Helios handbook" required>
-      </label>
-      <label>
-        <span class="muted text-xs">Base model (optional)</span>
-        <select class="select" name="base_model" id="np-base">
-          <option value="">— pick later —</option>
-        </select>
       </label>
       <label class="grid-full">
         <span class="muted text-xs">Description</span>
@@ -52,10 +47,20 @@
         <span class="muted text-xs">Tags (comma-separated)</span>
         <input class="input" name="tags" placeholder="e.g. handbook, production, experiment">
       </label>
-      <label class="grid-full">
-        <span class="muted text-xs">System prompt</span>
-        <textarea class="textarea" name="system_prompt" rows="3" placeholder="You are a helpful assistant that…"></textarea>
-      </label>
+      <details class="grid-full" id="np-training"><summary class="text-sm">Training (optional)</summary>
+        <div class="grid proj-new-grid mt-2">
+          <label>
+            <span class="muted text-xs">Base model</span>
+            <select class="select" name="base_model" id="np-base">
+              <option value="">— pick later —</option>
+            </select>
+          </label>
+          <label class="grid-full">
+            <span class="muted text-xs">System prompt (for training and chat; the Smart Brain uses its identity instead)</span>
+            <textarea class="textarea" name="system_prompt" rows="3" placeholder="You are a helpful assistant that…"></textarea>
+          </label>
+        </div>
+      </details>
     </div>
     <div class="flex gap-2 mt-4">
       <button type="submit" class="btn primary">Create</button>
@@ -340,8 +345,14 @@ function initTemplateDirtyTracking() {
 function selectTemplate(name) {
   const t = _TEMPLATES[name];
   if (!t) return;
-  document.querySelectorAll('.template-btn').forEach(b => b.classList.toggle('active', b.dataset.template === name));
+  document.querySelectorAll('.template-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.template === name);
+    b.setAttribute('aria-pressed', String(b.dataset.template === name));
+  });
   initTemplateDirtyTracking();
+  // A training template opens its fields; the others keep them folded.
+  const tr = document.getElementById('np-training');
+  if (tr && name === 'training') tr.open = true;
   const form = document.getElementById('np-form');
   const tags = form.querySelector('[name=tags]');
   const sp = form.querySelector('[name=system_prompt]');
@@ -352,11 +363,12 @@ function resetNewProjectForm() {
   const form = document.getElementById('np-form');
   if (form) form.reset();
   _npTemplateDirty.clear();
-  document.querySelectorAll('.template-btn').forEach(b => b.classList.toggle('active', b.dataset.template === 'blank'));
+  selectTemplate('brain');
   const card = document.getElementById('new-project');
   if (card) card.hidden = true;
 }
 initTemplateDirtyTracking();
+selectTemplate('brain');
 
 function bulkDelete() {
   if (_projSelected.size === 0) return;
