@@ -260,5 +260,6 @@ send to them; choose local endpoints when data must stay on your host.
 ## Where to go next
 
 - [README.md](../README.md) — the tour of all pages
+- [KNOWLEDGE-PACKAGE-DEPLOYMENT.md](KNOWLEDGE-PACKAGE-DEPLOYMENT.md) — connect local agents, set up trusted HTTPS access, or build a public bot gateway
 - [INSTALL.md](INSTALL.md) — install and troubleshooting
 - [DEPENDENCIES.md](DEPENDENCIES.md) — every dependency and why it's there
