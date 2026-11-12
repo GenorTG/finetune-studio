@@ -1,11 +1,19 @@
 ---
 id: export
-title: Package page (step 4)
+title: Package & export page (step 4)
 page: export
-keywords: package build knowledge package export public bot internal assistant audience customers staff scope folder original files hide file names answer connection version new version update mcp http server passphrase encrypted gguf quant merged abliterated heretic uncensored decensor refusal llama.cpp ollama lm studio quantization imatrix
+keywords: package export gguf build public bot internal assistant scope originals version mcp quant q4_k_m merged abliterated heretic llama.cpp ollama imatrix
 ---
 ## Purpose
 Step 4 of a project: build the **knowledge package** your models use. One encrypted archive holds the Smart Brain index of your documents, the identity (who it speaks for, how to answer), a small Python server that speaks HTTP and MCP, an installer and run/update scripts. The page first says what is left to do (the readiness checklist), then holds the package form, then the package versions. Training exports (GGUF, merged, abliterated, Heretic) are further down, under *Trained models*, for the optional training path.
+
+**Trained models (optional training path).** Take a finished training run out of the studio: GGUF for llama.cpp, Ollama and LM Studio; Merged (full safetensors); Abliterated; or Heretic (the optional tool that removes refusals with a parameter search). Adapter-only runs are merged onto their base automatically at export time.
+
+1. Select a finished run in **Training runs**.
+2. Tick formats: GGUF with q4_k_m is pre-ticked (recommended). Tick more quants if wanted (f16, q8_0, q6_k, q5_k_m, q4_k_m, q3_k_m, q2_k).
+3. **Export selected** (about 20–40 s for a small model). Files appear under *Trained exports* and become selectable in Chat and Testing.
+4. **Overwrite existing** re-exports over old files.
+5. **Importance matrix (imatrix)**: before quantizing, the app measures which weights the run's own training data relies on (llama-imatrix, up to 128 chunks of 512 tokens) and keeps those more precise. Same file size, better q4/q3/q2 quality, a few minutes extra. The files land in the run's `gguf-imatrix/` folder beside the plain `gguf/` ones; f16 and q8_0 are written without it, so tick at least one smaller quant.
 
 ## Workflow
 1. Read the checklist (`#package-readiness`): files read, knowledge check, identity, Smart Brain up to date, a test, the last package. Each step links to where it is fixed. Superseded documents nobody accepted stop the build.
@@ -16,14 +24,6 @@ Step 4 of a project: build the **knowledge package** your models use. One encryp
 6. **Version**: a new package (1.0.0, new id) or *New version of …* an earlier one (same id, lists what changed).
 7. **Build & download the package** (`#mcp-pkg-btn`). Copy the passphrase when it is shown: it is not stored. The package opens and searches itself before the download starts (*Self-test passed*).
 8. Run it: `bash install.sh`, then `bash run-http.sh` (chat page + `/mcp`) or `server.py --mcp` for local MCP clients; update a running copy with `bash update.sh NEW.tar.gz`.
-
-**Trained models (optional training path).** Take a finished training run out of the studio: GGUF for llama.cpp, Ollama and LM Studio; Merged (full safetensors); Abliterated; or Heretic (the optional tool that removes refusals with a parameter search). Adapter-only runs are merged onto their base automatically at export time.
-
-1. Select a finished run in **Training runs**.
-2. Tick formats: GGUF with q4_k_m is pre-ticked (recommended). Tick more quants if wanted (f16, q8_0, q6_k, q5_k_m, q4_k_m, q3_k_m, q2_k).
-3. **Export selected** (about 20–40 s for a small model). Files appear under *Trained exports* and become selectable in Chat and Testing.
-4. **Overwrite existing** re-exports over old files.
-5. **Importance matrix (imatrix)**: before quantizing, the app measures which weights the run's own training data relies on (llama-imatrix, up to 128 chunks of 512 tokens) and keeps those more precise. Same file size, better q4/q3/q2 quality, a few minutes extra. The files land in the run's `gguf-imatrix/` folder beside the plain `gguf/` ones; f16 and q8_0 are written without it, so tick at least one smaller quant.
 
 ## Key controls
 - `#package-readiness` — what is left before packaging, each step with its state (Done / Review / Fix this / To do).
