@@ -261,9 +261,12 @@ def run_update_worker(
         # not on the request thread.
         assert proc.stdout is not None
         restart_seen = False
+        reason = ""
         for line in proc.stdout:
             if "Restarting finetune-studio.service" in line:
                 restart_seen = True
+            if "ERROR:" in line and not reason:
+                reason = line.split("ERROR:", 1)[1].strip()   # update.sh's own reason, shown instead of the exit code
             append_log(line)
         proc.wait()
         if proc.returncode == 0:
@@ -279,7 +282,7 @@ def run_update_worker(
         else:
             db.mark_update_failed(
                 uid,
-                error=f"update.sh exited with code {proc.returncode}",
+                error=reason or f"update.sh exited with code {proc.returncode}",
             )
     except Exception as e:
         log.exception("update worker failed")

@@ -53,8 +53,9 @@ def test_conditional_panels_use_hidden_state():
     assert "$('export-result').hidden = true" in exports
     assert 'id="t-suite-hint" class="text-xs dim mt-1" hidden' in testing
     assert "hint.hidden = false" in testing and "hint.hidden = true" in testing
-    assert 'id="mcp-pass-box" hidden' in brain
-    assert "box.hidden = false" in brain and "box.hidden = true" in brain
+    assert 'id="mcp-pass-box" hidden' in exports and "box.hidden = false" in exports and "box.hidden = true" in exports
+    assert 'id="bundle-pass-box" hidden' in brain and "box.hidden = false" in brain
+    assert "getElementById('bundle-pass-box').hidden = true" in brain
     assert 'id="update-log" class="text-xs" hidden' in settings
     assert "el.hidden = true" in settings_js and "el.hidden = false" in settings_js
 
