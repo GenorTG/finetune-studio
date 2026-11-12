@@ -25,4 +25,4 @@ def test_nav_script_measures_the_sticky_bar() -> None:
 
 def test_base_loads_the_new_assets() -> None:
     base = (_WEB / "templates" / "base.html").read_text(encoding="utf-8")
-    assert "app.css?v=134" in base and "nav_overflow.js?v=3" in base
+    assert "app.css?v=135" in base and "nav_overflow.js?v=3" in base
