@@ -177,6 +177,21 @@ def _export(args: argparse.Namespace) -> None:
     corpus = _corpus(args)
     if not (corpus / "manifest.json").is_file():
         _die(f"no index at {corpus}: build it first (fts brain build)")
+    if args.project:     # the web export's gate: out-of-date documents are reviewed (or accepted) before packaging
+        from finetune_studio.cli.commands.dataset import resolve_project
+        from finetune_studio.knowledge.lint import (
+            SUPERSEDED_HINT,
+            lint,
+            superseded_files,
+        )
+
+        stale = superseded_files(lint(resolve_project(args.project)["id"]))
+        if stale and not args.accept_superseded:
+            _die("Review superseded documents before packaging: " + ", ".join(stale) + ". " + SUPERSEDED_HINT
+                 + " (fts brain lint shows them; --accept-superseded packages them anyway.)")
+        if stale:
+            print(f"Packaging {len(stale)} out-of-date document(s) on purpose (--accept-superseded): "
+                  + ", ".join(stale), file=sys.stderr)
     patch = {k: v for k, v in {
         "archive_format": args.format, "include_models": args.models, "encrypt": args.encrypt,
         "semantic_search": args.semantic, "keyword_search": args.keyword, "reranker_enabled": args.reranker,
@@ -540,6 +555,9 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
                     "fusion), the reranker and answer generation (an LLM writes the answer). Unset flags take the "
                     "project's saved export settings, then the studio defaults."))
     bo = argparse.BooleanOptionalAction
+    sp.add_argument("--accept-superseded", action="store_true",
+                    help="package documents the knowledge check reports as out of date without accepting each "
+                         "finding (the web export refuses them until each is accepted)")
     sp.add_argument("--semantic", action=bo, default=None, help="meaning search over the vectors (default on)")
     sp.add_argument("--keyword", action=bo, default=None, help="word search over the BM25 index (default on)")
     sp.add_argument("--reranker", action=bo, default=None, help="cross-encoder rescoring (needs --models)")

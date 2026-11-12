@@ -54,7 +54,7 @@ _LABEL_NOISE = frozenset(["the", "and", "for", "with", "from", "that", "this", "
 @dataclass
 class Finding:
     rule: str
-    severity: str                  # error | warning
+    severity: str                  # error | warning | info (worth knowing, nothing to fix: a draft with no final yet)
     title: str
     fix: str
     files: list[dict[str, str]]
@@ -113,7 +113,12 @@ def _older(version: int, year: int | None, newest: tuple[int, int | None]) -> bo
     return version < newest[0] and (year is None or newest[1] is None or year <= newest[1])
 
 
-def _check_files(sources: list[Source], texts: dict[str, str]) -> list[Finding]:
+def _check_files(sources: list[Source], texts: dict[str, str],
+                 pairs: set[frozenset[str]] | None = None) -> list[Finding]:
+    """``pairs``: documents linked as base + amendment (``_check_versions``): not reported as near duplicates."""
+    from finetune_studio.knowledge import lint_versions as lv
+
+    pairs = pairs or set()
     out: list[Finding] = []
     for s in sources:
         if s.status == "error" or (s.status == "ready" and s.chunk_count == 0):
@@ -153,7 +158,7 @@ def _check_files(sources: list[Source], texts: dict[str, str]) -> list[Finding]:
     for i, a in enumerate(candidates):
         for b in candidates[i + 1:]:
             score = _similarity(sketches[a.id], sketches[b.id])
-            if score >= NEAR_DUPLICATE:
+            if score >= NEAR_DUPLICATE and frozenset((a.id, b.id)) not in pairs:
                 out.append(_finding("near_duplicate", "warning", f"{a.filename} and {b.filename} are nearly the same",
                                     "If one replaces the other, remove the old one; otherwise ignore this.", [a, b],
                                     [f"{round(score * 100)} % of the wording matches"]))
@@ -162,6 +167,21 @@ def _check_files(sources: list[Source], texts: dict[str, str]) -> list[Finding]:
     for s in ready:
         name_hit = _OLD_NAME.search(s.filename)
         text_hit = _OLD_TEXT.search(texts[s.id][:3_000])
+        if name_hit and not text_hit and name_hit.group(1).lower() == "draft":
+            # A draft is out of date only when its final (or a later version) is here too; a lone draft is just a draft.
+            family = lv.draft_family(s.filename)
+            newer = [o for o in ready if o.id != s.id and lv.draft_family(o.filename) == family
+                     and not _OLD_NAME.search(o.filename)]
+            if not newer:
+                out.append(_finding("draft", "info", f"{s.filename} is a draft",
+                                    "Nothing newer is here, so answers use it as it stands. If a final version exists, "
+                                    "add it and remove the draft; if the draft is what applies, ignore this.", [s]))
+                continue
+            flagged.add(s.id)
+            out.append(_finding("old_version", "warning", f"{s.filename} is a draft of {newer[0].filename}",
+                                "Remove the draft unless answers should use it: its facts will otherwise be quoted as "
+                                "current.", [s]))
+            continue
         if name_hit or text_hit:
             flagged.add(s.id)
             why = f'the file name says "{name_hit.group(1)}"' if name_hit else f'the text says "{text_hit.group(0)}"'
@@ -176,9 +196,51 @@ def _check_files(sources: list[Source], texts: dict[str, str]) -> list[Finding]:
         newest = max(((v, y) for v, y, _ in family), key=lambda vy: vy[0])
         for version, year, s in family:
             if _older(version, year, newest) and s.id not in flagged:
+                flagged.add(s.id)
                 out.append(_finding("old_version", "warning", f"{s.filename} has a newer version (v{newest[0]})",
                                     "Remove it unless answers should use it: old facts will otherwise be quoted as current.", [s]))
+    by_year: dict[str, list[tuple[int, Source]]] = defaultdict(list)   # salary_bands_2024 next to salary_bands_2025
+    for s in ready:
+        key = lv.year_key(s.filename) if not _version_key(s.filename) else None
+        if key:
+            by_year[key[0]].append((key[1], s))
+    for family in by_year.values():
+        newest_year, newest = max(family, key=lambda ys: ys[0])
+        for year, s in family:
+            if year < newest_year and s.id not in flagged:
+                flagged.add(s.id)
+                out.append(_finding("old_version", "warning", f"{s.filename} has a newer version ({newest.filename})",
+                                    "Remove it unless answers should use it: old facts will otherwise be quoted as current.",
+                                    [s]))
     return out
+
+
+def _check_versions(sources: list[Source], texts: dict[str, str]) -> tuple[list[Finding], set[frozenset[str]]]:
+    """Amendments linked to what they amend, and older sheets kept in a workbook (``knowledge.lint_versions``).
+    Returns the findings and the (base, amendment) pairs, which the duplicate and conflict checks then leave alone."""
+    from finetune_studio.knowledge import lint_versions as lv
+
+    ready = [s for s in sources if s.ready]
+    out: list[Finding] = []
+    pairs: set[frozenset[str]] = set()
+    for am in lv.amendments(ready, texts):
+        pairs.add(frozenset((am.base.id, am.amendment.id)))
+        out.append(_finding("amended", "warning", f"{am.base.filename} is amended by {am.amendment.filename}",
+                            "Amended: check the amendment's terms are used. Keep both files (the amendment changes "
+                            "only some terms); ask a question about a changed term and check the answer quotes the "
+                            "amendment, then ignore this.", [am.base, am.amendment], am.evidence))
+    for s in ready:
+        if not _TABULAR.search(s.filename):
+            continue
+        old = lv.older_sheets(texts.get(s.id, ""))
+        if old:
+            out.append(_finding("old_sheet", "warning",
+                                f"{s.filename} keeps an older sheet: " + ", ".join(f'"{o}"' for o, _ in old),
+                                "Answers may quote the older sheet's figures as current. Delete it from the workbook "
+                                "(or put the year or 'superseded' in its title) and upload it again, or ignore this "
+                                "if both are kept on purpose.", [s],
+                                [f'"{o}" looks older than "{n}"' for o, n in old]))
+    return out, pairs
 
 
 def _labelled_values(text: str) -> dict[str, set[tuple[str, str]]]:
@@ -214,7 +276,8 @@ def _template_labels(texts: list[str], docs: list[str]) -> set[tuple[str, str]]:
             if len(docs_with) >= TEMPLATE_DOCS and len(values[key]) > MAX_LABEL_VALUES}
 
 
-def _check_conflicts(pid: str, sources: list[Source], outdated: set[str] | None = None) -> list[Finding]:
+def _check_conflicts(pid: str, sources: list[Source], outdated: set[str] | None = None,
+                     pairs: set[frozenset[str]] | None = None) -> list[Finding]:
     """Passages of different files that say the same thing with a different number for the same label.
 
     A pair with a file already reported as out of date is left out: that finding says what to do about it."""
@@ -263,6 +326,8 @@ def _check_conflicts(pid: str, sources: list[Source], outdated: set[str] | None 
                         label_values[(label, unit)] |= av | bv
     out = []
     for (a, b), examples in found.items():
+        if frozenset((a, b)) in (pairs or set()):     # an amendment changes values of what it amends: reported as amended
+            continue
         # A label with many different values is a template field ("station raised": each site's own figure), not a fact.
         unique = list(dict.fromkeys(text for label, unit, text in examples
                                     if len(label_values[(label, unit)]) <= MAX_LABEL_VALUES))
@@ -335,6 +400,15 @@ def set_ignored(pid: str, key: str, ignored: bool) -> None:
     os.replace(tmp, path)
 
 
+SUPERSEDED_HINT = "Remove them or explicitly accept each finding in the knowledge check."
+
+
+def superseded_files(report: dict[str, Any]) -> list[str]:
+    """Names of the documents an export must not ship unreviewed: out-of-date versions nobody accepted (ignored)."""
+    return sorted({f["name"] for x in report["findings"] if x["rule"] == "old_version" and not x["ignored"]
+                   for f in x["files"]})
+
+
 def excluded_documents(pid: str) -> dict[str, str]:
     """Documents a quiz should not ask about: out of date, or a duplicate of another file (unless ignored).
     {source id: why}. The first file of a duplicate group is kept."""
@@ -355,16 +429,19 @@ def lint(pid: str) -> dict[str, Any]:
     sources = [s for s in list_sources(pid) if not s.deleted]
     texts = {s.id: parsed_text(pid, s) for s in sources if s.ready}
     ignored = ignored_keys(pid)
-    file_findings = _check_files(sources, texts)
+    version_findings, pairs = _check_versions(sources, texts)
+    file_findings = _check_files(sources, texts, pairs)
     outdated = {f["id"] for x in file_findings if x.rule == "old_version" and x.key not in ignored for f in x.files}
-    findings = [*file_findings, *_check_conflicts(pid, sources, outdated), *_check_pictures(pid, sources),
+    findings = [*file_findings, *version_findings, *_check_conflicts(pid, sources, outdated, pairs),
+                *_check_pictures(pid, sources),
                 *_check_index(pid, sources)]
     for f in findings:
         f.ignored = f.key in ignored
-    findings.sort(key=lambda f: (f.ignored, f.severity != "error", f.rule))
+    findings.sort(key=lambda f: (f.ignored, {"error": 0, "warning": 1}.get(f.severity, 2), f.rule))
     active = [f for f in findings if not f.ignored]
     return {
         "files": len(sources), "reading": sum(s.status in ("queued", "parsing") for s in sources),
         "errors": sum(f.severity == "error" for f in active), "warnings": sum(f.severity == "warning" for f in active),
+        "infos": sum(f.severity == "info" for f in active),
         "ignored": len(findings) - len(active), "findings": [asdict(f) for f in findings],
     }

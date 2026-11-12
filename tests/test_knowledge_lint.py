@@ -66,9 +66,13 @@ def test_exact_and_near_duplicates() -> None:
     assert rules(kl._check_files([src("a", "one.txt"), src("b", "two.txt")], {"a": long_text, "b": near})) == ["near_duplicate"]
 
 
-@pytest.mark.parametrize("name", ["handbook_superseded.doc", "policy-OLD.pdf", "contract draft.docx"])
+@pytest.mark.parametrize("name", ["handbook_superseded.doc", "policy-OLD.pdf"])
 def test_old_names(name: str) -> None:
     assert rules(kl._check_files([src("a", name)], {"a": BODY})) == ["old_version"]
+
+
+def test_a_lone_draft_is_a_draft_not_an_old_version() -> None:
+    assert rules(kl._check_files([src("a", "contract draft.docx")], {"a": BODY})) == ["draft"]
 
 
 def test_a_word_inside_a_name_is_not_an_old_version() -> None:
@@ -165,7 +169,7 @@ def test_the_key_is_stable_and_ignores_persist(client) -> None:
 def test_empty_project_lints_clean(client) -> None:
     pid = client.post("/api/projects", json={"name": "lint-empty"}).json()["id"]
     assert client.get(f"/api/projects/{pid}/brain/lint").json() == {
-        "files": 0, "reading": 0, "errors": 0, "warnings": 0, "ignored": 0, "findings": []}
+        "files": 0, "reading": 0, "errors": 0, "warnings": 0, "infos": 0, "ignored": 0, "findings": []}
 
 
 def test_the_api_ignores_a_finding_and_refuses_junk(client, monkeypatch) -> None:

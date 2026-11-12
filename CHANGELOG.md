@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- The knowledge check links an amendment ("Amendment No. 1" citing the agreement's reference) to the agreement it amends and reports the pair as "amended: check the amendment's terms are used" instead of a duplicate or conflict; finds older sheets kept in a workbook ("Bands 2024" next to "Bands 2025", or a sheet titled "superseded") and year-named versions (`salary_bands_2024` next to `salary_bands_2025`); and shows a lone `…_DRAFT` file with nothing newer as a draft (information) instead of "out of date". `fts brain export` now refuses out-of-date documents nobody accepted, like the Export page (`--accept-superseded` packages them anyway).
+
 - When an answer says part of the question is not stated ("the value is not stated", "the context does not say who signed it"), the Smart Brain chat, Testing's grounded runs and packages (`/ask`, `rag_answer`) search once more for just that part and write the answer again; the reply says what was searched and which files it added (`followup`). On by default (chat: *Search again for a missing part*; packages: `RAG_RETRY_MISSING=0`; CLI: `fts brain ask --no-retry-missing`).
 
 - Smart Brain search no longer lets one document fill the top results: at most 3 passages of a document come first (Smart Brain → Retrieval settings → *Per document*, 0 = off), and its other passages still fill the end when nothing else matches. A long e-mail thread or contract stops pushing the passage that answers the second part of a question out of the top 10. The studio search and chat and exported packages use the same cap (package servers can override it with `max_per_document` / `RAG_MAX_PER_DOCUMENT` / `--max-per-document`).

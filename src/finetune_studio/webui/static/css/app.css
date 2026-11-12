@@ -5449,6 +5449,7 @@ html { scroll-padding-top: calc(var(--session-bar-h, 104px) + 8px); }
 .brain-lint-list { display: flex; flex-direction: column; gap: .5rem; }
 .brain-lint-row { padding: .5rem .7rem; border-left: 3px solid var(--warn); background: var(--bg-panel-2); border-radius: var(--radius-sm); }
 .brain-lint-row.is-error { border-left-color: var(--err); }
+.brain-lint-row.is-info { border-left-color: var(--accent); }
 .brain-lint-row.is-ignored { opacity: .55; border-left-color: var(--border-strong); }
 .brain-lint-title { font-size: .9rem; font-weight: 600; overflow-wrap: anywhere; }
 

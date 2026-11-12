@@ -426,17 +426,13 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
             status_code=404,
             detail="no corpus yet — build one first (section 2 on this page)",
         )
-    from finetune_studio.knowledge.lint import lint
+    from finetune_studio.knowledge.lint import SUPERSEDED_HINT, lint, superseded_files
 
-    knowledge_report = await asyncio.to_thread(lint, pid)
-    superseded = [finding for finding in knowledge_report["findings"]
-                  if finding["rule"] == "old_version" and not finding["ignored"]]
-    if superseded:
-        filenames = sorted({file["name"] for finding in superseded for file in finding["files"]})
+    filenames = superseded_files(await asyncio.to_thread(lint, pid))
+    if filenames:
         raise HTTPException(
             status_code=409,
-            detail=("Review superseded documents before packaging: " + ", ".join(filenames)
-                    + ". Remove them or explicitly accept each finding in the knowledge check."),
+            detail="Review superseded documents before packaging: " + ", ".join(filenames) + ". " + SUPERSEDED_HINT,
         )
     try:
         cfg = ec.effective_config(pid, _patch_values(req))
