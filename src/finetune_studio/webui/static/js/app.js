@@ -288,6 +288,12 @@
           delete form.dataset.ftsBusy;
           if (btn && document.contains(btn)) { btn.disabled = false; btn.innerHTML = btnHtml; }
         };
+        // data-redirect="/projects/{id}": open what was just created (New project used to leave you on the list).
+        const openCreated = (f, d) => {
+          if (!f.dataset.redirect || !d || !d.id) return false;
+          setTimeout(() => location.assign(f.dataset.redirect.replace("{id}", encodeURIComponent(d.id))), 400);
+          return true;
+        };
         const url = form.getAttribute("data-api");
         // If the form has file inputs, submit as multipart; otherwise JSON
         const hasFiles = form.querySelector('input[type="file"]');
@@ -309,7 +315,7 @@
           api.request(url, form.dataset.method || "POST", data).then((d) => {
             if (d && d.run_id) { notify("Training started · run " + d.run_id.slice(0, 8), "success"); surfaceRun(); }
             else notify("Done", "success");
-            if (form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
+            if (!openCreated(form, d) && form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
           })
           .catch((err) => notify(err.message || "Request failed", "error"))
           .finally(done);

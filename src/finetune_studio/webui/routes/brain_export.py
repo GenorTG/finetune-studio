@@ -391,8 +391,10 @@ def brain_package_documents(pid: str) -> dict[str, Any]:
     _require_project(pid)
     corpus = _corpus_dir(pid)
     if not (corpus / "manifest.json").is_file():
-        raise HTTPException(status_code=404, detail="no index yet")
-    return brain_scope.overview(brain_scope.documents(corpus, pid))
+        # Not built yet: nothing to pick from. An empty overview, not a 404 the Smart Brain page logged as an error
+        # on every visit before the first build.
+        return {**brain_scope.overview([]), "indexed": False}
+    return {**brain_scope.overview(brain_scope.documents(corpus, pid)), "indexed": True}
 
 
 def _package_dir(pid: str) -> Path:

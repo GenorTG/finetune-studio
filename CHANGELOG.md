@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- No more dead ends in the first run: *New project* → Create opens the new project (it used to leave you on the list), the Package page's *Build the package* now lands on the Smart Brain's export panel (it used to show the top of the page), and the Smart Brain page of a project that was never built no longer logs a 404 in the browser console.
+
 - Answers show their formatting: **bold**, `code`, headings and bullet lists in Smart Brain answers (and on a package's own chat page) are rendered instead of appearing as raw asterisks and hashes.
 
 - Two packages of one project no longer share a file: the archive name now carries the package id (`<name>-smart-brain-<id>-v1.0.0.tar.gz`). Before, exporting a second new package (say the internal one after a public-folder bot) overwrote the first one's file while Package versions still listed both, so downloading the public one could hand out the other.
