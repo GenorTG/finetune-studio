@@ -341,7 +341,7 @@
       try { data = await api.post('/api/benchmarks/projects/' + encodeURIComponent(PID) + '/suites/import', form); }
       catch (e) { msg.textContent = 'Import failed: ' + e.message; return; }
       // Same label as the server lists after a reload (suite_defs.SuiteDefinition.label); the import message says the rest.
-      addSuiteOption(data.path, 'local · ' + data.name + ' (' + data.case_count + ' cases)', 'project_import', data.name);
+      addSuiteOption(data.path, 'Imported quiz · ' + data.name + ' (' + data.case_count + ' questions)', 'project_import', data.name);
       msg.textContent = 'Imported ' + data.name + ': ' + data.case_count + ' questions' +
         (data.abstain_cases ? ' (' + data.abstain_cases + ' unanswerable)' : '') + ' — selected above.';
     } catch (e) {

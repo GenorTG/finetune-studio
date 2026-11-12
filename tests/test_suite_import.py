@@ -105,6 +105,7 @@ def test_upload_route_registers_the_quiz_in_the_suite_list(project_env) -> None:
     listed = _discover_suites(pid)
     mine = [s for s in listed if s.get("source") == "project_import"]
     assert len(mine) == 1 and mine[0]["path"] == body["path"] and mine[0]["case_count"] == 122
+    assert mine[0]["label"] == f"Imported quiz · {body['name']} (122 questions)"
     bad = client.post(f"/api/benchmarks/projects/{pid}/suites/import", files={"file": ("x.json", io.BytesIO(b"[]"))})
     assert bad.status_code == 400 and "detail" in bad.json()
     assert client.post("/api/benchmarks/projects/nope/suites/import", files={"file": ("x.json", io.BytesIO(b"[]"))}).status_code == 404
