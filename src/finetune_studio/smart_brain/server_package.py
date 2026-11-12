@@ -702,7 +702,9 @@ endpoint (Ollama, LM Studio, llama.cpp server, vLLM, OpenAI…) with the same gr
 Brain chat, and return the answer with its sources. A question that reaches its answer through another item ("who
 manages the site where asset X is installed?") finds the first item but not the second, which it never names: the
 answer model may then ask for one more search (`SEARCH: …`) before it answers, and the reply lists it under
-`follow_up_searches`. `RAG_FOLLOW_UP=0` turns that off; up to 3 are allowed.
+`follow_up_searches`. When the answer says part of the question is not stated, the server searches once more for
+that part and answers again; the reply's `followup` names the search and the sources it added (`RAG_RETRY_MISSING=0`
+turns it off). `RAG_FOLLOW_UP=0` turns both off; up to 3 follow-up searches are allowed.
 
 ```bash
 export RAG_LLM_PROVIDER="{cfg.llm_provider}"   # openai (any OpenAI-compatible API) or anthropic (Claude)
