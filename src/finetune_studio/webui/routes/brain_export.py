@@ -251,6 +251,7 @@ class ExportConfigPatch(BaseModel):
     llm_body: dict[str, Any] | None = None
     include_originals: bool | None = None
     originals_inline_max_mb: int | None = None
+    hide_file_names: bool | None = None
     llm_connection: str | None = None   # copy endpoint, model, headers and body from a Settings connection (no key)
 
 

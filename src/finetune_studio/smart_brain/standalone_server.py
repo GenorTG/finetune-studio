@@ -34,6 +34,8 @@ Configuration precedence:  CLI flags > env (RAG_*) > rag.config.json > defaults.
     dense_extra/RAG_DENSE_EXTRA (also return the N best passages by meaning alone)
     follow_up/RAG_FOLLOW_UP (answers: follow-up searches the answer model may ask for, 0 = off; default 1)
     file_inline_max_mb/RAG_FILE_INLINE_MAX_MB (rag_get_document: larger files come back as a /files/ link; 20)
+    hide_file_names/RAG_HIDE_FILE_NAMES (answers: a public bot names no source files: the model never sees them, any
+        bracketed file name is removed from the answer and /ask returns sources only when asked: "sources": true)
     retry_missing/RAG_RETRY_MISSING (answers: when the answer says part of the question is not stated, search once
         more for that part and answer again; needs follow_up >= 1; default on)
     max_per_document/RAG_MAX_PER_DOCUMENT (passages of one document in a search's top results before others get a
@@ -97,7 +99,7 @@ DEFAULT_CONFIG: dict = {
     "llm_base_url": "", "llm_model": "", "llm_api_key": "", "answer_max_tokens": 512,
     "llm_headers": {}, "llm_body": {}, "follow_up": 1, "provider": "openai", "file_inline_max_mb": 20,
     "max_per_document": -1,
-    "retry_missing": True,
+    "retry_missing": True, "hide_file_names": False,
 }
 ENV_KEYS = {
     "host": "RAG_HOST", "port": "RAG_PORT", "top_k": "RAG_TOP_K",
@@ -111,10 +113,10 @@ ENV_KEYS = {
     "llm_headers": "RAG_LLM_HEADERS", "llm_body": "RAG_LLM_BODY", "follow_up": "RAG_FOLLOW_UP",
     "provider": "RAG_LLM_PROVIDER", "file_inline_max_mb": "RAG_FILE_INLINE_MAX_MB",
     "max_per_document": "RAG_MAX_PER_DOCUMENT",
-    "retry_missing": "RAG_RETRY_MISSING",
+    "retry_missing": "RAG_RETRY_MISSING", "hide_file_names": "RAG_HIDE_FILE_NAMES",
 }
 SECRET_KEYS = frozenset({"auth_token", "embed_api_key", "llm_api_key"})
-BOOL_KEYS = frozenset({"reranker", "semantic", "keyword", "answer", "retry_missing"})
+BOOL_KEYS = frozenset({"reranker", "semantic", "keyword", "answer", "retry_missing", "hide_file_names"})
 JSON_KEYS = frozenset({"llm_headers", "llm_body"})
 USER_AGENT = "fts-brain-server/2.0"   # some API gateways (Cloudflare) refuse Python's default urllib agent
 SESSION_ID = os.urandom(16).hex()     # "{session}" in an llm header (the OpenCode Go gateway wants one per client)
@@ -791,8 +793,13 @@ class Corpus:
             "instructions": self.identity.get("system_prompt", "")}
 
     def answer(self, question: str, top_k: int | None = None, provider: Mapping | None = None,
-               history: list[dict] | None = None) -> dict:
-        """The generation half of RAG: retrieve, then ask the configured chat model to answer from the passages."""
+               history: list[dict] | None = None, include_sources: bool | None = None) -> dict:
+        """The generation half of RAG: retrieve, then ask the configured chat model to answer from the passages.
+
+        ``hide_file_names`` (a public bot): the model sees passages without file names and is told to name none,
+        any it writes anyway is removed, and the reply carries ``sources`` only when ``include_sources`` asks for
+        them (the operator's tools); otherwise ``sources`` is ``[]`` and ``sources_hidden`` is true."""
+        hide = bool(self.cfg.get("hide_file_names"))
         if not self.cfg["answer"] and not provider:
             raise ValueError("answer generation is off in this server (start it with --answer)")
         question = (question or "").strip()
@@ -808,13 +815,24 @@ class Corpus:
         result = answer_with_follow_ups(question, hits, lambda q: self.search(q, top_k), chat,
                                         follow_ups=int(self.cfg["follow_up"]),
                                         missing_part_retry=bool(self.cfg["retry_missing"]),
-                                        system_prompt=self.identity.get("system_prompt", ""), history=history)
+                                        system_prompt=self.identity.get("system_prompt", ""), history=history,
+                                        system_turn=_anonymous_turn if hide else None)
         sources = [{"rank": h["rank"], "filename": h["filename"], "chunk_id": h["chunk_id"],
                     "document_id": h.get("document_id", ""), "original": bool(h.get("original")),
                     "preview": str(h.get("text") or "")[:600]} for h in result["hits"]]
-        return {"question": question, "answer": result["answer"], "sources": sources, "weak": weak,
-                "model": (provider or {}).get("llm_model", self.cfg["llm_model"]),
-                "follow_up_searches": result["follow_up_searches"], "followup": result.get("followup")}
+        answer, followup = result["answer"], result.get("followup")
+        if hide:
+            answer = strip_file_names(answer, [str(h.get("filename") or "").rsplit("/", 1)[-1] for h in result["hits"]])
+            if followup:
+                followup = {"query": followup["query"], "added_passages": followup["added_passages"]}
+            if not include_sources:
+                sources = []
+        out = {"question": question, "answer": answer, "sources": sources, "weak": weak,
+               "model": (provider or {}).get("llm_model", self.cfg["llm_model"]),
+               "follow_up_searches": result["follow_up_searches"], "followup": followup}
+        if hide:
+            out["sources_hidden"] = not include_sources
+        return out
 
     def _chat(self, messages: list[dict], provider: Mapping | None = None) -> str:
         """One completion from the configured answer model; the reply with any <think> block removed."""
@@ -882,6 +900,38 @@ def build_system_prompt(context: str, system_prompt: str = "", extra_instruction
 
 def _system_turn(hits: list[dict], max_chars: int, system_prompt: str, extra_instructions: str) -> str:
     return build_system_prompt(format_context_blocks(hits, max_chars=max_chars), system_prompt, extra_instructions)
+
+
+# "Hide file names in answers" (a public bot): customers should not see internal-looking file names in citations.
+CITE_RULE = "Quote the source filename in [brackets] when relevant."
+NO_NAMES_RULE = ("Never name source files, file paths or document file names in your answer and write no bracketed "
+                 "citations: the reader cannot open them. Say what the information is, not which file it came from.")
+_FILE_EXT = (r"pdf|docx?|xlsx?|xlsm|pptx?|odt|ods|odp|rtf|md|markdown|txt|csv|tsv|json|jsonl|html?|xml|eml|msg|epub|"
+             r"png|jpe?g|tiff?")
+_BRACKET_NAME = re.compile(r"\s*\[[^\]\n]{0,200}?\.(?:" + _FILE_EXT + r")(?:\s*[,;]\s*[^\]\n]{0,200}?)?\]",
+                           re.IGNORECASE)
+_SOURCE_LABEL = re.compile(r"\(source:\s*[^,)]*,\s*", re.IGNORECASE)
+
+
+def hide_names_prompt(system_prompt: str) -> str:
+    """The answer instructions without the cite-the-file rule, with the never-name-files rule instead."""
+    base = system_prompt or DEFAULT_SYSTEM_PROMPT
+    return base.replace(CITE_RULE, NO_NAMES_RULE) if CITE_RULE in base else f"{base} {NO_NAMES_RULE}"
+
+
+def _anonymous_turn(hits: list[dict], max_chars: int, system_prompt: str, extra_instructions: str) -> str:
+    """``_system_turn`` with passages labelled only by number: the model never sees a file name."""
+    blind = [{**h, "filename": "passage", "source": "passage"} for h in hits]
+    context = _SOURCE_LABEL.sub("(", format_context_blocks(blind, max_chars=max_chars))
+    return build_system_prompt(context, hide_names_prompt(system_prompt), extra_instructions)
+
+
+def strip_file_names(answer: str, names: list[str] | tuple[str, ...] = ()) -> str:
+    """The answer without bracketed file citations (``[terms_v4.docx]``) or the passages' own file names."""
+    out = _BRACKET_NAME.sub("", answer or "")
+    for name in sorted({n for n in names if n and len(n) > 4}, key=len, reverse=True):
+        out = re.sub(r"\[?" + re.escape(name) + r"\]?", "our documents", out)
+    return re.sub(r"[ \t]+([.,;:!?])", r"\1", out).strip()
 
 
 def follow_up_query(reply: str) -> str:
@@ -1088,8 +1138,9 @@ def make_handler(corpus: Corpus, token: str = ""):
             elif u.path.startswith("/files/"):
                 self._file(u.path[len("/files/"):])
             elif u.path == "/ask":
-                q = (parse_qs(u.query).get("q") or [""])[0]
-                self._answer(q, None)
+                qs = parse_qs(u.query)
+                q = (qs.get("q") or [""])[0]
+                self._answer(q, None, {"sources": (qs.get("sources") or [""])[0] in ("1", "true", "yes")})
             elif u.path == "/search":
                 qs = parse_qs(u.query)
                 q = (qs.get("q") or [""])[0]
@@ -1202,8 +1253,9 @@ def make_handler(corpus: Corpus, token: str = ""):
                         self._json({"error": "history turns need a user or assistant role and text content"}, 400)
                         return
                     history.append({"role": turn["role"], "content": turn["content"][:8000]})
+            want = bool(body.get("sources")) if body else False
             try:
-                self._json(corpus.answer(question, top_k, provider, history))
+                self._json(corpus.answer(question, top_k, provider, history, include_sources=want))
             except ValueError as e:
                 self._json({"error": str(e)}, 400)
             except RuntimeError as e:
@@ -1343,7 +1395,9 @@ _ANSWER_TOOL = {
     "inputSchema": {
         "type": "object",
         "properties": {"question": {"type": "string", "description": "The question."},
-                       "top_k": {"type": "integer", "description": "How many passages to give the model (optional)."}},
+                       "top_k": {"type": "integer", "description": "How many passages to give the model (optional)."},
+                       "include_sources": {"type": "boolean", "description": (
+                           "Also return the sources when the package hides file names in answers (operator use).")}},
         "required": ["question"],
     },
     # Read-only for the package, but it sends the passages to the configured language model: an outside service.
@@ -1503,7 +1557,8 @@ def mcp_responder(corpus: Corpus | LoadingCorpus, base_url: str = ""):
                     return ok({"content": _get_document(corpus_now, args, base_url), "isError": False})
                 elif name == "rag_answer" and corpus.cfg["answer"]:
                     out = corpus_now.answer(str(args.get("question", "")),
-                                        int(args["top_k"]) if args.get("top_k") is not None else None)
+                                            int(args["top_k"]) if args.get("top_k") is not None else None,
+                                            include_sources=bool(args.get("include_sources")))
                 else:
                     return error(-32602, f"unknown tool {name!r}")
                 return ok({"content": [{"type": "text", "text": json.dumps(out, ensure_ascii=False)}], "isError": False})

@@ -198,6 +198,7 @@ def _export(args: argparse.Namespace) -> None:
         "answer_enabled": args.answer, "llm_base_url": args.llm_base_url, "llm_model": args.llm_model,
         "llm_provider": args.llm_provider,
         "llm_connection": args.llm_connection, "include_originals": args.originals,
+        "hide_file_names": getattr(args, "hide_file_names", None),
         "top_k": args.top_k, "port": args.port, "host": args.host, "device": args.device,
     }.items() if v is not None}
     conn = patch.pop("llm_connection", None)
@@ -584,6 +585,9 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     sp.add_argument("--exclude", action="append", metavar="PREFIX",
                     help="leave out documents whose path starts with PREFIX (repeatable)")
     sp.add_argument("--tag", action="append", metavar="TAG", help="only documents with this file tag (repeatable)")
+    sp.add_argument("--hide-file-names", dest="hide_file_names", action=bo, default=None,
+                    help="a public bot: answers name no source files; /ask returns sources only when asked "
+                         '("sources": true) (default off)')
     sp.add_argument("--originals", action=bo, default=None,
                     help="ship the original uploaded files (encrypted with the corpus); anyone who can reach the "
                          "server can download them: leave off for a public bot (default off)")

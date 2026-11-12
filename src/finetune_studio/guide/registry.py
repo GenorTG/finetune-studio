@@ -151,6 +151,7 @@ def _controls() -> dict[str, Control]:
         ("brain.export_base", "brain", "#mcp-base", "Export: which package this is a new version of"),
         ("brain.export_base_upload", "brain", "#mcp-base-upload", "Export: read an exported package as the base"),
         ("brain.export_originals", "brain", "#mcp-originals", "Export: include original files (downloadable)"),
+        ("brain.export_hide_names", "brain", "#mcp-hide-names", "Export: hide file names in answers (public bot)"),
         # training
         ("training.usecases", "training", "#uc-card", "Start from a use case"),
         ("training.usecase_new", "training", "#uc-new", "New use case form"),
