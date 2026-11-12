@@ -31,6 +31,7 @@ KINDS: dict[str, str] = {
     "mining": "finetune_studio.jobs.kinds.mining:run",
     "download": "finetune_studio.jobs.kinds.download:run",
     "brain_build": "finetune_studio.jobs.kinds.brain_build:run",
+    "pictures": "finetune_studio.jobs.kinds.pictures:run",
 }
 
 EXIT_DONE, EXIT_FAILED, EXIT_BAD_SPEC, EXIT_STOPPED = 0, 1, 2, 3

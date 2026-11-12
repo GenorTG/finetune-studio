@@ -91,9 +91,12 @@ async def _stage_upload(pid: str, upload: UploadFile) -> tuple[Path, int, str]:
 def _parse_source_background(pid: str, source_id: str) -> None:
     """Parse one staged upload after the HTTP response has been sent (a bad file ends as an ``error`` source)."""
     try:
-        sources.parse(pid, source_id)
+        source = sources.parse(pid, source_id)
     except Exception:
         log.exception("background parse failed for %s/%s", pid, source_id)
+        return
+    from finetune_studio.knowledge import pictures
+    pictures.after_parse(pid, source)    # a Vision reader is set: read its pictures (charts, scans) now
 
 
 def _stage_for_parse(pid: str, file_id: str, background: BackgroundTasks, item: dict) -> None:

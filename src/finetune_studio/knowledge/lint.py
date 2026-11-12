@@ -61,6 +61,8 @@ class Finding:
     detail: list[str] = field(default_factory=list)
     key: str = ""
     ignored: bool = False
+    link: dict[str, str] = field(default_factory=dict)    # {"href", "label"}: where the fix is
+    action: str = ""                                       # a button the page offers ("read_pictures")
 
 
 def _file(s: Source) -> dict[str, str]:
@@ -272,6 +274,34 @@ def _check_conflicts(pid: str, sources: list[Source], outdated: set[str] | None 
     return out
 
 
+def _check_pictures(pid: str, sources: list[Source]) -> list[Finding]:
+    """Pictures (charts, table images, scanned pages) that only OCR read: a chart's numbers lose their labels."""
+    from finetune_studio.knowledge import pictures
+
+    st = pictures.project_status(pid)
+    files = list(st["files"])
+    if not files:
+        return []
+    by_id = {s.id: s for s in sources}
+    srcs = [by_id[f["id"]] for f in files if f["id"] in by_id]
+    n = sum(f["pictures_ocr"] + f["scanned_ocr"] for f in files)
+    detail = [f"{f['name']}: {f['pictures_ocr']} picture(s), {f['scanned_ocr']} scanned page(s)" for f in files[:8]]
+    job = st.get("job") or {}
+    if st["reader"]["mode"] == "off":
+        return [Finding("pictures_ocr", "warning", pictures.OCR_ONLY_NOTE.format(n=n),
+                        "Set a vision reader (a local model with an mmproj, or an API vision model): pictures are then "
+                        "read when files arrive, or press Read pictures here. Then Update Smart Brain.",
+                        [_file(s) for s in srcs], detail, _finding("pictures_ocr", "", "", "", srcs).key,
+                        link={"href": pictures.SETTINGS_LINK, "label": "Set a vision reader"})]
+    fixable = [f for f in files if not f["mined"]]
+    fix = (f"{st['reader']['label']} is reading them now." if job.get("running")
+           else f"Press Read pictures to read them with {st['reader']['label']}, then Update Smart Brain."
+           if fixable else "These files were mined: Reset them in Mining to have their pictures read.")
+    return [Finding("pictures_ocr", "warning", f"{n} picture(s) not read by the vision reader yet", fix,
+                    [_file(s) for s in srcs], detail, _finding("pictures_ocr", "", "", "", srcs).key,
+                    action="read_pictures" if fixable and not job.get("running") else "")]
+
+
 def _check_index(pid: str, sources: list[Source]) -> list[Finding]:
     st = knowledge_index.state(pid)
     if not st.built or st.fresh:
@@ -327,7 +357,8 @@ def lint(pid: str) -> dict[str, Any]:
     ignored = ignored_keys(pid)
     file_findings = _check_files(sources, texts)
     outdated = {f["id"] for x in file_findings if x.rule == "old_version" and x.key not in ignored for f in x.files}
-    findings = [*file_findings, *_check_conflicts(pid, sources, outdated), *_check_index(pid, sources)]
+    findings = [*file_findings, *_check_conflicts(pid, sources, outdated), *_check_pictures(pid, sources),
+                *_check_index(pid, sources)]
     for f in findings:
         f.ignored = f.key in ignored
     findings.sort(key=lambda f: (f.ignored, f.severity != "error", f.rule))

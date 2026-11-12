@@ -468,7 +468,11 @@
     const prep = p.source_id ? on((p.chunk_count || 0) + ' passages', 'split into ' + (p.chunk_count || 0) + ' passages for mining and the Smart Brain' + (p.parser === 'manual-edit' ? ' (hand-edited text)' : ', read by ' + (p.parser || 'the parser'))) : off('passages', 'not split into passages yet');
     const brain = p.in_brain ? (p.brain_stale ? off('brain', 'in the Smart Brain, but edited since its last build: rebuild it')
       : on('brain', 'in the Smart Brain index')) : off('brain', 'not in the Smart Brain index (or it is not built)');
-    return '<div class="flex gap-1 wrap">' + parsed + prep + brain + '</div>';
+    const ocr = (p.pictures_ocr || 0) + (p.scanned_ocr || 0);
+    const pics = ocr ? '<a class="pill solid-amber text-xs" href="/projects/' + PID + '/brain#brain-lint" data-link title="' +
+      esc(ocr + ' picture(s) (charts, table images, scanned pages) read by OCR only: figures in charts may be wrong. Set a vision reader in Settings → AI assistant, or press Read pictures in the Knowledge check.') +
+      '">' + ocr + ' OCR only</a>' : (p.figures_read ? on(p.figures_read + ' pictures read', 'pictures read by the vision reader') : '');
+    return '<div class="flex gap-1 wrap">' + parsed + prep + brain + pics + '</div>';
   }
 
   function renderFolders() {

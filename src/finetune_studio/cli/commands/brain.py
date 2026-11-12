@@ -317,6 +317,37 @@ def _identity(args: argparse.Namespace) -> None:
     print(json.dumps({**saved, "instructions": brain_identity.compose(saved)}, indent=2, ensure_ascii=False))
 
 
+def _pictures(args: argparse.Namespace) -> None:
+    """Pictures only OCR read (the Knowledge check's "Read pictures"): show them, or ``--read`` them with the Vision
+    reader (the ``pictures`` job; ``--wait`` until it ends)."""
+    from finetune_studio.cli.commands.dataset import resolve_project
+    from finetune_studio.knowledge import pictures
+
+    if not args.project:
+        _die("--project is required")
+    pid = resolve_project(args.project)["id"]
+    if args.read:
+        try:
+            started = pictures.start(pid)
+        except pictures.PicturesError as e:
+            _die(str(e))
+        if args.wait:
+            from finetune_studio.jobs import launch
+            started = {"job": launch.wait(started["id"], timeout=args.timeout)}
+        print(json.dumps(started, indent=2, default=str))
+        return
+    st = pictures.project_status(pid)
+    if args.json:
+        print(json.dumps(st, indent=2, ensure_ascii=False, default=str))
+        return
+    print(f"Vision reader: {st['reader']['label']}")
+    print(f"{st['pictures']} picture(s), {st['scanned']} scanned page(s): {st['read']} read by a vision model, "
+          f"{st['pictures_ocr']} picture(s) and {st['scanned_ocr']} page(s) by OCR only")
+    for f in st["files"]:
+        print(f"  {f['name']}: {f['pictures_ocr']} picture(s), {f['scanned_ocr']} page(s)"
+              + (" (mined: Reset it in Mining first)" if f["mined"] else ""))
+
+
 def _lint(args: argparse.Namespace) -> None:
     """Knowledge check of a project's documents (the page's Knowledge check). Exits 1 when there are errors."""
     from finetune_studio.cli.commands.dataset import resolve_project
@@ -439,7 +470,7 @@ def _import(args: argparse.Namespace) -> None:
 
 _HANDLERS = {"build": _build, "search": _search, "ask": _ask, "eval": _eval, "rebuild-vectors": _rebuild_vectors,
              "info": _info, "export": _export, "bundle": _bundle, "import": _import,
-             "identity": _identity, "lint": _lint, "quiz": _quiz, "readiness": _readiness}
+             "identity": _identity, "lint": _lint, "pictures": _pictures, "quiz": _quiz, "readiness": _readiness}
 
 
 def cmd_brain(args: argparse.Namespace) -> None:
@@ -552,6 +583,12 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
 
     sp = target(brain.add_parser("lint", help="Check the documents: unreadable, duplicate, out of date, conflicting, secrets"))
     sp.add_argument("--json", action="store_true", help="the full report as JSON")
+
+    sp = target(brain.add_parser("pictures", help="Pictures only OCR read; --read them with the Vision reader"))
+    sp.add_argument("--read", action="store_true", help="start the Reading pictures job")
+    sp.add_argument("--wait", action="store_true", help="with --read: wait until it ends")
+    sp.add_argument("--timeout", type=float, default=3600.0, help="--wait limit in seconds (default 3600)")
+    sp.add_argument("--json", action="store_true", help="the full status as JSON")
 
     sp = target(brain.add_parser("quiz", help="Write a test quiz from the indexed documents (uses the AI assistant)"))
     sp.add_argument("--questions", type=int, default=40, help="how many to attempt (default 40)")
