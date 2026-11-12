@@ -11,6 +11,8 @@ turns that section into the release's notes.
 
 - Training: a run that stopped or failed before saving a checkpoint no longer offers Set production, Open in inference
   or Export; the buttons are off and the row says why. A stopped run that did save an adapter stays usable.
+- When an answer says part of it is missing, the retry searches the cited document(s) first before falling back to
+  the whole knowledge base.
 - Pages, styles and scripts are sent gzipped and versioned styles and scripts are cached by the browser, so a first
   visit moves about a fifth of the bytes and later pages load from cache (streams and downloads are never compressed).
 - The Smart Brain quiz checks “unanswerable” questions against the index's top 10 hybrid-search passages, so answers

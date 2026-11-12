@@ -12,7 +12,30 @@ import pandas as pd
 
 from finetune_studio.smart_brain.bm25 import BM25Index
 from finetune_studio.smart_brain.query import BrainQuery
-from finetune_studio.smart_brain.schema import EmbeddingModelInfo, Manifest, RetrievalSettings
+from finetune_studio.smart_brain.schema import (
+    EmbeddingModelInfo,
+    Manifest,
+    RetrievalSettings,
+)
+
+
+def test_source_prefix_filters_brain_query_results(tmp_path: Path) -> None:
+    texts = ["The law of Ireland applies.", "The law of France applies."]
+    ids = ["ie", "fr"]
+    vectors = np.eye(2, dtype=np.float32)
+    manifest = Manifest(name="t", version="2", created_at=0.0, updated_at=0.0,
+                        embedding_model=EmbeddingModelInfo(name="fake", dim=2),
+                        rag_settings=RetrievalSettings(embedder="fake", reranker="", rerank_enabled=False))
+    chunks = pd.DataFrame({"id": ids, "text": texts, "filename": ["agreement.pdf"] * 2,
+                           "source": ["docs/ie/agreement.pdf", "docs/fr/agreement.pdf"],
+                           "document_id": ids, "chunk_index": 0})
+    q = BrainQuery(tmp_path, manifest, chunks, vectors, {c: i for i, c in enumerate(ids)},
+                   BM25Index.build(texts), lambda _s: np.array([1, 0], dtype=np.float32))
+
+    hits = q.search("governing law", top_k=5, source_prefix="docs/fr/")
+
+    assert [hit["chunk_id"] for hit in hits] == ["fr"]
+    assert q.search("governing law", source_prefix="docs/missing/") == []
 
 
 def test_no_keyword_evidence_leaves_the_order_to_meaning(tmp_path: Path) -> None:
