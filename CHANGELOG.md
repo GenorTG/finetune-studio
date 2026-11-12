@@ -11,6 +11,11 @@ turns that section into the release's notes.
 
 - Training: a run that stopped or failed before saving a checkpoint no longer offers Set production, Open in inference
   or Export; the buttons are off and the row says why. A stopped run that did save an adapter stays usable.
+- The knowledge package leads everywhere: the dashboard's quick actions are New project, Open <last project> and
+  Package it (model download and local chat are linked below); New project starts on the Smart Brain template with
+  the base model and system prompt folded under "Training (optional)"; the Files page points to the Smart Brain and
+  the Package step; the first-run tour goes project → files → answer model → test → package and opens by itself only
+  on the dashboard; the Guide suggests package questions first.
 - The Package page now holds the package form: who it is for, which documents go in, original files and file names,
   answers, version, then Build & download; server and search tuning fold under Advanced. Before the first Smart Brain
   build it says to build it first, and a blocking knowledge-check finding is shown next to the button with a link. The
