@@ -227,10 +227,14 @@
   openIfNew();
   document.addEventListener('fts:navigated', openIfNew, { once: true });
 })();
-fts.api.get('/api/models/list').then(models => {
+fts.api.get('/api/models/list?for_training=true').then(models => {
   const sel = document.getElementById('np-base');
   if (!sel) return;
-  models.forEach(m => {
+  const seenPaths = new Set();
+  models.filter(m => !m.project_id).forEach(m => {
+    const pathKey = (m.path || '').replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+    if (!pathKey || seenPaths.has(pathKey)) return;
+    seenPaths.add(pathKey);
     const opt = document.createElement('option');
     opt.value = m.path;
     opt.textContent = `${m.name} (${m.format}, ${m.size_gb} GB)`;
