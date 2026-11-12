@@ -215,7 +215,15 @@ def index_rows(pid: str) -> list[dict[str, str]]:
     frame = pd.read_parquet(path, columns=["document_id", "filename", "text"])
     if frame.empty:
         raise NoIndex("The Smart Brain index is empty: build it first.")
-    return frame.astype(str).to_dict("records")
+    rows = frame.astype(str).to_dict("records")
+    from finetune_studio.knowledge.lint import excluded_documents
+
+    # The knowledge check's out-of-date and duplicate files: a quiz built from them would mark the current answer wrong.
+    skip = excluded_documents(pid)
+    kept = [r for r in rows if r["document_id"] not in skip]
+    if not kept:
+        raise NoIndex("Every indexed document is marked out of date or duplicate in the Knowledge check.")
+    return kept
 
 
 def build_brain_quiz(pid: str, *, questions: int = DEFAULT_QUESTIONS, generate: GenerateFn | None = None,

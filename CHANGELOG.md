@@ -29,6 +29,7 @@ turns that section into the release's notes.
 - The Smart Brain page leads with what state it is in and the one next action, then the conversation; every other control is folded under Manage. You can add files and load an answer model right on the page, and follow-up questions keep the conversation.
 
 ### Fixed
+- Knowledge check: a figure every document fills in for itself (a form field such as "station raised") and pairs with an out-of-date file are no longer reported as conflicts, and the generated quiz leaves out out-of-date and duplicate documents, so it does not mark the current answer wrong.
 - Knowledge check spots an older version of a document even when the newer one is another file type.
 - The Package page is labelled Package in the breadcrumb, the tab title and the Next hint.
 - Smart Brain build status says "1 document", not "1 documents".

@@ -165,3 +165,41 @@ def test_the_api_ignores_a_finding_and_refuses_junk(client, monkeypatch) -> None
 def test_the_page_shows_the_check_and_can_ignore() -> None:
     html = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/brain.html").read_text()
     assert 'id="brain-lint"' in html and "/brain/lint" in html and "/brain/lint/ignore" in html
+
+
+def test_a_pair_with_an_out_of_date_file_is_not_a_conflict(monkeypatch, tmp_path: Path) -> None:
+    corpus = _index(tmp_path, [("a", "Annual leave is 26 days."), ("b", "Annual leave is 30 days.")])
+    monkeypatch.setattr(kl, "brain_index_dir", lambda pid: corpus)
+    assert kl._check_conflicts("p", [src("a", "a.txt"), src("b", "b.txt")], outdated={"a"}) == []
+
+
+def test_a_form_field_is_found_over_the_whole_index() -> None:
+    texts = [f"The station raised {v} euros." for v in (100, 200, 300, 400)] + ["The probation period is 3 months."]
+    labels = kl._template_labels(texts, ["a", "b", "c", "d", "e"])
+    assert any(label == "station raised" for label, _unit in labels)
+    assert not any(label == "probation period" for label, _unit in labels)
+
+
+def test_excluded_documents_skips_old_versions_and_later_duplicates(monkeypatch) -> None:
+    def finding(rule: str, ids: str, ignored: bool = False) -> dict:
+        return {"rule": rule, "ignored": ignored, "files": [{"id": i} for i in ids]}
+    report = {"findings": [finding("old_version", "a"), finding("duplicate", "bc"),
+                           finding("near_duplicate", "de", ignored=True), finding("conflict", "fg")]}
+    monkeypatch.setattr(kl, "lint", lambda pid: report)
+    assert kl.excluded_documents("p") == {"a": "out of date", "c": "duplicate"}
+
+
+def test_the_quiz_leaves_out_superseded_documents(monkeypatch, tmp_path: Path) -> None:
+    from finetune_studio.testing import brain_quiz
+
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    pd.DataFrame([{"document_id": "old", "filename": "handbook-v1.md", "text": "26 days"},
+                  {"document_id": "new", "filename": "handbook-v2.md", "text": "30 days"}]).to_parquet(corpus / "chunks.parquet")
+    monkeypatch.setattr(brain_quiz, "brain_index_dir", lambda pid: corpus)
+    monkeypatch.setattr(kl, "excluded_documents", lambda pid: {"old": "out of date"})
+    rows = brain_quiz.index_rows("p")
+    assert [r["document_id"] for r in rows] == ["new"]
+    monkeypatch.setattr(kl, "excluded_documents", lambda pid: {"old": "x", "new": "y"})
+    with pytest.raises(brain_quiz.NoIndex):
+        brain_quiz.index_rows("p")
