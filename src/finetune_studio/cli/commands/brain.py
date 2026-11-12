@@ -165,7 +165,7 @@ def _info(args: argparse.Namespace) -> None:
 
 
 def _export(args: argparse.Namespace) -> None:
-    """Standalone server package (the Smart Brain page's "Build & download standalone server")."""
+    """Standalone server package (the Package page's "Build & download the package")."""
     from pydantic import ValidationError
 
     from finetune_studio.smart_brain import export_config as ec
