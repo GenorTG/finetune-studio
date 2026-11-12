@@ -421,17 +421,29 @@
             <option value="">— type the endpoint and model below —</option>
           </select>
         </div>
-        <div class="col-span-6">
-          <label class="block text-xs muted mb-1" for="mcp-llm-url">Answer model endpoint (OpenAI-compatible)</label>
+        <div class="col-span-4">
+          <label class="block text-xs muted mb-1" for="mcp-llm-preset">Provider</label>
+          <select id="mcp-llm-preset" class="select" title="Fills the endpoint and the API kind. The key is never in the package: whoever runs it sets RAG_LLM_API_KEY, or types a key in the package's chat page.">
+            <option value="">— choose —</option>
+            <option value="openai" data-api="openai" data-url="https://api.openai.com/v1">OpenAI</option>
+            <option value="anthropic" data-api="anthropic" data-url="https://api.anthropic.com/v1">Anthropic Claude</option>
+            <option value="openrouter" data-api="openai" data-url="https://openrouter.ai/api/v1">OpenRouter</option>
+            <option value="local" data-api="openai" data-url="http://127.0.0.1:11434/v1">Local server (Ollama, LM Studio, llama.cpp)</option>
+            <option value="other" data-api="openai" data-url="">Other OpenAI-compatible API</option>
+          </select>
+          <input id="mcp-llm-provider" type="hidden" value="openai">
+        </div>
+        <div class="col-span-4">
+          <label class="block text-xs muted mb-1" for="mcp-llm-url">Answer model endpoint</label>
           <input id="mcp-llm-url" type="text" class="input" placeholder="http://127.0.0.1:11434/v1"
                  title="Base URL of any OpenAI-compatible chat API: Ollama, LM Studio, llama.cpp server, vLLM, OpenAI. The server calls {url}/chat/completions.">
         </div>
-        <div class="col-span-6">
+        <div class="col-span-4">
           <label class="block text-xs muted mb-1" for="mcp-llm-model">Answer model name</label>
           <input id="mcp-llm-model" type="text" class="input" placeholder="qwen3:8b"
                  title="The model name that endpoint expects. An API key is never put in the package: set RAG_LLM_API_KEY where the server runs.">
         </div>
-        <p class="col-span-12 text-xs dim">No API key is stored in the package: where the server runs, set <code>RAG_LLM_API_KEY</code> if the endpoint needs one.</p>
+        <p class="col-span-12 text-xs dim">No API key is stored in the package: where the server runs, set <code>RAG_LLM_API_KEY</code>, or type a key in the package's chat page (it is sent with each question and never saved).</p>
       </div>
       <div class="text-xs mt-2" id="mcp-pipeline" role="status" aria-live="polite"></div>
     </fieldset>
@@ -1207,6 +1219,7 @@
       answer_enabled: g('mcp-answer').checked,
       llm_base_url: g('mcp-llm-url').value.trim(),
       llm_model: g('mcp-llm-model').value.trim(),
+      llm_provider: g('mcp-llm-provider').value || 'openai',
       llm_connection: g('mcp-llm-conn').value || null,
     };
   }
@@ -1230,11 +1243,22 @@
       var o = sel.selectedOptions[0];
       if (o && o.value && this.value.trim() !== o.dataset.url) sel.value = '';
     });
+    var preset = document.getElementById('mcp-llm-preset');
+    preset.addEventListener('change', function () {
+      var o = preset.selectedOptions[0];
+      if (!o || !o.value) return;
+      document.getElementById('mcp-llm-provider').value = o.dataset.api;
+      if (o.dataset.url) document.getElementById('mcp-llm-url').value = o.dataset.url;
+      sel.value = '';
+      syncLayers();
+    });
     sel.addEventListener('change', function () {
       var o = sel.selectedOptions[0];
       if (o && o.value) {
         document.getElementById('mcp-llm-url').value = o.dataset.url;
         document.getElementById('mcp-llm-model').value = o.dataset.model;
+        document.getElementById('mcp-llm-provider').value = 'openai';   // Settings connections are OpenAI-compatible
+        preset.value = 'other';
       }
       syncLayers();
     });
@@ -1288,6 +1312,9 @@
     g('mcp-sem').checked = c.semantic_search !== false; g('mcp-kw').checked = c.keyword_search !== false;
     g('mcp-answer').checked = !!c.answer_enabled;
     g('mcp-llm-url').value = c.llm_base_url || ''; g('mcp-llm-model').value = c.llm_model || '';
+    g('mcp-llm-provider').value = c.llm_provider || 'openai';
+    var pre = [].find.call(g('mcp-llm-preset').options, function (o) { return o.value && o.dataset.url && o.dataset.url === c.llm_base_url; });
+    g('mcp-llm-preset').value = pre ? pre.value : (c.llm_base_url ? 'other' : '');
     syncLayers();
   }
 

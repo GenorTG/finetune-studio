@@ -52,7 +52,8 @@ class BrainExportConfig(BaseModel):
     semantic_search: bool = True       # meaning search (vectors)
     keyword_search: bool = True        # word search (BM25)
     answer_enabled: bool = False       # RAG answers via an LLM endpoint
-    llm_base_url: str = ""             # OpenAI-compatible base URL, e.g. http://127.0.0.1:11434/v1
+    llm_provider: Literal["openai", "anthropic"] = "openai"   # API kind: any OpenAI-compatible, or Anthropic Claude
+    llm_base_url: str = ""             # e.g. https://api.openai.com/v1, https://api.anthropic.com/v1, http://127.0.0.1:11434/v1
     llm_model: str = ""
     llm_headers: dict[str, str] = Field(default_factory=dict)   # e.g. {"x-opencode-session": "{session}"}
     llm_body: dict[str, Any] = Field(default_factory=dict)      # merged into each request, e.g. reasoning_effort
@@ -102,7 +103,8 @@ class BrainExportConfig(BaseModel):
             "device": self.device, "host": self.host, "port": self.port,
             "top_k": self.top_k, "reranker": self.reranker_enabled,
             "semantic": self.semantic_search, "keyword": self.keyword_search,
-            "answer": self.answer_enabled, "llm_base_url": self.llm_base_url, "llm_model": self.llm_model.strip(),
+            "answer": self.answer_enabled, "provider": self.llm_provider,
+            "llm_base_url": self.llm_base_url, "llm_model": self.llm_model.strip(),
             "llm_headers": dict(self.llm_headers), "llm_body": dict(self.llm_body),
         }
 

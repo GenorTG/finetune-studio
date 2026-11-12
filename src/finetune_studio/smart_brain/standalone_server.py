@@ -11,7 +11,9 @@ Searches a corpus produced by Finetune Studio.  Two on-disk layouts:
                         legacy / --no-encrypt plaintext layout.
 
 Modes
-    --http [PORT]   REST API:   GET /health   GET /profile   GET /search?q=...&top_k=5[&source_prefix=pl-]
+    --http [PORT]   GET /  chat page (bring an OpenAI / Claude / compatible API, or the package's own connection)
+                    POST /mcp  MCP over HTTP (streamable HTTP; legacy and 2026-07-28 clients)
+                    REST API:   GET /health   GET /profile   GET /search?q=...&top_k=5[&source_prefix=pl-]
                     Binds 127.0.0.1 by default.  A non-loopback --host
                     REQUIRES an auth token (Authorization: Bearer ...).
     --mcp           MCP stdio server (JSON-RPC 2.0 over stdin/stdout).
@@ -63,7 +65,13 @@ CORPUS_DIR = HERE / "corpus"
 ENC_NAME = "corpus.enc"
 CONFIG_NAME = "rag.config.json"
 _TOKEN_RE = re.compile(r"[A-Za-z0-9]+(?:[\-'][A-Za-z0-9]+)*|[\u00A0-\uFFFF]+", re.UNICODE)
-PROTOCOL_VERSION = "2024-11-05"
+# MCP: the 2026-07-28 revision is stateless (version in each request's _meta, server/discover); older clients open
+# with initialize. This server answers both ("dual-era").
+MODERN_VERSIONS = ("2026-07-28",)
+LEGACY_VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
+PROTOCOL_VERSION = LEGACY_VERSIONS[0]
+META_VERSION = "io.modelcontextprotocol/protocolVersion"
+UNSUPPORTED_VERSION = -32022
 SERVER_NAME = "fts-brain-mcp"
 SERVER_VERSION = "2.0.0"
 MAX_BODY = 1 << 20
@@ -75,7 +83,7 @@ DEFAULT_CONFIG: dict = {
     "embed_base_url": "", "embed_api_key": "", "query_prefix": "", "dense_extra": 0,
     "semantic": True, "keyword": True, "answer": False,
     "llm_base_url": "", "llm_model": "", "llm_api_key": "", "answer_max_tokens": 512,
-    "llm_headers": {}, "llm_body": {}, "follow_up": 1,
+    "llm_headers": {}, "llm_body": {}, "follow_up": 1, "provider": "openai",
 }
 ENV_KEYS = {
     "host": "RAG_HOST", "port": "RAG_PORT", "top_k": "RAG_TOP_K",
@@ -87,6 +95,7 @@ ENV_KEYS = {
     "llm_base_url": "RAG_LLM_BASE_URL", "llm_model": "RAG_LLM_MODEL", "llm_api_key": "RAG_LLM_API_KEY",
     "answer_max_tokens": "RAG_ANSWER_MAX_TOKENS",
     "llm_headers": "RAG_LLM_HEADERS", "llm_body": "RAG_LLM_BODY", "follow_up": "RAG_FOLLOW_UP",
+    "provider": "RAG_LLM_PROVIDER",
 }
 SECRET_KEYS = frozenset({"auth_token", "embed_api_key", "llm_api_key"})
 BOOL_KEYS = frozenset({"reranker", "semantic", "keyword", "answer"})
@@ -219,6 +228,9 @@ def resolve_config(flags: Mapping[str, object], env: Mapping[str, str],
     if not (cfg["semantic"] or cfg["keyword"]):
         raise ConfigError("meaning search and word search are both off: turn on at least one")
     cfg["llm_base_url"] = str(cfg["llm_base_url"]).rstrip("/")
+    cfg["provider"] = str(cfg["provider"] or "openai").lower()
+    if cfg["provider"] not in ("openai", "anthropic"):
+        raise ConfigError("provider must be openai (any OpenAI-compatible API) or anthropic")
     if cfg["answer"] and not (cfg["llm_base_url"] and cfg["llm_model"]):
         raise ConfigError("answer generation needs an LLM endpoint: set llm_base_url and llm_model "
                           "(--llm-base-url / --llm-model or RAG_LLM_BASE_URL / RAG_LLM_MODEL)")
@@ -643,6 +655,11 @@ class Corpus:
             "layers": lay,
             "embed_endpoint": self.embed_base or "(not set)",
             "identity": self.identity.get("name") or ("set" if self.identity else "none"),
+            "answer_connection": {
+                "configured": bool(self.cfg["answer"] and self.cfg["llm_base_url"] and self.cfg["llm_model"]),
+                "provider": self.cfg["provider"], "base_url": self.cfg["llm_base_url"], "model": self.cfg["llm_model"],
+                "key_set": bool(self.cfg["llm_api_key"]),
+            },
         }
 
     def profile(self) -> dict:
@@ -668,7 +685,8 @@ class Corpus:
         result = answer_with_follow_ups(question, hits, lambda q: self.search(q, top_k), chat,
                                         follow_ups=int(self.cfg["follow_up"]),
                                         system_prompt=self.identity.get("system_prompt", ""), history=history)
-        sources = [{"rank": h["rank"], "filename": h["filename"], "chunk_id": h["chunk_id"]} for h in result["hits"]]
+        sources = [{"rank": h["rank"], "filename": h["filename"], "chunk_id": h["chunk_id"],
+                    "preview": str(h.get("text") or "")[:600]} for h in result["hits"]]
         return {"question": question, "answer": result["answer"], "sources": sources, "weak": weak,
                 "model": (provider or {}).get("llm_model", self.cfg["llm_model"]),
                 "follow_up_searches": result["follow_up_searches"]}
@@ -834,7 +852,7 @@ def make_handler(corpus: Corpus, token: str = ""):
             """Bearer check (constant time). Without a token the server is
             loopback-only; reject foreign Host headers (DNS rebinding)."""
             if token:
-                if self.command == "GET" and urlparse(self.path).path == "/":
+                if self.command == "GET" and urlparse(self.path).path in ("/", "/app.js"):
                     return True  # the static client contains no corpus data; API calls remain authenticated
                 auth = self.headers.get("Authorization") or ""
                 if auth[:7].lower() == "bearer " and tokens_equal(auth[7:].strip(), token):
@@ -855,7 +873,11 @@ def make_handler(corpus: Corpus, token: str = ""):
                 return
             u = urlparse(self.path)
             if u.path == "/":
-                self._html()
+                self._static(_CHAT_PAGE, "text/html; charset=utf-8")
+            elif u.path == "/app.js":
+                self._static(_CHAT_JS, "text/javascript; charset=utf-8")
+            elif u.path == "/mcp":
+                self._json({"error": "the MCP endpoint takes POST"}, 405, {"Allow": "POST"})
             elif u.path == "/health":
                 self._json({"ok": True, **corpus.info()})
             elif u.path == "/profile":
@@ -874,36 +896,53 @@ def make_handler(corpus: Corpus, token: str = ""):
                 except ValueError as e:
                     self._json({"error": str(e)}, 400)
             else:
-                self._json({"error": "not found — try /, /health, /profile, /search?q=... or /ask?q=..."}, 404)
+                self._json({"error": "not found — try /, /health, /profile, /search?q=..., /ask?q=... or POST /mcp"}, 404)
 
-        def _html(self):
-            page = r'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Smart Brain</title><style>
-:root{color-scheme:light dark;font:16px system-ui,sans-serif;--bg:#10151b;--panel:#19212b;--line:#303d4b;--accent:#8bd5ca;--text:#edf3f7;--muted:#aab8c4}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#20333a,var(--bg) 55%);color:var(--text);min-height:100vh}
-main{width:min(850px,100%);margin:auto;padding:clamp(18px,5vw,48px)}header{margin-bottom:24px}h1{margin:0;font-size:clamp(28px,6vw,42px)}header p,.hint{color:var(--muted)}#chat{display:grid;gap:14px}.turn{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;white-space:pre-wrap;line-height:1.55}.user{border-color:#537d77}.sources{font-size:13px;color:var(--muted);margin-top:10px}form,.settings{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px}textarea,input,select,button{font:inherit}textarea,input,select{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:11px;margin:5px 0 12px}textarea{min-height:90px;resize:vertical}button{background:var(--accent);color:#10201e;font-weight:700;border:0;border-radius:9px;padding:11px 18px;cursor:pointer}button:disabled{opacity:.6;cursor:wait}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.notice{font-size:13px;color:var(--muted)}@media(max-width:600px){.grid{grid-template-columns:1fr}}
-</style><main><header><h1>Smart Brain</h1><p id="about">Ask your knowledge package. Answers include source documents.</p></header>
-<section id="chat" aria-live="polite"></section><form id="ask"><label for="question">Your question</label><textarea id="question" required placeholder="Ask about the documents…"></textarea>
-<details class="settings"><summary>Connect an AI provider</summary><p class="notice">Choose OpenAI or Anthropic. Your API key is sent only with each request and is not saved in this package. Use HTTPS when accessing this page over a network.</p>
-<label>Server access token<input id="serverToken" type="password" autocomplete="off" placeholder="Only if the server is hosted with RAG_AUTH_TOKEN"></label>
-<label>Provider<select id="provider"><option value="openai">OpenAI / compatible API</option><option value="anthropic">Anthropic Claude</option></select></label>
-<div class="grid"><label>API base URL<input id="base" value="https://api.openai.com/v1" autocomplete="url"></label><label>Model<input id="model" value="gpt-4o-mini" autocomplete="off"></label></div>
-<label>API key<input id="key" type="password" autocomplete="off" placeholder="Required by your provider"></label></details>
-<p class="notice" id="status">The key and provider settings are not stored by the server.</p><button id="send">Ask</button></form>
-<script>
-const $=id=>document.getElementById(id), chat=$('chat');let history=[];
-$('provider').onchange=()=>{if($('provider').value==='anthropic'){$('base').value='https://api.anthropic.com/v1';$('model').value='claude-sonnet-5-5'}else{$('base').value='https://api.openai.com/v1';$('model').value='gpt-4.1-mini'}};
-const authHeaders=()=>{const h={'Content-Type':'application/json'};if($('serverToken').value)h.Authorization='Bearer '+$('serverToken').value;return h};
-const loadProfile=()=>fetch('/profile',{headers:authHeaders()}).then(r=>r.ok?r.json():null).then(p=>{if(p?.name)$('about').textContent=`${p.name} · Ask your knowledge package. Answers include source documents.`}).catch(()=>{});$('serverToken').onchange=loadProfile;loadProfile();
-$('ask').onsubmit=async e=>{e.preventDefault();const q=$('question').value.trim();if(!q)return;const u=document.createElement('div');u.className='turn user';u.textContent=q;chat.append(u);$('question').value='';$('send').disabled=true;$('status').textContent='Searching the package and asking your provider…';try{const r=await fetch('/ask',{method:'POST',headers:authHeaders(),body:JSON.stringify({question:q,history,provider:$('provider').value,llm_base_url:$('base').value.trim(),llm_model:$('model').value.trim(),llm_api_key:$('key').value})});const d=await r.json();if(!r.ok)throw Error(d.error||`Request failed (${r.status})`);const a=document.createElement('div');a.className='turn';a.textContent=d.answer;const s=document.createElement('div');s.className='sources';s.textContent=d.sources?.length?'Sources: '+d.sources.map(x=>x.filename).join(', '):'No matching source passages';a.append(s);chat.append(a);history.push({role:'user',content:q},{role:'assistant',content:d.answer});history=history.slice(-12);$('status').textContent=d.weak?'Answer may be incomplete: the retrieved passages do not cover the whole question.':'Answer ready.'}catch(err){$('status').textContent=err.message}finally{$('send').disabled=false;$('question').focus()}};
-</script></main></html>'''
-            data = page.encode()
+        def _static(self, text: str, kind: str):
+            data = text.encode()
             self.send_response(200)
-            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Type", kind)
             self.send_header("Content-Length", str(len(data)))
             self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("Referrer-Policy", "no-referrer")
+            self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; "
+                             "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
             self.end_headers()
             self.wfile.write(data)
+
+        def _origin_ok(self) -> bool:
+            """MCP over HTTP: a browser page from another site must not reach this server (DNS rebinding)."""
+            origin = self.headers.get("Origin")
+            if not origin:
+                return True
+            host = urlparse(origin).hostname or ""
+            own = (self.headers.get("Host") or "").rsplit(":", 1)[0].strip("[]")
+            return is_loopback(host) or (bool(own) and host == own)
+
+        def _mcp(self, body):
+            """Streamable HTTP MCP: one JSON-RPC message per POST, one JSON reply (a notification gets 202)."""
+            def reply(obj, code):
+                self._json(obj, code)
+            if not isinstance(body, dict):
+                reply({"jsonrpc": "2.0", "error": {"code": -32600, "message": "send one JSON-RPC message per request"}}, 400)
+                return
+            header = self.headers.get("MCP-Protocol-Version")
+            meta = ((body.get("params") or {}).get("_meta") or {}) if isinstance(body.get("params"), dict) else {}
+            in_body = meta.get(META_VERSION) if isinstance(meta, dict) else None
+            if header and in_body and header != in_body:
+                reply({"jsonrpc": "2.0", "id": body.get("id"), "error": {
+                    "code": -32600, "message": "HeaderMismatch: MCP-Protocol-Version differs from the request _meta"}}, 400)
+                return
+            out = mcp_responder(corpus)(body)
+            if out is None:
+                self.send_response(202)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            code = (out.get("error") or {}).get("code")
+            status = 400 if code == UNSUPPORTED_VERSION else 404 if (code == -32601 and in_body) else 200
+            reply(out, status)
 
         def _answer(self, question, top_k, body=None):
             provider = None
@@ -913,10 +952,13 @@ $('ask').onsubmit=async e=>{e.preventDefault();const q=$('question').value.trim(
                             "llm_model": str(body.get("llm_model") or "").strip(),
                             "llm_api_key": str(body.get("llm_api_key") or ""),
                             "llm_headers": {}, "llm_body": {}}
-                if provider["provider"] not in {"openai", "anthropic"}:
+                if provider["provider"] == "package":
+                    provider = None
+                elif provider["provider"] not in {"openai", "anthropic"}:
                     self._json({"error": "provider must be openai or anthropic"}, 400)
                     return
-                if not provider["llm_base_url"].startswith(("https://", "http://")) or not provider["llm_model"]:
+                if provider and (not provider["llm_base_url"].startswith(("https://", "http://"))
+                                 or not provider["llm_model"]):
                     self._json({"error": "enter a valid provider URL and model"}, 400)
                     return
             elif not corpus.cfg["answer"]:
@@ -950,6 +992,15 @@ $('ask').onsubmit=async e=>{e.preventDefault();const q=$('question').value.trim(
                     self._json({"error": "request body too large"}, 413)
                     return
                 body = json.loads(self.rfile.read(length) or b"{}")
+                if urlparse(self.path).path == "/mcp":
+                    if not self._origin_ok():
+                        self._json({"jsonrpc": "2.0", "error": {"code": -32600, "message": "forbidden origin"}}, 403)
+                        return
+                    self._mcp(body)
+                    return
+                if not isinstance(body, dict):
+                    self._json({"error": "send a JSON object"}, 400)
+                    return
                 top_k = body.get("top_k")
                 if urlparse(self.path).path == "/ask":
                     self._answer(str(body.get("question") or body.get("query") or ""),
@@ -1011,15 +1062,21 @@ _TOOLS = [{
         },
         "required": ["query"],
     },
+    "annotations": {"title": "Search the knowledge base", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True,
+                    "openWorldHint": False},
 }, {
     "name": "rag_profile",
     "description": ("Who this knowledge base speaks for: its name, background, personality and answering rules. "
                     "Read it first and follow its instructions when you answer."),
     "inputSchema": {"type": "object", "properties": {}},
+    "annotations": {"title": "Who this knowledge base speaks for", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True,
+                    "openWorldHint": False},
 }, {
     "name": "rag_info",
     "description": "Corpus stats: name, chunk/document counts, which search layers run.",
     "inputSchema": {"type": "object", "properties": {}},
+    "annotations": {"title": "Knowledge base stats", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True,
+                    "openWorldHint": False},
 }]
 _ANSWER_TOOL = {
     "name": "rag_answer",
@@ -1031,68 +1088,140 @@ _ANSWER_TOOL = {
                        "top_k": {"type": "integer", "description": "How many passages to give the model (optional)."}},
         "required": ["question"],
     },
+    # Read-only for the package, but it sends the passages to the configured language model: an outside service.
+    "annotations": {"title": "Answer from the knowledge base", "readOnlyHint": True, "destructiveHint": False,
+                    "idempotentHint": False, "openWorldHint": True},
 }
 
 
-def mcp_responder(corpus: Corpus):
+def _instructions(corpus: Corpus) -> str:
+    base = "Use rag_search for anything about this knowledge base; its passages are the CONTEXT."
+    prompt = corpus.identity.get("system_prompt")
+    return f"{base}\n\n{prompt}" if prompt else ""
+
+
+class LoadingCorpus:
+    """A corpus opening in a background thread, so a stdio MCP client gets its handshake at once.
+
+    Decrypting the corpus and loading the embedder takes seconds; clients such as Codex start their turn without
+    waiting for a slow server and then see no tools. A failed open ends the process with the code ``main`` uses."""
+
+    def __init__(self, cfg: dict, opener):
+        self.cfg = cfg
+        self._done = threading.Event()
+        self._corpus: Corpus | None = None
+        threading.Thread(target=self._open, args=(opener,), daemon=True, name="corpus-open").start()
+
+    def _open(self, opener) -> None:
+        try:
+            self._corpus = opener()
+        except Exception as e:  # noqa: BLE001 — reported the way main() reports a failed start
+            code = 3 if type(e).__name__ in ("ContainerError", "WrongPassphraseOrTampered") else 2
+            what = "cannot open encrypted package" if code == 3 else "cannot load corpus"
+            print(f"{what}: {e}", file=sys.stderr, flush=True)
+            sys.stdout.flush()
+            os._exit(code)          # waiters are never released: nothing answers from a corpus that did not open
+        self._done.set()
+        print(f"[rag-mcp] {self._corpus.info()} — corpus ready", file=sys.stderr, flush=True)
+
+    def get(self, timeout: float | None = None) -> Corpus | None:
+        """The corpus, waiting up to ``timeout`` seconds (None: until it is open)."""
+        self._done.wait(timeout)
+        return self._corpus
+
+
+def _ready(corpus, wait: float | None = None):
+    return corpus.get(wait) if isinstance(corpus, LoadingCorpus) else corpus
+
+
+#: How long initialize/server/discover wait for the corpus so their instructions carry the identity.
+INSTRUCTIONS_WAIT = 2.0
+
+
+def mcp_responder(corpus: Corpus | LoadingCorpus):
+    """One JSON-RPC message in, its reply (or None for a notification) out; transport-free, used by stdio and HTTP.
+
+    Modern requests (2026-07-28) carry their version in ``params._meta``; their results get ``resultType`` and the
+    server's identity in ``_meta``. A legacy client opens with ``initialize`` and gets its own version back if this
+    server speaks it."""
+    supported = [*MODERN_VERSIONS, *LEGACY_VERSIONS]
+    server_info = {"name": SERVER_NAME, "version": SERVER_VERSION}
+
     def respond(msg: dict) -> dict | None:
         method = msg.get("method")
         mid = msg.get("id")
-        if method == "initialize":
-            result = {
-                "protocolVersion": PROTOCOL_VERSION,
-                "capabilities": {"tools": {}},
-                "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
-            }
-            if corpus.identity.get("system_prompt"):   # clients that honour server instructions get the identity up front
-                result["instructions"] = ("Use rag_search for anything about this knowledge base; its passages are the "
-                                          "CONTEXT.\n\n" + corpus.identity["system_prompt"])
+        params = msg.get("params") if isinstance(msg.get("params"), dict) else {}
+        meta = params.get("_meta") if isinstance(params.get("_meta"), dict) else {}
+        version = meta.get(META_VERSION)
+        modern = version is not None
+
+        def error(code: int, message: str, data: dict | None = None) -> dict:
+            err = {"code": code, "message": message, **({"data": data} if data else {})}
+            return {"jsonrpc": "2.0", "id": mid, "error": err}
+
+        def ok(result: dict) -> dict:
+            if modern:
+                result = {"resultType": "complete", **result,
+                          "_meta": {"io.modelcontextprotocol/serverInfo": server_info}}
             return {"jsonrpc": "2.0", "id": mid, "result": result}
+
         if method and method.startswith("notifications/"):
             return None
+        if modern and version not in supported:
+            return error(UNSUPPORTED_VERSION, "Unsupported protocol version",
+                         {"supported": supported, "requested": version})
+        instructions = ""
+        if method in ("server/discover", "initialize"):
+            opened = _ready(corpus, INSTRUCTIONS_WAIT)
+            instructions = _instructions(opened) if opened is not None else ""
+        if method == "server/discover":
+            return ok({"supportedVersions": supported, "capabilities": {"tools": {}},
+                       **({"instructions": instructions} if instructions else {}),
+                       "ttlMs": 60000, "cacheScope": "private"})
+        if method == "initialize":
+            requested = params.get("protocolVersion")
+            result = {"protocolVersion": requested if requested in LEGACY_VERSIONS else PROTOCOL_VERSION,
+                      "capabilities": {"tools": {}}, "serverInfo": server_info}
+            if instructions:   # clients that honour server instructions get the identity up front
+                result["instructions"] = instructions
+            return {"jsonrpc": "2.0", "id": mid, "result": result}
+        if method == "ping":
+            return ok({})
         if method == "tools/list":
             tools = _TOOLS + ([_ANSWER_TOOL] if corpus.cfg["answer"] else [])
-            return {"jsonrpc": "2.0", "id": mid, "result": {"tools": tools}}
+            return ok({"tools": tools, **({"ttlMs": 60000, "cacheScope": "private"} if modern else {})})
         if method == "tools/call":
-            params = msg.get("params") or {}
             name = params.get("name")
             args = params.get("arguments") or {}
             try:
+                corpus_now = _ready(corpus)
                 if name == "rag_search":
-                    out = corpus.search(str(args.get("query", "")),
+                    out = corpus_now.search(str(args.get("query", "")),
                                         int(args["top_k"]) if args.get("top_k") is not None else None,
                                         str(args.get("source_prefix") or ""),
                                         int(args["dense_extra"]) if args.get("dense_extra") is not None else None)
                 elif name == "rag_info":
-                    out = corpus.info()
+                    out = corpus_now.info()
                 elif name == "rag_profile":
-                    out = corpus.profile()
+                    out = corpus_now.profile()
                 elif name == "rag_answer" and corpus.cfg["answer"]:
-                    out = corpus.answer(str(args.get("question", "")),
+                    out = corpus_now.answer(str(args.get("question", "")),
                                         int(args["top_k"]) if args.get("top_k") is not None else None)
                 else:
-                    return {"jsonrpc": "2.0", "id": mid,
-                            "error": {"code": -32602, "message": f"unknown tool {name!r}"}}
-                return {"jsonrpc": "2.0", "id": mid, "result": {
-                    "content": [{"type": "text",
-                                 "text": json.dumps(out, ensure_ascii=False)}],
-                    "isError": False,
-                }}
+                    return error(-32602, f"unknown tool {name!r}")
+                return ok({"content": [{"type": "text", "text": json.dumps(out, ensure_ascii=False)}], "isError": False})
             except Exception as e:  # noqa: BLE001 — MCP must not die on one call
-                return {"jsonrpc": "2.0", "id": mid, "result": {
-                    "content": [{"type": "text", "text": f"error: {e}"}],
-                    "isError": True,
-                }}
+                return ok({"content": [{"type": "text", "text": f"error: {e}"}], "isError": True})
         if mid is not None:
-            return {"jsonrpc": "2.0", "id": mid,
-                    "error": {"code": -32601, "message": f"method not found: {method}"}}
+            return error(-32601, f"method not found: {method}")
         return None
     return respond
 
 
-def serve_mcp(corpus: Corpus) -> None:
+def serve_mcp(corpus: Corpus | LoadingCorpus) -> None:
     respond = mcp_responder(corpus)
-    print(f"[rag-mcp] {corpus.info()} — stdio ready", file=sys.stderr)
+    opened = _ready(corpus, 0)
+    print(f"[rag-mcp] {opened.info() if opened else 'opening the corpus'} — stdio ready", file=sys.stderr, flush=True)
     for line in sys.stdin:
         line = line.strip()
         if not line:
@@ -1139,6 +1268,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--llm-base-url", dest="llm_base_url",
                     help="OpenAI-compatible chat endpoint for answers, e.g. http://127.0.0.1:11434/v1")
     ap.add_argument("--llm-model", dest="llm_model", help="model name the answer endpoint expects")
+    ap.add_argument("--llm-provider", dest="provider", choices=["openai", "anthropic"],
+                    help="API kind of the answer endpoint: openai (any OpenAI-compatible) or anthropic (Claude)")
     ap.add_argument("--ask", help="answer one question (answer generation must be on), print JSON, then exit")
     ap.add_argument("--auth-token", dest="auth_token",
                     help="bearer token for HTTP (prefer RAG_AUTH_TOKEN: argv is visible)")
@@ -1187,7 +1318,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.http is not None:
             check_bind_security(cfg)
         passphrase = read_passphrase(args.keyfile, env) if encrypted else None
-        corpus = Corpus(corpus_path, cfg, passphrase)
+        if args.http is None and not args.query and not args.ask:   # stdio MCP: answer the handshake while it opens
+            corpus = LoadingCorpus(cfg, lambda: Corpus(corpus_path, cfg, passphrase))
+        else:
+            corpus = Corpus(corpus_path, cfg, passphrase)
     except ConfigError as e:
         print(f"config error: {e}", file=sys.stderr)
         return 2
@@ -1215,6 +1349,139 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     serve_mcp(corpus)
     return 0
+
+
+
+#: The package's chat page (GET /) and its script (GET /app.js). No corpus data in either; every call is authenticated.
+_CHAT_PAGE = r"""<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smart Brain</title><style>
+:root{color-scheme:light dark;font:16px system-ui,sans-serif;--bg:#10151b;--panel:#19212b;--line:#303d4b;--accent:#8bd5ca;--text:#edf3f7;--muted:#aab8c4;--err:#f08087}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#20333a,var(--bg) 55%);color:var(--text);min-height:100vh}
+main{width:min(880px,100%);margin:auto;padding:clamp(16px,4vw,40px)}h1{margin:0 0 4px;font-size:clamp(26px,5vw,38px)}
+.muted{color:var(--muted)}.small{font-size:13px}.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin:14px 0}
+summary{cursor:pointer;font-weight:600}label{display:block;font-size:13px;color:var(--muted);margin-top:10px}
+input,select,textarea,button{font:inherit}input,select,textarea{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:10px;margin-top:4px}
+textarea{min-height:76px;resize:vertical}.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+button{background:var(--accent);color:#10201e;font-weight:700;border:0;border-radius:9px;padding:10px 18px;cursor:pointer}button.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+button:disabled{opacity:.6;cursor:wait}#chat{display:grid;gap:12px;margin:14px 0}.turn{border:1px solid var(--line);border-radius:14px;padding:14px;white-space:pre-wrap;line-height:1.55;overflow-wrap:anywhere}
+.user{background:#1d2f31;border-color:#537d77;justify-self:end;max-width:90%}.bot{background:var(--panel)}.err{border-color:var(--err);color:var(--err)}
+.src{margin-top:10px;font-size:13px;color:var(--muted)}.src details{margin-top:4px}.src pre{white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;margin:6px 0 0;padding:8px;border-left:2px solid var(--line)}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}@media(max-width:600px){.row{grid-template-columns:1fr}}
+</style><main>
+<h1 id="title">Smart Brain</h1><p class="muted" id="about">Ask the documents in this package. Every answer lists the files it came from.</p>
+<p class="small muted" id="stats"></p>
+<details class="card" id="conn"><summary id="conn-summary">Answer with…</summary>
+<label for="kind">Provider</label><select id="kind"></select>
+<div id="custom"><div class="row"><div><label for="base">API base URL</label><input id="base" autocomplete="url" placeholder="https://api.openai.com/v1"></div>
+<div><label for="model">Model</label><input id="model" autocomplete="off" placeholder="model name"></div></div>
+<label for="key">API key</label><input id="key" type="password" autocomplete="off" placeholder="Your provider's key (not needed for a local server)">
+<label class="bar"><input id="keep" type="checkbox" style="width:auto"> Keep the key in this browser tab until it is closed</label></div>
+<label for="token">Server access token</label><input id="token" type="password" autocomplete="off" placeholder="Only if this server was started with RAG_AUTH_TOKEN">
+<p class="small muted">Your question and the passages found are sent to the provider you pick. The key goes to this server with each question and is never stored here. Over a network, use HTTPS.</p>
+</details>
+<section id="chat" aria-live="polite"></section>
+<form id="ask" class="card"><label for="question">Your question</label><textarea id="question" required placeholder="Ask about the documents…"></textarea>
+<div class="bar" style="margin-top:10px"><button id="send">Ask</button><button type="button" class="ghost" id="reset">New conversation</button><span class="small muted" id="status"></span></div></form>
+<script src="/app.js"></script></main></html>"""
+
+_CHAT_JS = r"""'use strict';
+const $ = (id) => document.getElementById(id);
+const PRESETS = {
+  openai: { label: 'OpenAI', api: 'openai', base: 'https://api.openai.com/v1' },
+  anthropic: { label: 'Anthropic Claude', api: 'anthropic', base: 'https://api.anthropic.com/v1' },
+  openrouter: { label: 'OpenRouter', api: 'openai', base: 'https://openrouter.ai/api/v1' },
+  local: { label: 'Local server (Ollama, LM Studio, llama.cpp…)', api: 'openai', base: 'http://127.0.0.1:11434/v1' },
+  other: { label: 'Other OpenAI-compatible API', api: 'openai', base: '' },
+};
+let history = [];
+let pkg = null;   // the package's own connection, when it has one
+const saved = JSON.parse(localStorage.getItem('sb-conn') || '{}');
+
+function headers() {
+  const h = { 'Content-Type': 'application/json' };
+  if ($('token').value) h.Authorization = 'Bearer ' + $('token').value;
+  return h;
+}
+function fillKinds() {
+  const sel = $('kind');
+  sel.innerHTML = '';
+  if (pkg) sel.add(new Option(`This package's connection (${pkg.model})`, 'package'));
+  for (const [id, p] of Object.entries(PRESETS)) sel.add(new Option(p.label, id));
+  sel.value = saved.kind && [...sel.options].some((o) => o.value === saved.kind) ? saved.kind : (pkg ? 'package' : 'openai');
+}
+function syncKind(fromUser) {
+  const k = $('kind').value, custom = k !== 'package';
+  $('custom').hidden = !custom;
+  if (custom && (fromUser || !$('base').value)) $('base').value = (saved.kind === k && saved.base) || PRESETS[k].base;
+  if (custom && !fromUser && saved.kind === k && saved.model) $('model').value = saved.model;
+  $('key').placeholder = k === 'local' ? 'Usually not needed for a local server' : "Your provider's key";
+  $('conn-summary').textContent = 'Answer with: ' + (k === 'package' ? `this package's connection (${pkg.model})` : PRESETS[k].label + ($('model').value ? ' · ' + $('model').value : ''));
+}
+function remember() {
+  const k = $('kind').value;
+  localStorage.setItem('sb-conn', JSON.stringify({ kind: k, base: $('base').value.trim(), model: $('model').value.trim() }));
+  if ($('keep').checked) sessionStorage.setItem('sb-key', $('key').value); else sessionStorage.removeItem('sb-key');
+}
+async function load() {
+  $('key').value = sessionStorage.getItem('sb-key') || '';
+  $('keep').checked = !!$('key').value;
+  try {
+    const r = await fetch('/health', { headers: headers() });
+    if (r.status === 401) { $('conn').open = true; $('status').textContent = 'This server needs its access token: enter it under "Answer with".'; fillKinds(); syncKind(false); return; }
+    $('status').textContent = '';
+    const h = await r.json();
+    const c = h.answer_connection || {};
+    pkg = c.configured ? c : null;
+    $('stats').textContent = `${h.documents} documents · ${h.chunks} passages · search: ${h.mode}`;
+    const p = await fetch('/profile', { headers: headers() }).then((x) => x.ok ? x.json() : {});
+    if (p.name) { $('title').textContent = p.name; document.title = p.name; }
+  } catch (e) { $('status').textContent = 'Could not reach the server: ' + e.message; }
+  fillKinds(); syncKind(false);
+  if (!pkg && !saved.model) $('conn').open = true;
+}
+function bubble(cls, text) {
+  const d = document.createElement('div');
+  d.className = 'turn ' + cls; d.textContent = text; $('chat').append(d); d.scrollIntoView({ block: 'nearest' });
+  return d;
+}
+function sources(box, list) {
+  if (!list || !list.length) return;
+  const wrap = document.createElement('div'); wrap.className = 'src'; wrap.textContent = 'Sources';
+  const seen = new Map();
+  for (const s of list) { if (!seen.has(s.filename)) seen.set(s.filename, []); seen.get(s.filename).push(s.preview || ''); }
+  for (const [name, parts] of seen) {
+    const d = document.createElement('details'), sum = document.createElement('summary');
+    sum.textContent = `${name} · ${parts.length} passage${parts.length === 1 ? '' : 's'}`; d.append(sum);
+    for (const t of parts) { const pre = document.createElement('pre'); pre.textContent = t; d.append(pre); }
+    wrap.append(d);
+  }
+  box.append(wrap);
+}
+$('kind').addEventListener('change', () => { syncKind(true); remember(); });
+for (const id of ['base', 'model', 'key', 'keep']) $(id).addEventListener('change', () => { remember(); syncKind(false); });
+$('token').addEventListener('change', load);
+$('reset').addEventListener('click', () => { history = []; $('chat').innerHTML = ''; $('status').textContent = ''; $('question').focus(); });
+$('ask').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const q = $('question').value.trim(); if (!q) return;
+  const k = $('kind').value;
+  if (k !== 'package' && (!$('base').value.trim() || !$('model').value.trim())) { $('conn').open = true; $('status').textContent = 'Pick a provider and enter its model first.'; return; }
+  bubble('user', q); $('question').value = ''; $('send').disabled = true; $('status').textContent = 'Searching and asking…';
+  const body = { question: q, history };
+  if (k === 'package') body.provider = 'package';
+  else Object.assign(body, { provider: PRESETS[k].api, llm_base_url: $('base').value.trim(), llm_model: $('model').value.trim(), llm_api_key: $('key').value });
+  try {
+    const r = await fetch('/ask', { method: 'POST', headers: headers(), body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || `request failed (${r.status})`);
+    const a = bubble('bot', d.answer); sources(a, d.sources);
+    history.push({ role: 'user', content: q }, { role: 'assistant', content: d.answer }); history = history.slice(-12);
+    $('status').textContent = d.weak ? 'The passages found may not cover the whole question.' : '';
+  } catch (err) { bubble('err', err.message); $('question').value = q; $('status').textContent = ''; }
+  finally { $('send').disabled = false; $('question').focus(); }
+});
+load();
+"""
 
 
 if __name__ == "__main__":

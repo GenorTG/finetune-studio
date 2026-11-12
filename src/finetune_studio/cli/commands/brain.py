@@ -180,6 +180,7 @@ def _export(args: argparse.Namespace) -> None:
         "archive_format": args.format, "include_models": args.models, "encrypt": args.encrypt,
         "semantic_search": args.semantic, "keyword_search": args.keyword, "reranker_enabled": args.reranker,
         "answer_enabled": args.answer, "llm_base_url": args.llm_base_url, "llm_model": args.llm_model,
+        "llm_provider": args.llm_provider,
         "llm_connection": args.llm_connection,
         "top_k": args.top_k, "port": args.port, "host": args.host, "device": args.device,
     }.items() if v is not None}
@@ -217,9 +218,12 @@ def _export(args: argparse.Namespace) -> None:
                                identity=_identity_for(args, package=True))
     except (FileNotFoundError, ValueError) as e:
         _die(str(e))
-    from finetune_studio.smart_brain.server_package import verify_package
+    from finetune_studio.smart_brain.server_package import (
+        studio_models_for,
+        verify_package,
+    )
 
-    verified = verify_package(result.path, result.passphrase or passphrase)
+    verified = verify_package(result.path, result.passphrase or passphrase, studio_models=studio_models_for(corpus))
     if args.project:
         from finetune_studio.cli.commands.dataset import resolve_project
         from finetune_studio.knowledge.readiness import record_package
@@ -458,6 +462,8 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
                     help="answer generation: the server's /ask and rag_answer call an LLM (default off)")
     sp.add_argument("--llm-base-url", help="OpenAI-compatible endpoint for answers, e.g. http://127.0.0.1:11434/v1")
     sp.add_argument("--llm-model", help="model name for answers")
+    sp.add_argument("--llm-provider", choices=["openai", "anthropic"],
+                    help="API kind of the answer endpoint: openai (any OpenAI-compatible) or anthropic (Claude)")
     sp.add_argument("--llm-connection",
                     help="copy the answer endpoint, model and headers from a Settings → AI assistant connection id "
                          "(never its key: set RAG_LLM_API_KEY where the server runs)")

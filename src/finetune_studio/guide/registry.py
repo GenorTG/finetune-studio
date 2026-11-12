@@ -139,6 +139,7 @@ def _controls() -> dict[str, Control]:
         ("brain.export_keyword", "brain", "#mcp-kw", "Export: word search (BM25)"),
         ("brain.export_reranker", "brain", "#mcp-rerank", "Export: reranker"),
         ("brain.export_answer", "brain", "#mcp-answer", "Export: answer generation (LLM)"),
+        ("brain.export_answer_preset", "brain", "#mcp-llm-preset", "Export: answer API preset (OpenAI, Claude, local)"),
         ("brain.export_pipeline", "brain", "#mcp-pipeline", "Export: pipeline summary"),
         # training
         ("training.usecases", "training", "#uc-card", "Start from a use case"),

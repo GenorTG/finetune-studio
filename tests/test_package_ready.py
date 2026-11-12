@@ -21,15 +21,47 @@ def _states(result: dict) -> dict[str, str]:
     return {s["key"]: s["state"] for s in result["steps"]}
 
 
-def test_a_good_encrypted_package_passes_and_reports_its_identity(corpus_dir: Path, tmp_path: Path) -> None:  # noqa: F811
+@pytest.fixture()
+def embed_url():
+    """An OpenAI-compatible /embeddings endpoint answering 3-dimensional vectors, like the fixture corpus's."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            texts = body["input"] if isinstance(body["input"], list) else [body["input"]]
+            data = json.dumps({"data": [{"index": i, "embedding": [1.0, 0.0, 0.0]} for i in range(len(texts))]}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def log_message(self, *_a) -> None:
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield f"http://127.0.0.1:{server.server_address[1]}/v1"
+    server.shutdown()
+
+
+def test_a_good_encrypted_package_passes_every_search_layer(corpus_dir: Path, tmp_path: Path, embed_url: str) -> None:  # noqa: F811
     built = build_package(corpus_dir, tmp_path / "p.tar.gz", name="T", config=FAST, passphrase=PASS,
                           identity={"name": "Ada", "system_prompt": "You are Ada."})
-    out = verify_package(built.path, PASS)
-    assert out["ok"] is True and out["hits"] > 0 and out["identity"] is True
-    assert out["layers"]["keyword"]["available"] is True
-    assert out["layers"]["semantic"]["available"] is False  # no embedder bundled in this test package
-    assert out["exercised"]["keyword"] is True
+    out = verify_package(built.path, PASS, embed_base_url=embed_url)
+    assert out["ok"] is True, out["detail"]
+    assert out["hits"] > 0 and out["identity"] is True and out["http"]["ok"] is True
+    assert out["exercised"] == {"fusion": True, "keyword": True, "semantic": True}
     assert [p.name for p in tmp_path.iterdir() if p.name.startswith(".verify-")] == []     # nothing left behind
+
+
+def test_meaning_search_that_cannot_run_fails_the_check(corpus_dir: Path, tmp_path: Path) -> None:  # noqa: F811
+    built = build_package(corpus_dir, tmp_path / "p.tar.gz", name="T", config=FAST, passphrase=PASS)
+    out = verify_package(built.path, PASS)       # vectors shipped, no embedder inside and none lent
+    assert out["ok"] is False and "semantic" in out["detail"]
+    assert out["layers"]["semantic"]["available"] is False and out["exercised"]["keyword"] is True
 
 
 def test_the_wrong_passphrase_fails_and_says_so(corpus_dir: Path, tmp_path: Path) -> None:  # noqa: F811
@@ -45,13 +77,14 @@ def test_a_damaged_archive_fails_instead_of_raising(tmp_path: Path) -> None:
     assert out["ok"] is False and "could not open" in out["detail"]
 
 
-def test_a_zip_package_passes(corpus_dir: Path, tmp_path: Path) -> None:  # noqa: F811
+def test_a_zip_package_passes(corpus_dir: Path, tmp_path: Path, embed_url: str) -> None:  # noqa: F811
     built = build_package(corpus_dir, tmp_path / "p.zip", name="T", fmt="zip",
                           config=BrainExportConfig(kdf_log_n=10, archive_format="zip"), passphrase=PASS)
-    assert verify_package(built.path, PASS)["ok"] is True
+    assert verify_package(built.path, PASS, embed_base_url=embed_url)["ok"] is True
 
 
-def test_package_self_test_uses_the_bundled_search_settings(corpus_dir: Path, tmp_path: Path, monkeypatch) -> None:  # noqa: F811
+def test_package_self_test_uses_the_bundled_search_settings(corpus_dir: Path, tmp_path: Path, monkeypatch,  # noqa: F811
+                                                             embed_url: str) -> None:
     from finetune_studio.smart_brain import server_package
 
     calls: list[list[str]] = []
@@ -63,7 +96,7 @@ def test_package_self_test_uses_the_bundled_search_settings(corpus_dir: Path, tm
 
     monkeypatch.setattr(server_package.subprocess, "run", record)
     built = build_package(corpus_dir, tmp_path / "p.tar.gz", name="T", config=FAST, passphrase=PASS)
-    assert verify_package(built.path, PASS)["ok"] is True
+    assert verify_package(built.path, PASS, embed_base_url=embed_url)["ok"] is True
     mcp = next(args for args in calls if "--mcp" in args)
     assert "--no-semantic" not in mcp and "--no-reranker" not in mcp
 
