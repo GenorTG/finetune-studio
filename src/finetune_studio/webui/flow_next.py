@@ -13,7 +13,7 @@ from dataclasses import dataclass
 
 log = logging.getLogger(__name__)
 
-STATEFUL_PAGES = frozenset({"files", "data", "pairs", "data-prep", "training"})
+STATEFUL_PAGES = frozenset({"files", "data", "pairs", "data-prep", "training", "smart brain"})
 
 # Each page's Next step once its own state-aware step (``next_for``) is done. One table for base.html and the API, so a
 # bar refreshed in place (``GET /api/projects/{pid}/flow-next``) can fall back to it as well.
@@ -88,6 +88,14 @@ def next_for(page: str, c: ProjectCounts) -> tuple[str, str, str] | None:
         if not c.brain_built:
             return ("/brain", "Build the Smart Brain", "Turn your files into answers with sources; no training needed.")
         return ("/brain", "Ask your documents", "The index is built: ask a question and read the sources.")
+    if page == "smart brain":
+        if not c.files:
+            return ("/data", "Add your files", "Upload the documents you want your Smart Brain to answer from.")
+        if not c.parsed:
+            return ("/data", "Wait for your files to finish reading", "The Files page shows when each document is ready to build.")
+        if not c.brain_built:
+            return ("", "Build the Smart Brain", "Your documents are ready. Build their searchable index to start asking questions.")
+        return None
     if page in ("pairs", "data-prep"):
         if not c.parsed:
             return ("/data", "Upload files first", "Pairs are mined from parsed files.")

@@ -9,6 +9,7 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- The project flow bar points to the Smart Brain build until its index exists, then moves on to testing its answers.
 - The Files page no longer shows the Data Prep animation in its filter card.
 - The Files page opens upload on an empty project; choosing files or a folder starts right away, with visible transfer and parse progress.
 - Training: a run that stopped or failed before saving a checkpoint no longer offers Set production, Open in inference
