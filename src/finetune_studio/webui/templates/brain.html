@@ -1039,7 +1039,7 @@
     try {
       const r = await api().post('/api/projects/' + PID + '/brain/pictures/read', {});
       notify(r.already_running ? 'Pictures are already being read.' : 'Reading pictures in ' + (r.files || 0) + ' file(s) with the vision reader. Update Smart Brain when it is done.', 'success');
-      setTimeout(runLint, 1500);
+      setTimeout(runLint, 2000);
     } catch (e) {
       a.disabled = false;
       notify('Could not read pictures: ' + (e.message || e), 'error');
