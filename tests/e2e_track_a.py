@@ -57,10 +57,11 @@ async def phase_a_upload(w: W.Walk) -> None:
     files = tier_files()
     W.log(f"uploading {len(files)} {TIER} files")
     await w.goto(f"/projects/{W.pid()}/data")
-    await w.page.click("#fb-upload-toggle")
+    if await w.page.locator("#fb-upload-card").is_hidden():
+        await w.page.click("#fb-upload-toggle")
     await w.page.set_input_files("#fb-upload-input", [str(f) for f in files])
-    await w.shot("files-chosen")
-    await w.page.click("#fb-upload-form button[type=submit]")
+    await w.shot("upload-started")
+    await w.page.wait_for_function("document.querySelector('#fb-upload-status').textContent.includes('Uploaded')")
 
     async def parsed() -> bool:
         srcs = W.api(f"/api/projects/{W.pid()}/data-prep/sources").get("sources", [])

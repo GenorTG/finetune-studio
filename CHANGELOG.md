@@ -9,6 +9,7 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- The Files page opens upload on an empty project; choosing files or a folder starts right away, with visible transfer and parse progress.
 - Training: a run that stopped or failed before saving a checkpoint no longer offers Set production, Open in inference
   or Export; the buttons are off and the row says why. A stopped run that did save an adapter stays usable.
 - When an answer says part of it is missing, the retry searches the cited document(s) first before falling back to

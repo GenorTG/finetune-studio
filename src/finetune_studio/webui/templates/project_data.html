@@ -113,30 +113,22 @@
   <div class="card-head">
     <div>
       <div class="card-title">Upload</div>
-      <div class="card-sub">Drag &amp; drop or pick files. Content-hashed into the file library.</div>
+      <div class="card-sub">Add documents for Smart Brain. Drop files or folders here, or choose one of the options.</div>
     </div>
     <button class="btn sm ghost" type="button" id="fb-upload-hide">Hide</button>
   </div>
   <form id="fb-upload-form" enctype="multipart/form-data" data-drop class="dropzone fb-upload">
-    <div class="flex gap-3 items-center">
-      <div class="bin-host"></div>
-      <div class="flex-1">
-        <input type="file" name="files" id="fb-upload-input" class="input" multiple>
-        <div class="flex gap-2 items-center mt-2 wrap">
-          <label class="text-xs muted" for="fb-upload-folder-input">or a whole folder (keeps its sub-folders)</label>
-          <input type="file" id="fb-upload-folder-input" class="input" webkitdirectory multiple aria-label="Upload a folder">
-        </div>
-        <div class="flex gap-2 items-center mt-2 wrap">
-          <label class="text-xs muted" for="fb-upload-into">Into folder</label>
-          <input type="text" id="fb-upload-into" class="input" placeholder="e.g. public/faq (optional; created if missing)" aria-label="Folder to upload into">
-        </div>
-        <div class="text-xs dim mt-1 mono">// drag &amp; drop files or folders here</div>
-      </div>
+    <label class="text-xs muted" for="fb-upload-into">Put these files in a folder (optional)</label>
+    <input type="text" id="fb-upload-into" class="input fb-upload-into" placeholder="e.g. public/faq — created if needed" aria-label="Folder to upload into">
+    <div class="fb-upload-actions">
+      <button class="btn primary" type="button" id="fb-pick-files">Choose files</button>
+      <button class="btn" type="button" id="fb-pick-folder">Choose a folder</button>
+      <span class="text-xs dim">Folder structure is preserved.</span>
     </div>
-    <div class="flex gap-2 mt-3">
-      <button type="submit" class="btn primary">Upload</button>
-      <span id="fb-upload-status" class="text-xs dim self-center"></span>
-    </div>
+    <input type="file" name="files" id="fb-upload-input" multiple hidden aria-label="Choose files to upload">
+    <input type="file" id="fb-upload-folder-input" webkitdirectory multiple hidden aria-label="Choose a folder to upload">
+    <progress id="fb-upload-progress" class="fb-upload-progress" max="100" value="0" hidden aria-label="Upload progress"></progress>
+    <div id="fb-upload-status" class="text-xs dim fb-upload-status" role="status" aria-live="polite"></div>
   </form>
 </div>
 
@@ -251,6 +243,8 @@
   let sortDir = 1;
   let page = 0;             // pagination (0-based) over the filtered+sorted rows
   let pageSize = 100;       // 0 = all
+  let uploadPanelChosen = false;
+  let uploadInProgress = false;
   let hiddenCols = new Set();
   try { hiddenCols = new Set(JSON.parse(localStorage.getItem('fb-cols-hidden') || '[]')); } catch (e) { /* private mode */ }
   let lastSelIdx = null;    // shift-click range anchor
@@ -539,7 +533,7 @@
     if (!tbody) return;
     const rows = pagedRows();
     if (!rows.length) {
-      tbody.innerHTML = '<tr class="empty-row"><td colspan="9" class="empty border-0">No files in this view — clear the search or folder filter, or drop new files on the upload box above.</td></tr>';
+      tbody.innerHTML = '<tr class="empty-row"><td colspan="9" class="empty border-0">No files in this view — clear the search or folder filter, or add files using Upload above.</td></tr>';
       if (footer) footer.textContent = '0 files';
       updatePageBar();
       updateBulkBar();
@@ -629,6 +623,10 @@
       const d = await r.json();
       files = d.files || [];
       try { pipe = ((await rp.json()) || {}).status || {}; } catch (e) { pipe = {}; }
+      const uploadCard = document.getElementById('fb-upload-card');
+      if (uploadCard && !uploadPanelChosen) {
+        uploadCard.hidden = files.some((f) => !f.deleted_at);
+      }
       updateStats();
       renderTable();
     } catch (e) {
@@ -1330,13 +1328,22 @@
   }
 
   function uploadFiles(fileList) {
+    uploadPanelChosen = true;
     const status = document.getElementById('fb-upload-status');
     if (!fileList || !fileList.length) {
       if (status) status.textContent = 'Choose one or more files first (or drop them on the box).';
       notify('Choose a file to upload first.', 'warn');
       return;
     }
-    const input = document.getElementById('fb-upload-input');
+    if (uploadInProgress) return;
+    uploadInProgress = true;
+    const inputs = [...document.querySelectorAll('#fb-upload-input, #fb-upload-folder-input')];
+    const buttons = [...document.querySelectorAll('#fb-pick-files, #fb-pick-folder')];
+    const progress = document.getElementById('fb-upload-progress');
+    inputs.forEach((input) => { input.disabled = true; });
+    buttons.forEach((button) => { button.disabled = true; });
+    if (progress) { progress.hidden = false; progress.value = 0; }
+    let lastAnnouncedPct = -10;
     const fd = new FormData();
     const names = [];
     let total = 0;
@@ -1350,20 +1357,25 @@
     const into = (document.getElementById('fb-upload-into') || {}).value || '';
     if (into.trim()) fd.append('folder_path', into.trim());
     else if (folderId && (folders.find((x) => x.id === folderId) || {}).kind === 'user') fd.append('folder_id', folderId);
-    if (input) input.disabled = true;
     // Real-time progress: XHR upload.onprogress → "Uploading 42% (1.2 MB / 2.7 MB)…",
     // then the server's queued/parse result (supported-file parsing runs in a background task).
     const xhr = new XMLHttpRequest();
     xhr.open('POST', '/api/projects/' + PID + '/files/upload');
     xhr.upload.onprogress = (ev) => {
-      if (status && ev.lengthComputable) {
+      if (ev.lengthComputable) {
         const pct = Math.round((ev.loaded / ev.total) * 100);
-        status.textContent = 'Uploading ' + pct + '% (' + formatBytes(ev.loaded) + ' / ' + formatBytes(total) + ')… ' + names.join(', ');
+        if (progress) progress.value = pct;
+        if (status && (pct >= lastAnnouncedPct + 10 || pct === 100)) {
+          status.textContent = 'Uploading ' + pct + '% (' + formatBytes(ev.loaded) + ' / ' + formatBytes(total) + ')';
+          lastAnnouncedPct = pct;
+        }
       }
     };
     xhr.onload = async () => {
       try {
         const data = JSON.parse(xhr.responseText);
+        if (xhr.status >= 400) throw new Error(data.detail || data.error || ('HTTP ' + xhr.status));
+        if (progress) progress.hidden = true;
         const c = data.counts || {};
         if (status) {
           status.textContent = 'Uploaded ' + (c.uploaded || 0) +
@@ -1379,19 +1391,25 @@
           if (!stillWaiting && window.fts && fts.refreshFlowNext) fts.refreshFlowNext();
         });
       } catch (e) {
+        if (progress) progress.hidden = true;
         if (status) status.textContent = 'Failed: ' + e.message;
         notify('Upload failed: ' + e.message, 'error');
       } finally {
-        if (input) { input.disabled = false; input.value = ''; }
+        uploadInProgress = false;
+        inputs.forEach((input) => { input.disabled = false; input.value = ''; });
+        buttons.forEach((button) => { button.disabled = false; });
         await loadFolders();
       }
     };
     xhr.onerror = () => {
       if (status) status.textContent = 'Failed: network error';
       notify('Upload failed: network error', 'error');
-      if (input) { input.disabled = false; input.value = ''; }
+      uploadInProgress = false;
+      if (progress) progress.hidden = true;
+      inputs.forEach((input) => { input.disabled = false; input.value = ''; });
+      buttons.forEach((button) => { button.disabled = false; });
     };
-    if (status) status.textContent = 'Uploading 0% (' + formatBytes(total) + ')… ' + names.join(', ');
+    if (status) status.textContent = 'Uploading ' + names.length + ' file' + (names.length === 1 ? '' : 's') + ' (' + formatBytes(total) + ')…';
     xhr.send(fd);
   }
 
@@ -1428,25 +1446,27 @@
     const toggle = document.getElementById('fb-upload-toggle');
     const hide = document.getElementById('fb-upload-hide');
     const card = document.getElementById('fb-upload-card');
+    const fileInput = document.getElementById('fb-upload-input');
+    const folderInput = document.getElementById('fb-upload-folder-input');
+    const pickFiles = document.getElementById('fb-pick-files');
+    const pickFolder = document.getElementById('fb-pick-folder');
     // The card sits below the folder/filter bar: bring it into view, or opening it looked like nothing happened.
     if (toggle && card) toggle.addEventListener('click', () => {
+      uploadPanelChosen = true;
       card.hidden = !card.hidden;
       if (!card.hidden) {
         card.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-        document.getElementById('fb-upload-input')?.focus({ preventScroll: true });
+        pickFiles?.focus({ preventScroll: true });
       }
     });
-    if (hide && card) hide.addEventListener('click', () => { card.hidden = true; });
+    if (hide && card) hide.addEventListener('click', () => { uploadPanelChosen = true; card.hidden = true; });
+    if (pickFiles && fileInput) pickFiles.addEventListener('click', () => fileInput.click());
+    if (pickFolder && folderInput) pickFolder.addEventListener('click', () => folderInput.click());
+    if (fileInput) fileInput.addEventListener('change', () => uploadFiles([...fileInput.files]));
+    if (folderInput) folderInput.addEventListener('change', () => uploadFiles([...folderInput.files]));
     const form = document.getElementById('fb-upload-form');
     if (form) {
-      form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const input = document.getElementById('fb-upload-input');
-        const dir = document.getElementById('fb-upload-folder-input');
-        const picked = [...((input && input.files) || []), ...((dir && dir.files) || [])];
-        uploadFiles(picked);
-        if (dir) dir.value = '';
-      });
+      form.addEventListener('submit', (e) => e.preventDefault());
       // Dropped files and folders upload at once; a folder is walked so its tree is kept.
       form.addEventListener('drop', async (e) => {
         e.preventDefault();

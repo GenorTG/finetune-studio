@@ -94,3 +94,14 @@ def test_files_page_type_badge_uses_the_extension_and_the_upload_card_scrolls_in
     assert "'prep·'" not in page and "' passages'" in page
     toggle = page.split("getElementById('fb-upload-toggle')", 1)[1].split("const form", 1)[0]
     assert "card.scrollIntoView" in toggle
+
+
+def test_empty_files_page_opens_auto_upload_with_picker_buttons_and_live_feedback() -> None:
+    page = _r("templates/project_data.html")
+    assert 'id="fb-upload-card" hidden' in page
+    assert "uploadCard.hidden = files.some((f) => !f.deleted_at)" in page
+    assert 'id="fb-pick-files"' in page and 'id="fb-pick-folder"' in page
+    assert "fileInput.addEventListener('change', () => uploadFiles([...fileInput.files]))" in page
+    assert "folderInput.addEventListener('change', () => uploadFiles([...folderInput.files]))" in page
+    assert 'id="fb-upload-status" class="text-xs dim fb-upload-status" role="status" aria-live="polite"' in page
+    assert 'id="fb-upload-progress"' in page and "progress.value = pct" in page
