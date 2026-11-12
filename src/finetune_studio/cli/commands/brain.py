@@ -264,8 +264,7 @@ def _export(args: argparse.Namespace) -> None:
     diff = pm.changes(base["documents"] if base else None, doc_rows)
     record["changes"] = pm.summary(diff)
     changes_md = pm.changes_markdown(record, diff)
-    out = out_dir / (f"{safe}-smart-brain-v{record['version']}{'-with-models' if cfg.include_models else ''}"
-                     f"{'' if cfg.encrypt else '-PLAINTEXT'}.{ext}")
+    out = out_dir / pm.package_filename(safe, record, ext=ext, models=cfg.include_models, encrypted=cfg.encrypt)
     originals = brain_originals.collect(corpus, pid) if cfg.include_originals else []
     try:
         result = build_package(corpus, out, name=title, config=cfg, passphrase=passphrase,

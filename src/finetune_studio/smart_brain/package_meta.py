@@ -126,6 +126,16 @@ def make_record(*, base: dict | None, documents: list[dict], version: str | None
             "documents": documents}
 
 
+def package_filename(title: str, record: dict, *, ext: str, models: bool = False, encrypted: bool = True) -> str:
+    """The archive's file name. It carries the package id, so two packages of one project (a public bot and the
+    internal one) never share a name: with the bare ``<title>-smart-brain-v1.0.0`` the second export overwrote the
+    first one's file while the history kept pointing both at it."""
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", str(title or "")).strip(".-")[:48] or "package"
+    pid = re.sub(r"[^0-9a-f]", "", str(record.get("package_id") or ""))[:8]
+    return (f"{safe}-smart-brain-{pid}-v{record['version']}{'-with-models' if models else ''}"
+            f"{'' if encrypted else '-PLAINTEXT'}.{ext}")
+
+
 def public_record(record: dict) -> dict:
     """``package.json``: no document names (it sits beside an encrypted corpus)."""
     return {"format": 1, **{k: record.get(k) for k in ("package_id", "version", "parent_version", "created")},

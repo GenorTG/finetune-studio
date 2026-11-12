@@ -467,11 +467,8 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
     diff = pm.changes(base["documents"] if base else None, doc_rows)
     record["changes"] = pm.summary(diff)
     changes_md = pm.changes_markdown(record, diff)
-    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", title).strip(".-")[:48] or "project"
-    suffix = "-with-models" if cfg.include_models else ""
-    plain = "" if cfg.encrypt else "-PLAINTEXT"
     ext = "zip" if cfg.archive_format == "zip" else cfg.archive_format
-    out_path = out_dir / f"{safe}-smart-brain-v{record['version']}{suffix}{plain}.{ext}"
+    out_path = out_dir / pm.package_filename(title, record, ext=ext, models=cfg.include_models, encrypted=cfg.encrypt)
     try:
         result = await asyncio.to_thread(
             build_package, corpus, out_path, name=title, config=cfg,
