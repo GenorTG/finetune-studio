@@ -332,6 +332,13 @@
 .res-compact #vram-rows > div { flex: 1 1 220px; min-width: 0; }
 .res-compact .res-track { height: 6px; }
 .res-compact .mb-1\.5 { margin-bottom: 4px; }
+/* Phones: the strip keeps one line per bar and no compute line, so the page's own content stays on the first screen. */
+@media (max-width: 640px) {
+  .res-compact { padding: 6px 10px; }
+  .res-compact > .space-y-5 { gap: 4px 12px; }
+  .res-compact #accel-line, .res-compact #sys-resources-updated { display: none; }
+  .res-compact > .space-y-5 > div, .res-compact #vram-rows > div { flex-basis: 140px; }
+}
 .res-card-title {
   margin: 0;
   font-size: 12px;

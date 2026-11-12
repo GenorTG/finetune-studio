@@ -375,6 +375,11 @@ async def project_training_page(request: Request, pid: str):
     production = resolve_production_run(
         ctx["project"], ctx["project"].get("runs") or [],
     )
+    from finetune_studio.training import run_artifacts
+
+    ctx["project"]["runs"] = run_artifacts.annotate(ctx["project"].get("runs") or [])
+    if detail_run:
+        detail_run = run_artifacts.annotate([detail_run])[0]
     return templates.TemplateResponse(
         request,
         "project_training.html",

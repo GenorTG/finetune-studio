@@ -23,6 +23,35 @@ def good() -> str:
     return reply(question="How many pallet positions does the Oslo warehouse have?", answer="412", must_contain=["412"])
 
 
+def test_unanswerable_verifier_searches_top_ten_hybrid_hits_across_documents() -> None:
+    question = "What does the CF-7 monthly plan cost with consumables?"
+    q = reply(question=question)
+    hits = [
+        {"filename": "price-list.xlsx", "text": "CF-7 monthly plan: £24.50."},
+        {"filename": "service-terms.docx", "text": "Consumables can be added to any plan."},
+    ]
+    seen: list[str] = []
+
+    def verify(prompt: str) -> str:
+        seen.append(prompt)
+        return reply(answered=True)
+
+    search_calls: list[tuple[str, int]] = []
+
+    def hybrid_search(query: str, top_k: int) -> list[dict]:
+        search_calls.append((query, top_k))
+        return hits
+
+    report = bq.BrainQuizReport()
+    case = bq.unanswerable_case(row(), q, [row()], verify, report, hybrid_search)
+
+    assert case is None
+    assert search_calls == [(question, 10)]
+    assert "price-list.xlsx" in seen[0] and "service-terms.docx" in seen[0]
+    assert "£24.50" in seen[0] and "added to any plan" in seen[0]
+    assert report.dropped == {"unanswerable: the documents may answer it": 1}
+
+
 def test_a_good_item_is_kept_with_its_key() -> None:
     report = bq.BrainQuizReport()
     case = bq.answerable_case(row(), good(), report)
@@ -95,6 +124,15 @@ def test_the_api_saves_a_runnable_suite(client, monkeypatch) -> None:
     assert client.post(f"/api/projects/{pid}/testing/brain-quiz", json={"questions": 5}).json()["code"] == "no_index"
     _index(pid, [row(str(i)) for i in range(8)])
     monkeypatch.setattr(preference, "helper_generate", lambda **_k: lambda _p: good())
+
+    from finetune_studio.smart_brain.store import BrainIndex
+
+    class Query:
+        def search(self, _question: str, *, top_k: int, hybrid: bool) -> list[dict]:
+            assert top_k == 10 and hybrid is True
+            return []
+
+    monkeypatch.setattr(BrainIndex, "load", lambda _self: Query())
     done = client.post(f"/api/projects/{pid}/testing/brain-quiz", json={"questions": 5}).json()
     assert done["case_count"] >= 1 and Path(done["path"]).is_file()
     assert load_test_suite(done["path"])[0].correct_answer == "412"
