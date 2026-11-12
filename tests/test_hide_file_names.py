@@ -77,7 +77,7 @@ def test_the_rag_answer_tool_offers_include_sources() -> None:
 
 def test_the_export_card_drives_the_option() -> None:
     from pathlib import Path
-    html = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/brain.html").read_text()
+    html = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/export_models.html").read_text()
     assert 'id="mcp-hide-names"' in html and "hide_file_names: g('mcp-hide-names').checked" in html
     from finetune_studio.webui.routes.brain_export import StandaloneRequest
     assert StandaloneRequest(hide_file_names=True).hide_file_names is True

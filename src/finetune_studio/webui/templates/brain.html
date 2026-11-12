@@ -341,15 +341,17 @@
   </label>
 </details>
 
-<details class="card mb-4" id="brain-export-panel" data-needs-index>
+<p class="text-sm mb-3" id="brain-package-pointer">The knowledge package your models use (scope, original files,
+  answer connection, versions) is built on the <a href="/projects/{{ pid }}/export#package-form" data-link><b>Package</b></a> page.</p>
+
+<details class="card mb-4" id="brain-copy-panel" data-needs-index>
   <summary class="card-head">
     <div>
-      <div class="card-title">Build the package</div>
+      <div class="card-title">Copy this index to another studio</div>
       <div class="card-sub">
-        Studio-to-studio copy of this index (documents, chunks, vectors, keyword index, settings) as one
+        Not the package: a studio-to-studio copy of this index (documents, chunks, vectors, keyword index, settings) as one
         <b>encrypted</b> <code>.ftsrag</code> file saved inside the project; the other studio loads it with
-        <b>Import an index</b>. The passphrase is never stored. Search-model files are not included &mdash; use the
-        standalone package below for an offline pack.
+        <b>Import an index</b>. The passphrase is never stored. Search-model files are not included.
       </div>
     </div>
   </summary>
@@ -367,166 +369,13 @@
       <button id="bundle-btn" onclick="startBundleDownload()" class="btn primary w-full" title="Encrypt the index into a single .ftsrag file you can move to another studio.">Export</button>
     </div>
   </div>
-  <div class="mt-3" id="mcp-pkg-panel">
-    <div class="text-sm font-semibold">Knowledge package (MCP + HTTP server)</div>
-    <p class="text-xs dim mb-2">An archive with the index, a small Python server, installer, run scripts and a README. Speaks plain HTTP and MCP. <b>Encrypted by default</b> (AES-256-GCM); the passphrase is never stored — it is shown once below.</p>
-    <div class="grid grid-12 gap-3 items-end mb-2">
-      <div class="col-span-4">
-        <label class="block text-xs muted mb-1">Passphrase (blank = generate one)</label>
-        <input id="mcp-pass" type="password" autocomplete="new-password" class="input" placeholder="min 8 characters"
-               title="Used to derive the encryption key. Never saved by Finetune Studio. Lose it and the package cannot be opened.">
-      </div>
-      <div class="col-span-2">
-        <label class="block text-xs muted mb-1">Archive</label>
-        <select id="mcp-fmt" class="select">
-          <option value="tar.gz">.tar.gz</option><option value="tar">.tar</option><option value="zip">.zip</option>
-        </select>
-      </div>
-      <div class="col-span-2">
-        <label class="block text-xs muted mb-1">Device</label>
-        <input id="mcp-device" type="text" class="input" value="auto" title="auto (GPU first, CPU only without one) | cpu | cuda | cuda:N | xpu | mps">
-      </div>
-      <div class="col-span-2">
-        <label class="block text-xs muted mb-1">Bind host</label>
-        <input id="mcp-host" type="text" class="input" value="127.0.0.1" title="Default 127.0.0.1. A non-loopback host needs an auth token at runtime (RAG_AUTH_TOKEN) or the server refuses to start.">
-      </div>
-      <div class="col-span-1">
-        <label class="block text-xs muted mb-1">Port</label>
-        <input id="mcp-port" type="number" min="1" max="65535" class="input" value="8899">
-      </div>
-      <div class="col-span-1">
-        <label class="block text-xs muted mb-1" for="mcp-topk" title="How many matching passages each search returns.">Results returned</label>
-        <input id="mcp-topk" type="number" min="1" max="100" class="input" value="10">
-      </div>
+  <div id="bundle-pass-box" hidden class="mt-2 card">
+    <div class="text-xs"><b>Passphrase (shown once &mdash; copy it now, it is not stored anywhere):</b></div>
+    <div class="flex gap-2 items-center mt-1">
+      <code id="bundle-pass-val"></code>
+      <button class="btn" type="button" onclick="copyBundlePass()">Copy</button>
+      <button class="btn" type="button" onclick="hideBundlePass()">I saved it</button>
     </div>
-    <fieldset class="brain-layers mb-2" id="mcp-versioning">
-      <legend class="text-xs font-semibold">Version</legend>
-      <div class="grid grid-12 gap-3 items-end">
-        <div class="col-span-8">
-          <label class="block text-xs muted mb-1" for="mcp-base">Package</label>
-          <select id="mcp-base" class="select" title="A new package gets a new id at version 1.0.0. A new version keeps the package's id, bumps its version and lists what changed since then (CHANGES.md, the Package page). A running copy is updated with its update.sh.">
-            <option value="">A new package (version 1.0.0)</option>
-          </select>
-        </div>
-        <div class="col-span-4">
-          <label class="block text-xs muted mb-1" for="mcp-version">Version (blank = automatic)</label>
-          <input id="mcp-version" type="text" class="input" placeholder="1.0.0" autocomplete="off">
-        </div>
-      </div>
-      <details class="text-xs mt-2" id="mcp-base-upload-box"><summary>Use an exported package file as the base</summary>
-        <div class="grid grid-12 gap-3 items-end mt-2">
-          <div class="col-span-5"><label class="block text-xs muted mb-1" for="mcp-base-file">Package archive</label>
-            <input id="mcp-base-file" type="file" accept=".tar.gz,.tgz,.tar,.zip" class="input"></div>
-          <div class="col-span-5"><label class="block text-xs muted mb-1" for="mcp-base-pass">Its passphrase</label>
-            <input id="mcp-base-pass" type="password" autocomplete="off" class="input"></div>
-          <div class="col-span-2"><button class="btn w-full" type="button" id="mcp-base-upload" onclick="uploadPackageBase()">Read it</button></div>
-        </div>
-        <p class="dim mt-1">Only its id, version and document list are read (to compare against); nothing else is kept.</p>
-      </details>
-      <div class="text-xs mt-2" id="mcp-version-note" role="status" aria-live="polite"></div>
-    </fieldset>
-    <fieldset class="brain-layers mb-2" id="mcp-scope">
-      <legend class="text-xs font-semibold">Documents in the package</legend>
-      <p class="text-xs dim mb-2">A package for a public chatbot can carry only part of the index (for example the
-        <code>public/</code> folder); the rest is not inside at all, so it cannot be found or read through it.</p>
-      <label class="brain-layer"><input type="radio" name="mcp-scope-mode" id="mcp-scope-all" value="all" checked>
-        <span><b>All documents</b></span></label>
-      <label class="brain-layer"><input type="radio" name="mcp-scope-mode" id="mcp-scope-some" value="some">
-        <span><b>Only these</b> <span class="dim">folders, tags or single documents</span></span></label>
-      <div id="mcp-scope-pick" class="mt-2" hidden>
-        <div class="text-xs muted mb-1">Folders</div>
-        <div id="mcp-scope-folders" class="flex gap-4 wrap text-xs mb-2"></div>
-        <div class="text-xs muted mb-1" id="mcp-scope-tags-label" hidden>Tags</div>
-        <div id="mcp-scope-tags" class="flex gap-4 wrap text-xs mb-2"></div>
-        <details class="text-xs" id="mcp-scope-docs-more"><summary>Single documents</summary>
-          <div id="mcp-scope-docs" class="mt-1"></div></details>
-      </div>
-      <div class="text-xs mt-2" id="mcp-scope-summary" role="status" aria-live="polite"></div>
-    </fieldset>
-    <fieldset class="brain-layers mb-2" id="mcp-layers">
-      <legend class="text-xs font-semibold">Search layers in the package</legend>
-      <p class="text-xs dim mb-2">Each layer is separate. The package ships only the files the layers you keep need, and
-        its server can switch a shipped layer off at run time (<code>--no-semantic</code>, <code>--no-keyword</code>, <code>--no-reranker</code>).</p>
-      <label class="brain-layer" title="Each passage is stored as a vector (a list of numbers from the embedding model). A question is turned into a vector too, and passages whose vectors point the same way are found even when they use other words. Ships vectors.npy; needs the embedder (bundled with Include models) or an embeddings API at run time.">
-        <input id="mcp-sem" type="checkbox" checked>
-        <span><b>Meaning search</b> (vectors / embeddings) <span class="dim">finds passages that say the same thing in other words</span></span>
-      </label>
-      <label class="brain-layer" title="BM25: the classic search-engine score over the exact words of each passage (rare words count more, long passages are evened out). Best for names, codes, numbers and exact terms. Ships bm25.json; needs no model.">
-        <input id="mcp-kw" type="checkbox" checked>
-        <span><b>Word search</b> (BM25 keyword index) <span class="dim">exact names, codes, numbers; no model needed</span></span>
-      </label>
-      <div class="brain-layer brain-layer-auto" id="mcp-fusion" title="With both searches on, Reciprocal Rank Fusion merges their two rankings: a passage ranked high by either one, or by both, rises to the top. It is not a separate switch: it runs exactly when both searches do.">
-        <span class="brain-layer-mark" aria-hidden="true">⇄</span>
-        <span><b>Rank fusion</b> (RRF) <span class="dim" id="mcp-fusion-state">on: merges the two rankings</span></span>
-      </div>
-      <label class="brain-layer" title="A cross-encoder reads the question and each of the best candidates together and scores them again: slower, more precise ordering. Its model must be inside the package, so it needs Include models.">
-        <input id="mcp-rerank" type="checkbox" checked>
-        <span><b>Reranker</b> (cross-encoder) <span class="dim" id="mcp-rerank-note">needs Include models</span></span>
-      </label>
-      <label class="brain-layer" title="The G in RAG (retrieval-augmented generation). Off: the server returns passages and your own model or agent writes the answer (the usual MCP setup). On: the server also answers, at /ask and the MCP tool rag_answer, by sending the passages to an OpenAI-compatible chat model with the same grounded prompt as this page's chat.">
-        <input id="mcp-answer" type="checkbox">
-        <span><b>Answer generation</b> (the “G” in RAG) <span class="dim">the server also writes the answer with a language model</span></span>
-      </label>
-      <div class="grid grid-12 gap-3 items-end mt-2" id="mcp-llm" hidden>
-        <div class="col-span-12">
-          <label class="block text-xs muted mb-1" for="mcp-llm-conn">Copy from an AI assistant connection</label>
-          <select id="mcp-llm-conn" class="select"
-                  title="Fills the endpoint and model from one of your API connections in Settings → AI assistant, with the extra headers and request settings it needs (e.g. OpenCode Go's session header). Its API key is never copied.">
-            <option value="">— type the endpoint and model below —</option>
-          </select>
-        </div>
-        <div class="col-span-4">
-          <label class="block text-xs muted mb-1" for="mcp-llm-preset">Provider</label>
-          <select id="mcp-llm-preset" class="select" title="Fills the endpoint and the API kind. The key is never in the package: whoever runs it sets RAG_LLM_API_KEY, or types a key in the package's chat page.">
-            <option value="">— choose —</option>
-            <option value="openai" data-api="openai" data-url="https://api.openai.com/v1">OpenAI</option>
-            <option value="anthropic" data-api="anthropic" data-url="https://api.anthropic.com/v1">Anthropic Claude</option>
-            <option value="openrouter" data-api="openai" data-url="https://openrouter.ai/api/v1">OpenRouter</option>
-            <option value="local" data-api="openai" data-url="http://127.0.0.1:11434/v1">Local server (Ollama, LM Studio, llama.cpp)</option>
-            <option value="other" data-api="openai" data-url="">Other OpenAI-compatible API</option>
-          </select>
-          <input id="mcp-llm-provider" type="hidden" value="openai">
-        </div>
-        <div class="col-span-4">
-          <label class="block text-xs muted mb-1" for="mcp-llm-url">Answer model endpoint</label>
-          <input id="mcp-llm-url" type="text" class="input" placeholder="http://127.0.0.1:11434/v1"
-                 title="Base URL of any OpenAI-compatible chat API: Ollama, LM Studio, llama.cpp server, vLLM, OpenAI. The server calls {url}/chat/completions.">
-        </div>
-        <div class="col-span-4">
-          <label class="block text-xs muted mb-1" for="mcp-llm-model">Answer model name</label>
-          <input id="mcp-llm-model" type="text" class="input" placeholder="qwen3:8b"
-                 title="The model name that endpoint expects. An API key is never put in the package: set RAG_LLM_API_KEY where the server runs.">
-        </div>
-        <p class="col-span-12 text-xs dim">No API key is stored in the package: where the server runs, set <code>RAG_LLM_API_KEY</code>, or type a key in the package's chat page (it is sent with each question and never saved).</p>
-      </div>
-      <div class="text-xs mt-2" id="mcp-pipeline" role="status" aria-live="polite"></div>
-    </fieldset>
-    <div class="flex gap-4 items-center mb-2 text-xs">
-      <label class="flex items-center gap-2" title="Ship the embedding model (for meaning search) and the reranker inside, for fully offline use (about 0.2 GB with the small MiniLM models, about 4.5 GB with e5-large and bge-reranker-v2-m3). Model weights are public and are NOT encrypted."><input id="mcp-models" type="checkbox"> Include models (not encrypted)</label>
-      <label class="flex items-center gap-2 brain-plaintext-opt" title="Off the default path. Documents and index become plain files in the archive."><input id="mcp-noenc" type="checkbox"> Export WITHOUT encryption (plaintext)</label>
-    </div>
-    <div class="mb-2 text-xs" id="mcp-hide-names-row">
-      <label class="flex items-center gap-2" title="For a public bot: answers do not cite internal-looking file names like [Harrowgate_deal_sheet.xlsx]. The answer model never sees the file names, any it writes anyway are removed, and the package chat page shows no source list. Your own tools still get the sources by asking for them (/ask with &quot;sources&quot;: true, rag_answer with include_sources)."><input id="mcp-hide-names" type="checkbox"> Hide file names in answers</label>
-    </div>
-    <div class="mb-2 text-xs" id="mcp-originals-row">
-      <label class="flex items-center gap-2" title="Ship the uploaded files themselves (PDF, spreadsheet, …), encrypted with the corpus. Agents get them with the MCP tool rag_get_document, browsers at /files/&lt;id&gt; and the chat page shows a download link per source."><input id="mcp-originals" type="checkbox"> Include original files</label>
-      <p class="dim mt-1" id="mcp-originals-note">Anyone with access to the package server can download them. Leave this off for a public bot.</p>
-    </div>
-    <div class="flex gap-2 items-center">
-      <button class="btn primary" type="button" id="mcp-pkg-btn" onclick="startMcpPackage()"
-              title="Build the standalone package with the options above, then download it.">&#11015; Build &amp; download standalone server</button>
-      <button class="btn" type="button" onclick="saveMcpDefaults('studio')" title="Save these options as the studio-wide export defaults (never the passphrase).">Save as defaults</button>
-      <button class="btn" type="button" onclick="saveMcpDefaults('project')" title="Save these options as an override for this project only.">Save for this project</button>
-    </div>
-    <div id="mcp-pass-box" hidden class="mt-2 card">
-      <div class="text-xs"><b>Passphrase (shown once &mdash; copy it now, it is not stored anywhere):</b></div>
-      <div class="flex gap-2 items-center mt-1">
-        <code id="mcp-pass-val"></code>
-        <button class="btn" type="button" onclick="copyMcpPass()">Copy</button>
-        <button class="btn" type="button" onclick="hideMcpPass()">I saved it</button>
-      </div>
-    </div>
-    <p class="text-xs dim mt-2" id="mcp-pkg-note">Runs anywhere with Python 3.10+. Keyword search works out of the box; for meaning-based search point it at an embeddings endpoint or include the models. Settings baked in here are written to <code>rag.config.json</code> inside the package and can be overridden by env vars and flags.</p>
   </div>
   <span id="bundle-status" class="block mt-2 text-xs dim"></span>
 </details>
@@ -1250,13 +1099,21 @@
 
   function showPassphrase(p) {
     if (!p) return;
-    document.getElementById('mcp-pass-val').textContent = p;
-    var box = document.getElementById('mcp-pass-box');
+    document.getElementById('bundle-pass-val').textContent = p;
+    var box = document.getElementById('bundle-pass-box');
     box.hidden = false;
     box.style.outline = '2px solid var(--warn)';
     box.scrollIntoView({ behavior: 'smooth', block: 'center' });
     notify('Copy the passphrase now \u2014 it is shown once and never stored.', 'warn');
   }
+  window.hideBundlePass = function () {
+    document.getElementById('bundle-pass-val').textContent = '';
+    document.getElementById('bundle-pass-box').hidden = true;
+  };
+  window.copyBundlePass = function () {
+    var v = document.getElementById('bundle-pass-val').textContent;
+    if (navigator.clipboard) navigator.clipboard.writeText(v);
+  };
 
   window.startBundleDownload = async function() {
     const status = document.getElementById('bundle-status');
@@ -1309,298 +1166,6 @@
       notify(String(e.message || e), 'error');
     } finally {
       btn.disabled = false;
-    }
-  };
-
-  function mcpVals() {
-    var g = function (id) { return document.getElementById(id); };
-    return {
-      archive_format: g('mcp-fmt').value,
-      device: g('mcp-device').value.trim() || 'auto',
-      host: g('mcp-host').value.trim() || '127.0.0.1',
-      port: parseInt(g('mcp-port').value, 10) || 8899,
-      top_k: parseInt(g('mcp-topk').value, 10) || 10,
-      include_models: g('mcp-models').checked,
-      reranker_enabled: g('mcp-rerank').checked,
-      encrypt: !g('mcp-noenc').checked,
-      semantic_search: g('mcp-sem').checked,
-      keyword_search: g('mcp-kw').checked,
-      answer_enabled: g('mcp-answer').checked,
-      llm_base_url: g('mcp-llm-url').value.trim(),
-      llm_model: g('mcp-llm-model').value.trim(),
-      llm_provider: g('mcp-llm-provider').value || 'openai',
-      llm_connection: g('mcp-llm-conn').value || null,
-      include_originals: g('mcp-originals').checked,
-      hide_file_names: g('mcp-hide-names').checked,
-      scope: mcpScope(),
-      new_version_of: document.getElementById('mcp-base').value || null,
-      version: document.getElementById('mcp-version').value.trim() || null,
-    };
-  }
-
-  // Versions: this project's package history feeds the "New version of" list.
-  var pkgHistory = [];
-  function syncVersion() {
-    var id = document.getElementById('mcp-base').value, note = document.getElementById('mcp-version-note');
-    var p = pkgHistory.find(function (x) { return x.package_id === id; });
-    var parts = p ? p.latest.split('.').map(Number) : null;
-    var next = p ? parts[0] + '.' + ((parts[1] || 0) + 1) + '.0' : '1.0.0';
-    document.getElementById('mcp-version').placeholder = next;
-    note.textContent = p ? 'Same package id (' + id + '), version ' + p.latest + ' \u2192 ' + next
-      + ': the export lists the documents added, changed and removed since ' + p.latest + '.'
-      : 'A new package id; its later exports can be new versions of it.';
-  }
-  window.loadPackageHistory = async function (select) {
-    try {
-      var r = await fetch('/api/projects/' + PID + '/brain/packages');
-      if (!r.ok) return;
-      pkgHistory = (await r.json()).packages || [];
-      var sel = document.getElementById('mcp-base'), keep = select || sel.value;
-      while (sel.options.length > 1) sel.remove(1);
-      pkgHistory.forEach(function (p) {
-        sel.add(new Option('New version of ' + (p.name || p.package_id) + ' \u2014 v' + p.latest + ' (' + p.package_id + ')', p.package_id));
-      });
-      if (keep && pkgHistory.some(function (p) { return p.package_id === keep; })) sel.value = keep;
-    } catch (e) { /* no history: a new package */ }
-    syncVersion();
-  };
-  window.uploadPackageBase = async function () {
-    var f = document.getElementById('mcp-base-file').files[0], note = document.getElementById('mcp-version-note');
-    if (!f) { note.textContent = 'Choose the exported package archive first.'; return; }
-    var fd = new FormData(); fd.append('file', f); fd.append('passphrase', document.getElementById('mcp-base-pass').value);
-    note.textContent = 'Reading the package\u2026';
-    try {
-      var r = await fetch('/api/projects/' + PID + '/brain/package-base', { method: 'POST', body: fd });
-      var d = await r.json();
-      if (!r.ok) throw new Error(d.detail || ('HTTP ' + r.status));
-      document.getElementById('mcp-base-pass').value = '';
-      await loadPackageHistory(d.package_id);
-    } catch (e) { note.textContent = 'Could not read it: ' + (e.message || e); }
-  };
-  document.getElementById('mcp-base').addEventListener('change', syncVersion);
-
-  // Audience scope: which documents go in the package. The same rule as smart_brain/scope.py: a document is in when
-  // it matches any chosen folder, tag or single document (nothing chosen = all).
-  var scopeDocs = [];
-  function scopeChecked(box) {
-    return [].slice.call(document.querySelectorAll('#' + box + ' input:checked')).map(function (el) { return el.value; });
-  }
-  function mcpScope() {
-    if (!document.getElementById('mcp-scope-some').checked) return null;
-    return { include: scopeChecked('mcp-scope-folders'), tags: scopeChecked('mcp-scope-tags'),
-             document_ids: scopeChecked('mcp-scope-docs') };
-  }
-  function scopeSelected(sc, d) {
-    if (!sc || !(sc.include.length || sc.tags.length || sc.document_ids.length)) return true;
-    var path = d.path.toLowerCase();
-    return sc.include.some(function (p) { return path.indexOf(p.toLowerCase()) === 0; })
-      || d.tags.some(function (t) { return sc.tags.indexOf(t) >= 0; })
-      || sc.document_ids.indexOf(d.document_id) >= 0;
-  }
-  function syncScope() {
-    var some = document.getElementById('mcp-scope-some').checked, sc = mcpScope();
-    document.getElementById('mcp-scope-pick').hidden = !some;
-    var n = scopeDocs.filter(function (d) { return scopeSelected(sc, d); }).length;
-    var out = document.getElementById('mcp-scope-summary');
-    out.textContent = scopeDocs.length ? n + ' of ' + scopeDocs.length + ' documents go in the package' : '';
-    out.classList.toggle('err', some && n === 0);
-    var btn = document.getElementById('mcp-pkg-btn');
-    if (some && n === 0) { if (btn) btn.disabled = true; } else syncLayers();
-  }
-  function scopeBox(value, label, kind) {
-    var l = document.createElement('label'); l.className = 'flex items-center gap-2';
-    var i = document.createElement('input'); i.type = 'checkbox'; i.value = value; i.dataset.kind = kind;
-    i.addEventListener('change', syncScope);
-    l.append(i, document.createTextNode(label)); return l;
-  }
-  window.loadScopeDocs = async function () {
-    try {
-      var r = await fetch('/api/projects/' + PID + '/brain/package-documents');
-      if (!r.ok) return;
-      var d = await r.json();
-      scopeDocs = d.documents || [];
-      var f = document.getElementById('mcp-scope-folders'), t = document.getElementById('mcp-scope-tags'),
-        docs = document.getElementById('mcp-scope-docs');
-      f.innerHTML = ''; t.innerHTML = ''; docs.innerHTML = '';
-      (d.folders || []).forEach(function (x) { if (x.prefix) f.append(scopeBox(x.prefix, x.label + ' (' + x.count + ')', 'folder')); });
-      if (!f.children.length) f.textContent = 'No folders: put files in folders on the Files page to choose by folder.';
-      (d.tags || []).forEach(function (x) { t.append(scopeBox(x.tag, x.tag + ' (' + x.count + ')', 'tag')); });
-      document.getElementById('mcp-scope-tags-label').hidden = !(d.tags || []).length;
-      scopeDocs.forEach(function (x) { docs.append(scopeBox(x.document_id, x.path, 'doc')); });
-    } catch (e) { /* the picker stays empty: All documents still works */ }
-    syncScope();
-  };
-  ['mcp-scope-all', 'mcp-scope-some'].forEach(function (id) {
-    document.getElementById(id).addEventListener('change', syncScope);
-  });
-
-  // API connections from Settings → AI assistant: picking one fills endpoint + model; the server side copies its
-  // headers and request settings (never the key) into the package.
-  async function loadLlmConnections() {
-    var sel = document.getElementById('mcp-llm-conn');
-    if (!sel) return;
-    try {
-      var d = await api().get('/api/settings/assistant');
-      (d.connections || []).filter(function (c) { return c.kind === 'openai_compat'; }).forEach(function (c) {
-        var o = document.createElement('option');
-        o.value = c.id; o.textContent = c.label || c.id;
-        o.dataset.url = c.base_url || ''; o.dataset.model = c.model || '';
-        sel.appendChild(o);
-      });
-    } catch (e) { /* no connections: type the endpoint by hand */ }
-    // A different endpoint typed by hand is not that connection any more: its headers must not follow.
-    document.getElementById('mcp-llm-url').addEventListener('input', function () {
-      var o = sel.selectedOptions[0];
-      if (o && o.value && this.value.trim() !== o.dataset.url) sel.value = '';
-    });
-    var preset = document.getElementById('mcp-llm-preset');
-    preset.addEventListener('change', function () {
-      var o = preset.selectedOptions[0];
-      if (!o || !o.value) return;
-      document.getElementById('mcp-llm-provider').value = o.dataset.api;
-      if (o.dataset.url) document.getElementById('mcp-llm-url').value = o.dataset.url;
-      sel.value = '';
-      syncLayers();
-    });
-    sel.addEventListener('change', function () {
-      var o = sel.selectedOptions[0];
-      if (o && o.value) {
-        document.getElementById('mcp-llm-url').value = o.dataset.url;
-        document.getElementById('mcp-llm-model').value = o.dataset.model;
-        document.getElementById('mcp-llm-provider').value = 'openai';   // Settings connections are OpenAI-compatible
-        preset.value = 'other';
-      }
-      syncLayers();
-    });
-  }
-
-  // The layer panel explains itself: fusion follows the two searches, the reranker needs its bundled model, and the
-  // pipeline line says how a question travels through the package that would be built.
-  function syncLayers() {
-    var g = function (id) { return document.getElementById(id); };
-    var sem = g('mcp-sem').checked, kw = g('mcp-kw').checked, models = g('mcp-models').checked;
-    var rr = g('mcp-rerank'), ans = g('mcp-answer').checked;
-    g('mcp-fusion').classList.toggle('is-off', !(sem && kw));
-    g('mcp-fusion-state').textContent = sem && kw ? 'on: merges the two rankings'
-      : 'off: runs only when both searches are on';
-    rr.disabled = !models;
-    g('mcp-rerank-note').textContent = models ? 'rescores the best candidates (slower, more precise)'
-      : 'needs Include models (its model must be inside the package)';
-    g('mcp-llm').hidden = !ans;
-    var steps = ['question'];
-    var found = [];
-    if (sem) found.push('meaning search');
-    if (kw) found.push('word search (BM25)');
-    var warn = '';
-    if (!found.length) warn = 'Turn on meaning search, word search or both: the package needs one way to find passages.';
-    else steps.push(found.join(' + '));
-    if (sem && kw) steps.push('rank fusion (RRF)');
-    if (rr.checked && models) steps.push('reranker');
-    steps.push(ans ? 'LLM answer with sources' : 'passages with sources');
-    if (!warn && sem && !models && !kw) warn = 'Meaning search alone needs the embedder inside (Include models) or an embeddings API where it runs.';
-    if (!warn && ans && !(g('mcp-llm-url').value.trim() && g('mcp-llm-model').value.trim()))
-      warn = 'Answer generation needs the endpoint and model name (they can also be set where the server runs).';
-    g('mcp-pipeline').innerHTML = '<b>Pipeline:</b> ' + steps.map(escHtmlLayer).join(' → ')
-      + (warn ? '<div class="sev-warning mt-1">⚠ ' + escHtmlLayer(warn) + '</div>' : '');
-    g('mcp-pkg-btn').disabled = !found.length;
-  }
-  function escHtmlLayer(t) {
-    return String(t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
-  }
-  ['mcp-sem', 'mcp-kw', 'mcp-rerank', 'mcp-models', 'mcp-answer', 'mcp-llm-url', 'mcp-llm-model'].forEach(function (id) {
-    var el = document.getElementById(id);
-    if (el) el.addEventListener(el.type === 'text' ? 'input' : 'change', syncLayers);
-  });
-
-  function applyMcpVals(c) {
-    var g = function (id) { return document.getElementById(id); };
-    if (!c) return;
-    g('mcp-fmt').value = c.archive_format; g('mcp-device').value = c.device;
-    g('mcp-host').value = c.host; g('mcp-port').value = c.port;
-    g('mcp-topk').value = c.top_k; g('mcp-models').checked = !!c.include_models;
-    g('mcp-rerank').checked = !!c.reranker_enabled; g('mcp-noenc').checked = !c.encrypt;
-    g('mcp-sem').checked = c.semantic_search !== false; g('mcp-kw').checked = c.keyword_search !== false;
-    g('mcp-answer').checked = !!c.answer_enabled;
-    g('mcp-originals').checked = !!c.include_originals;
-    g('mcp-hide-names').checked = !!c.hide_file_names;
-    g('mcp-llm-url').value = c.llm_base_url || ''; g('mcp-llm-model').value = c.llm_model || '';
-    g('mcp-llm-provider').value = c.llm_provider || 'openai';
-    var pre = [].find.call(g('mcp-llm-preset').options, function (o) { return o.value && o.dataset.url && o.dataset.url === c.llm_base_url; });
-    g('mcp-llm-preset').value = pre ? pre.value : (c.llm_base_url ? 'other' : '');
-    syncLayers();
-  }
-
-  window.loadMcpDefaults = async function () {
-    try {
-      var r = await fetch('/api/projects/' + PID + '/brain/export-config');
-      if (r.ok) applyMcpVals((await r.json()).effective);
-    } catch (e) { /* defaults stay as rendered */ }
-    syncLayers();
-    loadLlmConnections();
-    loadScopeDocs();
-    loadPackageHistory();
-  };
-
-  window.saveMcpDefaults = async function (scope) {
-    var note = document.getElementById('mcp-pkg-note');
-    try {
-      await api().put('/api/projects/' + PID + '/brain/export-config', { scope: scope, values: mcpVals() });
-      if (note) note.textContent = scope === 'studio'
-        ? 'Saved as studio-wide export defaults (the passphrase is never saved).'
-        : 'Saved as this project\u2019s export override (the passphrase is never saved).';
-    } catch (e) { notify(String(e.message || e), 'error'); }
-  };
-
-  window.hideMcpPass = function () {
-    var box = document.getElementById('mcp-pass-box');
-    document.getElementById('mcp-pass-val').textContent = '';
-    if (box) box.hidden = true;
-  };
-
-  window.copyMcpPass = function () {
-    var v = document.getElementById('mcp-pass-val').textContent;
-    if (navigator.clipboard) navigator.clipboard.writeText(v);
-  };
-
-  window.startMcpPackage = async function () {
-    var btn = document.getElementById('mcp-pkg-btn');
-    var note = document.getElementById('mcp-pkg-note');
-    var passEl = document.getElementById('mcp-pass');
-    var body = mcpVals();
-    if (passEl.value && body.encrypt) body.passphrase = passEl.value;
-    if (note) note.textContent = body.include_models
-      ? 'Building the package with the models inside (about 0.2 GB with the MiniLM models, about 4.5 GB with e5-large and bge-reranker-v2-m3) \u2014 this can take a few minutes, then the download starts.'
-      : 'Building the package \u2014 the download starts when it is ready.';
-    if (btn) btn.disabled = true;
-    try {
-      var d = await api().post('/api/projects/' + PID + '/brain/standalone', body);
-      passEl.value = '';
-      showPassphrase(d.passphrase);
-      if (d.package) {
-        var ch = d.changes || {};
-        var built = 'Built version ' + d.package.version
-          + (d.package.parent_version ? ' (after ' + d.package.parent_version + '): ' + (ch.added || []).length + ' added, '
-             + (ch.changed || []).length + ' changed, ' + (ch.removed || []).length + ' removed.' : ' (first version).');
-        document.getElementById('mcp-version').value = '';
-        loadPackageHistory(d.package.package_id).then(function () {   // the next export defaults to its next version
-          var vn = document.getElementById('mcp-version-note');
-          vn.textContent = built + ' Next export: ' + vn.textContent;
-        });
-      }
-      if (note) note.textContent = (d.encrypted ? 'Encrypted package ' : 'PLAINTEXT package ')
-        + d.filename + ' (' + humanBytes(d.size) + ') ready \u2014 downloading.'
-        + (d.identity ? ' Identity included.' : ' No identity set.')
-        + (d.scope && d.scope.label !== 'all documents' ? ' Scope: ' + d.scope.documents + ' of ' + d.scope.of + ' documents (' + d.scope.label + ').' : '')
-        + (d.original_files ? ' ' + d.original_files + ' original file' + (d.original_files === 1 ? '' : 's') + ' inside.' : '')
-        + (d.verified && d.verified.ok === true ? ' Self-test passed: ' + d.verified.detail + '.'
-           : d.verified && d.verified.ok === false ? ' SELF-TEST FAILED: ' + d.verified.detail + '.'
-           : d.verified ? ' Not self-tested: ' + d.verified.detail + '.' : '');
-      window.location.href = d.download_url;
-    } catch (e) {
-      if (note) note.textContent = 'Package build failed: ' + (e.message || e);
-      notify(String(e.message || e), 'error');
-    } finally {
-      if (btn) btn.disabled = false;
     }
   };
 
@@ -2059,7 +1624,6 @@
     loadIndexedDocs();
     loadBrainStatus();
     loadSharedModels();
-    loadMcpDefaults();
     resumeBuild();
     // A link like the Package page's "Build the package" lands on a folded panel: open it.
     if (location.hash) {

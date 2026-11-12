@@ -107,7 +107,7 @@ def test_training_prompt_uses_step_two_from_the_project_flow() -> None:
     [
         ("pairs", "Question-answer pairs page (step 1)", "Question-answer pairs page (step 2)"),
         ("testing", "Testing page (step 3)", "Testing page (step 4)"),
-        ("export", "Export page (step 4)", "Export page (step 5)"),
+        ("export", "Package & export page (step 4)", "Export page (step 5)"),
     ],
 )
 def test_project_flow_page_references_match_the_visible_navigation(

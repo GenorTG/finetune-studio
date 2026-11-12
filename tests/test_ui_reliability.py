@@ -437,7 +437,7 @@ def test_brain_ia_workflow_and_cta(client: TestClient) -> None:
         "Test a search",
         "Search settings",
         "Build options",
-        "Build the package",
+        "Copy this index to another studio",
         "Shared search models",
         "Index details",
     ):
@@ -446,7 +446,7 @@ def test_brain_ia_workflow_and_cta(client: TestClient) -> None:
     assert "Chat with RAG" not in body
     assert '<details class="card mb-4" id="brain-search-settings" data-needs-index>' in body
     assert '<details class="card mb-4" id="brain-docs-panel" data-needs-index>' in body
-    assert '<details class="card mb-4" id="brain-export-panel" data-needs-index>' in body
+    assert '<details class="card mb-4" id="brain-copy-panel" data-needs-index>' in body
     assert '<details class="card mb-4" id="brain-shared-models">' in body
     # Without an index, the index-only sections fold into one note (the JS toggles both on d.exists).
     assert 'id="brain-search" data-needs-index' in body and 'id="brain-chat" data-needs-index' in body
