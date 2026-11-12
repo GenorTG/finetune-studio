@@ -89,6 +89,21 @@ def test_a_newer_version_in_another_file_type_counts() -> None:
     assert rules(found) == ["old_version"] and found[0].files[0]["name"] == "policy-443-v1.epub"
 
 
+def test_a_newer_version_with_its_own_year_in_the_name_counts() -> None:
+    other = "Different words about invoices and shipping terms for the customer. " * 20
+    found = kl._check_files([src("a", "Employee_Handbook_v1_2023.pdf"), src("b", "Employee_Handbook_v2_2025.docx"),
+                             src("c", "terms_of_service_v3_2023-08-01.pdf"), src("d", "terms_of_service_v4_2025.docx")],
+                            {"a": BODY, "b": other, "c": "Leases end with ninety days of notice to the customer. " * 20,
+                             "d": "Holiday entitlement rises for every staff member this year. " * 20})
+    assert sorted(f.files[0]["name"] for f in found) == ["Employee_Handbook_v1_2023.pdf", "terms_of_service_v3_2023-08-01.pdf"]
+
+
+def test_a_lower_version_of_a_later_year_is_not_older() -> None:
+    other = "Different words about invoices and shipping terms for the customer. " * 20
+    found = kl._check_files([src("a", "budget_2024_v3.xlsx"), src("b", "budget_2025_v1.xlsx")], {"a": BODY, "b": other})
+    assert found == []
+
+
 def _index(tmp: Path, rows: list[tuple[str, str]]) -> Path:
     corpus = tmp / "corpus"
     corpus.mkdir()
