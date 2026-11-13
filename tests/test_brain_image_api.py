@@ -261,3 +261,26 @@ def test_docx_context_is_the_heading_and_caption_of_that_picture_only(tmp_path: 
     ctx = figures.contexts(tmp_path / "c.docx", found)
     assert "BL-900" in ctx[found[1].n] and "BL-520" not in ctx[found[1].n]
     assert "BL-520" in ctx[found[0].n] and "BL-900" not in ctx[found[0].n]
+
+
+def test_a_kept_pictures_stored_refusal_sentence_is_dropped(tmp_path: Path, monkeypatch) -> None:
+    """Pictures read before the reader dropped its "I cannot fulfill this request..." sentence are kept (not read
+    again) by the next build: their stored description loses the sentence there too (live walk 2026-11-13)."""
+    from finetune_studio.knowledge import index
+
+    png = tmp_path / "IMG_3.png"
+    png.write_bytes(_png(COLOURS["blue"], 200))
+    srcs = [_Src("d1", "f1", png.name, str(png))]
+    monkeypatch.setattr(index.sources, "list_sources", lambda pid: srcs)
+    monkeypatch.setattr(index.sources, "parsed_text", lambda pid, s: "")
+    docs = [type("D", (), {"document_id": "d1", "filename": png.name, "path": png.name})()]
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    result = image_layer.compute(index.image_plan("p", docs, model_id=ie.DEFAULT_IMAGE_MODEL))
+    for r in result.records:
+        r["description"] = ("I cannot fulfill this request because there is no text, table, or chart in the image "
+                            "provided. The image is a blue square.")
+    image_layer.write(corpus, result)
+    (corpus / "manifest.json").write_text(json.dumps({"extra": {"image_search": result.meta}}))
+    again = index.image_plan("p", docs, previous_dir=corpus, model_id=ie.DEFAULT_IMAGE_MODEL)
+    assert [r["description"] for r in again.kept] == ["The image is a blue square."]

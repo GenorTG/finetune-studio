@@ -23,7 +23,7 @@ turns that section into the release's notes.
   a sound package as "could not open the package".
 - Picture descriptions no longer start with the Vision reader's "I cannot fulfill this request because there is no
   text…" sentence (Gemma 4 wrote it before describing a picture without text): new readings drop it, and the next
-  Smart Brain build drops it from readings stored earlier.
+  Smart Brain build drops it from readings stored earlier, including pictures it keeps without reading them again.
 
 ## [0.6.0] - 2026-11-13
 
