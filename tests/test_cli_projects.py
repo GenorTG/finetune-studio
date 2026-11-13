@@ -94,7 +94,7 @@ def test_projects_show_reports_missing_and_ambiguous_names(monkeypatch, capsys):
 
 def test_projects_create_rejects_blank_name(monkeypatch, capsys):
     code, out, err = run_cli(monkeypatch, capsys, "projects", "create", "--name", "   ")
-    assert code == 1 and not out and "--name must not be empty" in err
+    assert code == 1 and not out and "a project needs a name (it cannot be blank)" in err
 
 
 def test_projects_help_describes_supported_commands(monkeypatch, capsys):

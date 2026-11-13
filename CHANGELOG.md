@@ -9,6 +9,9 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- A project can no longer be renamed to a blank (or over-long, or another project's) name: Project settings and the
+  API refuse it with the reason. New: `fts projects rename <project> "<name>"`.
+
 - Package versions are safe to roll out: a new version keeps its package's documents, original files, hidden file
   names and audience unless you change them, anything wider (more documents, originals on, names shown, a public
   audience changed, encryption off) needs a confirmation (`--allow-widen` in the CLI) and is listed in CHANGES.md,

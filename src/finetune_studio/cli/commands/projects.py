@@ -1,4 +1,4 @@
-"""CLI commands for local project records (list, show and create)."""
+"""CLI commands for local project records (list, show, create, rename and delete)."""
 from __future__ import annotations
 
 import argparse
@@ -68,11 +68,33 @@ def _show(args: argparse.Namespace) -> None:
     print(f"System prompt: {project['system_prompt'] or '—'}")
 
 
+def _clean_name(raw: str) -> str:
+    """The web form's rule (``webui.routes.projects.clean_project_name``), as a CLI error."""
+    from finetune_studio.webui.routes.projects import clean_project_name
+
+    try:
+        return clean_project_name(raw)
+    except Exception as exc:   # ApiError: its reason is the message
+        raise ProjectCommandError(str(getattr(exc, "detail", exc))) from exc
+
+
+def _rename(args: argparse.Namespace) -> None:
+    name = _clean_name(args.name)
+    db.init_db()
+    project = _resolve_project(args.project)
+    if any(str(p.get("name") or "").strip().casefold() == name.casefold() and p["id"] != project["id"]
+           for p in db.list_projects()):
+        raise ProjectCommandError(f'a project named "{name}" already exists; choose a different name')
+    renamed = _project_fields(db.update_project(str(project["id"]), name=name))
+    if args.json:
+        print(json.dumps(renamed, indent=2))
+    else:
+        print(f"Renamed project [{renamed['id']}]: {project['name']!r} -> {renamed['name']!r}")
+
+
 def _create(args: argparse.Namespace) -> None:
     db.init_db()
-    name = (args.name or "").strip()
-    if not name:
-        raise ProjectCommandError("--name must not be empty")
+    name = _clean_name(args.name or "")
     if not args.allow_duplicate and any(
         str(p.get("name") or "").strip().casefold() == name.casefold() for p in db.list_projects()
     ):
@@ -133,7 +155,7 @@ def _delete(args: argparse.Namespace) -> None:
 
 
 def cmd_projects(args: argparse.Namespace) -> None:
-    """Handle `fts projects {list,show,create,delete}`."""
+    """Handle `fts projects {list,show,create,rename,delete}`."""
     try:
         if args.projects_action == "list":
             _list(args)
@@ -141,6 +163,8 @@ def cmd_projects(args: argparse.Namespace) -> None:
             _show(args)
         elif args.projects_action == "create":
             _create(args)
+        elif args.projects_action == "rename":
+            _rename(args)
         elif args.projects_action == "delete":
             _delete(args)
         else:
