@@ -64,6 +64,10 @@ class BrainExportConfig(BaseModel):
     # sources only when the caller asks for them ("sources": true / include_sources).
     hide_file_names: bool = False
     originals_inline_max_mb: int = Field(20, ge=1, le=512)   # rag_get_document: larger files come back as a link
+    # Meaning search where the package runs, without the embedder inside: an OpenAI-compatible /embeddings endpoint
+    # serving the index's embedding model (its key is RAG_EMBED_API_KEY at run time, never in the package).
+    embed_base_url: str = ""
+    embed_model: str = ""
 
     @field_validator("llm_headers")
     @classmethod
@@ -80,12 +84,12 @@ class BrainExportConfig(BaseModel):
             raise ValueError("turn on meaning search, word search or both: a package needs one way to find passages")
         return self
 
-    @field_validator("llm_base_url")
+    @field_validator("llm_base_url", "embed_base_url")
     @classmethod
     def _llm_url(cls, v: str) -> str:
         v = v.strip().rstrip("/")
         if v and not v.startswith(("http://", "https://")):
-            raise ValueError("llm_base_url must start with http:// or https://")
+            raise ValueError("the endpoint must start with http:// or https://")
         return v
 
     @field_validator("device")
@@ -115,7 +119,22 @@ class BrainExportConfig(BaseModel):
             "llm_headers": dict(self.llm_headers), "llm_body": dict(self.llm_body),
             "file_inline_max_mb": self.originals_inline_max_mb,
             "hide_file_names": self.hide_file_names,
+            **({"embed_base_url": self.embed_base_url, "embed_model": self.embed_model.strip()}
+               if self.embed_base_url else {}),
         }
+
+    def runtime_search(self, *, bundled_embedder: bool) -> str:
+        """How the package finds passages where it runs (the self-test may lend the studio's embedder)."""
+        if not self.semantic_search:
+            return "word search only (meaning search is off)"
+        if bundled_embedder:
+            return "meaning + word search (the embedder is inside)" if self.keyword_search else "meaning search"
+        if self.embed_base_url:
+            return f"meaning + word search (embeddings from {self.embed_base_url})" if self.keyword_search \
+                else f"meaning search (embeddings from {self.embed_base_url})"
+        return ("word search only, until the host sets an embeddings endpoint (RAG_EMBED_BASE_URL) or the package "
+                "is exported with Include models" if self.keyword_search else
+                "nothing until the host sets an embeddings endpoint (RAG_EMBED_BASE_URL)")
 
 
 def _settings_path() -> Path:

@@ -203,6 +203,17 @@
         </label>
         <div class="text-xs mt-2" id="mcp-pipeline" role="status" aria-live="polite"></div>
       </fieldset>
+      <div class="grid grid-12 gap-3 items-end mb-2" id="mcp-embed-row">
+        <div class="col-span-8">
+          <label class="block text-xs muted mb-1" for="mcp-embed-url">Embeddings endpoint where it runs (meaning search without the models inside)</label>
+          <input id="mcp-embed-url" type="text" class="input" placeholder="http://127.0.0.1:11434/v1"
+                 title="An OpenAI-compatible /embeddings endpoint serving the index's embedding model (Ollama, LM Studio, vLLM, OpenAI). Its key is never in the package: set RAG_EMBED_API_KEY where the server runs.">
+        </div>
+        <div class="col-span-4">
+          <label class="block text-xs muted mb-1" for="mcp-embed-model">Embedding model name</label>
+          <input id="mcp-embed-model" type="text" class="input" placeholder="the index's embedder">
+        </div>
+      </div>
       <div class="flex gap-4 items-center mb-2 text-xs">
         <label class="flex items-center gap-2" title="Ship the embedding model (for meaning search) and the reranker inside, for fully offline use (about 0.2 GB with the small MiniLM models, about 4.5 GB with e5-large and bge-reranker-v2-m3). Model weights are public and are NOT encrypted."><input id="mcp-models" type="checkbox"> Include models (not encrypted)</label>
         <label class="flex items-center gap-2 brain-plaintext-opt" title="Off the default path. Documents and index become plain files in the archive."><input id="mcp-noenc" type="checkbox"> Export WITHOUT encryption (plaintext)</label>
@@ -219,6 +230,7 @@
           <label class="flex items-center gap-2" title="Running copies of the earlier version then need the new passphrase in their keyfile before update.sh can install this one."><input id="mcp-newpass" type="checkbox"> Use a new passphrase for this version (blank = generate one)</label>
         </div>
       </div>
+      <div class="text-sm mb-2" id="mcp-search-where" role="status" aria-live="polite"></div>
       <div class="sev-warning text-sm mb-2" id="mcp-blocker" role="status" aria-live="polite" hidden></div>
       <div class="flex gap-2 items-center">
         <button class="btn primary" type="button" id="mcp-pkg-btn" onclick="startMcpPackage()"
@@ -234,7 +246,7 @@
           <button class="btn" type="button" onclick="hideMcpPass()">I saved it</button>
         </div>
       </div>
-      <p class="text-xs dim mt-2" id="mcp-pkg-note">Runs anywhere with Python 3.10+. Keyword search works out of the box; for meaning-based search point it at an embeddings endpoint or include the models. Settings baked in here are written to <code>rag.config.json</code> inside the package and can be overridden by env vars and flags.</p>
+      <p class="text-xs dim mt-2" id="mcp-pkg-note">Runs anywhere with Python 3.10+. Word search works out of the box; meaning search needs the models inside or an embeddings endpoint where it runs (see the line above the button). Settings baked in here are written to <code>rag.config.json</code> inside the package and can be overridden by env vars and flags.</p>
   </div>
 </section>
 
@@ -654,6 +666,8 @@
       llm_connection: g('mcp-llm-conn').value || null,
       include_originals: g('mcp-originals').checked,
       hide_file_names: g('mcp-hide-names').checked,
+      embed_base_url: g('mcp-embed-url').value.trim(),
+      embed_model: g('mcp-embed-model').value.trim(),
       scope: mcpScope(),
       new_version_of: document.getElementById('mcp-base').value || null,
       new_passphrase: !!document.getElementById('mcp-base').value && g('mcp-newpass').checked,
@@ -894,11 +908,30 @@
     g('mcp-pipeline').innerHTML = '<b>Pipeline:</b> ' + steps.map(escHtmlLayer).join(' → ')
       + (warn ? '<div class="sev-warning mt-1">⚠ ' + escHtmlLayer(warn) + '</div>' : '');
     g('mcp-pkg-btn').disabled = !found.length;
+    // Next to the Build button, always: how the package will find passages where it runs. A default package has the
+    // vectors but no embedder, so it searches by exact words only until the host gives it an embeddings endpoint.
+    var embed = g('mcp-embed-url').value.trim(), where = g('mcp-search-where');
+    var keywordOnly = sem && !models && !embed;
+    where.className = 'text-sm mb-2' + (keywordOnly ? ' sev-warning' : '');
+    where.innerHTML = keywordOnly
+      ? '<b>Where it runs: word search only</b> (exact words, names, codes). Meaning search needs the embedder: tick '
+        + '<a href="#mcp-advanced" data-open-advanced="1">Include models</a> (about 0.2 GB with MiniLM, 4.5 GB with e5-large) or give '
+        + '<a href="#mcp-advanced" data-open-advanced="1">an embeddings endpoint</a> where it runs. The self-test lends it the studio\u2019s embedder.'
+      : '<b>Where it runs:</b> ' + escHtmlLayer(!sem ? 'word search only (meaning search is off)'
+        : models ? (kw ? 'meaning + word search (the embedder is inside)' : 'meaning search (the embedder is inside)')
+        : (kw ? 'meaning + word search with embeddings from ' : 'meaning search with embeddings from ') + embed);
   }
   function escHtmlLayer(t) {
     return String(t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
   }
-  ['mcp-sem', 'mcp-kw', 'mcp-rerank', 'mcp-models', 'mcp-answer', 'mcp-llm-url', 'mcp-llm-model'].forEach(function (id) {
+  document.getElementById('mcp-search-where').addEventListener('click', function (ev) {
+    var a = ev.target.closest('[data-open-advanced]');
+    if (!a) return;
+    ev.preventDefault();
+    var adv = document.getElementById('mcp-advanced'); adv.open = true;
+    (a.textContent.indexOf('endpoint') >= 0 ? document.getElementById('mcp-embed-url') : document.getElementById('mcp-models')).focus();
+  });
+  ['mcp-sem', 'mcp-kw', 'mcp-rerank', 'mcp-models', 'mcp-answer', 'mcp-llm-url', 'mcp-llm-model', 'mcp-embed-url'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.addEventListener(el.type === 'text' ? 'input' : 'change', syncLayers);
   });
@@ -914,6 +947,7 @@
     g('mcp-answer').checked = !!c.answer_enabled;
     g('mcp-originals').checked = !!c.include_originals;
     g('mcp-hide-names').checked = !!c.hide_file_names;
+    g('mcp-embed-url').value = c.embed_base_url || ''; g('mcp-embed-model').value = c.embed_model || '';
     g('mcp-llm-url').value = c.llm_base_url || ''; g('mcp-llm-model').value = c.llm_model || '';
     g('mcp-llm-provider').value = c.llm_provider || 'openai';
     var pre = [].find.call(g('mcp-llm-preset').options, function (o) { return o.value && o.dataset.url && o.dataset.url === c.llm_base_url; });
@@ -989,7 +1023,8 @@
         + (d.original_files ? ' ' + d.original_files + ' original file' + (d.original_files === 1 ? '' : 's') + ' inside.' : '')
         + (d.verified && d.verified.ok === true ? ' Self-test passed: ' + d.verified.detail + '.'
            : d.verified && d.verified.ok === false ? ' SELF-TEST FAILED: ' + d.verified.detail + '.'
-           : d.verified ? ' Not self-tested: ' + d.verified.detail + '.' : '');
+           : d.verified ? ' Not self-tested: ' + d.verified.detail + '.' : '')
+        + (d.runtime_search ? ' Search where it runs: ' + d.runtime_search + '.' : '');
       window.location.href = d.download_url;
     } catch (e) {
       if (e && e.code === 'widens_package' && allowWiden !== true) {
