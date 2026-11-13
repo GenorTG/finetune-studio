@@ -27,8 +27,8 @@ import time
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, File, Form, UploadFile
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from finetune_studio.data.fs.paths import brain_index_dir
@@ -69,6 +69,11 @@ class SearchRequest(BaseModel):
     rerank: bool | None = None
     rerank_top_n: int | None = None
     max_per_document: int | None = Field(default=None, ge=0, le=100)   # None = the index setting
+
+
+class ImageSearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=1000)
+    top_k: int = Field(default=10, ge=1, le=50)
 
 
 class ChatRequest(BaseModel):
@@ -446,6 +451,7 @@ def _build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
     latest = active or db.brain_builds.latest_for_project(pid)
     message = ""
     passages_done = passages_total = 0
+    images_done = images_total = 0
     if active is not None:
         phase = "queued" if active.get("status") == "queued" else "embedding"
         files_done = chunks_count = 0
@@ -454,6 +460,9 @@ def _build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
             phase, files_done, total_files = "parsing", int(st["parsing"]["done"]), int(st["parsing"]["total"])
         elif st.get("embedding"):
             passages_done, passages_total = int(st["embedding"]["done"]), int(st["embedding"]["total"])
+        elif st.get("image_embedding"):
+            phase = "image_embedding"
+            images_done, images_total = int(st["image_embedding"]["done"]), int(st["image_embedding"]["total"])
         started = active.get("started_at") or active.get("created_at")
         if started:
             elapsed_s = max(0, int(time.time() - _epoch(started)))
@@ -470,6 +479,8 @@ def _build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
         "chunks": chunks_count,
         "passages_done": passages_done,
         "passages_total": passages_total,
+        "images_done": images_done,
+        "images_total": images_total,
         "elapsed_s": elapsed_s,
         "build_id": (latest or {}).get("id"),
     }
@@ -585,6 +596,73 @@ async def brain_search(pid: str, req: SearchRequest):
     weak = weak_match(req.query, hits)
     return {"hits": hits, "count": len(hits), "query": req.query, "weak": weak,
             "note": "These passages share few words with your question; the corpus may not cover it." if weak else ""}
+
+
+async def _search_images(pid: str, *, query: str = "", image_data: bytes | None = None,
+                         top_k: int = 10) -> dict | JSONResponse:
+    from finetune_studio.smart_brain import BrainIndex
+
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    index = BrainIndex(_corpus_dir(pid))
+    if not index.exists():
+        return JSONResponse({"detail": "no corpus — build first"}, status_code=400)
+    try:
+        q = await asyncio.to_thread(index.load, load_embedder=False)
+        hits = await asyncio.to_thread(q.search_images, query, image_data=image_data, top_k=top_k)
+    except (ValueError, OSError) as e:
+        return JSONResponse({"detail": str(e)}, status_code=400)
+    except Exception as e:
+        log.exception("image search failed for project %s", pid)
+        return JSONResponse({"detail": f"image search failed: {e}"}, status_code=500)
+    return {"hits": hits, "count": len(hits), "query": query}
+
+
+@router.post("/{pid}/brain/images/search")
+async def brain_image_search(pid: str, req: ImageSearchRequest):
+    """Find pictures in indexed documents from a text description."""
+    return await _search_images(pid, query=req.query, top_k=req.top_k)
+
+
+@router.post("/{pid}/brain/images/search-by-image")
+async def brain_image_search_by_image(
+    pid: str,
+    image: UploadFile = File(...),  # noqa: B008 - FastAPI declares multipart parameters this way
+    top_k: int = Form(default=10, ge=1, le=50),
+):
+    """Find visually similar indexed images; the uploaded query is transient and never saved."""
+    if not (image.content_type or "").startswith("image/"):
+        return JSONResponse({"detail": "upload a supported image file"}, status_code=415)
+    data = await image.read(12 * 1024 * 1024 + 1)
+    if len(data) > 12 * 1024 * 1024:
+        return JSONResponse({"detail": "image query must be 12 MB or smaller"}, status_code=413)
+    if not data:
+        return JSONResponse({"detail": "the uploaded image is empty"}, status_code=400)
+    return await _search_images(pid, image_data=data, top_k=top_k)
+
+
+@router.get("/{pid}/brain/images/{asset_id}")
+def brain_image_asset(pid: str, asset_id: str):
+    """Serve one indexed image by opaque asset id; paths are read only from the index manifest."""
+    missing = _project_404(pid)
+    if missing is not None:
+        return missing
+    corpus = _corpus_dir(pid)
+    try:
+        assets = json.loads((corpus / "image_assets.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return JSONResponse({"detail": "image asset not found"}, status_code=404)
+    record = next((a for a in assets if str(a.get("asset_id")) == asset_id), None)
+    if record is None:
+        return JSONResponse({"detail": "image asset not found"}, status_code=404)
+    relative = Path(str(record.get("path") or ""))
+    if relative.parent != Path("image_assets") or relative.name != f"{asset_id}{relative.suffix}":
+        return JSONResponse({"detail": "image asset path is invalid"}, status_code=404)
+    path = (corpus / relative).resolve()
+    if path.parent != (corpus / "image_assets").resolve() or not path.is_file():
+        return JSONResponse({"detail": "image asset not found"}, status_code=404)
+    return FileResponse(path, media_type=str(record.get("mime_type") or "application/octet-stream"))
 
 
 def _active_n_ctx() -> int:
