@@ -68,6 +68,10 @@ class BrainExportConfig(BaseModel):
     # serving the index's embedding model (its key is RAG_EMBED_API_KEY at run time, never in the package).
     embed_base_url: str = ""
     embed_model: str = ""
+    # Image search: the index's pictures (vectors + thumbnails, full pictures only with include_originals) and the
+    # image model. There is no image-embeddings API standard to fall back on, so it needs include_models.
+    image_search: bool = False
+    answer_images: bool = True         # /ask passes matching pictures to a vision-capable answer model
 
     @field_validator("llm_headers")
     @classmethod
@@ -119,6 +123,7 @@ class BrainExportConfig(BaseModel):
             "llm_headers": dict(self.llm_headers), "llm_body": dict(self.llm_body),
             "file_inline_max_mb": self.originals_inline_max_mb,
             "hide_file_names": self.hide_file_names,
+            "images": self.image_search, "answer_images": self.answer_images,
             **({"embed_base_url": self.embed_base_url, "embed_model": self.embed_model.strip()}
                if self.embed_base_url else {}),
         }

@@ -9,6 +9,12 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Packages can ship **Image search** (Package → search layers, with Include models): the pictures of the package's
+  documents as vectors and thumbnails inside the encrypted corpus plus the CLIP model; `POST /search/image` (text or
+  `image_base64`), `GET /images/<id>/thumb`, the MCP tool `rag_search_images` (thumbnails as image content), an
+  *Attach a picture* button on the chat page, and `/ask` passes matching or attached pictures to vision-capable answer
+  models (OpenAI and Claude image parts) with a text-only fallback. A scoped package carries only its own pictures;
+  the self-test finds a known picture by words and by the picture; `/version` lists the `image` layer.
 - **Image search** (Smart Brain → Search settings): pictures in your files — photos, scans, charts and the images
   inside Word, PowerPoint, PDF and Excel files — are embedded with a pinned open-licence image/text model (CLIP
   ViT-B/32 with a multilingual text encoder by default, MIT + Apache-2.0, runs on a CPU), each with a thumbnail, its

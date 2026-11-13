@@ -83,7 +83,7 @@ def test_package_ships_only_the_files_its_layers_use(corpus_dir: Path, tmp_path:
     assert not (kw / "corpus" / "vectors.npy").exists() and not (kw / "corpus" / "vectors.idx.json").exists()
     manifest = json.loads((kw / "corpus" / "manifest.json").read_text())
     assert manifest["search_layers"] == {"semantic": False, "keyword": True, "fusion": False,
-                                         "reranker": False, "answer": False}   # no reranker model inside
+                                         "reranker": False, "answer": False, "image": False}   # no reranker model inside
     readme = (kw / "README.md").read_text()
     assert "**Pipeline:** question → word search (BM25) → passages with sources" in readme
     assert "## Search layers" in readme and "off (no reranker model in this package)" in readme
