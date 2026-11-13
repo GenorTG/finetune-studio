@@ -15,11 +15,14 @@ Modes
                     POST /mcp  MCP over HTTP (streamable HTTP; legacy and 2026-07-28 clients)
                     REST API:   GET /health   GET /version (no token needed)   GET /profile   GET /search?q=...&top_k=5[&source_prefix=pl-]
                                 GET /files/<document_id>  (an original file, when the package ships them)
+                                POST /search/image {query | image_base64, top_k, documents, thumbnails} (Image search)
+                                GET /images/<asset_id>/thumb  GET /images/<asset_id>  (a picture, when shipped)
                     Binds 127.0.0.1 by default.  A non-loopback --host
                     REQUIRES an auth token (Authorization: Bearer ...).
     --mcp           MCP stdio server (JSON-RPC 2.0 over stdin/stdout).
                     Exposes rag_search(query, top_k), rag_profile(), rag_info(), rag_list_documents() and,
-                    with original files inside, rag_get_document(document_id | filename).
+                    with original files inside, rag_get_document(document_id | filename); with Image search,
+                    rag_search_images(query | image_base64).
     --query TEXT    one search, JSON on stdout.
     --print-config  show the effective merged config (secrets redacted).
     --update ARCHIVE  replace this package's corpus and server with a newer version of the same package
@@ -47,8 +50,12 @@ Embedding, best available source first:
     2. RAG_EMBED_BASE_URL — any OpenAI-compatible /v1/embeddings endpoint
     3. none of the above — keyword (BM25) search only
 
+Image search (packages exported with it): corpus/image_model/ holds the CLIP image/text encoders; a text query or an
+uploaded picture finds pictures (thumbnails + their document and page). /ask passes the matching pictures to a
+vision-capable answer model (answer_images / RAG_ANSWER_IMAGES, default on) and falls back to text when it refuses them.
+
 Dependencies: numpy always; cryptography for encrypted packages;
-sentence-transformers only when the package bundles models.
+sentence-transformers only when the package bundles models (it brings Pillow for Image search).
 """
 from __future__ import annotations
 
@@ -90,6 +97,7 @@ UNSUPPORTED_VERSION = -32022
 SERVER_NAME = "fts-brain-mcp"
 SERVER_VERSION = "2.0.0"
 MAX_BODY = 1 << 20
+MAX_IMAGE_BODY = 18 << 20     # /search/image, /ask and /mcp with a picture (12 MB as base64, plus the JSON)
 MAX_TOP_K = 100
 
 DEFAULT_CONFIG: dict = {
@@ -101,6 +109,7 @@ DEFAULT_CONFIG: dict = {
     "llm_headers": {}, "llm_body": {}, "follow_up": 1, "provider": "openai", "file_inline_max_mb": 20,
     "max_per_document": -1,
     "retry_missing": True, "hide_file_names": False,
+    "images": True, "answer_images": True,
 }
 ENV_KEYS = {
     "host": "RAG_HOST", "port": "RAG_PORT", "top_k": "RAG_TOP_K",
@@ -115,9 +124,11 @@ ENV_KEYS = {
     "provider": "RAG_LLM_PROVIDER", "file_inline_max_mb": "RAG_FILE_INLINE_MAX_MB",
     "max_per_document": "RAG_MAX_PER_DOCUMENT",
     "retry_missing": "RAG_RETRY_MISSING", "hide_file_names": "RAG_HIDE_FILE_NAMES",
+    "images": "RAG_IMAGES", "answer_images": "RAG_ANSWER_IMAGES",
 }
 SECRET_KEYS = frozenset({"auth_token", "embed_api_key", "llm_api_key"})
-BOOL_KEYS = frozenset({"reranker", "semantic", "keyword", "answer", "retry_missing", "hide_file_names"})
+BOOL_KEYS = frozenset({"reranker", "semantic", "keyword", "answer", "retry_missing", "hide_file_names", "images",
+                       "answer_images"})
 JSON_KEYS = frozenset({"llm_headers", "llm_body"})
 USER_AGENT = "fts-brain-server/2.0"   # some API gateways (Cloudflare) refuse Python's default urllib agent
 SESSION_ID = os.urandom(16).hex()     # "{session}" in an llm header (the OpenCode Go gateway wants one per client)
@@ -257,8 +268,9 @@ IMAGE_MAX_BYTES = 12 * 1024 * 1024
 IMAGE_MAX_TOP_K = 50
 # Below these cosine similarities a hit is a weak match (no picture looks like the query). Measured on the
 # Tarrowfield image set (tests/corpus/tarrowfield RESULTS.md, 2026-11-13).
-IMAGE_WEAK_TEXT = 0.24
-IMAGE_WEAK_IMAGE = 0.80
+IMAGE_WEAK_TEXT = 0.25      # text -> image: matches 0.25-0.41, unrelated queries 0.20-0.24
+IMAGE_WEAK_IMAGE = 0.76     # image -> image: crops/rotations/re-photographs 0.84-0.94, unrelated pictures 0.71-0.72
+IMAGE_WORDS_SHARE = 0.5     # a picture "matches by words" when it shares more than half the query's terms (all of 1-2)
 _IMAGE_STOP = _STOP | frozenset(["show", "photo", "photos", "picture", "pictures", "image", "images", "find",
                                   "the", "and", "for", "our", "you", "me", "of", "a", "an", "is", "are", "on",
                                   "in", "to", "it", "look", "like", "looks", "any", "do", "we", "get", "see"])
@@ -367,6 +379,17 @@ def image_word_scores(records: list, query: str) -> np.ndarray:
     return scores
 
 
+def image_word_share(records: list, query: str) -> np.ndarray:
+    """The share of the query's terms found in each picture's words (``image_words``), 0..1."""
+    q = set(_image_terms(query))
+    out = np.zeros(len(records), dtype=np.float32)
+    if not q:
+        return out
+    for i, r in enumerate(records):
+        out[i] = len(q & set(_image_terms(image_words(r)))) / len(q)
+    return out
+
+
 def rank_images(records: list, vectors: np.ndarray, query_vector: np.ndarray | None, *, query: str = "",
                 by_image: bool = False, top_k: int = 8, rrf_k: int = 60,
                 keep=None) -> tuple[list[dict], bool]:
@@ -387,6 +410,9 @@ def rank_images(records: list, vectors: np.ndarray, query_vector: np.ndarray | N
     if query_vector is not None:
         visual = vectors @ np.asarray(query_vector, dtype=np.float32)
     words = image_word_scores(records, query) if (query and not by_image) else np.zeros(len(records), np.float32)
+    share = image_word_share(records, query) if (query and not by_image) else np.zeros(len(records), np.float32)
+    n_terms = len(set(_image_terms(query))) if query else 0
+    need = 1.0 if n_terms <= 2 else IMAGE_WORDS_SHARE
     rankings = []
     if query_vector is not None:
         rankings.append(list(allowed[np.argsort(-visual[allowed], kind="stable")]))
@@ -403,7 +429,7 @@ def rank_images(records: list, vectors: np.ndarray, query_vector: np.ndarray | N
     for rank, (i, score) in enumerate(ordered, start=1):
         r = records[i]
         looks = query_vector is not None and float(visual[i]) >= threshold
-        said = float(words[i]) > 0
+        said = float(words[i]) > 0 and (float(share[i]) > need or (need == 1.0 and float(share[i]) >= 1.0))
         hits.append({
             "rank": rank, "asset_id": r.get("asset_id"), "document_id": r.get("document_id", ""),
             "filename": r.get("filename", ""), "source": r.get("source", ""), "locator": r.get("locator", ""),
@@ -429,6 +455,87 @@ def image_documents(hits: list[dict]) -> list[dict]:
     for rank, row in enumerate(docs.values(), start=1):
         row["rank"] = rank
     return list(docs.values())
+
+
+def pictures_note(hits: list[dict], *, attached: bool = False, hide_names: bool = False) -> str:
+    """What a question's answer model is told about the pictures shown with its answer (Image search), so it can
+    refer to them ("here is the photo") instead of saying it cannot show pictures. ``""`` without pictures."""
+    lines = ["the picture the user attached"] if attached else []
+    for i, h in enumerate(hits, 1):
+        where = f"picture {i}" if hide_names else f"{h.get('filename')} · {h.get('locator')}"
+        desc = str(h.get("description") or "").strip().replace("\n", " ")
+        lines.append(where + (f" (read in it: {desc[:300]})" if desc else ""))
+    if not lines:
+        return ""
+    return ("\n\n[Pictures shown to the user with your answer, from the documents (Image search): "
+            + "; ".join(f"{n}. {t}" for n, t in enumerate(lines, 1))
+            + ". When the user asks to see a picture, say which of these it is; do not claim you cannot show "
+              "pictures. Facts still come from the CONTEXT passages or what you can see in a picture.]")
+
+
+def _b64_image(value) -> bytes | None:
+    """``image_base64`` of a request (a data URL or bare base64) as bytes; None when absent."""
+    import base64
+    import binascii
+
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    if text.startswith("data:"):
+        text = text.split(",", 1)[-1]
+    try:
+        data = base64.b64decode(text, validate=True)
+    except (binascii.Error, ValueError) as e:
+        raise ValueError(f"image_base64 is not valid base64: {e}") from e
+    if len(data) > IMAGE_MAX_BYTES:
+        raise ValueError(f"the picture is larger than {IMAGE_MAX_BYTES // (1024 * 1024)} MB")
+    return data
+
+
+def _image_mime(data: bytes) -> str:
+    if data[:3] == b"\xff\xd8\xff":
+        return "image/jpeg"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "image/png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    if data[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    return "application/octet-stream"
+
+
+def _as_model_image(data: bytes, mime: str) -> tuple[bytes, str]:
+    """A picture in a format every vision API takes (JPEG/PNG/WebP/GIF), at most 1568 px a side."""
+    if mime in ("image/jpeg", "image/png", "image/webp", "image/gif") and len(data) < 4 * 1024 * 1024:
+        return data, mime
+    im = decode_image(data)
+    im.thumbnail((1568, 1568))
+    buf = io.BytesIO()
+    im.save(buf, "JPEG", quality=85)
+    return buf.getvalue(), "image/jpeg"
+
+
+def with_picture_parts(text: str, pictures: list, api: str) -> list[dict]:
+    """A user message's content with the pictures as provider-native image parts (OpenAI ``image_url`` data URLs,
+    Anthropic base64 ``image`` blocks)."""
+    import base64
+
+    parts: list[dict] = [{"type": "text", "text": text}]
+    for data, mime, _label in pictures:
+        data, mime = _as_model_image(data, mime)
+        b64 = base64.b64encode(data).decode("ascii")
+        if api == "anthropic":
+            parts.append({"type": "image", "source": {"type": "base64", "media_type": mime, "data": b64}})
+        else:
+            parts.append({"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}})
+    return parts
+
+
+def picture_refused(error: Exception) -> bool:
+    """The answer endpoint rejected image parts (a text-only model): answer again from text."""
+    text = str(error).lower()
+    return any(f"said {c}" in text for c in (400, 415, 422)) or "image" in text or "vision" in text \
+        or "multimodal" in text
 
 
 class ConfigError(Exception):
@@ -635,6 +742,22 @@ class Corpus:
                 if isinstance(row, dict) and _SAFE_ID.fullmatch(str(row.get("document_id") or "")):
                     self.originals[str(row["document_id"])] = row
         self._read = read
+        self._has = has
+        # Image search: pictures embedded at export (image_assets.json + image_vectors.npy, thumbnails beside them).
+        self.image_records: list[dict] = []
+        self.image_vectors: np.ndarray | None = None
+        self.image_meta = dict((self.manifest.get("extra") or {}).get("image_search") or {})
+        if has(IMAGE_ASSETS) and has(IMAGE_VECTORS):
+            recs = json.loads(read(IMAGE_ASSETS).decode("utf-8"))
+            vecs = np.load(io.BytesIO(read(IMAGE_VECTORS)), allow_pickle=False).astype(np.float32)
+            if vecs.ndim == 2 and vecs.shape[0] == len(recs):
+                self.image_records, self.image_vectors = recs, vecs
+            else:
+                print("[warn] the image layer is inconsistent; Image search stays off", file=sys.stderr)
+        self._image_by_id = {str(r.get("asset_id")): r for r in self.image_records}
+        self.images_on = bool(self.cfg.get("images", True)) and self.image_vectors is not None
+        self._image_encoder = None
+        self._image_encoder_error = ""
         self.chunk_ids = [c["id"] for c in self.chunks]
         self.idx_map = {cid: i for i, cid in enumerate(self.chunk_ids)}
         # Search layers: a layer runs when the package ships its files AND the config leaves it on. A flag can turn
@@ -754,7 +877,8 @@ class Corpus:
         if not d.is_dir():
             return False
         names = {p.name for p in d.iterdir()}
-        return bool({"config.json", "sentence_bert_config.json"} & names
+        # modules.json: a sentence-transformers model whose weights sit in a module folder (CLIP: 0_CLIPModel/)
+        return bool({"config.json", "sentence_bert_config.json", "modules.json"} & names
                     or {n for n in names if n.endswith((".safetensors", ".bin"))})
 
     def local_embedder(self):
@@ -809,6 +933,81 @@ class Corpus:
             print(f"[warn] bundled reranker failed ({e}); skipping rerank", file=sys.stderr)
             return None
         return self._reranker
+
+    # ── Image search ──
+    def image_encoder(self):
+        """The bundled image/text encoders (corpus/image_model/), loaded on the first image search; None if absent."""
+        if self._image_encoder is not None or self._image_encoder_error:
+            return self._image_encoder
+        with self._model_lock:
+            if self._image_encoder is not None or self._image_encoder_error:
+                return self._image_encoder
+            base = self.dir / IMAGE_MODEL_DIR
+            if not self._looks_like_model(base / "image"):
+                self._image_encoder_error = "no image model in this package"
+                return None
+            try:
+                text = base / "text"
+                self._image_encoder = open_image_encoder(base / "image", text if self._looks_like_model(text) else None,
+                                                         self.device)
+                print(f"[rag-server] image model loaded from {base}", file=sys.stderr)
+            except Exception as e:  # noqa: BLE001 — degrade, never crash the server
+                self._image_encoder_error = f"the bundled image model failed to load: {e}"
+                print(f"[warn] {self._image_encoder_error}", file=sys.stderr)
+        return self._image_encoder
+
+    def image_file(self, asset_id: str, thumb: bool = True) -> tuple[bytes, str]:
+        """A picture's thumbnail (JPEG) or, when the package ships originals, the picture. KeyError when not here."""
+        rec = self._image_by_id.get(str(asset_id or ""))
+        if rec is None:
+            raise KeyError(asset_id)
+        rel = str(rec.get("thumbnail") if thumb else rec.get("path") or "")
+        if not rel.startswith("image_assets/") or ".." in rel or not self._has(rel):
+            raise KeyError(asset_id)
+        return self._read(rel), ("image/jpeg" if thumb else str(rec.get("mime_type") or "application/octet-stream"))
+
+    def search_images(self, query: str = "", image_bytes: bytes | None = None, top_k: int = 6,
+                      documents: bool = False, thumbnails: bool = False) -> dict:
+        """Pictures for a text description or a picture: ``{hits, weak, mode, note[, documents]}``.
+
+        Each hit: the picture's id, document id, file name, where in it (page / slide / sheet), what the parse read
+        in it, ``visual_score`` / ``words_score`` / ``score`` and, with ``thumbnails``, the thumbnail as a data URL.
+        Raises ValueError (no query, no image layer, a bad picture) or RuntimeError (the model is not usable)."""
+        import base64
+
+        query = (query or "").strip()
+        if not query and not image_bytes:
+            raise ValueError("send a query (text) or image_base64 (a picture)")
+        if self.image_vectors is None:
+            raise ValueError("this package has no Image search layer (export it with Image search on)")
+        if not self.images_on:
+            raise ValueError("Image search is turned off in this server's config (images / RAG_IMAGES)")
+        enc = self.image_encoder()
+        if enc is None:
+            raise RuntimeError(self._image_encoder_error or "no image model")
+        if image_bytes:
+            qvec = enc.encode_images([decode_image(image_bytes)])[0]
+        else:
+            qvec = enc.encode_texts([query])[0]
+        if qvec.shape[0] != self.image_vectors.shape[1]:
+            raise RuntimeError("the image model does not match this package's image vectors")
+        hits, weak = rank_images(self.image_records, self.image_vectors, qvec, query=query,
+                                 by_image=bool(image_bytes), top_k=top_k, rrf_k=self.rrf_k)
+        full = bool(self.image_records) and self._has(str(self.image_records[0].get("path") or ""))
+        for h in hits:
+            h["thumbnail_url"] = f"/images/{h['asset_id']}/thumb"
+            if full:
+                h["image_url"] = f"/images/{h['asset_id']}"
+            if self.original_for(h["document_id"]) is not None:
+                h["original"] = True
+            if thumbnails:
+                data, _mime = self.image_file(h["asset_id"])
+                h["thumbnail"] = "data:image/jpeg;base64," + base64.b64encode(data).decode("ascii")
+        out = {"mode": "image" if image_bytes else "text", "hits": hits, "weak": weak,
+               "note": "No picture matches well; these are only the nearest ones." if weak else ""}
+        if documents:
+            out["documents"] = image_documents(hits)
+        return out
 
     def bm25_scores(self, query: str) -> np.ndarray:
         n = self.bm25.get("doc_count", len(self.chunks))
@@ -978,8 +1177,16 @@ class Corpus:
         sem_on = sem.startswith("on")
         rerank = ("on (bundled cross-encoder)" if self.local_reranker() is not None else
                   "off" if not self.rerank_enabled else "unavailable: no reranker model in this package")
+        if self.image_vectors is None:
+            img = "not in this package"
+        elif not self.images_on:
+            img = "off"
+        elif self._looks_like_model(self.dir / IMAGE_MODEL_DIR / "image"):
+            img = f"on ({len(self.image_records)} pictures, bundled image model)"
+        else:
+            img = "unavailable: no image model in this package"
         return {"semantic": sem, "keyword": kw, "fusion": "on (RRF)" if sem_on and self.keyword else "off",
-                "reranker": rerank,
+                "reranker": rerank, "image": img,
                 "answer": f"on ({self.cfg['llm_model']})" if self.cfg["answer"] else "off"}
 
     def info(self) -> dict:
@@ -989,6 +1196,8 @@ class Corpus:
         mode = " + ".join(parts) + (" (RRF)" if len(parts) == 2 else "")
         if lay["reranker"].startswith("on"):
             mode += " + rerank"
+        if lay["image"].startswith("on"):
+            mode += " + images"
         if self.cfg["answer"]:
             mode += " + answer"
         return {
@@ -1002,6 +1211,7 @@ class Corpus:
             "embed_endpoint": self.embed_base or "(not set)",
             "identity": self.identity.get("name") or ("set" if self.identity else "none"),
             "original_files": len(self.originals),
+            "images": len(self.image_records) if self.images_on else 0,
             "scope": self.manifest.get("scope") or {"label": "all documents"},
             "package": self.manifest.get("package") or {},
             "version": version_info(),
@@ -1018,8 +1228,45 @@ class Corpus:
         return {key: self.identity.get(key, "") for key in ("name", "about", "personality", "answer_rules")} | {
             "instructions": self.identity.get("system_prompt", "")}
 
+    def _answer_pictures(self, question: str, image_bytes: bytes | None, hide: bool) -> tuple[list, list, str]:
+        """For /ask: ``(pictures for the model, image hits for the reply, extra search words)``.
+
+        An attached picture is always passed on (and, with Image search, finds the pictures it looks like: their
+        words join the passage search, "what is this machine?"); without one, the pictures that match the question
+        (never weak matches)."""
+        pictures: list[tuple[bytes, str, str]] = []
+        if image_bytes:
+            decode_image(image_bytes)   # a bad picture is the caller's error (400), before any model call
+            pictures.append((image_bytes, _image_mime(image_bytes), "the picture the user attached"))
+        hits: list[dict] = []
+        words = ""
+        if self.images_on:
+            try:
+                found = self.search_images(question if not image_bytes else "", image_bytes=image_bytes, top_k=3)
+                hits = [] if found["weak"] else [h for h in found["hits"] if h["match"] != "weak"]
+            except (ValueError, RuntimeError) as e:
+                print(f"[warn] image search for /ask failed: {e}", file=sys.stderr)
+        for i, h in enumerate(hits, 1):
+            try:   # the full picture when the package ships it (a 320 px thumbnail is too small to read a plate)
+                data, mime = self.image_file(h["asset_id"], thumb=False)
+            except KeyError:
+                try:
+                    data, mime = self.image_file(h["asset_id"])
+                except KeyError:
+                    continue
+            where = f"picture {i}" if hide else f"{h.get('filename')} · {h.get('locator')}"
+            pictures.append((data, mime, f"{where}" + (f": {h['description'][:300]}" if h.get("description") else "")))
+            if hide:
+                h.pop("filename", None)
+                h.pop("source", None)
+        if image_bytes and hits:
+            rec = self._image_by_id.get(str(hits[0]["asset_id"])) or {}
+            words = image_words(rec)[:300]
+        return pictures, hits, words
+
     def answer(self, question: str, top_k: int | None = None, provider: Mapping | None = None,
-               history: list[dict] | None = None, include_sources: bool | None = None) -> dict:
+               history: list[dict] | None = None, include_sources: bool | None = None,
+               image_bytes: bytes | None = None) -> dict:
         """The generation half of RAG: retrieve, then ask the configured chat model to answer from the passages.
 
         ``hide_file_names`` (a public bot): the model sees passages without file names and is told to name none,
@@ -1029,15 +1276,41 @@ class Corpus:
         if not self.cfg["answer"] and not provider:
             raise ValueError("answer generation is off in this server (start it with --answer)")
         question = (question or "").strip()
+        if not question and image_bytes:
+            question = "What is in this picture?"
         if not question:
             raise ValueError("question required")
-        hits = self.search(question, top_k)
+        pictures, image_hits, image_query_words = [], [], ""
+        if image_bytes is not None or getattr(self, "images_on", False) is True:
+            pictures, image_hits, image_query_words = self._answer_pictures(question, image_bytes, hide)
+        hits = self.search(f"{question} {image_query_words}".strip(), top_k)
         sources = [{"rank": h["rank"], "filename": h["filename"], "chunk_id": h["chunk_id"]} for h in hits]
         weak = weak_match(question, hits)
         if not hits:
             return {"question": question, "answer": "Nothing in this corpus matches the question.",
                     "sources": [], "weak": True, "model": None}
-        chat = self._chat if provider is None else lambda messages: self._chat(messages, provider)
+        base_chat = self._chat if provider is None else lambda messages: self._chat(messages, provider)
+        api = str({**self.cfg, **(provider or {})}.get("provider") or "openai").lower()
+        sent = {"n": 0, "fallback": "" if self.cfg.get("answer_images", True) else "answer_images is off"}
+
+        def chat(messages: list[dict]) -> str:
+            last = messages[-1] if messages else {}
+            if not pictures or last.get("role") != "user" or last.get("content") != question:
+                return base_chat(messages)
+            note = question + pictures_note(image_hits, attached=image_bytes is not None, hide_names=hide)
+            if not sent["fallback"]:
+                try:
+                    reply = base_chat([*messages[:-1], {"role": "user",
+                                                        "content": with_picture_parts(note, pictures, api)}])
+                    sent["n"] = len(pictures)
+                    return reply
+                except RuntimeError as e:
+                    if not picture_refused(e):
+                        raise
+                    sent["fallback"] = f"the answer model refused the pictures ({str(e)[:160]})"
+                    print(f"[warn] {sent['fallback']}; answering from text", file=sys.stderr)
+            return base_chat([*messages[:-1], {"role": "user", "content": note}])
+
         result = answer_with_follow_ups(
             question, hits, lambda q: self.search(q, top_k), chat,
             source_search=lambda q, prefix: self.search(q, top_k, source_prefix=prefix),
@@ -1057,7 +1330,10 @@ class Corpus:
                 sources = []
         out = {"question": question, "answer": answer, "sources": sources, "weak": weak,
                "model": (provider or {}).get("llm_model", self.cfg["llm_model"]),
-               "follow_up_searches": result["follow_up_searches"], "followup": followup}
+               "follow_up_searches": result["follow_up_searches"], "followup": followup,
+               "images": image_hits, "images_sent": sent["n"]}
+        if pictures and not sent["n"]:
+            out["images_note"] = f"pictures not sent to the model: {sent['fallback']}; it answered from their text"
         if hide:
             out["sources_hidden"] = not include_sources
         return out
@@ -1399,6 +1675,10 @@ def make_handler(corpus: Corpus, token: str = ""):
                 self._json(corpus.profile())
             elif u.path.startswith("/files/"):
                 self._file(u.path[len("/files/"):])
+            elif u.path.startswith("/images/"):
+                rest = u.path[len("/images/"):]
+                thumb = rest.endswith("/thumb")
+                self._image(rest[: -len("/thumb")] if thumb else rest, thumb)
             elif u.path == "/ask":
                 qs = parse_qs(u.query)
                 q = (qs.get("q") or [""])[0]
@@ -1410,12 +1690,56 @@ def make_handler(corpus: Corpus, token: str = ""):
                     top_k = int(qs["top_k"][0]) if qs.get("top_k") else None
                     prefix = (qs.get("source_prefix") or [""])[0]
                     extra = int(qs["dense_extra"][0]) if qs.get("dense_extra") else None
-                    self._json({"query": q, "hits": corpus.search(q, top_k, prefix, extra)})
+                    out = {"query": q, "hits": corpus.search(q, top_k, prefix, extra)}
+                    if (qs.get("images") or [""])[0] in ("1", "true", "yes"):
+                        out.update(self._images_beside(q))
+                    self._json(out)
                 except ValueError as e:
                     self._json({"error": str(e)}, 400)
             else:
-                self._json({"error": "not found — try /, /health, /version, /profile, /search?q=..., /ask?q=..., /files/<id> "
-                                     "or POST /mcp"}, 404)
+                self._json({"error": "not found — try /, /health, /version, /profile, /search?q=..., /ask?q=..., /files/<id>, "
+                                     "POST /search/image or POST /mcp"}, 404)
+
+        def _images_beside(self, query: str) -> dict:
+            """The Image search layer next to a passage search (its own scores), or why it did not run."""
+            try:
+                found = corpus.search_images(query, top_k=6)
+                return {"images": found["hits"], "images_weak": found["weak"]}
+            except (ValueError, RuntimeError) as e:
+                return {"images": [], "images_error": str(e)}
+
+        def _image(self, asset_id: str, thumb: bool):
+            """GET /images/<id>/thumb (always shipped with Image search) or /images/<id> (with original files)."""
+            try:
+                data, mime = corpus.image_file(asset_id, thumb=thumb) if _SAFE_ID.fullmatch(asset_id) else (b"", "")
+                if not data:
+                    raise KeyError(asset_id)
+            except KeyError:
+                self._json({"error": "no such picture in this package" + ("" if thumb else
+                                                                          " (full pictures ship with original files)")},
+                           404)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", mime)
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.end_headers()
+            self.wfile.write(data)
+
+        def _search_image(self, body: dict):
+            """POST /search/image: ``query`` (text -> image) and/or ``image_base64`` (image -> image, image ->
+            document with ``documents``); ``thumbnails`` returns each thumbnail as a data URL."""
+            try:
+                image = _b64_image(body.get("image_base64"))
+                top_k = int(body.get("top_k") or 6)
+                self._json(corpus.search_images(str(body.get("query") or ""), image_bytes=image, top_k=top_k,
+                                                documents=bool(body.get("documents")),
+                                                thumbnails=bool(body.get("thumbnails"))))
+            except ValueError as e:
+                self._json({"error": str(e)}, 400)
+            except RuntimeError as e:
+                self._json({"error": str(e)}, 503)
 
         def _file(self, document_id: str):
             """GET /files/<document_id>: an original file, as a download. Ids come from the package's own list only."""
@@ -1446,7 +1770,7 @@ def make_handler(corpus: Corpus, token: str = ""):
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "no-referrer")
             self.send_header("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; "
-                             "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+                             "img-src data: blob:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
             self.end_headers()
             self.wfile.write(data)
 
@@ -1517,7 +1841,14 @@ def make_handler(corpus: Corpus, token: str = ""):
                     history.append({"role": turn["role"], "content": turn["content"][:8000]})
             want = bool(body.get("sources")) if body else False
             try:
-                self._json(corpus.answer(question, top_k, provider, history, include_sources=want))
+                image = _b64_image((body or {}).get("image_base64"))
+                out = corpus.answer(question, top_k, provider, history, include_sources=want, image_bytes=image)
+                if body and body.get("thumbnails"):
+                    import base64
+                    for h in out.get("images") or []:
+                        data, _mime = corpus.image_file(h["asset_id"])
+                        h["thumbnail"] = "data:image/jpeg;base64," + base64.b64encode(data).decode("ascii")
+                self._json(out)
             except ValueError as e:
                 self._json({"error": str(e)}, 400)
             except RuntimeError as e:
@@ -1528,7 +1859,8 @@ def make_handler(corpus: Corpus, token: str = ""):
                 return
             try:
                 length = int(self.headers.get("Content-Length") or 0)
-                if length > MAX_BODY:
+                limit = MAX_IMAGE_BODY if urlparse(self.path).path in ("/search/image", "/ask", "/mcp") else MAX_BODY
+                if length > limit:
                     self._json({"error": "request body too large"}, 413)
                     return
                 body = json.loads(self.rfile.read(length) or b"{}")
@@ -1542,6 +1874,9 @@ def make_handler(corpus: Corpus, token: str = ""):
                     self._json({"error": "send a JSON object"}, 400)
                     return
                 top_k = body.get("top_k")
+                if urlparse(self.path).path == "/search/image":
+                    self._search_image(body)
+                    return
                 if urlparse(self.path).path == "/ask":
                     self._answer(str(body.get("question") or body.get("query") or ""),
                                  int(top_k) if top_k is not None else None, body)
@@ -1550,7 +1885,10 @@ def make_handler(corpus: Corpus, token: str = ""):
                                      int(top_k) if top_k is not None else None,
                                      str(body.get("source_prefix") or ""),
                                      int(body["dense_extra"]) if body.get("dense_extra") is not None else None)
-                self._json({"hits": hits})
+                out = {"hits": hits}
+                if body.get("images"):
+                    out.update(self._images_beside(str(body.get("query", ""))))
+                self._json(out)
             except (ValueError, json.JSONDecodeError) as e:
                 self._json({"error": str(e)}, 400)
 
@@ -1668,6 +2006,44 @@ _ANSWER_TOOL = {
 }
 
 
+_IMAGES_TOOL = {
+    "name": "rag_search_images",
+    "description": ("Find pictures in this knowledge base (photos, scans, charts, the images inside its documents): "
+                    "describe what to find in words (any language), or send a picture as base64 to find the ones "
+                    "that look like it and the documents they are in. Returns the matching thumbnails as images plus "
+                    "each picture's document_id (open the document with rag_get_document or search its text with "
+                    "rag_search), where it sits (page / slide / sheet), what was read in it, and its scores. "
+                    "weak=true means no picture really matches."),
+    "inputSchema": {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "What the picture shows (optional when image_base64 is set)."},
+            "image_base64": {"type": "string", "description": "A picture to match, base64 or a data: URL (optional)."},
+            "top_k": {"type": "integer", "description": "How many pictures (default 4, at most 50)."},
+            "documents": {"type": "boolean", "description": "Also list the documents the pictures are in."},
+        },
+    },
+    "annotations": {"title": "Find pictures", "readOnlyHint": True, "destructiveHint": False, "idempotentHint": True,
+                    "openWorldHint": False},
+}
+
+
+def _search_images_content(corpus: Corpus, args: dict) -> list[dict]:
+    """rag_search_images' MCP content: the hits as JSON text, then each thumbnail as an image block."""
+    import base64
+
+    found = corpus.search_images(str(args.get("query") or ""), image_bytes=_b64_image(args.get("image_base64")),
+                                 top_k=int(args.get("top_k") or 4), documents=bool(args.get("documents")))
+    content: list[dict] = [{"type": "text", "text": json.dumps(found, ensure_ascii=False)}]
+    for h in found["hits"][:8]:
+        try:
+            data, mime = corpus.image_file(h["asset_id"])
+        except KeyError:
+            continue
+        content.append({"type": "image", "data": base64.b64encode(data).decode("ascii"), "mimeType": mime})
+    return content
+
+
 def mcp_server_info(meta: Mapping | None = None) -> dict:
     """MCP ``serverInfo``: the package's stable install name, its display name and its version (the server's own
     name and version for a package without package.json)."""
@@ -1683,6 +2059,10 @@ def _instructions(corpus: Corpus | None) -> str:
     head = (f"Knowledge package {label} (built {hosted_meta().get('built') or str(hosted_meta().get('created'))[:10]})"
             ". " if label else "")
     base = head + "Use rag_search for anything about this knowledge base; its passages are the CONTEXT."
+    if corpus is not None and corpus.images_on:
+        base += (" For pictures (\"show me the photo of…\", a plate, a chart, a picture the user sends) use "
+                 "rag_search_images.")
+        label = label or "images"
     prompt = corpus.identity.get("system_prompt") if corpus is not None else ""
     if prompt:
         return f"{base}\n\n{prompt}"
@@ -1733,6 +2113,8 @@ def _tools_for(corpus) -> list[dict]:
     opened = _ready(corpus, INSTRUCTIONS_WAIT)
     if opened is not None and opened.originals:
         tools.append(_GET_TOOL)
+    if opened is not None and opened.images_on:
+        tools.append(_IMAGES_TOOL)
     return tools + ([_ANSWER_TOOL] if corpus.cfg["answer"] else [])
 
 
@@ -1832,6 +2214,8 @@ def mcp_responder(corpus: Corpus | LoadingCorpus, base_url: str = ""):
                                                int(args["limit"]) if args.get("limit") is not None else 200)
                 elif name == "rag_get_document" and corpus_now.originals:
                     return ok({"content": _get_document(corpus_now, args, base_url), "isError": False})
+                elif name == "rag_search_images" and corpus_now.images_on:
+                    return ok({"content": _search_images_content(corpus_now, args), "isError": False})
                 elif name == "rag_answer" and corpus.cfg["answer"]:
                     out = corpus_now.answer(str(args.get("question", "")),
                                             int(args["top_k"]) if args.get("top_k") is not None else None,
@@ -2067,6 +2451,8 @@ def build_parser() -> argparse.ArgumentParser:
                     help="enable the bundled reranker")
     ap.add_argument("--no-reranker", dest="reranker", action="store_false",
                     help="disable the reranker")
+    ap.add_argument("--no-images", dest="images", action="store_false", default=None,
+                    help="turn Image search off (the pictures stay in the package)")
     ap.add_argument("--semantic", dest="semantic", action="store_true", default=None,
                     help="meaning search over the vectors (default on when the package ships them)")
     ap.add_argument("--no-semantic", dest="semantic", action="store_false", help="turn meaning search off")
@@ -2101,7 +2487,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 _FLAG_KEYS = ("host", "port", "top_k", "max_per_document", "device", "reranker", "auth_token",
-              "embed_model", "embed_base_url", "semantic", "keyword", "answer", "llm_base_url", "llm_model")
+              "embed_model", "embed_base_url", "semantic", "keyword", "answer", "llm_base_url", "llm_model", "images")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -2218,6 +2604,9 @@ button:disabled{opacity:.6;cursor:wait}#chat{display:grid;gap:12px;margin:14px 0
 .user{background:#1d2f31;border-color:#537d77;justify-self:end;max-width:90%}.bot{background:var(--panel)}.err{border-color:var(--err);color:var(--err)}
 .src{margin-top:10px;font-size:13px;color:var(--muted)}.src a.dl{display:inline-block;margin:2px 0 4px;color:var(--accent)}.src details{margin-top:4px}.src pre{white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace;margin:6px 0 0;padding:8px;border-left:2px solid var(--line)}
 .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}@media(max-width:600px){.row{grid-template-columns:1fr}}
+.pics{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-top:10px;white-space:normal}.pics figure{margin:0;font-size:12px;color:var(--muted)}
+.pics img{width:100%;aspect-ratio:4/3;object-fit:contain;background:var(--bg);border-radius:8px;border:1px solid var(--line)}#attach-preview img{max-height:64px;border-radius:6px;vertical-align:middle}
+#attach-row[hidden]{display:none}
 </style><main>
 <h1 id="title">Smart Brain</h1><p class="muted" id="about">Ask the documents in this package. Every answer lists the files it came from.</p>
 <p class="small muted" id="stats"></p>
@@ -2232,6 +2621,7 @@ button:disabled{opacity:.6;cursor:wait}#chat{display:grid;gap:12px;margin:14px 0
 </details>
 <section id="chat" aria-live="polite"></section>
 <form id="ask" class="card"><label for="question">Your question</label><textarea id="question" required placeholder="Ask about the documents… (Enter asks, Shift+Enter: new line)"></textarea>
+<div class="bar" id="attach-row" style="margin-top:8px" hidden><label for="picture" style="margin:0">Attach a picture (optional)</label><input id="picture" type="file" accept="image/*" style="width:auto;margin:0"><span id="attach-preview"></span></div>
 <div class="bar" style="margin-top:10px"><button id="send">Ask</button><button type="button" class="ghost" id="reset">New conversation</button><span class="small muted" id="status"></span></div></form>
 <p class="small muted" id="pkg-version"></p>
 <script src="/app.js"></script></main></html>"""
@@ -2247,6 +2637,8 @@ const PRESETS = {
   search: { label: 'No answer model: show the matching passages', api: '', base: '' },
 };
 let hideNames = false;
+let pictures = false;    // the package ships Image search
+let attached = null;     // the picture attached to the next question (a data URL), never stored
 let history = [];
 let pkg = null;   // the package's own connection, when it has one
 const saved = JSON.parse(localStorage.getItem('sb-conn') || '{}');
@@ -2299,6 +2691,8 @@ async function load() {
     const c = h.answer_connection || {};
     pkg = c.configured ? c : null;
     hideNames = !!h.hide_file_names;
+    pictures = !!h.images;
+    $('attach-row').hidden = false;   // a picture can go to a vision model even without Image search
     $('stats').textContent = `${h.documents} documents · ${h.chunks} passages · search: ${h.mode}`;
     const p = await fetch('/profile', { headers: headers() }).then((x) => x.ok ? x.json() : {});
     if (p.name) { $('title').textContent = p.name; document.title = p.name; }
@@ -2347,6 +2741,27 @@ function sources(box, list, answer) {
   }
   box.append(wrap);
 }
+function pics(box, list) {
+  if (!list || !list.length) return;
+  const wrap = document.createElement('div'); wrap.className = 'pics';
+  for (const h of list) {
+    if (!h.thumbnail) continue;
+    const f = document.createElement('figure'), img = document.createElement('img'), cap = document.createElement('figcaption');
+    img.src = h.thumbnail; img.alt = [h.filename, h.locator].filter(Boolean).join(' · ') || 'picture';
+    cap.textContent = [h.filename, h.locator].filter(Boolean).join(' · ');
+    f.append(img, cap); wrap.append(f);
+  }
+  if (wrap.childNodes.length) box.append(wrap);
+}
+$('picture').addEventListener('change', () => {
+  const file = $('picture').files[0]; attached = null; $('attach-preview').textContent = '';
+  if (!file) return;
+  if (file.size > 12 * 1024 * 1024) { $('status').textContent = 'The picture must be 12 MB or smaller.'; $('picture').value = ''; return; }
+  const r = new FileReader();
+  r.onload = () => { attached = r.result; const img = document.createElement('img'); img.src = attached; img.alt = 'attached picture'; $('attach-preview').replaceChildren(img); };
+  r.readAsDataURL(file);
+});
+function clearAttachment() { attached = null; $('picture').value = ''; $('attach-preview').textContent = ''; }
 async function download(id, name) {
   try {
     const r = await fetch('/files/' + encodeURIComponent(id), { headers: headers() });
@@ -2362,37 +2777,54 @@ $('token').addEventListener('change', load);
 $('reset').addEventListener('click', () => { history = []; $('chat').innerHTML = ''; $('status').textContent = ''; $('question').focus(); });
 $('ask').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const q = $('question').value.trim(); if (!q) return;
+  const q = $('question').value.trim() || (attached ? 'What is in this picture?' : ''); if (!q) return;
   const k = $('kind').value;
+  if (k === 'search' && attached) {   // no answer model, a picture: the pictures that look like it and their documents
+    if (!pictures) { $('status').textContent = 'This package has no Image search: pick an answer model to ask about the picture.'; return; }
+    bubble('user', q + ' [picture attached]'); $('question').value = ''; $('send').disabled = true; $('status').textContent = 'Searching pictures…';
+    try {
+      const r = await fetch('/search/image', { method: 'POST', headers: headers(), body: JSON.stringify({ image_base64: attached, top_k: 6, documents: true, thumbnails: true }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || `request failed (${r.status})`);
+      const a = bubble('bot', d.weak ? 'No picture in the documents looks like this one; the nearest:' : 'Pictures that look like yours:');
+      pics(a, d.hits);
+    } catch (err) { bubble('err', err.message); $('status').textContent = ''; }
+    finally { clearAttachment(); $('send').disabled = false; $('question').focus(); }
+    return;
+  }
   if (k === 'search') {   // no answer model: the passages that match, with their files unless names are hidden
     bubble('user', q); $('question').value = ''; $('send').disabled = true; $('status').textContent = 'Searching…';
     try {
       const r = await fetch('/search', { method: 'POST', headers: headers(), body: JSON.stringify({ query: q, top_k: 5 }) });
+      const ir = pictures ? await fetch('/search/image', { method: 'POST', headers: headers(), body: JSON.stringify({ query: q, top_k: 4, thumbnails: true }) }).then((x) => x.ok ? x.json() : null) : null;
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || `request failed (${r.status})`);
       const hits = Array.isArray(d) ? d : (d.results || d.hits || []);
       const text = hits.length ? hits.map((h, i) => (hideNames ? `Passage ${i + 1}` : `${i + 1}. ${h.filename || 'document'}`)
         + '\n' + String(h.text || h.preview || '').trim()).join('\n\n') : 'Nothing in the documents matches that.';
-      bubble('bot', text);
+      const b = bubble('bot', text);
+      if (ir && !ir.weak) pics(b, ir.hits);
       $('status').textContent = 'No answer model is set: these are the passages that match. Pick a provider under "Answer with" for written answers.';
     } catch (err) { bubble('err', err.message); $('question').value = q; $('status').textContent = ''; }
     finally { $('send').disabled = false; $('question').focus(); }
     return;
   }
   if (k !== 'package' && (!$('base').value.trim() || !$('model').value.trim())) { $('conn').open = true; $('status').textContent = 'Pick a provider and enter its model first (or "No answer model" for the passages only).'; return; }
-  bubble('user', q); $('question').value = ''; $('send').disabled = true; $('status').textContent = 'Searching and asking…';
-  const body = { question: q, history };
+  bubble('user', q + (attached ? ' [picture attached]' : '')); $('question').value = ''; $('send').disabled = true; $('status').textContent = 'Searching and asking…';
+  const body = { question: q, history, thumbnails: true };
+  if (attached) body.image_base64 = attached;
   if (k === 'package') body.provider = 'package';
   else Object.assign(body, { provider: PRESETS[k].api, llm_base_url: $('base').value.trim(), llm_model: $('model').value.trim(), llm_api_key: $('key').value });
   try {
     const r = await fetch('/ask', { method: 'POST', headers: headers(), body: JSON.stringify(body) });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || `request failed (${r.status})`);
-    const a = bubble('bot', d.answer); sources(a, d.sources, d.answer);
+    const a = bubble('bot', d.answer); sources(a, d.sources, d.answer); pics(a, d.images);
+    if (d.images_note) { const n = document.createElement('div'); n.className = 'src'; n.textContent = d.images_note; a.append(n); }
     history.push({ role: 'user', content: q }, { role: 'assistant', content: d.answer }); history = history.slice(-12);
     $('status').textContent = d.weak ? 'The passages found may not cover the whole question.' : '';
   } catch (err) { bubble('err', err.message); $('question').value = q; $('status').textContent = ''; }
-  finally { $('send').disabled = false; $('question').focus(); }
+  finally { clearAttachment(); $('send').disabled = false; $('question').focus(); }
 });
 // Enter asks, Shift+Enter is a new line.
 $('question').addEventListener('keydown', (e) => {

@@ -227,6 +227,7 @@ def _controls() -> dict[str, Control]:
         ("export.package_new_passphrase", "export", "#mcp-newpass",
          "Package: give a new version of an encrypted package a new passphrase"),
         ("export.package_originals", "export", "#mcp-originals", "Package: include original files (downloadable)"),
+        ("export.package_images", "export", "#mcp-images", "Package: Image search layer (pictures + image model)"),
         ("export.package_hide_names", "export", "#mcp-hide-names", "Package: hide file names in answers (public bot)"),
         ("export.runs", "export", "#export-runs", "Training runs"),
         ("export.gguf_quants", "export", "#gguf-quants", "GGUF quantizations"),

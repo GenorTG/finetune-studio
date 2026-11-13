@@ -202,6 +202,7 @@ def _export(args: argparse.Namespace) -> None:
         "llm_provider": args.llm_provider,
         "llm_connection": args.llm_connection, "include_originals": args.originals,
         "hide_file_names": getattr(args, "hide_file_names", None),
+        "image_search": getattr(args, "images", None),
         "top_k": args.top_k, "port": args.port, "host": args.host, "device": args.device,
         "embed_base_url": getattr(args, "embed_base_url", None), "embed_model": getattr(args, "embed_model", None),
     }.items() if v is not None}
@@ -653,6 +654,9 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     sp.add_argument("--hide-file-names", dest="hide_file_names", action=bo, default=None,
                     help="a public bot: answers name no source files; /ask returns sources only when asked "
                          '("sources": true) (default off)')
+    sp.add_argument("--images", action=bo, default=None,
+                    help="Image search: ship the index's pictures (vectors + thumbnails; full pictures with "
+                         "--originals) and the image model (needs --models)")
     sp.add_argument("--originals", action=bo, default=None,
                     help="ship the original uploaded files (encrypted with the corpus); anyone who can reach the "
                          "server can download them: leave off for a public bot (default off)")

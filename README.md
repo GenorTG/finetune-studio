@@ -116,6 +116,12 @@ handles:
   formats; OCR uses Tesseract and may fetch language data on first use.
 - Configurable chunking strategy
 - Embedder model selection (any SentenceTransformer-compatible model)
+- **Image search** (optional layer): photos, scans, charts and the pictures inside Word, PowerPoint, PDF and Excel
+  files are embedded with an open-licence CLIP image/text model (multilingual, runs on a CPU), each linked to its file
+  and page/slide and to the OCR or vision reading of the same picture. Describe a picture in any of 50+ languages or
+  upload one to find it and the documents it is in; packages can ship the layer (`POST /search/image`, MCP
+  `rag_search_images`, pictures passed to vision-capable answer models). It finds pictures; reading the numbers in
+  them stays the vision reader's job.
 - Live build progress via Server-Sent Events
 - An index status that says *up to date* or *rebuild needed* (files edited,
   added or removed since the build), and a documents panel with chunk previews
@@ -258,8 +264,8 @@ fixed. Write-up: [`docs/benchmarks/quillmoor-2026-10.md`](docs/benchmarks/quillm
 The larger pieces, knowledge package first:
 
 - **Knowledge package** — the Package page shows each step from files to package with its state; every package
-  self-tests with its own server before it is handed over; versions, audience scope, original files and in-place
-  updates as above.
+  self-tests with its own server before it is handed over; versions, audience scope, original files, Image search and
+  in-place updates as above.
 - **Knowledge check, identity and the documents' own quiz** — lint the documents, say who the answers speak for, and
   test the answers on questions written from your files, judged by an AI judge or you.
 - **⚡ Quick work** — the entire model pipeline on one page (upload →
