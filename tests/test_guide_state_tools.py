@@ -275,3 +275,29 @@ def test_legacy_rag_runs_saved_as_suite_are_smart_brain_runs(project: dict) -> N
     assert benchmarks.get_benchmark(m["id"])["kind"] == "suite"
     with cursor() as c:
         assert c.execute("SELECT COUNT(*) FROM benchmark_runs WHERE kind = 'suite'").fetchone()[0] == 1
+
+
+def test_package_readiness_leads_the_readiness_answer(project: dict, monkeypatch) -> None:
+    # Walkthrough 2026-11-13 M3: "Is my knowledge ready to package?" was answered with "mine Q&A pairs, build the
+    # dataset, train a model" while the Package page said Ready to package.
+    from finetune_studio.knowledge import readiness as kr
+
+    steps = [{"key": "files", "label": "Add your files", "state": "done", "detail": "2 of 2 read."},
+             {"key": "check", "label": "Check the knowledge", "state": "done", "detail": "Nothing to fix."},
+             {"key": "identity", "label": "Say who it speaks for", "state": "todo", "detail": "Optional."},
+             {"key": "index", "label": "Build the Smart Brain", "state": "done", "detail": "Up to date."},
+             {"key": "test", "label": "Test the answers", "state": "todo", "detail": "Not tested yet."},
+             {"key": "package", "label": "Build the package", "state": "todo", "detail": "Not built yet."}]
+    monkeypatch.setattr(kr, "readiness", lambda pid: {"ready": True, "steps": steps})
+    ready = state.readiness(project["pid"])
+    assert ready["summary"].startswith("Knowledge package: Ready to package (the Package page says the same).")
+    assert ready["package"]["ready"] is True and "Test the answers (Not tested yet)" in ready["summary"]
+    assert ready["summary"].index("Knowledge package:") < ready["summary"].index("Training (optional):")
+    monkeypatch.setattr(kr, "readiness", lambda pid: {"ready": False, "steps": [
+        {**steps[0]}, {**steps[1], "state": "problem", "detail": "1 superseded document(s) must be removed."},
+        {**steps[3], "state": "review", "detail": "Your files changed since the build."}] + steps[4:]})
+    ready = state.readiness(project["pid"])
+    assert ready["package"]["summary"].startswith("Not ready to package yet: Check the knowledge: 1 superseded")
+    assert ready["package"]["next"].startswith("Check the knowledge")
+    from finetune_studio.guide.prompt import _RULES
+    assert "The knowledge package is the product" in _RULES

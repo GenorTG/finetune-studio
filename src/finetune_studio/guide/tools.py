@@ -81,7 +81,7 @@ TOOLS_CATALOG: list[dict[str, Any]] = [
     },
     {
         "name": "inspect_project_readiness",
-        "description": "Authoritative readiness counts with a `summary` line. Use when the user asks what is done or what to do next; include the summary verbatim and still answer the rest of the user's question.",
+        "description": "Authoritative readiness with a `summary` line: first whether the knowledge is ready to package (the Package page's checklist: files read, knowledge check, Smart Brain up to date, then identity, test and package), then the optional training pipeline's counts. Use when the user asks what is done, what to do next or whether the knowledge is ready to package; include the summary verbatim and still answer the rest of the user's question.",
         "parameters": _obj(),
     },
     {

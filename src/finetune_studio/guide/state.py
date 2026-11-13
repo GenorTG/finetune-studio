@@ -49,8 +49,34 @@ def _project_or_error(pid: str | None) -> tuple[dict | None, dict | None]:
     return project, None
 
 
+def package_readiness(pid: str) -> dict[str, Any]:
+    """The Package page's checklist (``knowledge.readiness``, also ``fts brain readiness``) as one line."""
+    from finetune_studio.knowledge import readiness as kr
+
+    try:
+        out = kr.readiness(pid)
+    except Exception as e:  # noqa: BLE001 - the Guide reports it instead of failing the whole answer
+        log.warning("package readiness for %s failed: %s", pid, e)
+        return {"ready": None, "summary": f"could not be checked ({type(e).__name__}).", "steps": [], "next": ""}
+    steps = out.get("steps") or []
+    open_steps = [s for s in steps if s.get("state") in ("todo", "problem", "review")]
+    blocking = [s for s in open_steps if s.get("key") in ("files", "check", "index")]
+    nxt = (blocking or open_steps or [{}])[0]
+    if out.get("ready"):
+        rest = [s for s in open_steps if s.get("key") not in ("files", "check", "index")]
+        summary = "Ready to package (the Package page says the same)." + (
+            " Optional before building: " + "; ".join(f"{s['label']} ({s['detail'].rstrip('.')})" for s in rest)
+            + "." if rest else "")
+    else:
+        summary = "Not ready to package yet: " + "; ".join(f"{s['label']}: {s['detail'].rstrip('.')}" for s in blocking) + "."
+    return {"ready": out.get("ready"), "summary": summary,
+            "steps": [{k: s.get(k) for k in ("label", "state", "detail")} for s in steps],
+            "next": f"{nxt['label']}: {nxt['detail']}" if nxt else ""}
+
+
 def readiness(pid: str) -> dict[str, Any]:
-    """Authoritative counts for one project; ``summary`` is quoted verbatim in replies."""
+    """Authoritative counts for one project; ``summary`` is quoted verbatim in replies. The knowledge package's
+    readiness (``package_readiness``) leads; the optional training pipeline follows."""
     project = db.get_project(pid)
     if not project:
         return {"error": "project not found"}
@@ -79,19 +105,26 @@ def readiness(pid: str) -> dict[str, Any]:
     elif datasets:
         next_step = "Choose SFT or DPO on Training based on the data you have."
     elif parsed_sources:
-        next_step = "Mine Q&A pairs from the parsed files on the Pairs page."
+        next_step = "Optional training: mine Q&A pairs from the parsed files on the Pairs page."
     else:
         next_step = "Upload and parse source files."
     latest = f", latest done {done[0].get('id')}" if done else ""
-    summary = (
+    training_summary = (
         f"{len(sources)} source(s), {parsed_sources} parsed; {counts['approved']} approved, "
         f"{counts['pending']} pending, and {counts['rejected']} rejected Q&A pair(s); "
         f"{len(datasets)} dataset(s); {len(indexes)} RAG corpus/corpora; "
         f"{len(runs)} training run(s) ({len(done)} done{latest}); {len(tests)} test run(s); "
         f"{len(exports)} model export(s). Next: {next_step}"
     )
+    package = package_readiness(pid)
+    # The knowledge package is the product: its readiness (the Package page's checklist) comes first. The training
+    # pipeline is reported after it as optional, so "is my knowledge ready to package?" is never answered with
+    # "mine Q&A pairs, train a model" while the Package page says Ready to package.
+    summary = f"Knowledge package: {package['summary']} Training (optional): {training_summary}"
     return {
         "summary": summary,
+        "package": package,
+        "training_summary": training_summary,
         "project": {"id": pid, "name": project.get("name"), "base_model": project.get("base_model")},
         "sources": {"count": len(sources), "parsed": parsed_sources},
         "qa_pairs": {"total": len(pairs), **counts},
