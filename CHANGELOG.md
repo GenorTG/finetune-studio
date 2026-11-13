@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-13
+
 
 - The Guide answers "Is my knowledge ready to package?" from the Package page's own checklist (files read,
   knowledge check, Smart Brain up to date, then identity, test and package); the training pipeline follows as
@@ -278,7 +280,8 @@ numbered `0.1.0.N`, one per commit.
   CLI called them (project files go through Files & Knowledge and Data prep; `fts analyze` / `fts validate-hallucination`
   are unchanged). Unused code: `templates.TemplateManager`, `HallucinationGuardrail` and a few helpers nothing called.
 
-[Unreleased]: https://github.com/GenorTG/finetune-studio/compare/v0.4.0...dev
+[Unreleased]: https://github.com/GenorTG/finetune-studio/compare/v0.5.0...dev
+[0.5.0]: https://github.com/GenorTG/finetune-studio/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/GenorTG/finetune-studio/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/GenorTG/finetune-studio/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/GenorTG/finetune-studio/releases/tag/v0.2.0
