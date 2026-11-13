@@ -22,6 +22,8 @@ from finetune_studio.supervisor.events import EventLog
 
 LOG_RING = 300
 TAIL_LINES = 25
+# How long a GPU job's start waits for the inference worker to unload its model (it queues behind a load).
+UNLOAD_TIMEOUT_S = 60.0
 
 
 class JobBusy(RuntimeError):
@@ -57,6 +59,10 @@ class JobTable:
         self.cwd = cwd
         self.inference_socket = inference_socket
         self._jobs: dict[str, _Job] = {}
+        # Jobs between "start asked" and "process spawned" (a GPU job waits there for the inference unload, which
+        # can sit behind a model load for tens of seconds): they hold the lease too, so a second start in that
+        # window is refused instead of running two GPU jobs at once (two builds of one project, 2026-11-13).
+        self._starting: dict[str, store.JobSpec] = {}
 
     def running(self) -> list[_Job]:
         return [j for j in self._jobs.values() if j.proc.returncode is None]
@@ -65,17 +71,28 @@ class JobTable:
         spec = store.read_spec(job_id)            # FileNotFoundError / ValueError -> caller answers 404/400
         if job_id in self._jobs and self._jobs[job_id].proc.returncode is None:
             return self.describe(job_id)
+        if job_id in self._starting:
+            raise JobBusy(f"job {job_id} is already starting")
         if spec.gpu:
             holder = next((j for j in self.running() if j.spec.gpu and not store.gpu_released(j.spec.id)), None)
             if holder:
                 raise JobBusy(f"the GPU is busy with {holder.spec.kind} job {holder.spec.id} "
                               f"({holder.spec.title or 'untitled'}); wait for it or stop it")
-            await self._unload_inference_model()
-        proc = await asyncio.create_subprocess_exec(
-            sys.executable, "-m", "finetune_studio.jobs.runner", "--id", job_id,
-            cwd=self.cwd, env=child_env(), stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, start_new_session=True,
-        )
+            pending = next((s for s in self._starting.values() if s.gpu), None)
+            if pending is not None:
+                raise JobBusy(f"the GPU is busy with {pending.kind} job {pending.id} "
+                              f"({pending.title or 'untitled'}), which is starting; wait for it or stop it")
+        self._starting[job_id] = spec
+        try:
+            if spec.gpu:
+                await self._unload_inference_model()
+            proc = await asyncio.create_subprocess_exec(
+                sys.executable, "-m", "finetune_studio.jobs.runner", "--id", job_id,
+                cwd=self.cwd, env=child_env(), stdin=asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, start_new_session=True,
+            )
+        finally:
+            self._starting.pop(job_id, None)
         job = _Job(spec=spec, proc=proc, started_wall=time.time())
         self._jobs[job_id] = job
         store.write_pid(job_id, proc.pid)
@@ -91,7 +108,7 @@ class JobTable:
         from finetune_studio.supervisor.client import UnixHTTPConnection
 
         def _post() -> int:
-            conn = UnixHTTPConnection(str(sock), 60.0)
+            conn = UnixHTTPConnection(str(sock), UNLOAD_TIMEOUT_S)
             try:
                 conn.request("POST", "/v1/unload")
                 return conn.getresponse().status
