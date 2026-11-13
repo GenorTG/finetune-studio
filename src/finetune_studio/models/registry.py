@@ -158,6 +158,20 @@ def models_for_training(models: list) -> list:
     return [m for m in models_for_selectors(models) if is_trainable_base_model(m)]
 
 
+def for_project(models: list, pid: str) -> list:
+    """Installed models plus this project's own trained exports: never another project's runs (the Training base list
+    and Brain chat offered seven of another project's merged exports), each path once."""
+    out, seen = [], set()
+    for m in models:
+        owner = _model_attr(m, "project_id")
+        path = _model_attr(m, "path").replace("\\", "/").rstrip("/").lower()
+        if (owner and owner != pid) or not path or path in seen:
+            continue
+        seen.add(path)
+        out.append(m)
+    return out
+
+
 def _safe_model_name(root: str, cfg: dict, project_name: str = "") -> str:
     """Extract a human-readable model name from config or directory path.
 

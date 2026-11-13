@@ -1272,7 +1272,13 @@
       const r = await fetch('/api/models/list?for_selector=true');
       if (r.ok) models = await r.json();
     } catch (_e) { /* the empty case below says what to do */ }
-    const usable = (models || []).filter(function (m) { return m && m.path; })
+    const seenNames = new Set();   // this project's exports + installed models, each once (not other projects' runs)
+    const usable = (models || []).filter(function (m) {
+      if (!m || !m.path || (m.project_id && m.project_id !== PID)) return false;
+      const key = String(m.name || '').split('/').pop().toLowerCase() + '|' + (m.format || '');
+      if (seenNames.has(key)) return false;
+      seenNames.add(key); return true;
+    })
       .sort(function (a, b) { return Number(a.category === 'trained_export') - Number(b.category === 'trained_export'); });
     if (sel) {
       sel.innerHTML = usable.map(function (m) {

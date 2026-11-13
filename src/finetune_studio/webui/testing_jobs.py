@@ -246,8 +246,15 @@ def _execute_run(spec: RunSpec, bid: str, owner_run_id: str, stop: threading.Eve
     Another page can load a different model into the inference worker mid-run (the worker is shared; the job holds
     no lock the web process sees): the run then stops at the next case and fails saying so, instead of recording a
     different model's answers under this one's name."""
-    _load_model(spec.model_path)
-    engine = _engine()
+    from finetune_studio.webui.testing_models import is_api_reader
+
+    if is_api_reader(spec.model_path):   # an API connection reads: nothing loads, the GPU stays as it is
+        from finetune_studio.testing.api_reader import ApiReader
+
+        engine = ApiReader(spec.model_path)
+    else:
+        _load_model(spec.model_path)
+        engine = _engine()
     baseline = engine.model_path
     swapped: list[str] = []
     saved = 0
