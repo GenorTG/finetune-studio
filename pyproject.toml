@@ -1,6 +1,6 @@
 [project]
 name = "finetune-studio"
-version = "0.4.0"
+version = "0.5.0"
 description = "Prepare, lint and test your knowledge, then export it as one encrypted package for local models. WebUI and CLI."
 license = {file = "LICENSE"}
 classifiers = ["License :: Other/Proprietary License"]
