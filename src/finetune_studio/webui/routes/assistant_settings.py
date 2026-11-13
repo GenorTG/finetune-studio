@@ -370,7 +370,9 @@ async def list_connection_models(request: Request):
         try:
             r = requests.get(cfg.base_url + "/models", headers=headers, timeout=20)
         except requests.RequestException as exc:
-            return {"ok": False, "detail": f"{type(exc).__name__} calling {cfg.base_url}/models",
+            from finetune_studio.models.providers import plain_network_error
+
+            return {"ok": False, "detail": plain_network_error(exc, f"{cfg.base_url}/models"),
                     "code": "provider_unreachable"}
         if r.status_code >= 400:
             return {"ok": False, "detail": f"the provider answered HTTP {r.status_code}: {' '.join(r.text.split())[:200]}",

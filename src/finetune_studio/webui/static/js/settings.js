@@ -292,7 +292,11 @@ function wireAssistant() {
   async function run(label, fn) {
     setStatus(label);
     try { const out = await fn(); return out; }
-    catch (e) { setStatus('Failed: ' + e.message); return null; }
+    catch (e) {   // also as a notice: the status line sits at the top of the card, out of sight of the form
+      setStatus('Failed: ' + e.message);
+      if (window.fts && fts.notify) fts.notify(label.replace(/…$/, '') + ' failed: ' + e.message, 'error');
+      return null;
+    }
   }
 
   // ── render ──
