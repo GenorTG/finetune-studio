@@ -9,6 +9,9 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- The Guide answers "Is my knowledge ready to package?" from the Package page's own checklist (files read,
+  knowledge check, Smart Brain up to date, then identity, test and package); the training pipeline follows as
+  optional instead of being the answer.
 - The Package page says, next to the Build button, how the package will search where it runs: a package without
   the models inside searches by exact words only until the host sets an embeddings endpoint, and the form now takes
   that endpoint (`--embed-base-url` in the CLI) so meaning search works there. The self-test result says the same
