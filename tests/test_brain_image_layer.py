@@ -198,3 +198,21 @@ def test_search_without_model_on_disk_says_build_first(monkeypatch) -> None:
     monkeypatch.setattr(ie, "on_disk", lambda model_id=None: False)
     with pytest.raises(FileNotFoundError, match="build the Smart Brain with Image search on"):
         ie.load_image_embedder()
+
+
+def test_shared_store_copies_only_the_pinned_files(tmp_path: Path, monkeypatch) -> None:
+    """A Hub snapshot folder holds everything ever fetched for the revision; the store keeps only the patterns."""
+    from finetune_studio.data import shared_models as sm
+
+    snap = tmp_path / "snap"
+    for rel in ("config.json", "model.safetensors", "pytorch_model.bin", "onnx/model.onnx", "1_Pooling/config.json",
+                "2_Dense/model.safetensors", "openvino/openvino_model.bin"):
+        (snap / rel).parent.mkdir(parents=True, exist_ok=True)
+        (snap / rel).write_bytes(b"x")
+    monkeypatch.setattr(sm, "IMAGE_MODELS", tmp_path / "store")
+    monkeypatch.setattr(sm, "hf_cache_dir", lambda: tmp_path / "hf")
+    monkeypatch.setattr("huggingface_hub.snapshot_download", lambda *a, **k: str(snap))
+    out = sm.register_snapshot("org/m", "a" * 40, ie._SNAPSHOT_FILES)
+    kept = sorted(p.relative_to(out).as_posix() for p in out.rglob("*") if p.is_file())
+    assert kept == ["1_Pooling/config.json", "2_Dense/model.safetensors", "META.json", "config.json",
+                    "model.safetensors"]

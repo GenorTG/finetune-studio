@@ -265,7 +265,15 @@ def register_snapshot(repo: str, revision: str, allow_patterns: list[str]) -> Pa
                                  cache_dir=str(hf_cache_dir() / "hub")))
     stage = stage_parent / f"{target.name}.part"
     shutil.rmtree(stage, ignore_errors=True)
-    shutil.copytree(src, stage, symlinks=False)   # resolve the cache's blob symlinks into real files
+    # Only the files the patterns select: the cache's snapshot folder also holds whatever else was ever fetched for
+    # this revision (ONNX, OpenVINO, TF weights: 5 GB instead of 0.5 GB for the multilingual CLIP text encoder).
+    import fnmatch
+    for f in sorted(src.rglob("*")):
+        rel = f.relative_to(src).as_posix()
+        if f.is_file() and any(fnmatch.fnmatch(rel, pat) for pat in allow_patterns):
+            dest = stage / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(f, dest)   # resolves the cache's blob symlinks into real files
     size = sum(p.stat().st_size for p in stage.rglob("*") if p.is_file())
     meta = ModelMeta(name=f"{repo}@{revision}", kind="image", short_id=target.name, size_bytes=size,
                      installed_at=time.time(), use_count=1)
