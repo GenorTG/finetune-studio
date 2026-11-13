@@ -1246,10 +1246,13 @@ class Corpus:
             except (ValueError, RuntimeError) as e:
                 print(f"[warn] image search for /ask failed: {e}", file=sys.stderr)
         for i, h in enumerate(hits, 1):
-            try:
-                data, mime = self.image_file(h["asset_id"])
+            try:   # the full picture when the package ships it (a 320 px thumbnail is too small to read a plate)
+                data, mime = self.image_file(h["asset_id"], thumb=False)
             except KeyError:
-                continue
+                try:
+                    data, mime = self.image_file(h["asset_id"])
+                except KeyError:
+                    continue
             where = f"picture {i}" if hide else f"{h.get('filename')} · {h.get('locator')}"
             pictures.append((data, mime, f"{where}" + (f": {h['description'][:300]}" if h.get("description") else "")))
             if hide:
