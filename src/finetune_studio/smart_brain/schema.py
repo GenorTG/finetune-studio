@@ -40,6 +40,8 @@ class RetrievalSettings:
     rrf_k: int = 60
     max_per_document: int = 3    # at most this many passages of one document in a search's top results (0 = no cap)
     extra: dict = field(default_factory=dict)
+    image_search: bool = False   # the image layer: pictures embedded with an image/text model (image_embeddings)
+    image_model: str = ""        # an image_embeddings.IMAGE_MODELS id ("" = DEFAULT_IMAGE_MODEL)
 
 
 @dataclass
@@ -75,7 +77,8 @@ class Manifest:
             updated_at=d.get("updated_at", 0.0),
             embedding_model=EmbeddingModelInfo(**d.get("embedding_model", {})),
             chunk_settings=ChunkSettings(**d.get("chunk_settings", {})),
-            rag_settings=RetrievalSettings(**d.get("rag_settings", {})),
+            rag_settings=RetrievalSettings(**{k: v for k, v in (d.get("rag_settings") or {}).items()
+                                              if k in RetrievalSettings.__dataclass_fields__}),
             documents=d.get("documents", 0),
             chunks=d.get("chunks", 0),
             extra=d.get("extra", {}),

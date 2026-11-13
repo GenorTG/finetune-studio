@@ -53,6 +53,7 @@ sentence-transformers only when the package bundles models.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hmac
 import io
 import ipaddress
@@ -243,6 +244,191 @@ def diversify(hits: list, top_k: int, max_per_document: int) -> list:
         else:
             overflow.append(h)
     return kept + overflow[: max(0, top_k - len(kept))]
+
+
+# ── Image search layer (shared with the studio: smart_brain.image_embeddings imports these) ───────────────────────
+# Pictures are CLIP-embedded at build time (image_vectors.npy, one row per image_assets.json record). A text query is
+# embedded with the aligned text encoder; an uploaded picture with the image encoder. Pillow and
+# sentence-transformers load only when an image search runs.
+IMAGE_ASSETS = "image_assets.json"
+IMAGE_VECTORS = "image_vectors.npy"
+IMAGE_MODEL_DIR = "image_model"
+IMAGE_MAX_BYTES = 12 * 1024 * 1024
+IMAGE_MAX_TOP_K = 50
+# Below these cosine similarities a hit is a weak match (no picture looks like the query). Measured on the
+# Tarrowfield image set (tests/corpus/tarrowfield RESULTS.md, 2026-11-13).
+IMAGE_WEAK_TEXT = 0.24
+IMAGE_WEAK_IMAGE = 0.80
+_IMAGE_STOP = _STOP | frozenset(["show", "photo", "photos", "picture", "pictures", "image", "images", "find",
+                                  "the", "and", "for", "our", "you", "me", "of", "a", "an", "is", "are", "on",
+                                  "in", "to", "it", "look", "like", "looks", "any", "do", "we", "get", "see"])
+
+
+def decode_image(data: bytes):
+    """A PIL RGB image from bytes: EXIF orientation applied (phone photos), transparency flattened on white, the first
+    frame of an animation. Raises ValueError for anything Pillow cannot read."""
+    try:
+        from PIL import Image, ImageOps
+    except ImportError as e:   # pragma: no cover - sentence-transformers brings Pillow
+        raise ValueError("image search needs Pillow (pip install pillow)") from e
+    with contextlib.suppress(Exception):   # HEIC/HEIF photos when the optional pillow-heif is installed
+        import pillow_heif  # type: ignore[import-not-found]
+        pillow_heif.register_heif_opener()
+    if not data:
+        raise ValueError("the image is empty")
+    if len(data) > IMAGE_MAX_BYTES:
+        raise ValueError(f"the image is larger than {IMAGE_MAX_BYTES // (1024 * 1024)} MB")
+    try:
+        with Image.open(io.BytesIO(data)) as im:
+            im.seek(0)
+            im = ImageOps.exif_transpose(im)
+            im.load()
+            if im.mode in ("RGBA", "LA", "PA") or (im.mode == "P" and "transparency" in im.info):
+                rgba = im.convert("RGBA")
+                flat = Image.new("RGB", rgba.size, (255, 255, 255))
+                flat.paste(rgba, mask=rgba.split()[-1])
+                return flat
+            return im.convert("RGB")
+    except Exception as e:  # PIL raises many types for a bad file
+        raise ValueError(f"not a readable image: {e}") from e
+
+
+class ImageEncoder:
+    """A CLIP image encoder and the text encoder aligned with it (the same model when ``text_dir`` is None)."""
+
+    def __init__(self, image_dir: Path, text_dir: Path | None, device: str):
+        from sentence_transformers import SentenceTransformer
+
+        self.device = device
+        self._lock = threading.RLock()
+        self._image = SentenceTransformer(str(image_dir), device=device)
+        self._text = SentenceTransformer(str(text_dir), device=device) if text_dir else self._image
+        probe = self.encode_texts(["a photo"])
+        self.dim = int(probe.shape[1])
+        if self._text is not self._image and int(self.encode_images([_blank_image()]).shape[1]) != self.dim:
+            raise ValueError("the image and text encoders do not share a vector space (different dimensions)")
+
+    def encode_images(self, images: list) -> np.ndarray:
+        if not images:
+            return np.zeros((0, getattr(self, "dim", 0)), dtype=np.float32)
+        with self._lock:
+            v = self._image.encode(list(images), normalize_embeddings=True, show_progress_bar=False, batch_size=16)
+        return np.asarray(v, dtype=np.float32)
+
+    def encode_texts(self, texts: list[str]) -> np.ndarray:
+        if not texts:
+            return np.zeros((0, getattr(self, "dim", 0)), dtype=np.float32)
+        with self._lock:
+            v = self._text.encode(list(texts), normalize_embeddings=True, show_progress_bar=False)
+        return np.asarray(v, dtype=np.float32)
+
+
+def _blank_image():
+    from PIL import Image
+    return Image.new("RGB", (32, 32), (255, 255, 255))
+
+
+def open_image_encoder(image_dir: Path, text_dir: Path | None, device: str) -> ImageEncoder:
+    return ImageEncoder(Path(image_dir), Path(text_dir) if text_dir else None, device)
+
+
+def image_words(record: Mapping) -> str:
+    """The words a picture can be found by: its file name, where it sits, the text around it, what the parse read."""
+    name = str(record.get("filename") or "").rsplit("/", 1)[-1]
+    stem = re.sub(r"[_\-.]+", " ", name.rsplit(".", 1)[0])
+    return " ".join(str(x) for x in (stem, record.get("locator") or "", record.get("context") or "",
+                                     record.get("description") or "") if x)
+
+
+def _image_terms(text: str) -> list[str]:
+    return [t for t in tokenize(text) if len(t) > 1 and t not in _IMAGE_STOP]
+
+
+def image_word_scores(records: list, query: str) -> np.ndarray:
+    """BM25 of ``query`` over each picture's words (``image_words``); 0 = no shared term."""
+    docs = [_image_terms(image_words(r)) for r in records]
+    q = set(_image_terms(query))
+    scores = np.zeros(len(records), dtype=np.float32)
+    if not q or not docs:
+        return scores
+    n = len(docs)
+    avgdl = (sum(len(d) for d in docs) / n) or 1.0
+    df = {t: sum(1 for d in docs if t in d) for t in q}
+    for i, d in enumerate(docs):
+        if not d:
+            continue
+        counts: dict[str, int] = {}
+        for t in d:
+            if t in q:
+                counts[t] = counts.get(t, 0) + 1
+        for t, tf in counts.items():
+            idf = math.log(1 + (n - df[t] + 0.5) / (df[t] + 0.5))
+            scores[i] += idf * (tf * 2.5) / (tf + 1.5 * (0.25 + 0.75 * len(d) / avgdl))
+    return scores
+
+
+def rank_images(records: list, vectors: np.ndarray, query_vector: np.ndarray | None, *, query: str = "",
+                by_image: bool = False, top_k: int = 8, rrf_k: int = 60,
+                keep=None) -> tuple[list[dict], bool]:
+    """Rank pictures for a query: ``(hits, weak)``.
+
+    A text query fuses two rankings by Reciprocal Rank Fusion: how much each picture looks like the words
+    (``visual_score``: cosine of the picture's vector and the text encoder's query vector) and the words found
+    with it (``words_score``: BM25 over its file name, caption/page/slide text and OCR or Vision reading). An image
+    query ranks by visual similarity alone. ``weak`` = nothing looks like the query and no words matched (a
+    caller should say "no matching picture" rather than show the nearest one as an answer). ``keep(record)`` filters
+    (a scope, a source prefix)."""
+    top_k = min(max(1, int(top_k)), IMAGE_MAX_TOP_K)
+    idx = [i for i, r in enumerate(records) if keep is None or keep(r)]
+    if not idx or vectors.ndim != 2 or vectors.shape[0] != len(records):
+        return [], True
+    allowed = np.asarray(idx, dtype=int)
+    visual = np.zeros(len(records), dtype=np.float32)
+    if query_vector is not None:
+        visual = vectors @ np.asarray(query_vector, dtype=np.float32)
+    words = image_word_scores(records, query) if (query and not by_image) else np.zeros(len(records), np.float32)
+    rankings = []
+    if query_vector is not None:
+        rankings.append(list(allowed[np.argsort(-visual[allowed], kind="stable")]))
+    hit_words = allowed[words[allowed] > 0]
+    if hit_words.size:
+        rankings.append(list(hit_words[np.argsort(-words[hit_words], kind="stable")]))
+    fused: dict[int, float] = {}
+    for ranking in rankings:
+        for rank, i in enumerate(ranking, start=1):
+            fused[int(i)] = fused.get(int(i), 0.0) + 1.0 / (rrf_k + rank)
+    threshold = IMAGE_WEAK_IMAGE if by_image else IMAGE_WEAK_TEXT
+    ordered = sorted(fused.items(), key=lambda kv: (-kv[1], -float(visual[kv[0]])))[:top_k]
+    hits = []
+    for rank, (i, score) in enumerate(ordered, start=1):
+        r = records[i]
+        looks = query_vector is not None and float(visual[i]) >= threshold
+        said = float(words[i]) > 0
+        hits.append({
+            "rank": rank, "asset_id": r.get("asset_id"), "document_id": r.get("document_id", ""),
+            "filename": r.get("filename", ""), "source": r.get("source", ""), "locator": r.get("locator", ""),
+            "kind": r.get("kind", "picture"), "mime_type": r.get("mime_type", ""),
+            "width": r.get("width"), "height": r.get("height"),
+            "description": str(r.get("description") or "")[:600], "read_by": r.get("read_by", ""),
+            "score": round(float(score), 6), "visual_score": round(float(visual[i]), 4),
+            "words_score": round(float(words[i]), 4),
+            "match": "+".join(m for m, on in (("looks", looks), ("words", said)) if on) or "weak",
+        })
+    weak = not any(h["match"] != "weak" for h in hits)
+    return hits, weak
+
+
+def image_documents(hits: list[dict]) -> list[dict]:
+    """Image hits grouped by their document, best first (image -> document search)."""
+    docs: dict[str, dict] = {}
+    for h in hits:
+        did = str(h.get("document_id") or "")
+        row = docs.setdefault(did, {"document_id": did, "filename": h.get("filename", ""), "score": h["score"],
+                                    "visual_score": h["visual_score"], "images": []})
+        row["images"].append({"asset_id": h["asset_id"], "locator": h.get("locator", ""), "rank": h["rank"]})
+    for rank, row in enumerate(docs.values(), start=1):
+        row["rank"] = rank
+    return list(docs.values())
 
 
 class ConfigError(Exception):

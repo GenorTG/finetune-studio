@@ -250,8 +250,7 @@ def _guard_image_embedder(value: ImageEmbedder, wrap: Callable[[Any], Any]) -> I
         encode_images=wrap(value.encode_images),
         encode_texts=wrap(value.encode_texts),
         dim=value.dim,
-        image_model=value.image_model,
-        text_model=value.text_model,
+        model_id=value.model_id,
     )
 
 
@@ -275,11 +274,14 @@ def cached_reranker(name: str = DEFAULT_RERANKER, device: str = "auto") -> tuple
     )
 
 
-def cached_image_embedder(device: str = "auto") -> ImageEmbedder:
-    """The shared multilingual image/text encoder pair, loaded only by builds or image searches."""
+def cached_image_embedder(model_id: str | None = None, device: str = "auto") -> ImageEmbedder:
+    """The Image search encoders (``image_embeddings.IMAGE_MODELS``), loaded only by builds or image searches."""
+    from finetune_studio.smart_brain.image_embeddings import spec_for
+
     resolved = resolve_device(device)
+    spec = spec_for(model_id)
     return brain_model_cache.get_or_load(
-        ("image_embedder", "clip-vit-b32-multilingual", resolved),
-        lambda: load_image_embedder(device=resolved),
+        ("image_embedder", spec.id, resolved),
+        lambda: load_image_embedder(spec.id, device=resolved),
         _guard_image_embedder,
     )

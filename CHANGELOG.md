@@ -9,9 +9,13 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
-- The studio's Smart Brain build now keeps extracted pictures as first-class assets with their source document and
-  page/slide, embeds them in a separate multilingual CLIP space, and lets you retrieve them by text description or a
-  transient image upload. OCR and the configured Vision reader remain responsible for reading text and detailed facts.
+- **Image search** (Smart Brain → Search settings): pictures in your files — photos, scans, charts and the images
+  inside Word, PowerPoint, PDF and Excel files — are embedded with a pinned open-licence image/text model (CLIP
+  ViT-B/32 with a multilingual text encoder by default, MIT + Apache-2.0, runs on a CPU), each with a thumbnail, its
+  file and page/slide/paragraph/sheet, and the OCR or Vision-reader reading of the same picture. Find a picture by
+  describing it (50+ languages) or by uploading one (also lists the documents it is in); Test a search and the chat
+  show matching pictures with their own scores; open, download or go to the source file. Builds embed only new or
+  changed pictures; the Knowledge check lists pictures that could not be embedded or that nothing describes.
 
 - Packages have unique, dated names: the archive and its folder are `<project>-<package>-v<version>-<date>`, and the
   service (`setup.sh --service`) and MCP server are named after the package (`<package>-<id8>`, the same for every

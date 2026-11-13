@@ -31,6 +31,7 @@ _ROOT = Path.home() / ".finetune-studio"
 SHARED = _ROOT / "shared_models"
 EMBEDDERS = SHARED / "embedders"
 RERANKERS = SHARED / "rerankers"
+IMAGE_MODELS = SHARED / "image_models"   # pinned Hub snapshots of the Smart Brain image/text encoders
 
 
 def hf_cache_dir() -> Path:
@@ -83,6 +84,8 @@ def _dir_for(kind: str) -> Path:
         return EMBEDDERS
     if kind == "reranker":
         return RERANKERS
+    if kind == "image":
+        return IMAGE_MODELS
     raise ValueError(f"unknown kind: {kind}")
 
 
@@ -233,6 +236,45 @@ def _download_cache(model_name: str, stage_parent: Path, stage_name: str) -> Pat
     return stage_parent / f"{stage_name}-download"
 
 
+def snapshot_dir(repo: str, revision: str) -> Path:
+    """Where the pinned snapshot ``repo@revision`` lives in the shared store (``image_models/<org>__<name>@<rev12>``)."""
+    return IMAGE_MODELS / f"{_safe_repo_name(repo)}@{revision[:12]}"
+
+
+def has_snapshot(repo: str, revision: str) -> bool:
+    d = snapshot_dir(repo, revision)
+    return (d / "META.json").is_file()
+
+
+def register_snapshot(repo: str, revision: str, allow_patterns: list[str]) -> Path:
+    """Copy the files ``allow_patterns`` selects of ``repo`` at the pinned ``revision`` into the shared store.
+
+    The revision is a commit hash, so the same name always means the same weights (an index built here and its
+    package read the same encoder). Already there = no network. Downloads go through the user's Hub cache when it
+    holds the files, else a staging folder removed afterwards."""
+    from huggingface_hub import snapshot_download
+
+    target = snapshot_dir(repo, revision)
+    if (target / "META.json").is_file():
+        _touch_use(target)
+        return target
+    IMAGE_MODELS.mkdir(parents=True, exist_ok=True)
+    stage_parent = hf_cache_dir().parent / "fts-stage"
+    stage_parent.mkdir(parents=True, exist_ok=True)
+    src = Path(snapshot_download(repo, revision=revision, allow_patterns=allow_patterns,
+                                 cache_dir=str(hf_cache_dir() / "hub")))
+    stage = stage_parent / f"{target.name}.part"
+    shutil.rmtree(stage, ignore_errors=True)
+    shutil.copytree(src, stage, symlinks=False)   # resolve the cache's blob symlinks into real files
+    size = sum(p.stat().st_size for p in stage.rglob("*") if p.is_file())
+    meta = ModelMeta(name=f"{repo}@{revision}", kind="image", short_id=target.name, size_bytes=size,
+                     installed_at=time.time(), use_count=1)
+    (stage / "META.json").write_text(json.dumps(meta.to_json(), indent=2), encoding="utf-8")
+    shutil.rmtree(target, ignore_errors=True)
+    shutil.move(str(stage), str(target))
+    return target
+
+
 def _touch_use(path: Path) -> None:
     meta_path = path / "META.json"
     if not meta_path.exists():
@@ -275,8 +317,8 @@ def stats() -> dict:
     reads ``d.models || d.items`` still renders entries.
     """
     _ensure_dirs()
-    out: dict = {"embedders": [], "rerankers": [], "total_size_bytes": 0}
-    for kind, base in [("embedder", EMBEDDERS), ("reranker", RERANKERS)]:
+    out: dict = {"embedders": [], "rerankers": [], "images": [], "total_size_bytes": 0}
+    for kind, base in [("embedder", EMBEDDERS), ("reranker", RERANKERS), ("image", IMAGE_MODELS)]:
         if not base.exists():
             continue
         for d in sorted(base.iterdir()):
@@ -302,7 +344,7 @@ def stats() -> dict:
                 "size": human_size(size),
             }
             out[f"{kind}s"].append(entry)
-    flat = list(out["embedders"]) + list(out["rerankers"])
+    flat = list(out["embedders"]) + list(out["rerankers"]) + list(out["images"])
     out["models"] = flat
     out["items"] = flat  # legacy alias used by older RAG page JS
     return out
