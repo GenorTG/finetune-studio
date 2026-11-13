@@ -236,7 +236,13 @@ handoff; it opens Training with the dataset preselected.
 
 | Symptom | It means | Fix |
 |---|---|---|
-| "No datasets yet" in Training | Export step didn't run/complete | **pairs** → Export approved → Training; look for the green success + CTA |
+| Smart Brain says "Needs an update" though you changed nothing | The Vision reader read pictures after the build | Click **Update Smart Brain**: the readings go in |
+| Package page: Build is off | Superseded documents block packaging | Open the knowledge check from the line above the button; remove or accept them |
+| Package searches by keyword only where it runs | No embedder inside and no embeddings endpoint | Tick **Include models**, or give an embeddings endpoint (the line above Build says which) |
+| `update.sh` refuses: "opens up more than the installed" | The new version carries more documents, originals or shown names | Check it is meant for this copy, then add `--allow-widen` |
+| `update.sh` refuses: "give --keyfile" | The new version is encrypted | `--keyfile /path/to/passphrase.txt` (or put it in `passphrase.txt` beside `server.py`) |
+| Testing has no model to choose | No export and no local model | Pick an **AI assistant connection** in a Smart Brain test (no GPU needed) |
+| "No datasets yet" in Training (optional) | Export step didn't run/complete | **pairs** → Export approved → Training; look for the green success + CTA |
 | Chat says "no model loaded" | Nothing loaded in inference | Use the ⚠ panel's Load dropdown on the chat page itself |
 | Training starts but feels instant-and-done | Loop returned without real steps | Check the run badge's optimizer-step count; raise epochs / dataset size |
 | Export says merge needed | Adapter trained on 4-bit base | Set base model to the 16-bit sibling (e.g. `Qwen/Qwen3-4B`), not nf4 |

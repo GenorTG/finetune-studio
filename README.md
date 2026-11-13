@@ -25,8 +25,8 @@ beta from one person, so expect rough edges. Use it if it is useful to you.
 | Files & Knowledge — every file parsed once | Smart Brain — answers from your files, with sources |
 |---|---|
 | ![Files & Knowledge](docs/screenshots/hero_04_files.png) | ![Smart Brain](docs/screenshots/hero_06_brain.png) |
-| **Pairs — mined, checked, reviewed** | **Training — a LoRA adapter (merged checkpoint optional)** |
-| ![Pairs](docs/screenshots/hero_05_pairs.png) | ![Training](docs/screenshots/hero_07_training.png) |
+| **Testing — a quiz from your own documents** | **Package — one encrypted package with its own server** |
+| ![Testing](docs/screenshots/10_testing.png) | ![Package](docs/screenshots/09_export.png) |
 
 <sub>Screenshots: a fresh demo project built from six files of the fictional company corpus in `tests/corpus/korvane`.</sub>
 
@@ -71,27 +71,27 @@ Open http://localhost:7860. The first visit offers a short onboarding tour. By d
 
 ## Why I built this
 
-Training a model on your own documents means a lot of separate steps: installing the right CUDA build,
-downloading weights, turning PDFs into clean text, writing question/answer pairs, a training loop, watching
-VRAM, testing the result, exporting it. Each step has good tools, but I kept ending up with five terminals
-and a page of notes on what to run next.
+I wanted my local models to know about my own documents: prices, rules, who does what. Fine-tuning them on it
+turned out to be the wrong tool for facts (the measurements below show why), and doing it by hand meant five
+terminals: PDFs into clean text, an index, a prompt that cites sources and admits gaps, a way to test it, and a
+way to hand it to a model or a colleague.
 
-So I put the steps I use into one app with one project at the centre. It is not trying to compete with
-cloud training platforms. It is the workshop I wanted for my own experiments, cleaned up so other people
-can use it too.
+So I put those steps into one app with one project at the centre: prepare the files, check them, build the Smart
+Brain, test its answers, and export it as one package any model can use over MCP or HTTP. Training a LoRA adapter
+stayed in as an optional extra. It is the workshop I wanted for my own experiments, cleaned up so other people can
+use it too.
 
 ---
 
 ## Who it's for
 
-- People who want to ask questions about their own documents with a local model, without sending them
-  anywhere.
-- Hobbyists who want to try LoRA fine-tuning on a single consumer GPU (I use an RTX 3090) without writing
-  the training code.
-- Anyone curious about what fine-tuning really does to a model: the test pages and the measurements below
-  show it, including where it falls short.
+- People who want their local models (or a colleague's, or a customer bot) to answer from their own documents, with
+  sources, without sending the documents anywhere.
+- Small teams who want one checked, tested, encrypted knowledge package they can version and update in place.
+- Hobbyists curious about fine-tuning: an optional LoRA path is there, and the test pages and measurements below
+  show what it does and where it falls short.
 
-You don't need every page. Most people start with one thing (the Smart Brain, a fine-tune, or just chat).
+You don't need every page. Most people only use Files, Smart Brain, Testing and Package.
 
 ---
 
@@ -304,7 +304,7 @@ The larger pieces, knowledge package first:
   [changelog](CHANGELOG.md); the header shows `vX.Y.Z` on a release and
   `vX.Y.Z+<branch>.<sha>` on any other commit. `./update.sh` pulls, repairs,
   migrates and restarts; Settings → Apply update runs the same script from the
-  browser (that button has not been tested end to end yet).
+  browser.
 - **Dark and light themes** — switch themes in the UI; responsive layout
   and theme behavior have dedicated regression checks.
 
@@ -314,15 +314,14 @@ The larger pieces, knowledge package first:
 
 | What you'd do manually | What Finetune Studio does |
 |---|---|
-| Write a Python script to download weights from HF | Browse the Model Library in-app, click download |
-| Configure transformers + accelerator + trl + peft + bitsandbytes | Pick base model + LoRA rank + batch size in a form |
-| Write your own chunking + embedding loop | Click "Build" — chunking, embedding, indexing all wired |
-| Open 4 terminal windows to monitor training | Watch the live progress bar in one panel |
-| Hand-craft an eval script from scratch | Pick a suite, click Run, get a score table |
-| Open a second tab to compare two trained runs | Pick run A + run B, click Run comparison, get the diff |
+| Convert PDFs, Office files, scans and charts to clean text | Upload a folder: each file is parsed once, pictures read by OCR or a vision model |
+| Notice that two versions of a handbook disagree | The knowledge check flags duplicates, out-of-date versions, conflicts and leaked keys |
+| Write a chunking + embedding + reranking loop | Click "Build": hybrid search with a reranker, wired |
+| Write a prompt that cites sources and admits gaps | Built in, with who it speaks for and how it answers |
+| Hand-craft questions to see whether it works | Write a quiz from your own documents, run it, judge it (AI judge or you) |
+| Ship it to a model, a colleague or a customer bot | One encrypted package with its own server (MCP + HTTP + chat page), versioned, `update.sh` in place |
 | Lose an afternoon to CUDA install issues | One `./install.sh` does it |
-| Re-discover package version conflicts every 3 months | Pinned dependencies, versioned upgrades |
-| Debug a model load failure from "ENOMEM" | Actionable error: how much VRAM is needed vs free, and which other GPU processes are holding it |
+| Train a LoRA adapter for tone or format | Optional: pick a base model and a preset, watch it train, test it against the base |
 
 You can do every one of these by hand, and for a one-off that is fine. The app
 is for when you repeat the loop: the steps share one project, and your data
