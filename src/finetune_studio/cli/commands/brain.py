@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import sys
 from pathlib import Path
@@ -229,6 +230,15 @@ def _export(args: argparse.Namespace) -> None:
             out_dir = Path(args.out or ".")
     except (ValidationError, ValueError) as e:
         _die(str(e))
+    out_file = None   # --out NAME.tar.gz / .tgz / .tar / .zip names the archive itself (it made a directory)
+    archive_ext = re.search(r"\.(tar\.gz|tgz|tar|zip)$", str(args.out or ""), re.IGNORECASE)
+    if archive_ext:
+        fmt = {"tgz": "tar.gz"}.get(archive_ext.group(1).lower(), archive_ext.group(1).lower())
+        if args.format and args.format != fmt:
+            _die(f"--out {args.out} is a .{archive_ext.group(1)} file but --format is {args.format}")
+        out_file = Path(args.out)
+        out_dir = out_file.parent
+        cfg = cfg.model_copy(update={"archive_format": fmt})
     from finetune_studio.smart_brain import package_meta as pm
 
     history_dir = pm.package_dir(resolve_project(args.project)["id"]) if args.project else out_dir
@@ -261,7 +271,6 @@ def _export(args: argparse.Namespace) -> None:
                 _die(str(e))
         if not args.name and base.get("name") and not str(base.get("name")).endswith((".tar.gz", ".zip", ".tar")):
             title = base["name"]
-    safe = "".join(c if c.isalnum() or c in "._-" else "-" for c in title).strip(".-")[:48] or "brain"
     ext = "zip" if cfg.archive_format == "zip" else cfg.archive_format
     from finetune_studio.smart_brain import originals as brain_originals
     from finetune_studio.smart_brain import scope as brain_scope
@@ -297,7 +306,8 @@ def _export(args: argparse.Namespace) -> None:
         _die(str(e))
     diff = pm.changes(base["documents"] if base else None, doc_rows)
     record["changes"] = pm.summary(diff)
-    out = out_dir / pm.package_filename(safe, record, ext=ext, models=cfg.include_models, encrypted=cfg.encrypt)
+    out = out_file or out_dir / pm.package_filename(title, record, ext=ext, models=cfg.include_models,
+                                                    encrypted=cfg.encrypt)
     originals = brain_originals.collect(corpus, pid) if cfg.include_originals else []
     shipped_originals = sum(1 for o in originals if keep is None or o.document_id in keep)
     record["policy"] = pv.policy(scope_record, originals=shipped_originals, hide_file_names=cfg.hide_file_names,
@@ -655,7 +665,8 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     sp.add_argument("--port", type=int)
     sp.add_argument("--device")
     sp.add_argument("--name", help="package title (default: the project name)")
-    sp.add_argument("--out", help="output directory (default: output/projects/<id>/brain-packages)")
+    sp.add_argument("--out", help="output directory (default: output/projects/<id>/brain-packages), or the archive's "
+                                  "own file name (NAME.tar.gz / .tar / .zip)")
 
     sp = target(brain.add_parser("identity", help="Show or set who the Smart Brain speaks for and how it answers"))
     sp.add_argument("--name", help="who it is")

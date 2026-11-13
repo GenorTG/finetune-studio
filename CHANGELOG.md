@@ -17,6 +17,9 @@ turns that section into the release's notes.
   says the original files are inside when they are not.
 - A project can no longer be renamed to a blank (or over-long, or another project's) name: Project settings and the
   API refuse it with the reason. New: `fts projects rename <project> "<name>"`.
+- CLI: an unknown project or another user error is one line ("project not found: … (fts projects list shows them)"),
+  never a Python traceback; `fts brain export --out NAME.tar.gz` writes that file instead of a folder of that name,
+  and the CLI's help calls itself `fts` and leads with the knowledge package.
 
 - Package versions are safe to roll out: a new version keeps its package's documents, original files, hidden file
   names and audience unless you change them, anything wider (more documents, originals on, names shown, a public
