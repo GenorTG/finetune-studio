@@ -744,13 +744,33 @@
       + '<button type="button" class="btn sm" data-v="pass" id="rv-pass">Pass <kbd>1</kbd></button>'
       + '<button type="button" class="btn sm" data-v="partial" id="rv-partial">Partial <kbd>2</kbd></button>'
       + '<button type="button" class="btn sm" data-v="fail" id="rv-fail">Fail <kbd>3</kbd></button>'
-      + '<button type="button" class="btn sm ghost" data-v="" id="rv-clear" title="Withdraw your verdict; the AI verdict applies again">Clear mine <kbd>0</kbd></button></div>'
+      + '<button type="button" class="btn sm ghost" data-v="" id="rv-clear" title="Withdraw your verdict; the AI verdict applies again">Clear mine <kbd>0</kbd></button>'
+      + (c.expect_abstain ? '<button type="button" class="btn sm" id="rv-answerable" title="The documents DO answer this question (the quiz check missed it): the model\u2019s answer becomes its key, your verdict is Pass, and the quiz file is corrected for the next run">The documents answer this</button>' : '')
+      + '</div>'
       + '<input type="text" id="rv-note" class="input text-xs" placeholder="optional note (why)" value="' + esc(S.notes[c.id] || '') + '" aria-label="Note for your verdict">';
     pane.innerHTML = h;
     pane.querySelectorAll('button[data-v]').forEach(function(b) {
       b.addEventListener('click', function() { setVerdict(b.getAttribute('data-v')); });
     });
     $('rv-note').addEventListener('input', function(ev) { S.notes[c.id] = ev.target.value; });
+    const ans = $('rv-answerable');
+    if (ans) ans.addEventListener('click', markAnswerable);
+  }
+
+  async function markAnswerable() {
+    const c = curCase();
+    if (!c) return;
+    try {
+      const r = await jreq('POST', BASE + '/runs/' + S.cur + '/cases/' + encodeURIComponent(c.id) + '/answerable', {});
+      const idx = S.cases.findIndex(function(x) { return x.id === c.id; });
+      if (idx >= 0 && r.case) S.cases[idx] = r.case;
+      delete S.full[c.id]; S.paneSig = '';
+      if (S.run) { S.run.scores = r.scores; }
+      renderSummary(S.run, r.agreement); renderFilters(); renderList(); renderPane();
+      notify(r.suite_updated ? 'Marked answerable: the quiz file is corrected for the next run.'
+        : 'Marked answerable for this run (the quiz file was not found to correct).', 'success');
+      refresh(false);
+    } catch (e) { notify('Could not mark it answerable: ' + e.message, 'error'); }
   }
 
   async function setVerdict(v) {

@@ -3,8 +3,9 @@
 The AI assistant writes one question and answer per sampled passage, spread evenly over the documents, plus questions
 the documents do NOT answer (the right reply is to say so). Every generated item passes hard gates or is dropped, never
 repaired: an answer may only hold numbers and codes that are in its passage, a question may not give its answer away,
-and an "unanswerable" question is checked against the index's top hybrid-search results (with a word-overlap fallback
-for direct helper use) so evidence split across documents is not missed. The quiz is saved as a project suite and runs
+and an "unanswerable" question is checked against the index's top hybrid-search results plus the passages sharing the
+most words with it (``verify_evidence``), so evidence split across documents is not missed. A reviewer who still
+finds one answerable marks it so on the run (``mark_answerable``): the quiz file is corrected for the next run. The quiz is saved as a project suite and runs
 and judges like any other.
 """
 from __future__ import annotations
@@ -64,7 +65,8 @@ amount, a date, a name) that this text does not give. Make sense on its own; nev
 _VERIFY = """Could a careful reader answer this question from these passages? Reply with one JSON object and nothing else: \
 {{"answered": true}} or {{"answered": false}}.
 
-Count it as answered when a passage gives the answer directly OR by a clear implication, for example:
+Count it as answered when the passages give the answer directly OR by a clear implication, also when the answer is
+spread over two or more passages (one says what is done, another how often, for whom or at what price), for example:
 - a rule for a whole range, plan or group answers it for each member ("every model in the range has a two-year warranty" answers it for one model of that range);
 - "included", "free" or "no charge" answers a question about the cost;
 - a general policy answers a question about one case it covers.
@@ -142,6 +144,24 @@ def closest_passages(question: str, rows: list[dict[str, str]], limit: int = _CL
     return [r["text"][:MAX_PASSAGE_CHARS] for r in scored[:limit]]
 
 
+def verify_evidence(question: str, rows: list[dict[str, str]], search: SearchFn | None = None) -> list[str]:
+    """The passages an "unanswerable" question is checked against: the index's top hybrid hits AND the passages
+    sharing the most words with it, each once. Hybrid search alone missed an answer split over two files ("how often
+    are the grounds collected": a plan sheet says collection is included, the scheme page says weekly), so the quiz
+    kept an answerable question as unanswerable and the judge failed the model's correct answer (2026-11-13)."""
+    out: list[str] = []
+    seen: set[str] = set()
+    hits = search(question, _VERIFY_TOP_K) if search is not None else []
+    for text in ([f"[source: {h.get('filename') or h.get('source') or 'document'}]\n{h.get('text', '')}" for h in hits]
+                 + closest_passages(question, rows)):
+        body = text.split("\n", 1)[1] if text.startswith("[source:") and "\n" in text else text
+        key = " ".join(body.split())               # the passage body (the [source] line only one list has)
+        if key not in seen:
+            seen.add(key)
+            out.append(text[:MAX_PASSAGE_CHARS])
+    return out
+
+
 def answerable_case(row: dict[str, str], reply: str, report: BrainQuizReport) -> dict[str, Any] | None:
     item = _json_object(reply)
     if item is None:
@@ -172,9 +192,7 @@ def unanswerable_case(row: dict[str, str], reply: str, rows: list[dict[str, str]
     if len(question.split()) < _MIN_QUESTION_WORDS:
         report.drop("unanswerable: no usable question")
         return None
-    passages = ([f"[source: {hit.get('filename') or hit.get('source') or 'document'}]\n{hit.get('text', '')}"
-                 for hit in search(question, _VERIFY_TOP_K)] if search is not None
-                else closest_passages(question, rows))
+    passages = verify_evidence(question, rows, search)
     verdict = _json_object(generate(_VERIFY.format(question=question, passages="\n---\n".join(passages))))
     if not verdict or verdict.get("answered") is not False:
         report.drop("unanswerable: the documents may answer it")
@@ -278,3 +296,32 @@ def build_brain_quiz(pid: str, *, questions: int = DEFAULT_QUESTIONS, generate: 
         raise NoUsableQuestions("No question passed the quality checks, so no quiz was saved.", report)
     meta = import_suite(pid, SUITE_FILE, json.dumps(cases, ensure_ascii=False).encode("utf-8"))
     return {"name": meta["name"], "path": meta["path"], "case_count": meta["case_count"], **report.as_dict()}
+
+
+def mark_answerable(suite_path: str, question: str, answer: str) -> bool:
+    """A reviewer found an "unanswerable" question answered by the documents: the quiz file drops its
+    ``expect_abstain`` and keeps ``answer`` as its key (the next run judges it as a normal question). False when the
+    question is not in that file."""
+    from pathlib import Path
+
+    path = Path(suite_path)
+    try:
+        cases = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    rows = cases if isinstance(cases, list) else cases.get("cases") if isinstance(cases, dict) else None
+    if not isinstance(rows, list):
+        return False
+    hit = False
+    for c in rows:
+        if isinstance(c, dict) and str(c.get("question") or c.get("q") or "").strip() == question.strip():
+            c.pop("expect_abstain", None)
+            c["correct_answer"] = answer
+            c["category"] = "documents"
+            c["reviewed"] = "answerable (marked by a reviewer)"
+            hit = True
+    if hit:
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(cases, indent=2, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(path)
+    return hit

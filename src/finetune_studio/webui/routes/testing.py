@@ -426,6 +426,43 @@ async def cancel_test_job(pid: str, bid: str):
     return {"ok": True}
 
 
+@router.post("/projects/{pid}/runs/{bid}/cases/{cid}/answerable")
+async def mark_case_answerable(pid: str, bid: str, cid: str, request: Request):
+    """A reviewer says this "unanswerable" question IS answered by the documents (the quiz's check missed an answer
+    spread over several files). The case gets ``answer`` (default: the model's answer) as its key and the reviewer's
+    ``verdict`` (default pass); the quiz file is corrected, so the next run asks it as a normal question."""
+    run = _run_for_project(pid, bid)
+    case = db.get_case(cid)
+    if not case or case.get("benchmark_id") != bid:
+        raise HTTPException(status_code=404, detail="case not found")
+    if not case.get("expect_abstain"):
+        raise HTTPException(status_code=409, detail="this question is not marked unanswerable")
+    body = await _json_object(request)
+    answer = str(body.get("answer") or case.get("model_answer") or "").strip()
+    if not answer:
+        raise HTTPException(status_code=400, detail="give the answer the documents hold (the model gave none)")
+    verdict = str(body.get("verdict") or "pass").strip().lower()
+    if verdict not in jdb.VERDICTS:
+        raise HTTPException(status_code=400, detail=f"verdict must be one of {', '.join(jdb.VERDICTS)}")
+
+    def write() -> dict[str, Any]:
+        from finetune_studio.testing.brain_quiz import mark_answerable
+
+        db.update_case(cid, expect_abstain=0, correct_answer=answer, category="documents")
+        jdb.add_judgement(cid, kind="human", verdict=verdict, judge_model="human",
+                          reasoning="answerable: the documents answer it (marked by a reviewer)")
+        suite = str(((run.get("config") or {}).get("suite_path")) or "")
+        fixed = bool(suite) and mark_answerable(suite, str(case.get("question") or ""), answer)
+        scores = rescore_benchmark(bid)
+        return {"ok": True, "scores": scores, "suite_updated": fixed,
+                "case": _case_payload(db.get_case(cid) or {}, jdb.list_judgements(case_id=cid), full=False),
+                "agreement": jdb.agreement(bid)}
+
+    result = await asyncio.to_thread(write)
+    result["at"] = time.time()
+    return result
+
+
 @router.put("/projects/{pid}/runs/{bid}/cases/{cid}/verdict")
 async def set_human_verdict(pid: str, bid: str, cid: str, request: Request):
     """A person's verdict. ``verdict`` is pass | partial | fail, or '' to retract it (the AI verdict applies again)."""

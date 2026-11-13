@@ -171,3 +171,55 @@ def test_the_verifier_counts_answers_by_implication() -> None:
     for marker in ("by a clear implication", "a rule for a whole range, plan or group answers it for each member",
                    '"included", "free" or "no charge" answers a question about the cost'):
         assert marker in bq._VERIFY
+
+
+def test_the_unanswerable_check_also_reads_the_passages_sharing_its_words() -> None:
+    # Walkthrough 2026-11-13 M7: "How often are the spent coffee grounds collected from a site?" was answered by two
+    # files (the plan sheet: collection included; the scheme page: weekly), hybrid search's top hits held neither
+    # whole, so it stayed "unanswerable" and the judge failed the model's correct answer.
+    question = "How often are the spent coffee grounds collected from a site?"
+    rows = [row("plans", "Service plans comparison. Every plan includes the Grounds Again collection of spent coffee "
+                         "grounds from each site at no extra charge."),
+            row("scheme", "Grounds Again scheme: our van collects the spent coffee grounds weekly, every Thursday, "
+                          "and turns them into compost."),
+            row("other", "Opening hours of the Leeds office are 9 to 5.")]
+    seen: list[str] = []
+
+    def verify(prompt: str) -> str:
+        seen.append(prompt)
+        return reply(answered=True)
+
+    hits = [{"filename": "other.txt", "text": rows[2]["text"]}]
+    case = bq.unanswerable_case(row(), reply(question=question), rows, verify, bq.BrainQuizReport(),
+                                lambda q, k: hits)
+    assert case is None
+    assert "weekly, every Thursday" in seen[0] and "at no extra charge" in seen[0]
+    assert seen[0].count("Opening hours of the Leeds office") == 1                      # each passage once
+    assert "spread over two or more passages" in bq._VERIFY
+
+
+def test_a_reviewer_can_mark_an_unanswerable_question_answerable(client, tmp_path: Path) -> None:
+    from finetune_studio import db
+    from finetune_studio.testing import run_store
+
+    pid = client.post("/api/projects", json={"name": "agent-test-answerable"}).json()["id"]
+    suite = tmp_path / "smart-brain-quiz.json"
+    question = "How often are the spent coffee grounds collected from a site?"
+    suite.write_text(json.dumps([{"name": "q0037", "question": question, "expect_abstain": True,
+                                  "category": "unanswerable"}]))
+    owner = run_store.resolve_owner_run(pid, "api:x")
+    bench = run_store.start_run(owner, "Smart Brain quiz", model_path="api:x", kind="brain",
+                                config={"suite_path": str(suite)}, total=1)
+    cid = db.create_case(bench["id"], owner, "q0037", "unanswerable", question, "", "Weekly, every Thursday.", [],
+                         expect_abstain=True)
+    r = client.post(f"/api/testing/projects/{pid}/runs/{bench['id']}/cases/{cid}/answerable", json={})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["suite_updated"] is True and body["case"]["expect_abstain"] is False
+    assert body["case"]["correct_answer"] == "Weekly, every Thursday." and body["case"]["verdict"] == "pass"
+    saved = json.loads(suite.read_text())[0]
+    assert "expect_abstain" not in saved and saved["correct_answer"] == "Weekly, every Thursday."
+    again = client.post(f"/api/testing/projects/{pid}/runs/{bench['id']}/cases/{cid}/answerable", json={})
+    assert again.status_code == 409
+    html = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/project_testing.html").read_text()
+    assert 'id="rv-answerable"' in html and "/answerable'" in html

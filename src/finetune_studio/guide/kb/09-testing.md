@@ -26,6 +26,7 @@ Did the model actually learn your material? A test is two separate steps. **1 ·
 - `#t-judge-provider` — the judge model (saved default).
 - `#t-runs` — saved test runs.
 - `#rv-list` — cases of the open run.
+- `#rv-answerable` — on a question the quiz marked unanswerable: **The documents answer this**. The quiz checks such a question against the index's top hybrid-search passages and the passages sharing the most words with it, but an answer spread over several files can still slip through; this button makes the model's answer the key, records your Pass and corrects the quiz file, so the next run asks it as a normal question.
 
 ## What to check
 A run with no verdicts has **no score** — "awaiting judgement" is not 0 %. Read a few judged cases yourself (the AI judge is a model, not truth); the agreement chip compares it with your verdicts. Plain rows measure recall of training facts; grounded rows are asked with their own context. Neither is generalisation — the held-out number is.
