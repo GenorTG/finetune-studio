@@ -801,7 +801,10 @@ async def brain_chat(pid: str, req: ChatRequest):
     """
     from finetune_studio.smart_brain import BrainIndex, prompt
     from finetune_studio.smart_brain import identity as brain_identity
-    from finetune_studio.smart_brain.standalone_server import answer_with_follow_ups
+    from finetune_studio.smart_brain.standalone_server import (
+        answer_with_follow_ups,
+        pictures_note,
+    )
     from finetune_studio.webui.app import inference_engine
 
     index = BrainIndex(_corpus_dir(pid))
@@ -823,6 +826,14 @@ async def brain_chat(pid: str, req: ChatRequest):
         return JSONResponse({"detail": f"load failed: {e}"}, status_code=500)
 
     hits = await asyncio.to_thread(q.search, last_user, top_k=req.top_k)
+    images: list[dict] = []
+    if (await asyncio.to_thread(q.image_layer))[1] is not None:   # Image search on: the pictures that match
+        try:
+            found = await asyncio.to_thread(q.search_images, last_user, top_k=4)
+            images = [] if found["weak"] else [h for h in found["hits"] if h["match"] != "weak"]
+        except (ValueError, OSError) as e:
+            log.warning("chat image search failed for %s: %s", pid, e)
+    question = last_user + pictures_note(images)
     n_ctx = None if assistant_client is not None else (
         inference_engine.n_ctx if inference_engine.model is not None else (_active_n_ctx() or None))
     system_prompt = req.system_prompt or await asyncio.to_thread(brain_identity.system_prompt, pid)
@@ -866,7 +877,7 @@ async def brain_chat(pid: str, req: ChatRequest):
         # The system turn is smart_brain.prompt's, so with no follow-up offer it is byte-identical to a
         # context-grounded training row's; the follow-up offer is its declared extra_instructions part.
         return answer_with_follow_ups(
-            last_user, hits, lambda query: q.search(query, top_k=req.top_k), chat,
+            question, hits, lambda query: q.search(query, top_k=req.top_k), chat,
             source_search=lambda query, prefix: q.search(query, top_k=req.top_k, source_prefix=prefix),
             follow_ups=req.follow_up, max_chars=budget, system_prompt=system_prompt, history=history,
             missing_part_retry=req.retry_missing,
@@ -895,13 +906,6 @@ async def brain_chat(pid: str, req: ChatRequest):
         "score": h.get("ce_score", h.get("rrf_score", 0.0)),
         "rank": h["rank"], "chunk_text_preview": h["text"][:400]
     } for h in hits]
-    images: list[dict] = []
-    if (await asyncio.to_thread(q.image_layer))[1] is not None:   # Image search on: the pictures that match the question (not weak ones)
-        try:
-            found = await asyncio.to_thread(q.search_images, last_user, top_k=4)
-            images = [] if found["weak"] else [h for h in found["hits"] if h["match"] != "weak"]
-        except (ValueError, OSError) as e:
-            log.warning("chat image search failed for %s: %s", pid, e)
     return {"reply": clean, "sources": sources,
             "raw_reply_thinking": parts.get("thinking", ""),
             "follow_up_searches": result["follow_up_searches"],

@@ -241,3 +241,24 @@ def test_export_page_has_the_image_layer_switch() -> None:
 def test_server_file_still_ends_with_its_main_guard() -> None:
     src = Path(srv.__file__).read_text().rstrip()
     assert src.endswith('if __name__ == "__main__":\n    sys.exit(main())')
+
+
+def test_one_shared_word_is_not_a_words_match() -> None:
+    """Calibrated on the Tarrowfield image set: "photo of the company helicopter" shares "company" with a caption;
+    that is no match (weak), while a caption naming the whole query is."""
+    records = [{"asset_id": "a", "document_id": "d", "filename": "IMG_1.jpg", "context": "Company car park at night"},
+               {"asset_id": "b", "document_id": "e", "filename": "cat.docx", "context": "SnackGrid SG-6 snack fridge"}]
+    far = np.stack([np.asarray([1.0, 0, 0], np.float32), np.asarray([0, 0, 1.0], np.float32)])
+    q = np.asarray([0, 1.0, 0], np.float32)          # looks like neither picture
+    hits, weak = srv.rank_images(records, far, q, query="photo of the company helicopter")
+    assert weak and all(h["match"] == "weak" for h in hits)
+    hits, weak = srv.rank_images(records, far, q, query="show me the SnackGrid SG-6 fridge")
+    assert not weak and hits[0]["asset_id"] == "b" and hits[0]["match"] == "words"
+
+
+def test_answer_model_is_told_which_pictures_the_user_sees() -> None:
+    note = srv.pictures_note([{"filename": "IMG_4472.jpg", "locator": "image", "description": "twin hoppers"}])
+    assert "IMG_4472.jpg · image" in note and "twin hoppers" in note and "do not claim you cannot show" in note
+    assert "picture 1" in srv.pictures_note([{"filename": "secret.docx", "locator": "slide 2"}], hide_names=True)
+    assert "secret.docx" not in srv.pictures_note([{"filename": "secret.docx", "locator": "slide 2"}], hide_names=True)
+    assert srv.pictures_note([]) == ""

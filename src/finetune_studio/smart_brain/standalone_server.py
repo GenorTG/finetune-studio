@@ -268,8 +268,9 @@ IMAGE_MAX_BYTES = 12 * 1024 * 1024
 IMAGE_MAX_TOP_K = 50
 # Below these cosine similarities a hit is a weak match (no picture looks like the query). Measured on the
 # Tarrowfield image set (tests/corpus/tarrowfield RESULTS.md, 2026-11-13).
-IMAGE_WEAK_TEXT = 0.24
-IMAGE_WEAK_IMAGE = 0.80
+IMAGE_WEAK_TEXT = 0.25      # text -> image: matches 0.25-0.41, unrelated queries 0.20-0.24
+IMAGE_WEAK_IMAGE = 0.76     # image -> image: crops/rotations/re-photographs 0.84-0.94, unrelated pictures 0.71-0.72
+IMAGE_WORDS_SHARE = 0.5     # a picture "matches by words" when it shares more than half the query's terms (all of 1-2)
 _IMAGE_STOP = _STOP | frozenset(["show", "photo", "photos", "picture", "pictures", "image", "images", "find",
                                   "the", "and", "for", "our", "you", "me", "of", "a", "an", "is", "are", "on",
                                   "in", "to", "it", "look", "like", "looks", "any", "do", "we", "get", "see"])
@@ -378,6 +379,17 @@ def image_word_scores(records: list, query: str) -> np.ndarray:
     return scores
 
 
+def image_word_share(records: list, query: str) -> np.ndarray:
+    """The share of the query's terms found in each picture's words (``image_words``), 0..1."""
+    q = set(_image_terms(query))
+    out = np.zeros(len(records), dtype=np.float32)
+    if not q:
+        return out
+    for i, r in enumerate(records):
+        out[i] = len(q & set(_image_terms(image_words(r)))) / len(q)
+    return out
+
+
 def rank_images(records: list, vectors: np.ndarray, query_vector: np.ndarray | None, *, query: str = "",
                 by_image: bool = False, top_k: int = 8, rrf_k: int = 60,
                 keep=None) -> tuple[list[dict], bool]:
@@ -398,6 +410,9 @@ def rank_images(records: list, vectors: np.ndarray, query_vector: np.ndarray | N
     if query_vector is not None:
         visual = vectors @ np.asarray(query_vector, dtype=np.float32)
     words = image_word_scores(records, query) if (query and not by_image) else np.zeros(len(records), np.float32)
+    share = image_word_share(records, query) if (query and not by_image) else np.zeros(len(records), np.float32)
+    n_terms = len(set(_image_terms(query))) if query else 0
+    need = 1.0 if n_terms <= 2 else IMAGE_WORDS_SHARE
     rankings = []
     if query_vector is not None:
         rankings.append(list(allowed[np.argsort(-visual[allowed], kind="stable")]))
@@ -414,7 +429,7 @@ def rank_images(records: list, vectors: np.ndarray, query_vector: np.ndarray | N
     for rank, (i, score) in enumerate(ordered, start=1):
         r = records[i]
         looks = query_vector is not None and float(visual[i]) >= threshold
-        said = float(words[i]) > 0
+        said = float(words[i]) > 0 and (float(share[i]) > need or (need == 1.0 and float(share[i]) >= 1.0))
         hits.append({
             "rank": rank, "asset_id": r.get("asset_id"), "document_id": r.get("document_id", ""),
             "filename": r.get("filename", ""), "source": r.get("source", ""), "locator": r.get("locator", ""),
@@ -440,6 +455,22 @@ def image_documents(hits: list[dict]) -> list[dict]:
     for rank, row in enumerate(docs.values(), start=1):
         row["rank"] = rank
     return list(docs.values())
+
+
+def pictures_note(hits: list[dict], *, attached: bool = False, hide_names: bool = False) -> str:
+    """What a question's answer model is told about the pictures shown with its answer (Image search), so it can
+    refer to them ("here is the photo") instead of saying it cannot show pictures. ``""`` without pictures."""
+    lines = ["the picture the user attached"] if attached else []
+    for i, h in enumerate(hits, 1):
+        where = f"picture {i}" if hide_names else f"{h.get('filename')} · {h.get('locator')}"
+        desc = str(h.get("description") or "").strip().replace("\n", " ")
+        lines.append(where + (f" (read in it: {desc[:300]})" if desc else ""))
+    if not lines:
+        return ""
+    return ("\n\n[Pictures shown to the user with your answer, from the documents (Image search): "
+            + "; ".join(f"{n}. {t}" for n, t in enumerate(lines, 1))
+            + ". When the user asks to see a picture, say which of these it is; do not claim you cannot show "
+              "pictures. Facts still come from the CONTEXT passages or what you can see in a picture.]")
 
 
 def _b64_image(value) -> bytes | None:
@@ -1260,8 +1291,7 @@ class Corpus:
             last = messages[-1] if messages else {}
             if not pictures or last.get("role") != "user" or last.get("content") != question:
                 return base_chat(messages)
-            listed = "\n".join(f"{i}. {label}" for i, (_d, _m, label) in enumerate(pictures, 1))
-            note = f"{question}\n\nPictures for this question (in order):\n{listed}"
+            note = question + pictures_note(image_hits, attached=image_bytes is not None, hide_names=hide)
             if not sent["fallback"]:
                 try:
                     reply = base_chat([*messages[:-1], {"role": "user",
