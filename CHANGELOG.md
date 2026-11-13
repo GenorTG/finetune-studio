@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-13
+
 - Smart Brain → Search settings: Save is now the last control, after Image search and the image model it also
   saves (it sat above them).
 - The package chat page fits a phone again with Image search: the *Attach a picture* input no longer runs past a
@@ -322,7 +324,8 @@ numbered `0.1.0.N`, one per commit.
   CLI called them (project files go through Files & Knowledge and Data prep; `fts analyze` / `fts validate-hallucination`
   are unchanged). Unused code: `templates.TemplateManager`, `HallucinationGuardrail` and a few helpers nothing called.
 
-[Unreleased]: https://github.com/GenorTG/finetune-studio/compare/v0.6.0...dev
+[Unreleased]: https://github.com/GenorTG/finetune-studio/compare/v0.6.1...dev
+[0.6.1]: https://github.com/GenorTG/finetune-studio/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/GenorTG/finetune-studio/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/GenorTG/finetune-studio/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/GenorTG/finetune-studio/compare/v0.3.0...v0.4.0
