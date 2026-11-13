@@ -15,6 +15,7 @@ One build per project at a time: a second one while one runs is a 409.
 from __future__ import annotations
 
 import logging
+import threading
 from typing import Any
 
 from finetune_studio import db
@@ -26,6 +27,17 @@ log = logging.getLogger(__name__)
 KIND = "brain_build"
 STOP_GRACE_S = 30.0
 TERMINAL_STATUSES = frozenset({"done", "error", "failed"})
+
+# One start at a time per project: the busy check, the plan and the launch run under it, so a second POST that
+# arrives while the first is still launching (a GPU start waits for the inference unload) sees the first job and
+# answers 409 instead of starting a second build of the same index (2026-11-13).
+_START_LOCKS: dict[str, threading.Lock] = {}
+_START_LOCKS_GUARD = threading.Lock()
+
+
+def _start_lock(pid: str) -> threading.Lock:
+    with _START_LOCKS_GUARD:
+        return _START_LOCKS.setdefault(pid, threading.Lock())
 
 
 class BuildBusy(RuntimeError):
@@ -90,12 +102,20 @@ def start(pid: str, *, embedder: str | None = None, reset: bool = False,
     settings' embedder when none is given). All three are the one job kind: every step that loads the embedder
     runs in the job process, never in the web process.
 
-    Raises IndexBuildError (404 / 400), :class:`BuildBusy`, or ``launch.JobRejected`` (409 when the GPU is busy).
+    Raises IndexBuildError (404 / 400), :class:`BuildBusy`, or ``launch.JobRejected`` (409 when the GPU is busy,
+    503 when the supervisor did not answer the start).
     """
-    from finetune_studio.knowledge import index
-
     if mode not in MODES:
         raise ValueError(f"unknown build mode {mode!r}")
+    with _start_lock(pid):
+        return _start_locked(pid, embedder=embedder, reset=reset, fact_cards=fact_cards, mode=mode,
+                             file_ids=file_ids, image_search=image_search, image_model=image_model)
+
+
+def _start_locked(pid: str, *, embedder: str | None, reset: bool, fact_cards: bool | None, mode: str,
+                  file_ids: list[str] | None, image_search: bool | None, image_model: str | None) -> dict[str, Any]:
+    from finetune_studio.knowledge import index
+
     busy = next((b for b in _running() if b["project_id"] == pid), None)
     if busy:
         raise BuildBusy(busy["build_id"])

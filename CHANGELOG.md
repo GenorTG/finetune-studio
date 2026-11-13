@@ -9,6 +9,10 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Starting an index build while the chat model is loading no longer answers a 500 and then runs two builds of the
+  same project at once: the start waits for the GPU hand-over, a second click answers "already running", and a
+  supervisor that does not answer is an honest 503.
+
 ## [0.6.0] - 2026-11-13
 
 - Image search answers better: the answer model is told the text around each matching picture (its own heading and

@@ -33,6 +33,12 @@ class JobRejected(RuntimeError):
         self.status, self.code = status, code
 
 
+# A start call answers once the job process is spawned; a GPU job's start first waits for the inference worker to
+# unload (``supervisor.jobs.UNLOAD_TIMEOUT_S``, behind a model load that can take tens of seconds), so the call waits
+# longer than that. A shorter wait answered 500 while the job started anyway (2026-11-13).
+START_TIMEOUT_S = 120.0
+
+
 def _client() -> SupervisorClient | None:
     c = SupervisorClient(timeout=30.0)
     try:
@@ -60,10 +66,21 @@ def start(spec: store.JobSpec) -> dict[str, Any]:
     client = _client()
     if client is not None:
         try:
-            return client.start_job(spec.id)
+            return SupervisorClient(client.path, timeout=START_TIMEOUT_S).start_job(spec.id)
         except SupervisorError as e:
             store.write_exit(spec.id, {"status": "failed", "error": str(e), "code": None})
             raise JobRejected(e.status, str(e), "gpu_busy" if e.status == 409 else "") from e
+        except SupervisorUnavailable as e:
+            # No answer in time: the supervisor may still have started it. Running -> the caller has its job;
+            # otherwise a real 503 with the reason (never a 500, never a job left to start behind a "failed").
+            try:
+                job = describe(spec.id)
+            except (FileNotFoundError, ValueError):
+                job = None
+            if job is not None and (job["running"] or store.read_pid(spec.id)):
+                return job
+            store.write_exit(spec.id, {"status": "failed", "error": f"not started: {e}", "code": None})
+            raise JobRejected(503, f"the supervisor did not answer the job start: {e}", "supervisor_unavailable") from e
     # No supervisor: a detached runner (new session: neither a web restart nor Ctrl+C in its terminal kills it).
     log_path = store.job_dir(spec.id) / "output.log"
     with log_path.open("ab") as out:
