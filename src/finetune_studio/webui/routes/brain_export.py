@@ -16,7 +16,9 @@ import asyncio
 import logging
 import re
 import shutil
+import tarfile
 import time
+import zipfile
 from pathlib import Path
 from typing import Any, Literal
 
@@ -170,11 +172,21 @@ async def brain_import(pid: str, file: UploadFile, overwrite: bool = False,
 
     opened: dict | None = None
     try:
+        # The file is checked before anything else (and before the "replace the index?" question): a damaged or
+        # wrong file is a 400 with a plain reason, not a 500 after the user agreed to replace their index.
+        if suffix != sb.BUNDLE_EXT:
+            await asyncio.to_thread(package_import.check_archive, tmp_path, filename)
         if suffix != sb.BUNDLE_EXT and await asyncio.to_thread(package_import.is_server_package, tmp_path):
-            if index.exists() and not overwrite:
-                raise FileExistsError(f"Corpus already exists at {index.dir}; pass overwrite=True to replace.")
+            if (index.exists() or (index.dir / "manifest.json").is_file()) and not overwrite:   # keyword-only too
+                record = await asyncio.to_thread(package_import.read_record, tmp_path, passphrase or None,
+                                                 project_dir(pid) / "brain-import-staging") \
+                    if await asyncio.to_thread(package_import.has_version_record, tmp_path) else {}
+                return JSONResponse({"detail": "this project already has an index: opening the package replaces it",
+                                     "code": "index_exists",
+                                     "package": {k: record.get(k) for k in ("package_id", "version", "name")}},
+                                    status_code=409)
             opened = await asyncio.to_thread(package_import.import_package, pid, tmp_path, passphrase or None,
-                                             overwrite=True)
+                                             overwrite=True, display_name=filename)
         elif suffix == sb.BUNDLE_EXT:
             if not passphrase:
                 return JSONResponse({"detail": "this bundle is encrypted; a passphrase is required"},
@@ -201,6 +213,9 @@ async def brain_import(pid: str, file: UploadFile, overwrite: bool = False,
         return JSONResponse({"detail": str(e)}, status_code=400)
     except ValueError as e:
         return JSONResponse({"detail": str(e)}, status_code=400)
+    except (EOFError, OSError, tarfile.TarError, zipfile.BadZipFile) as e:   # damaged past the first check
+        return JSONResponse({"detail": f"{filename} could not be read: it is damaged or not a Smart Brain package "
+                                       f"({type(e).__name__})"}, status_code=400)
     except Exception as e:
         log.exception("bundle import failed")
         return JSONResponse({"detail": f"bundle import failed: {type(e).__name__}"}, status_code=500)

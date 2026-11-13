@@ -1144,16 +1144,25 @@
     const isEnc = /\.ftsrag$/i.test(f.name);
     const pass = document.getElementById('bundle-import-pass').value;
     if (isEnc && !pass) { status.textContent = 'This bundle is encrypted: enter the passphrase it was exported with.'; return; }
-    if (window.BRAIN_HAS_INDEX && !await fts.confirm('This project already has an index. Importing replaces it with the bundle\u2019s. Continue?',
-        {danger: true, okText: 'Replace with the bundle'})) return;
     const fd = new FormData();
     fd.append('file', f);
     fd.append('passphrase', pass);
-    status.textContent = 'Decrypting and importing ' + f.name + '…';
+    status.textContent = 'Checking ' + f.name + '…';
     const btn = document.getElementById('bundle-import-btn');
     btn.disabled = true;
     try {
-      const d = await api().post('/api/projects/' + PID + '/brain/import?overwrite=true', fd);
+      let d;
+      try {   // the server checks the file (and its passphrase) first; only then is replacing the index asked
+        d = await api().post('/api/projects/' + PID + '/brain/import' + (window.BRAIN_HAS_INDEX ? '' : '?overwrite=true'), fd);
+      } catch (e) {
+        if (!(e && e.status === 409)) throw e;
+        const p = (e.data && e.data.package) || {};
+        const what = p.version ? 'package \u201c' + (p.name || p.package_id) + '\u201d v' + p.version : 'the bundle\u2019s index';
+        if (!await fts.confirm('This project already has an index. Opening ' + what + ' replaces it. Continue?',
+            {danger: true, okText: 'Replace the index'})) { status.textContent = 'Not imported: the index is unchanged.'; return; }
+        status.textContent = 'Decrypting and importing ' + f.name + '…';
+        d = await api().post('/api/projects/' + PID + '/brain/import?overwrite=true', fd);
+      }
       document.getElementById('bundle-import-pass').value = '';
       status.textContent = 'Imported “' + (d.imported_from || f.name) + '”: ' + (d.documents || 0) + ' documents, '
         + (d.chunks || 0) + ' passages'
