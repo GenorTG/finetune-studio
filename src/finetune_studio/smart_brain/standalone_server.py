@@ -2845,5 +2845,16 @@ load();
 """
 
 
+def _exit_now(code: int) -> None:
+    """End the process without the interpreter's teardown. Native search libraries (torch / the image model's
+    tokenizer) can still hold a worker thread then, and tearing it down aborted the stdio server after it had
+    answered everything ("terminate called without an active exception", exit -6, about half the runs under load):
+    the export self-test read that as a broken package and an MCP client saw a crash on every exit."""
+    for stream in (sys.stdout, sys.stderr):
+        with contextlib.suppress(Exception):
+            stream.flush()
+    os._exit(code)
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    _exit_now(main())
