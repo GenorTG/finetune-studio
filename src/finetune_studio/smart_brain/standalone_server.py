@@ -780,6 +780,7 @@ class Corpus:
             "original_files": len(self.originals),
             "scope": self.manifest.get("scope") or {"label": "all documents"},
             "package": self.manifest.get("package") or {},
+            "hide_file_names": bool(self.cfg.get("hide_file_names")),
             "answer_connection": {
                 "configured": bool(self.cfg["answer"] and self.cfg["llm_base_url"] and self.cfg["llm_model"]),
                 "provider": self.cfg["provider"], "base_url": self.cfg["llm_base_url"], "model": self.cfg["llm_model"],
@@ -1938,7 +1939,14 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         return 0
     if args.http is not None:
-        serve_http(corpus, cfg)
+        try:
+            serve_http(corpus, cfg)
+        except OSError as e:
+            if e.errno in (98, 48, 10048):     # EADDRINUSE on Linux / macOS / Windows
+                print(f"port {cfg['port']} is in use: start it on another one, e.g. bash run-http.sh --port "
+                      f"{int(cfg['port']) + 1}", file=sys.stderr)
+                return 2
+            raise
         return 0
     serve_mcp(corpus)
     return 0
@@ -1973,7 +1981,7 @@ button:disabled{opacity:.6;cursor:wait}#chat{display:grid;gap:12px;margin:14px 0
 <p class="small muted">Your question and the passages found are sent to the provider you pick. The key goes to this server with each question and is never stored here. Over a network, use HTTPS.</p>
 </details>
 <section id="chat" aria-live="polite"></section>
-<form id="ask" class="card"><label for="question">Your question</label><textarea id="question" required placeholder="Ask about the documents…"></textarea>
+<form id="ask" class="card"><label for="question">Your question</label><textarea id="question" required placeholder="Ask about the documents… (Enter asks, Shift+Enter: new line)"></textarea>
 <div class="bar" style="margin-top:10px"><button id="send">Ask</button><button type="button" class="ghost" id="reset">New conversation</button><span class="small muted" id="status"></span></div></form>
 <script src="/app.js"></script></main></html>"""
 
@@ -1985,7 +1993,9 @@ const PRESETS = {
   openrouter: { label: 'OpenRouter', api: 'openai', base: 'https://openrouter.ai/api/v1' },
   local: { label: 'Local server (Ollama, LM Studio, llama.cpp…)', api: 'openai', base: 'http://127.0.0.1:11434/v1' },
   other: { label: 'Other OpenAI-compatible API', api: 'openai', base: '' },
+  search: { label: 'No answer model: show the matching passages', api: '', base: '' },
 };
+let hideNames = false;
 let history = [];
 let pkg = null;   // the package's own connection, when it has one
 const saved = JSON.parse(localStorage.getItem('sb-conn') || '{}');
@@ -2003,12 +2013,13 @@ function fillKinds() {
   sel.value = saved.kind && [...sel.options].some((o) => o.value === saved.kind) ? saved.kind : (pkg ? 'package' : 'openai');
 }
 function syncKind(fromUser) {
-  const k = $('kind').value, custom = k !== 'package';
+  const k = $('kind').value, custom = k !== 'package' && k !== 'search';
   $('custom').hidden = !custom;
   if (custom && (fromUser || !$('base').value)) $('base').value = (saved.kind === k && saved.base) || PRESETS[k].base;
   if (custom && !fromUser && saved.kind === k && saved.model) $('model').value = saved.model;
   $('key').placeholder = k === 'local' ? 'Usually not needed for a local server' : "Your provider's key";
-  $('conn-summary').textContent = 'Answer with: ' + (k === 'package' ? `this package's connection (${pkg.model})` : PRESETS[k].label + ($('model').value ? ' · ' + $('model').value : ''));
+  $('conn-summary').textContent = 'Answer with: ' + (k === 'package' ? `this package's connection (${pkg.model})`
+    : k === 'search' ? 'no model (passages only)' : PRESETS[k].label + ($('model').value ? ' · ' + $('model').value : ''));
 }
 function remember() {
   const k = $('kind').value;
@@ -2025,11 +2036,14 @@ async function load() {
     const h = await r.json();
     const c = h.answer_connection || {};
     pkg = c.configured ? c : null;
+    hideNames = !!h.hide_file_names;
     $('stats').textContent = `${h.documents} documents · ${h.chunks} passages · search: ${h.mode}`;
     const p = await fetch('/profile', { headers: headers() }).then((x) => x.ok ? x.json() : {});
     if (p.name) { $('title').textContent = p.name; document.title = p.name; }
   } catch (e) { $('status').textContent = 'Could not reach the server: ' + e.message; }
-  fillKinds(); syncKind(false);
+  fillKinds();
+  if (!pkg && !saved.kind) $('kind').value = 'search';   // no connection anywhere: questions still find the passages
+  syncKind(false);
   if (!pkg && !saved.model) $('conn').open = true;
 }
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -2047,8 +2061,11 @@ function bubble(cls, text) {
   $('chat').append(d); d.scrollIntoView({ block: 'nearest' });
   return d;
 }
-function sources(box, list) {
+function sources(box, list, answer) {
   if (!list || !list.length) return;
+  // The files the answer names (it cites them as [file]); all retrieved files only when it names none.
+  const cited = answer ? list.filter((s) => s.filename && answer.includes(s.filename)) : [];
+  if (cited.length) list = cited;
   const wrap = document.createElement('div'); wrap.className = 'src'; wrap.textContent = 'Sources';
   const seen = new Map();
   for (const s of list) {
@@ -2085,7 +2102,22 @@ $('ask').addEventListener('submit', async (e) => {
   e.preventDefault();
   const q = $('question').value.trim(); if (!q) return;
   const k = $('kind').value;
-  if (k !== 'package' && (!$('base').value.trim() || !$('model').value.trim())) { $('conn').open = true; $('status').textContent = 'Pick a provider and enter its model first.'; return; }
+  if (k === 'search') {   // no answer model: the passages that match, with their files unless names are hidden
+    bubble('user', q); $('question').value = ''; $('send').disabled = true; $('status').textContent = 'Searching…';
+    try {
+      const r = await fetch('/search', { method: 'POST', headers: headers(), body: JSON.stringify({ query: q, top_k: 5 }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || `request failed (${r.status})`);
+      const hits = Array.isArray(d) ? d : (d.results || d.hits || []);
+      const text = hits.length ? hits.map((h, i) => (hideNames ? `Passage ${i + 1}` : `${i + 1}. ${h.filename || 'document'}`)
+        + '\n' + String(h.text || h.preview || '').trim()).join('\n\n') : 'Nothing in the documents matches that.';
+      bubble('bot', text);
+      $('status').textContent = 'No answer model is set: these are the passages that match. Pick a provider under "Answer with" for written answers.';
+    } catch (err) { bubble('err', err.message); $('question').value = q; $('status').textContent = ''; }
+    finally { $('send').disabled = false; $('question').focus(); }
+    return;
+  }
+  if (k !== 'package' && (!$('base').value.trim() || !$('model').value.trim())) { $('conn').open = true; $('status').textContent = 'Pick a provider and enter its model first (or "No answer model" for the passages only).'; return; }
   bubble('user', q); $('question').value = ''; $('send').disabled = true; $('status').textContent = 'Searching and asking…';
   const body = { question: q, history };
   if (k === 'package') body.provider = 'package';
@@ -2094,11 +2126,15 @@ $('ask').addEventListener('submit', async (e) => {
     const r = await fetch('/ask', { method: 'POST', headers: headers(), body: JSON.stringify(body) });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || `request failed (${r.status})`);
-    const a = bubble('bot', d.answer); sources(a, d.sources);
+    const a = bubble('bot', d.answer); sources(a, d.sources, d.answer);
     history.push({ role: 'user', content: q }, { role: 'assistant', content: d.answer }); history = history.slice(-12);
     $('status').textContent = d.weak ? 'The passages found may not cover the whole question.' : '';
   } catch (err) { bubble('err', err.message); $('question').value = q; $('status').textContent = ''; }
   finally { $('send').disabled = false; $('question').focus(); }
+});
+// Enter asks, Shift+Enter is a new line.
+$('question').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('ask').requestSubmit(); }
 });
 load();
 """

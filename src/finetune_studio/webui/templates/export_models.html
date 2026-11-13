@@ -695,7 +695,7 @@
     if (pub) {
       document.getElementById('mcp-hide-names').checked = true;
       document.getElementById('mcp-originals').checked = false;
-      note.textContent = 'Public bot: file names are hidden in answers and the original files stay out. Choose "Only these" below and pick the public folder, so nothing internal is inside.';
+      note.textContent = 'Public bot: file names are hidden in answers and the original files stay out. Choose "Only these" below and pick the public folder, so nothing internal is inside. The server itself still lists every file name in the package (/health, /search, rag_info, rag_list_documents): open only /ask and the chat page to the public, through a gateway (see the deployment guide).';
     } else {
       note.textContent = '';
     }

@@ -32,6 +32,10 @@ turns that section into the release's notes.
 - A new version of an encrypted package needs the current passphrase (or a new one on purpose), so running copies
   still start after `update.sh`; `update.sh` refuses an encrypted version it cannot open first, and uses
   `passphrase.txt` beside `server.py` (which `setup.sh` now offers to write) when no `--keyfile` is given.
+- The package's chat page answers without an answer model too (the matching passages; file names stay hidden for a
+  public bot), Enter asks, its sources are the files the answer names; a busy port is one line with the fix; in the
+  studio's Smart Brain chat a declined answer lists what was searched instead of "Sources"; connection tests say
+  "connection refused" / "host not found" in words and show the failure next to the form.
 - `update.sh` takes the new version's settings (answer model, hidden names, …) and keeps only the `rag.config.json`
   values you changed after install, and prints both; relative archive and keyfile paths work from any folder.
 - The Smart Brain quiz checks an "unanswerable" question against the passages sharing its words as well as the top

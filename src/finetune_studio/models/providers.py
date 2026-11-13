@@ -300,7 +300,7 @@ class OpenAICompatProvider(ModelProvider):
             try:
                 r = self._client().post(url, json=body, timeout=timeout)
             except (requests.ConnectionError, requests.Timeout) as exc:
-                last = f"{type(exc).__name__} calling {url}"
+                last = plain_network_error(exc, url)
             else:
                 if r.status_code < 400:
                     return r.json()
@@ -418,3 +418,18 @@ PROVIDER_PRESETS: list[dict] = [
     {"id": "MiniMax", "name": "MiniMax", "kind": "openai_compat", "base_url": "https://api.MiniMax.ai/v1", "model_id": "MiniMax/MiniMax-M3", "api_key": ""},
     {"id": "custom", "name": "Custom OpenAI-compat URL", "kind": "openai_compat", "base_url": "", "model_id": "", "api_key": ""},
 ]
+
+
+def plain_network_error(exc: BaseException, url: str) -> str:
+    """One sentence a user can act on, for a request that never got an answer ("ConnectionError calling …" was not)."""
+    text = str(exc).lower()
+    if "timed out" in text or type(exc).__name__ in ("Timeout", "ReadTimeout", "ConnectTimeout"):
+        return f"no answer from {url} in time (the server is slow or unreachable)"
+    if "name or service not known" in text or "nodename nor servname" in text or "getaddrinfo" in text \
+            or "failed to resolve" in text or "temporary failure in name resolution" in text:
+        return f"could not find the host of {url} (check the address)"
+    if "refused" in text:
+        return f"could not connect to {url}: connection refused (is the server running, and is the address and port right?)"
+    if "ssl" in text or "certificate" in text:
+        return f"could not connect to {url} securely: {type(exc).__name__} (check https:// and the certificate)"
+    return f"could not connect to {url} ({type(exc).__name__})"

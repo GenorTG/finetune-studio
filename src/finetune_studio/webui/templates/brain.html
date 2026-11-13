@@ -1009,7 +1009,10 @@
     });
   }
 
-  function sourcesHtml(msgId, groups) {
+  // "I don't have that", "not in the documents": the model declined (the prompt's own wording, and common variants).
+  const DECLINE_RE = /\b(?:i (?:do not|don['\u2019]t) (?:have|know|see|find)|(?:is|are) not (?:in|stated in|covered (?:in|by)|mentioned in) the (?:provided )?(?:documents|context|passages|files)|no information (?:about|on)|cannot find)\b/i;
+
+  function sourcesHtml(msgId, groups, declined) {
     const row = function (g) {
       const count = g.passages.length === 1 ? '1 passage' : g.passages.length + ' passages';
       return '<details class="brain-source" id="src-' + msgId + '-' + g.id + '"><summary>' + esc(g.name)
@@ -1019,6 +1022,11 @@
     };
     const used = groups.filter(function (g) { return g.cited; });
     const also = groups.filter(function (g) { return !g.cited; });
+    // A declined answer cites nothing: what it read is not a source of anything, only what was searched.
+    if (!used.length && declined) {
+      return '<div class="brain-sources"><details class="brain-sources-more"><summary>Searched ' + also.length
+        + (also.length === 1 ? ' file' : ' files') + ': none answers this</summary>' + also.map(row).join('') + '</details></div>';
+    }
     // No file named at all: every file it read is simply "Sources".
     const first = used.length ? used : also;
     let html = '<div class="brain-sources"><div class="brain-sources-label">Sources</div>' + first.map(row).join('');
@@ -1077,7 +1085,7 @@
         html += '<div class="text-xs dim mt-1">Part of the answer was missing, so it searched again for "' + esc(fu.query) + '"'
           + (fu.added_sources && fu.added_sources.length ? ' and added ' + esc(fu.added_sources.join(', ')) : ' (nothing new found)') + '.</div>';
       }
-      if (sources.length) html += sourcesHtml(msgId, groups);
+      if (sources.length) html += sourcesHtml(msgId, groups, DECLINE_RE.test(reply) && !groups.some(function (g) { return g.cited; }));
       pending.innerHTML = html;
       box.scrollTop = box.scrollHeight;
       const n = document.getElementById('chat-new-btn');
