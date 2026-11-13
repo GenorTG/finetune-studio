@@ -2617,7 +2617,7 @@ button:disabled{opacity:.6;cursor:wait}#chat{display:grid;gap:12px;margin:14px 0
 .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}@media(max-width:600px){.row{grid-template-columns:1fr}}
 .pics{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-top:10px;white-space:normal}.pics figure{margin:0;font-size:12px;color:var(--muted)}
 .pics img{width:100%;aspect-ratio:4/3;object-fit:contain;background:var(--bg);border-radius:8px;border:1px solid var(--line)}#attach-preview img{max-height:64px;border-radius:6px;vertical-align:middle}
-#attach-row[hidden]{display:none}
+#attach-row[hidden]{display:none}#picture{max-width:100%;min-width:0}
 </style><main>
 <h1 id="title">Smart Brain</h1><p class="muted" id="about">Ask the documents in this package. Every answer lists the files it came from.</p>
 <p class="small muted" id="stats"></p>

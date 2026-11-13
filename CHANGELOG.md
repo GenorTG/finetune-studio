@@ -11,6 +11,8 @@ turns that section into the release's notes.
 
 - Smart Brain → Search settings: Save is now the last control, after Image search and the image model it also
   saves (it sat above them).
+- The package chat page fits a phone again with Image search: the *Attach a picture* input no longer runs past a
+  390 px screen.
 - Starting an index build while the chat model is loading no longer answers a 500 and then runs two builds of the
   same project at once: the start waits for the GPU hand-over, a second click answers "already running", and a
   supervisor that does not answer is an honest 503.
