@@ -51,11 +51,28 @@ _CHANNEL = re.compile(r"^.*<channel\|>", re.DOTALL)   # Gemma 4: '<|channel>thou
 _MD_ESCAPE = re.compile(r"\\([_*#`|~\[\]])")
 
 
+# A picture with no text: Gemma 4 opened 10 of 45 readings with "I cannot fulfill this request because there is no
+# text, table, or chart in the image provided." before describing the picture, and the sentence became the picture's
+# description on every card and in its words (Tarrowfield walk 2026-11-13).
+_REFUSAL = re.compile(r"^\s*I(?: cannot| can't| can not| am unable to)\b[^.\n]*\b(?:transcribe|fulfil|fulfill)[^.\n]*\.\s*",
+                      re.IGNORECASE)
+_LABEL_LINE = re.compile(r"^\s*\*\*[^*\n]{1,40}:\*\*\s*$", re.MULTILINE)
+
+
+def strip_refusal(text: str) -> str:
+    """A reading without the model's opening "I cannot transcribe/fulfil this ..." sentence and the bare
+    ``**Drawing:**`` label lines that follow it; the description after them is kept. Text without one is unchanged."""
+    out = _REFUSAL.sub("", text or "", count=1)
+    if out == (text or ""):
+        return out
+    return re.sub(r"\n{3,}", "\n\n", _LABEL_LINE.sub("", out)).strip()
+
+
 def clean(text: str) -> str:
-    """The transcription without reasoning blocks (a local Gemma 4 prefixed every reading with its thought channel) and
-    without markdown escapes."""
+    """The transcription without reasoning blocks (a local Gemma 4 prefixed every reading with its thought channel),
+    without markdown escapes and without an opening refusal sentence (``strip_refusal``)."""
     text = _CHANNEL.sub("", _THINK.sub("", text or ""))
-    return _MD_ESCAPE.sub(r"\1", text).lstrip("> \n").strip()
+    return strip_refusal(_MD_ESCAPE.sub(r"\1", text).lstrip("> \n").strip())
 
 
 class VisionError(RuntimeError):

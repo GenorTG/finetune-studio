@@ -2617,7 +2617,7 @@ button:disabled{opacity:.6;cursor:wait}#chat{display:grid;gap:12px;margin:14px 0
 .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}@media(max-width:600px){.row{grid-template-columns:1fr}}
 .pics{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-top:10px;white-space:normal}.pics figure{margin:0;font-size:12px;color:var(--muted)}
 .pics img{width:100%;aspect-ratio:4/3;object-fit:contain;background:var(--bg);border-radius:8px;border:1px solid var(--line)}#attach-preview img{max-height:64px;border-radius:6px;vertical-align:middle}
-#attach-row[hidden]{display:none}
+#attach-row[hidden]{display:none}#picture{max-width:100%;min-width:0}
 </style><main>
 <h1 id="title">Smart Brain</h1><p class="muted" id="about">Ask the documents in this package. Every answer lists the files it came from.</p>
 <p class="small muted" id="stats"></p>
@@ -2845,5 +2845,16 @@ load();
 """
 
 
+def _exit_now(code: int) -> None:
+    """End the process without the interpreter's teardown. Native search libraries (torch / the image model's
+    tokenizer) can still hold a worker thread then, and tearing it down aborted the stdio server after it had
+    answered everything ("terminate called without an active exception", exit -6, about half the runs under load):
+    the export self-test read that as a broken package and an MCP client saw a crash on every exit."""
+    for stream in (sys.stdout, sys.stderr):
+        with contextlib.suppress(Exception):
+            stream.flush()
+    os._exit(code)
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    _exit_now(main())

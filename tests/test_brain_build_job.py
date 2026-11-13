@@ -253,3 +253,19 @@ def test_quick_index_status_is_in_the_same_panel_as_its_button() -> None:
     hero = page.split('id="brain-hero"', 1)[1].split("</section>", 1)[0]
     assert 'id="quick-index-btn"' in hero and 'id="build-status"' in hero
     assert "quick-index-status" not in page
+
+
+def test_progress_leaves_the_picture_step_once_the_pictures_are_found(client, gated, monkeypatch) -> None:
+    """After 'Finding pictures in files 94 of 94' the build loads the text embedder for seconds without a word: the
+    page kept showing the finished picture step (live walk 2026-11-13). The embedding phase starts right away."""
+    from finetune_studio.smart_brain import image_layer
+
+    pid = _project(client)
+    add_source(pid, "a.txt", "File A says the gate closes at 22:00.")
+    plan = index.prepare(pid)
+    monkeypatch.setattr(index, "image_plan", lambda *a, progress=None, **k: (
+        progress and progress(1, 1), image_layer.LayerPlan(fresh=[], model_id="clip-vit-b32-multilingual"))[1])
+    phases: list[tuple[str, int, int]] = []
+    gated.gate.set()
+    index.run(pid, plan["build_id"], image_search=True, progress=lambda ph, d, t: phases.append((ph, d, t)))
+    assert phases[:2] == [("image_extract", 1, 1), ("embedding", 0, 0)]

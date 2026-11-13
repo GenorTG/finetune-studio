@@ -774,3 +774,14 @@ def test_loaded_model_labels_use_the_display_name() -> None:
     sprites = (_ROOT / "src" / "finetune_studio" / "webui" / "static" / "js" / "sprites.js").read_text(encoding="utf-8")
     assert "d.active.display = ie.model_display" in base and "if (p.display) return p.display;" in base
     assert "infLoaded.model_display || infLoaded.model" in sprites
+
+
+def test_search_settings_save_comes_after_every_setting_it_saves() -> None:
+    """Save sat between the retrieval settings and the Image search row it also saves (live walk 2026-11-13): a
+    user who ticked Image search after it saw no button. Save is the last control of Search settings."""
+    src = _RAG.read_text(encoding="utf-8")
+    start = src.index('id="brain-search-settings"')
+    card = src[start:src.index("</details>", start)]
+    save = card.index('onclick="saveSettings()"')
+    for control in ('id="s-reranker"', 'id="s-max-per-doc"', 'id="s-image-search"', 'id="s-image-model"'):
+        assert card.index(control) < save, control

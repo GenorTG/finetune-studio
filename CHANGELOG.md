@@ -9,6 +9,24 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-11-13
+
+- Smart Brain → Search settings: Save is now the last control, after Image search and the image model it also
+  saves (it sat above them).
+- The package chat page fits a phone again with Image search: the *Attach a picture* input no longer runs past a
+  390 px screen.
+- Starting an index build while the chat model is loading no longer answers a 500 and then runs two builds of the
+  same project at once: the start waits for the GPU hand-over, a second click answers "already running", and a
+  supervisor that does not answer is an honest 503.
+- A Smart Brain build with Image search says *Loading the embedder…* once the pictures are found, instead of
+  showing the finished *Finding pictures in files 94 of 94* step while the text model loads.
+- A package's stdio MCP server (`server.py --mcp`) no longer crashes on exit ("terminate called without an active
+  exception", about half the runs under load) after answering everything, so the export self-test no longer reports
+  a sound package as "could not open the package".
+- Picture descriptions no longer start with the Vision reader's "I cannot fulfill this request because there is no
+  text…" sentence (Gemma 4 wrote it before describing a picture without text): new readings drop it, and the next
+  Smart Brain build drops it from readings stored earlier, including pictures it keeps without reading them again.
+
 ## [0.6.0] - 2026-11-13
 
 - Image search answers better: the answer model is told the text around each matching picture (its own heading and
@@ -306,7 +324,8 @@ numbered `0.1.0.N`, one per commit.
   CLI called them (project files go through Files & Knowledge and Data prep; `fts analyze` / `fts validate-hallucination`
   are unchanged). Unused code: `templates.TemplateManager`, `HallucinationGuardrail` and a few helpers nothing called.
 
-[Unreleased]: https://github.com/GenorTG/finetune-studio/compare/v0.6.0...dev
+[Unreleased]: https://github.com/GenorTG/finetune-studio/compare/v0.6.1...dev
+[0.6.1]: https://github.com/GenorTG/finetune-studio/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/GenorTG/finetune-studio/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/GenorTG/finetune-studio/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/GenorTG/finetune-studio/compare/v0.3.0...v0.4.0

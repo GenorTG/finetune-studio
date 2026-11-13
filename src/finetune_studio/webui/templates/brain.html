@@ -317,9 +317,6 @@
       <label class="flex items-center gap-2 text-xs" title="Re-rank dense-vector search results with the cross-encoder. Adds latency but improves precision. Disable for fast lookup-only workflows."><input id="s-rerank-enabled" type="checkbox" checked> Rerank</label>
       <label class="flex items-center gap-2 text-xs" title="Hybrid retrieval = combine meaning-based (embedding) search with BM25 keyword search (classic exact-word matching), then rerank. Better recall than either alone — embedding catches paraphrases, BM25 catches exact terms / code / names."><input id="s-hybrid-enabled" type="checkbox" checked> Hybrid</label>
     </div>
-    <div class="col-span-2">
-      <button onclick="saveSettings()" class="btn primary w-full">Save</button>
-    </div>
   </div>
   <div class="grid grid-12 gap-3 items-end mt-3" id="s-image-row">
     <div class="col-span-4">
@@ -332,6 +329,10 @@
         <option value="clip-vit-b32-multilingual" selected>CLIP ViT-B/32 + multilingual text (50+ languages)</option>
         <option value="clip-vit-b32">CLIP ViT-B/32 (English questions only, smaller)</option>
       </select>
+    </div>
+    <div class="col-span-2">
+      <button onclick="saveSettings()" id="s-save" class="btn primary w-full"
+              title="Save every search setting above, Image search and the image model included">Save</button>
     </div>
   </div>
 </details>

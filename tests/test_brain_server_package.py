@@ -683,3 +683,23 @@ def test_the_package_connection_is_reported_without_its_key(corpus_dir: Path, tm
     assert "sk-x" not in json.dumps(corpus.info())
     with pytest.raises(srv.ConfigError):
         srv.resolve_config({"provider": "gemini"}, {}, {})
+
+
+def test_the_stdio_server_exits_cleanly_with_a_thread_still_alive(corpus_dir: Path, tmp_path: Path) -> None:
+    """A native search library can keep a worker thread past the last reply; the interpreter's teardown of it
+    aborted the server (exit -6) about half the time under load, which the export self-test read as a broken
+    package (2026-11-13). The server ends without that teardown: every reply is out, the exit code is 0 and a
+    leftover thread neither blocks nor crashes the exit."""
+    archive = _plain(corpus_dir, tmp_path / "p.tar.gz", name="Test Corpus")
+    root = _extract(archive, tmp_path / "x")
+    reqs = [{"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+            {"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {
+                "name": "rag_search", "arguments": {"query": "highmere crowns", "top_k": 3}}}]
+    boot = ("import runpy, sys, threading, time; threading.Thread(target=time.sleep, args=(120,)).start(); "
+            f"sys.argv = [{str(root / 'server.py')!r}, '--mcp']; runpy.run_path(sys.argv[0], run_name='__main__')")
+    r = subprocess.run([sys.executable, "-c", boot], input="".join(json.dumps(m) + "\n" for m in reqs),
+                       capture_output=True, text=True, timeout=60, check=False, cwd=root,
+                       env={**os.environ, "PYTHONPATH": ""})
+    assert r.returncode == 0, r.stderr
+    ids = [json.loads(line)["id"] for line in r.stdout.splitlines() if line.strip().startswith("{")]
+    assert ids == [1, 2]

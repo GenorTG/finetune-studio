@@ -128,6 +128,7 @@ def image_plan(pid: str, docs: list[Any] | None = None, *, previous_dir: Path | 
     import io
 
     from finetune_studio.data import figures
+    from finetune_studio.models.vision import strip_refusal
     from finetune_studio.smart_brain import image_layer
     from finetune_studio.smart_brain.image_embeddings import ImageAsset
 
@@ -143,7 +144,8 @@ def image_plan(pid: str, docs: list[Any] | None = None, *, previous_dir: Path | 
             progress(n_done - 1, len(todo))
         old = previous.get(source.id)
         if old is not None and old[0] == source.text_sha:
-            plan.kept.extend(old[1])
+            # kept pictures are not read again: their stored reading loses the reader's refusal sentence here too
+            plan.kept.extend({**r, "description": strip_refusal(str(r.get("description") or ""))} for r in old[1])
             continue
         raw = Path(source.raw_path)
         filename, path = names[source.id]
@@ -166,6 +168,7 @@ def image_plan(pid: str, docs: list[Any] | None = None, *, previous_dir: Path | 
                     width, height = im.size
                     fmt = (im.format or "PNG").upper()
                 reading, read_by = ("", "") if sheet else readings.get(fig.n, ("", ""))
+                reading = strip_refusal(reading)     # readings stored before the reader dropped the sentence
                 plan.fresh.append(ImageAsset(
                     document_id=source.id, filename=filename, source=path, locator=fig.where,
                     mime_type={"JPEG": "image/jpeg"}.get(fmt, "image/png"), width=int(width), height=int(height),
@@ -391,6 +394,8 @@ def run(pid: str, build_id: str, *, embedder: str | None = None, reset: bool = F
                               progress=(lambda d, t: progress("image_extract", d, t)) if progress else None)
             if plan.fresh:   # download the pinned image model once (shared store); kept-only builds need nothing
                 image_embeddings.ensure_model(plan.model_id)
+            if progress:     # the pictures are found: the text embedder loads next (the page said "94 of 94" meanwhile)
+                progress("embedding", 0, 0)
         image_progress = (lambda done, total: progress("image_embedding", done, total)) if progress else None
         result = BrainIndex(fresh if swap else corpus).build_from_documents(
             docs, name=project["name"], embedder=embedder, chunk_size=0, overlap=0,

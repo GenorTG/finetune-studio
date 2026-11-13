@@ -236,6 +236,11 @@ def test_chat_page_attaches_pictures_and_allows_data_images() -> None:
     assert "img-src data: blob:" in src
 
 
+def test_chat_page_attach_input_fits_a_phone() -> None:
+    """At 390 px the file input's own width (369 px beside its label) ran 12 px past the page (live walk 2026-11-13)."""
+    assert "#picture{max-width:100%;min-width:0}" in srv._CHAT_PAGE
+
+
 def test_export_page_has_the_image_layer_switch() -> None:
     html = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/export_models.html").read_text()
     assert 'id="mcp-images"' in html and "image_search: g('mcp-images').checked && g('mcp-models').checked" in html
@@ -243,7 +248,7 @@ def test_export_page_has_the_image_layer_switch() -> None:
 
 def test_server_file_still_ends_with_its_main_guard() -> None:
     src = Path(srv.__file__).read_text().rstrip()
-    assert src.endswith('if __name__ == "__main__":\n    sys.exit(main())')
+    assert src.endswith('if __name__ == "__main__":\n    _exit_now(main())')
 
 
 def test_one_shared_word_is_not_a_words_match() -> None:
