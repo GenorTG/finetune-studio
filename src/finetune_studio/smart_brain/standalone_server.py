@@ -1280,7 +1280,9 @@ class Corpus:
             question = "What is in this picture?"
         if not question:
             raise ValueError("question required")
-        pictures, image_hits, image_query_words = self._answer_pictures(question, image_bytes, hide)
+        pictures, image_hits, image_query_words = [], [], ""
+        if image_bytes is not None or getattr(self, "images_on", False) is True:
+            pictures, image_hits, image_query_words = self._answer_pictures(question, image_bytes, hide)
         hits = self.search(f"{question} {image_query_words}".strip(), top_k)
         sources = [{"rank": h["rank"], "filename": h["filename"], "chunk_id": h["chunk_id"]} for h in hits]
         weak = weak_match(question, hits)
