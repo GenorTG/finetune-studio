@@ -329,8 +329,9 @@ def contexts(path: Path, found: list[Figure], chars: int = 600) -> dict[int, str
 
             body = list(Document(str(path)).element.body.iterchildren())
             texts = ["".join(t.text or "" for t in child.iter() if t.tag.endswith("}t")).strip() for child in body]
-            for f in found:
-                near = [texts[i] for i in range(max(0, f.anchor - 2), min(len(texts), f.anchor + 3)) if texts[i]]
+            for f in found:   # the paragraph before (a heading) and after (a caption): two either side named the
+                # neighbouring pictures' products too, and the answer model picked the wrong one (Tarrowfield)
+                near = [texts[i] for i in range(max(0, f.anchor - 1), min(len(texts), f.anchor + 2)) if texts[i]]
                 out[f.n] = " ".join(near)[:chars]
         elif suffix == ".pptx":
             from pptx import Presentation
