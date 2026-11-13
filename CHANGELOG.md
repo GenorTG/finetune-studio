@@ -14,6 +14,8 @@ turns that section into the release's notes.
 - Starting an index build while the chat model is loading no longer answers a 500 and then runs two builds of the
   same project at once: the start waits for the GPU hand-over, a second click answers "already running", and a
   supervisor that does not answer is an honest 503.
+- A Smart Brain build with Image search says *Loading the embedder…* once the pictures are found, instead of
+  showing the finished *Finding pictures in files 94 of 94* step while the text model loads.
 
 ## [0.6.0] - 2026-11-13
 
