@@ -12,6 +12,9 @@ turns that section into the release's notes.
 - The Guide answers "Is my knowledge ready to package?" from the Package page's own checklist (files read,
   knowledge check, Smart Brain up to date, then identity, test and package); the training pipeline follows as
   optional instead of being the answer.
+- Files: the upload result names each file that was not added and why, and the duplicates it skipped; the selection
+  tools appear once a file is ticked; the response holds no server paths. The knowledge check lists files no parser
+  can read (`.exe`, `.bin`, …) and flags a password even next to an API key in the same file.
 - The Package page says, next to the Build button, how the package will search where it runs: a package without
   the models inside searches by exact words only until the host sets an embeddings endpoint, and the form now takes
   that endpoint (`--embed-base-url` in the CLI) so meaning search works there. The self-test result says the same

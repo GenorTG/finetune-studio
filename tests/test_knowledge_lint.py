@@ -222,3 +222,26 @@ def test_the_quiz_leaves_out_superseded_documents(monkeypatch, tmp_path: Path) -
     monkeypatch.setattr(kl, "excluded_documents", lambda pid: {"old": "x", "new": "y"})
     with pytest.raises(brain_quiz.NoIndex):
         brain_quiz.index_rows("p")
+
+
+def test_a_password_next_to_an_api_key_is_flagged_too() -> None:
+    # Walkthrough 2026-11-13 m25: the check reported the API key and said nothing about the password in the same file.
+    text = BODY + " Admin login password: hunter2hunter2. Token sk-" + "a" * 30 + " for the API."
+    found = kl._check_files([src("a", "ops.txt")], {"a": text})
+    assert rules(found) == ["credential", "secret"]
+    cred = next(f for f in found if f.rule == "credential")
+    assert cred.detail == ["password: hu…"] and "hunter2hunter2" not in json.dumps([vars(f) for f in found])
+
+
+def test_files_no_parser_reads_are_listed(monkeypatch) -> None:
+    # m10: .exe / .bin were accepted and listed as unparsed in Files, and the check did not mention them.
+    from finetune_studio.data.fs import file_library as fl
+
+    monkeypatch.setattr(fl, "list_files", lambda pid: [{"id": "f1", "original_name": "setup.exe"},
+                                                       {"id": "f2", "original_name": "faq.md"},
+                                                       {"id": "f3", "original_name": "blob.bin"}])
+    found = kl._check_unparsable("p")
+    assert len(found) == 1 and found[0].rule == "unparsable" and found[0].severity == "warning"
+    assert "2 file(s) no parser can read: setup.exe, blob.bin" == found[0].title
+    monkeypatch.setattr(fl, "list_files", lambda pid: [{"id": "f2", "original_name": "faq.md"}])
+    assert kl._check_unparsable("p") == []
