@@ -181,9 +181,9 @@ send `Authorization: Bearer <token>`.
 ```
 
 - **OpenClaw** — `mcp.servers` in `openclaw.json`, same command/args shape.
-- **Claude Code** — `claude mcp add {slug} -- bash /ABSOLUTE/PATH/run-mcp.sh` (stdio), or over HTTP below.
-- **Codex** — `[mcp_servers.{slug}]` in `~/.codex/config.toml` with `command = "bash"`, `args = ["/ABSOLUTE/PATH/run-mcp.sh"]`.
-- **Cursor / other MCP clients** — stdio command: `bash run-mcp.sh`.
+- **Claude Code** — `claude mcp add {slug} -- bash /ABSOLUTE/PATH/run-mcp.sh{kf_cli}` (stdio), or over HTTP below.
+- **Codex** — `[mcp_servers.{slug}]` in `~/.codex/config.toml` with `command = "bash"`, `args = ["/ABSOLUTE/PATH/run-mcp.sh"{kf_toml}]`.
+- **Cursor / other MCP clients** — stdio command: `bash run-mcp.sh{kf_cli}`.
 {mcp_enc_note}
 Tools exposed: {tools}. Clients that read server instructions also get the package's identity (who it speaks for,
 how to answer) up front; any client can read it with `rag_profile`.
@@ -358,15 +358,22 @@ exec .venv/bin/python server.py --mcp "$@"
 
 _UPDATE_SH = r"""#!/usr/bin/env bash
 # Replace this package with a newer version of the same package, in place:
-#   bash update.sh /path/to/new-version.tar.gz [--keyfile PATH] [--force]
-# The corpus, server and scripts are replaced; rag.config.json keeps your edits (new keys are added), the venv and
-# your keyfile stay. Another package id, or a version not newer, is refused unless --force. With --keyfile / RAG_PASSPHRASE the new corpus is
-# opened first, so a wrong passphrase changes nothing. A running service (setup.sh --service) is restarted.
+#   bash update.sh /path/to/new-version.tar.gz [--keyfile PATH] [--allow-widen] [--force]
+# The corpus, server and scripts are replaced; rag.config.json takes the new version's settings and keeps the
+# values you changed after install (it prints which). The venv and your keyfile stay. An encrypted version is
+# opened first with --keyfile (default ./passphrase.txt) or RAG_PASSPHRASE, so a wrong passphrase changes nothing.
+# Refused unless you add a flag: another package id or a version not newer (--force); a version that opens up more
+# than this one, e.g. more documents, original files or file names shown (--allow-widen). A running service
+# (setup.sh --service) is restarted.
 set -euo pipefail
+[ $# -ge 1 ] || { sed -n '2,10p' "$0" | sed 's/^# \?//'; exit 2; }
+ARGS=()   # files given relative to where you are (the archive, the keyfile) still work after the cd below
+for a in "$@"; do
+  if [ -f "$a" ]; then ARGS+=("$(cd "$(dirname "$a")" && pwd)/$(basename "$a")"); else ARGS+=("$a"); fi
+done
 cd "$(dirname "$0")"
-[ $# -ge 1 ] || { sed -n '2,7p' "$0" | sed 's/^# \?//'; exit 2; }
 [ -x .venv/bin/python ] || bash install.sh
-.venv/bin/python server.py --update "$@"
+.venv/bin/python server.py --update "${ARGS[@]}"
 .venv/bin/pip install --quiet -r requirements.txt
 UNIT="fts-brain-$(basename "$(pwd)").service"
 if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet "$UNIT" 2>/dev/null; then
@@ -423,8 +430,23 @@ while [ $# -gt 0 ]; do
   esac
   shift
 done
-[ -n "$KEYFILE" ] && EXTRA+=(--keyfile "$KEYFILE")
 ENCRYPTED=0; [ -f corpus/corpus.enc ] && ENCRYPTED=1
+# Encrypted: MCP clients and services cannot type a passphrase. Use --keyfile, else ./passphrase.txt, else ask once
+# (from a terminal) and write it there, readable only by you.
+if [ "$ENCRYPTED" = 1 ] && [ -z "$KEYFILE" ] && [ "$DO_UNINSTALL" = 0 ]; then
+  if [ -f "$PKG_DIR/passphrase.txt" ]; then
+    KEYFILE="$PKG_DIR/passphrase.txt"
+  elif [ -z "${RAG_PASSPHRASE:-}" ] && [ -z "${RAG_KEYFILE:-}" ] && [ "$ASSUME_YES" = 0 ] && [ -t 0 ]; then
+    read -r -s -p "Package passphrase (saved to passphrase.txt, chmod 600; Enter to skip): " PW || PW=""
+    echo
+    if [ -n "$PW" ]; then
+      ( umask 077; printf '%s\n' "$PW" > "$PKG_DIR/passphrase.txt" )
+      KEYFILE="$PKG_DIR/passphrase.txt"
+    fi
+    unset PW
+  fi
+fi
+[ -n "$KEYFILE" ] && EXTRA+=(--keyfile "$KEYFILE")
 
 ask_yn() {  # ask_yn "prompt" default(Y|N) -> 0=yes
   local prompt="$1" def="${2:-N}" ans
@@ -471,8 +493,8 @@ CURL_HOST="$EFF_HOST"; case "$EFF_HOST" in 0.0.0.0|::|'') CURL_HOST=127.0.0.1 ;;
 SERVER_ARGS=("${EXTRA[@]}" --port "$EFF_PORT")
 
 # 3) copy-paste MCP entry (absolute paths, ready to paste)
-if [ "$ENCRYPTED" = 1 ] && [ -n "$KEYFILE" ]; then
-  MCP_ARGS="\"$PKG_DIR/run-mcp.sh\", \"--keyfile\", \"$KEYFILE\""
+if [ "$ENCRYPTED" = 1 ]; then
+  MCP_ARGS="\"$PKG_DIR/run-mcp.sh\", \"--keyfile\", \"${KEYFILE:-$PKG_DIR/passphrase.txt}\""
 else
   MCP_ARGS="\"$PKG_DIR/run-mcp.sh\""
 fi
@@ -492,8 +514,8 @@ cat MCP-ENTRY.txt
 echo "=== Paste into Claude Desktop / OpenClaw mcp.servers / Cursor; or use HTTP: ==="
 echo "  curl 'http://$CURL_HOST:$EFF_PORT/search?q=your+question&top_k=5'"
 if [ "$ENCRYPTED" = 1 ] && [ -z "$KEYFILE" ] && [ -z "${RAG_PASSPHRASE:-}" ] && [ -z "${RAG_KEYFILE:-}" ]; then
-  echo "NOTE: this pack is encrypted. MCP/services need the passphrase non-interactively:"
-  echo "  re-run with --keyfile /path/to/passphrase.txt (chmod 600), or set RAG_PASSPHRASE."
+  echo "NOTE: this pack is encrypted. The MCP entry above reads $PKG_DIR/passphrase.txt: write the passphrase"
+  echo "  there (chmod 600), re-run with --keyfile /path/to/passphrase.txt, or set RAG_PASSPHRASE."
 fi
 echo
 
@@ -786,8 +808,11 @@ def _version_section(package: dict | None, encrypted: bool) -> str:
             f"{package['created']}" + (f", replaces version {package['parent_version']}" if package.get(
                 "parent_version") else " (first version)") + f". {len(docs)} document(s); `CHANGES.md` lists what "
             "changed. `rag_info` and `GET /health` report the same, with every document's name and sha256.\n\n"
-            "Update a running copy in place (keeps `rag.config.json` and your keyfile): "
-            "`bash update.sh /path/to/new-version.tar.gz`.\n\n")
+            "Update a running copy in place: `bash update.sh /path/to/new-version.tar.gz"
+            + (" --keyfile /path/to/passphrase.txt" if encrypted else "") + "` (the keyfile defaults to "
+            "`passphrase.txt` beside `server.py`). It keeps the `rag.config.json` values you changed and the "
+            "keyfile, takes the new version's other settings, and refuses a version that opens up more than the "
+            "installed one (more documents, original files, file names shown) unless you add `--allow-widen`.\n\n")
     if not encrypted and docs:
         text += "| Document | sha256 | Size |\n|---|---|---|\n" + "".join(
             f"| {d['path']} | `{d['sha256'][:12]}` | {d['size']} |\n" for d in docs) + "\n"
@@ -816,7 +841,9 @@ def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool,
                                       encrypted).rstrip("\n")
     mcp_enc_note = ("\nThis pack is encrypted: the MCP client cannot type a "
                     "passphrase, so pass `--keyfile` (as above) or set "
-                    "`RAG_PASSPHRASE` in the client's `env`.\n") if encrypted else ""
+                    "`RAG_PASSPHRASE` in the client's `env`. `bash setup.sh` asks for the passphrase once and "
+                    "writes it to `passphrase.txt` here (`chmod 600`); `run-mcp.sh`, `run-http.sh` and "
+                    "`update.sh` use that file when no `--keyfile` is given.\n") if encrypted else ""
     embed_section = (_README_SECTION_OFFLINE if bundled_embedder else
                      _README_SECTION_API if cfg.semantic_search else "")
     return _README_TMPL.format(
@@ -837,6 +864,8 @@ def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool,
         llm_model=cfg.llm_model or "none",
         embed_section=embed_section.format(embed_model=embed_model),
         mcp_snippet=mcp_snippet, mcp_enc_note=mcp_enc_note,
+        kf_cli=" --keyfile /ABSOLUTE/PATH/passphrase.txt" if encrypted else "",
+        kf_toml=', "--keyfile", "/ABSOLUTE/PATH/passphrase.txt"' if encrypted else "",
         layers_section=_layers_section(cfg, bundled_embedder=bundled_embedder, bundled_reranker=bundled_reranker),
         tools=", ".join(["`rag_search(query, top_k)`", "`rag_profile()`", "`rag_info()`", "`rag_list_documents()`"]
                         + (["`rag_get_document(document_id)`"] if originals else [])
@@ -1077,6 +1106,9 @@ def build_package(
                            _CONTAINER_SRC.read_text(encoding="utf-8"))
         sink.add_bytes(f"{root}/requirements.txt", requirements)
         sink.add_bytes(f"{root}/{RUNTIME_CONFIG_NAME}",
+                       json.dumps(cfg.runtime_config(), indent=2) + "\n")
+        # The same settings again, never edited: update.sh keeps only the rag.config.json keys that differ from it.
+        sink.add_bytes(f"{root}/rag.config.shipped.json",
                        json.dumps(cfg.runtime_config(), indent=2) + "\n")
         sink.add_bytes(f"{root}/mcp-config.example.json",
                        _mcp_config_example(f"{slug}" if encrypted else f"{slug}-brain",

@@ -128,6 +128,7 @@ def _restore_index(pkg: _Package, target: Path) -> dict[str, Any]:
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(pkg.read(name))
     record = manifest.pop("package", None) or {}
+    settings = _settings_from(manifest, pkg)
     extra = manifest.setdefault("extra", {})
     extra["package"] = record
     if manifest.get("scope"):
@@ -139,8 +140,34 @@ def _restore_index(pkg: _Package, target: Path) -> dict[str, Any]:
         manifest.pop(key, None)
     _portable_embedder(manifest)
     (target / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
-    return {"record": record, "vectors": vectors, "documents": int(manifest.get("documents") or 0),
-            "chunks": len(rows)}
+    return {"record": record, "settings": settings, "vectors": vectors,
+            "documents": int(manifest.get("documents") or 0), "chunks": len(rows)}
+
+
+def _settings_from(manifest: dict, pkg: _Package) -> dict[str, Any]:
+    """What the package was exported with (its scope, originals, hidden names, audience, encryption): the history
+    keeps them, so "a new version of" an opened package keeps them too."""
+    scope = manifest.get("scope") or {}
+    record = manifest.get("package") or {}
+    policy = record.get("policy") or {}
+    out: dict[str, Any] = {"encrypted": pkg._reader is not None,
+                           "include_originals": bool(manifest.get("original_files")),
+                           "originals": int(manifest.get("original_files") or 0)}
+    if scope:
+        out["scope"] = scope.get("label") or "all documents"
+        out["scope_spec"] = ({k: list(scope.get(k) or []) for k in ("include", "exclude", "tags", "document_ids")}
+                             if out["scope"] != "all documents" else {})
+    hide = policy.get("hide_file_names")
+    if hide is None:
+        try:
+            hide = bool(json.loads((pkg.root / "rag.config.json").read_text(encoding="utf-8")).get("hide_file_names"))
+        except (OSError, ValueError):
+            hide = None
+    if hide is not None:
+        out["hide_file_names"] = bool(hide)
+    if policy.get("audience") or record.get("audience"):
+        out["audience"] = policy.get("audience") or record.get("audience")
+    return out
 
 
 def _folder_id(pid: str, name: str, cache: dict[str, str]) -> str:
@@ -204,8 +231,9 @@ def import_package(pid: str, archive: str | Path, passphrase: str | None, *, ove
         shutil.rmtree(staging, ignore_errors=True)
     record = restored["record"]
     if record.get("package_id"):
-        package_meta.add_history(package_meta.package_dir(pid), {**record, "origin": "opened", "filename": archive.name,
-                                                     "name": archive.name, "changes_md": changes_md})
+        package_meta.add_history(package_meta.package_dir(pid), {
+            **record, **restored["settings"], "origin": "opened", "filename": archive.name,
+            "name": record.get("name") or archive.name, "changes_md": changes_md})
     return {"package_id": record.get("package_id"), "version": record.get("version"),
             "documents": restored["documents"], "chunks": restored["chunks"], "vectors": restored["vectors"],
             "files": files, "restored_files": sum(1 for f in files if f["status"] == "restored"),
@@ -220,7 +248,10 @@ def read_record(archive: str | Path, passphrase: str | None, workdir: Path) -> d
     try:
         pkg = _Package(_unpack(Path(archive), staging), passphrase)
         try:
-            record = json.loads(pkg.read("manifest.json").decode("utf-8")).get("package") or {}
+            manifest = json.loads(pkg.read("manifest.json").decode("utf-8"))
+            record = manifest.get("package") or {}
+            if record.get("package_id"):
+                record = {**record, **_settings_from(manifest, pkg)}
         finally:
             pkg.close()
     finally:

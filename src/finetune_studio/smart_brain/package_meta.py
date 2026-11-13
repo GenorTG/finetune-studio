@@ -137,9 +137,18 @@ def package_filename(title: str, record: dict, *, ext: str, models: bool = False
 
 
 def public_record(record: dict) -> dict:
-    """``package.json``: no document names (it sits beside an encrypted corpus)."""
-    return {"format": 1, **{k: record.get(k) for k in ("package_id", "version", "parent_version", "created")},
-            "documents": len(record.get("documents") or [])}
+    """``package.json``: no document names (it sits beside an encrypted corpus).
+
+    ``policy`` (scope all/part, originals, hidden names, audience, encryption), ``widens`` (codes of what this version
+    opened up over its parent, confirmed at export) and ``passphrase_changed`` let ``update.sh`` refuse an update
+    that widens a running copy."""
+    out = {"format": 1, **{k: record.get(k) for k in ("package_id", "version", "parent_version", "created")},
+           "documents": len(record.get("documents") or [])}
+    if record.get("policy"):
+        out["policy"] = dict(record["policy"])
+        out["widens"] = [w["code"] if isinstance(w, dict) else str(w) for w in record.get("widens") or []]
+        out["passphrase_changed"] = bool(record.get("passphrase_changed"))
+    return out
 
 
 # ── the project's package history ──────────────────────────────────────────────────────────────────────────────
@@ -177,6 +186,12 @@ def latest(package_dir: Path, package_id: str) -> dict | None:
     return max(rows, key=lambda r: _version_key(r.get("version") or "0")) if rows else None
 
 
+def _inherited(row: dict) -> dict[str, Any]:
+    from .package_versions import base_settings
+
+    return base_settings(row)
+
+
 def packages(package_dir: Path) -> list[dict[str, Any]]:
     """One row per package id (its latest version first), newest package first, each with its versions."""
     by_id: dict[str, list[dict]] = {}
@@ -190,7 +205,8 @@ def packages(package_dir: Path) -> list[dict[str, Any]]:
                     "documents": len(rows[0].get("documents") or []),
                     "versions": [{k: r.get(k) for k in ("version", "parent_version", "created", "filename", "origin",
                                                          "scope", "changes", "audience", "originals",
-                                                         "hide_file_names", "encrypted")}
+                                                         "hide_file_names", "encrypted", "widens")}
                                  | {"documents": len(r.get("documents") or [])}
-                                 for r in rows]})
+                                 for r in rows],
+                    "settings": _inherited(rows[0])})
     return sorted(out, key=lambda p: p["versions"][0].get("created") or "", reverse=True)
