@@ -30,7 +30,7 @@ from finetune_studio.testing.suite import load_test_suite
 from finetune_studio.webui import testing_jobs
 from finetune_studio.webui.app import inference_engine
 from finetune_studio.webui.live_sse import sse_comment, sse_data, sse_response
-from finetune_studio.webui.testing_models import target_model
+from finetune_studio.webui.testing_models import is_api_reader, target_model
 
 router = APIRouter()
 _log = logging.getLogger(__name__)
@@ -158,6 +158,9 @@ async def run_test_suite(request: Request):
         model = target_model(project_id, str(body.get("model_path") or body.get("path") or "").strip())
     except ValueError as e:
         return JSONResponse({"detail": str(e)}, status_code=400)
+    if is_api_reader(model):
+        return JSONResponse({"detail": "an AI assistant connection can only be the reader of a Smart Brain test "
+                                       "(choose Smart Brain above, or a local model for this test)"}, status_code=400)
     return await _start(testing_jobs.RunSpec(
         project_id=project_id, kind="suite", suite_name=suite_path.rsplit("/", 1)[-1], cases=cases,
         model_path=model, run_id=str(body.get("run_id") or "").strip(), max_tokens=max_tokens,
@@ -258,6 +261,9 @@ async def evaluate_training_dataset(request: Request):
         model = target_model(project_id, str(body.get("model_path") or body.get("path") or "").strip())
     except ValueError as e:
         return JSONResponse({"detail": str(e)}, status_code=400)
+    if is_api_reader(model):
+        return JSONResponse({"detail": "an AI assistant connection can only be the reader of a Smart Brain test "
+                                       "(choose Smart Brain above, or a local model for this test)"}, status_code=400)
     return await _start(testing_jobs.RunSpec(
         project_id=project_id, kind="heldout" if meta.eval_kind == "heldout" else "training_leakage",
         suite_name=suite_label_for_training_eval(meta), cases=cases, model_path=model,

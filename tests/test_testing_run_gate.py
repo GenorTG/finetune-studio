@@ -29,7 +29,8 @@ def test_testing_template_disables_run_until_suite() -> None:
 
 def test_dataset_check_requires_a_model_and_project_dataset() -> None:
     html = _TESTING.read_text(encoding="utf-8")
-    assert "const modelOk = !!sel.value || Number(sel.dataset.exports || 0) > 0;" in html
+    assert ("const modelOk = (!!sel.value && !(opt && opt.disabled)) || (!sel.value && Number(sel.dataset.exports || 0) "
+            "> 0);") in html
     assert "const datasetOk = m !== 'dataset' || $('t-train-ds').options.length > 1;" in html
     assert "const ready = modelOk && suiteOk && datasetOk;" in html
     assert "No training dataset yet" in html

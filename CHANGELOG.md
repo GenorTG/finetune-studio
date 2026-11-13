@@ -9,6 +9,7 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+
 - The Guide answers "Is my knowledge ready to package?" from the Package page's own checklist (files read,
   knowledge check, Smart Brain up to date, then identity, test and package); the training pipeline follows as
   optional instead of being the answer.
@@ -21,6 +22,11 @@ turns that section into the release's notes.
   instead of only reporting the search it ran with the studio's own embedder.
 - A package's `rag.config.json` turns the reranker on only when its model is inside, and its README no longer
   says the original files are inside when they are not.
+- Testing: a Smart Brain test can use an AI assistant API connection as the reader (nothing loads on the GPU), so
+  the package's answers can be tested without a GPU; a project without exports starts on that connection instead of
+  a "latest merged export" it does not have.
+- The Testing, Training, Quick work and Smart Brain chat model lists show this project's exports and installed
+  models only, each model once, never another project's trained runs.
 - A project can no longer be renamed to a blank (or over-long, or another project's) name: Project settings and the
   API refuse it with the reason. New: `fts projects rename <project> "<name>"`.
 - CLI: an unknown project or another user error is one line ("project not found: … (fts projects list shows them)"),

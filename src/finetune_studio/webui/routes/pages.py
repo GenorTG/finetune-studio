@@ -367,7 +367,7 @@ async def project_data_page(request: Request, pid: str):
 async def project_training_page(request: Request, pid: str):
     """Training config + progress for a project."""
     from finetune_studio import db
-    from finetune_studio.models.registry import models_for_training
+    from finetune_studio.models.registry import for_project, models_for_training
     from finetune_studio.webui.app import discovered_models, training_engine
     from finetune_studio.webui.project_dashboard import resolve_production_run
     ctx = _project_ctx(pid)
@@ -394,7 +394,7 @@ async def project_training_page(request: Request, pid: str):
         "project_training.html",
         {
             **ctx,
-            "models": models_for_training(discovered_models),
+            "models": for_project(models_for_training(discovered_models), pid),
             "training_state": training_engine.state,
             "detail_run": detail_run,
             "detail_run_id": run_id or "",
@@ -409,7 +409,8 @@ async def project_testing_page(request: Request, pid: str):
     from finetune_studio.webui.app import inference_engine
     from finetune_studio.webui.routes.benchmarks import _discover_suites
     from finetune_studio.webui.testing_models import (
-        default_model_path_for_testing,
+        api_readers,
+        default_reader_for_testing,
         library_models_for_testing,
         local_model_missing,
         models_for_testing_page,
@@ -424,7 +425,8 @@ async def project_testing_page(request: Request, pid: str):
     # Project-scoped exports only (not global HF discovery) so merge-at-export
     # results appear in the selector and match auto-load.
     models = models_for_testing_page(ctx["project"].get("models") or [])
-    default_path = default_model_path_for_testing(models)
+    readers = api_readers()
+    default_path = default_reader_for_testing(models, readers)
     from finetune_studio.db import datasets as datasets_db
     from finetune_studio.models.helper import (
         DEFAULT_HELPER_LABEL,
@@ -446,7 +448,8 @@ async def project_testing_page(request: Request, pid: str):
             "brain_built": flow_brain_built(pid),
             **ctx,
             "models": models,
-            "library_models": library_models_for_testing(models),
+            "library_models": library_models_for_testing(models, pid),
+            "api_readers": readers,
             "default_model_path": default_path,
             "base_model_missing": local_model_missing(str(ctx["project"].get("base_model") or "")),
             "inference_engine": inference_engine,
@@ -665,7 +668,7 @@ async def project_settings_page(request: Request, pid: str):
 async def project_wizard_page(request: Request, pid: str):
     """Project wizard: Quick start runs files → QA → dataset → train → test
     in one guided sequence; Step by step exposes every control separately."""
-    from finetune_studio.models.registry import models_for_training
+    from finetune_studio.models.registry import for_project, models_for_training
     from finetune_studio.webui.app import discovered_models
     ctx = _project_ctx(pid)
     if not ctx:
@@ -674,7 +677,7 @@ async def project_wizard_page(request: Request, pid: str):
         request,
         "project_wizard.html",
         {**ctx, "request": request,
-         "models": models_for_training(discovered_models)},
+         "models": for_project(models_for_training(discovered_models), pid)},
     )
 
 
