@@ -148,8 +148,11 @@ Cursor, OpenClaw and other MCP clients; `bash run-mcp.sh` serves MCP on stdio). 
 
 **New versions.** Change files, update the Smart Brain, and export with **Package → New version of …**: the package
 keeps its id, its version goes 1.0.0 → 1.1.0, and `CHANGES.md` (and the Package page's *Package versions*) list the
-documents added, changed and removed. Update a running copy in place with `bash update.sh NEW.tar.gz` (it keeps
-`rag.config.json` and your keyfile, and refuses another package or an older version). To edit a package someone
+documents added, changed and removed. The new version keeps the package's documents, original files, hidden names and
+audience unless you change them (anything wider asks you to confirm), and needs the same passphrase so running copies
+keep working. Update a running copy in place with `bash update.sh NEW.tar.gz --keyfile ../pass.txt` (it keeps your
+keyfile and the `rag.config.json` values you changed, and refuses another package, an older version, or a version that
+opens up more than the running one unless you add `--allow-widen`). To edit a package someone
 gave you, **Smart Brain → Import an index or open a package** turns it back into a project, original files included.
 
 ## Optional: train a model on the same files

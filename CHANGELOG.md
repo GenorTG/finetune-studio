@@ -9,6 +9,19 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Package versions are safe to roll out: a new version keeps its package's documents, original files, hidden file
+  names and audience unless you change them, anything wider (more documents, originals on, names shown, a public
+  audience changed, encryption off) needs a confirmation (`--allow-widen` in the CLI) and is listed in CHANGES.md,
+  and `update.sh` refuses such a version on a running copy unless `--allow-widen` is given.
+- A new version of an encrypted package needs the current passphrase (or a new one on purpose), so running copies
+  still start after `update.sh`; `update.sh` refuses an encrypted version it cannot open first, and uses
+  `passphrase.txt` beside `server.py` (which `setup.sh` now offers to write) when no `--keyfile` is given.
+- `update.sh` takes the new version's settings (answer model, hidden names, …) and keeps only the `rag.config.json`
+  values you changed after install, and prints both; relative archive and keyfile paths work from any folder.
+- After a package build the Package page goes back to "A new package" instead of silently making the next export a
+  new version of the one just built.
+- The package README's Claude Code, Codex and Cursor MCP commands include `--keyfile` for an encrypted package.
+
 ## [0.4.0] - 2026-11-12
 
 - New projects' optional base-model list now excludes inference-only and other projects' exported models, and de-duplicates identical paths.

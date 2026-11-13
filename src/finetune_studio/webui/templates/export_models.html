@@ -211,9 +211,12 @@
       </details>
       <div class="grid grid-12 gap-3 items-end mb-2">
         <div class="col-span-4">
-          <label class="block text-xs muted mb-1">Passphrase (blank = generate one)</label>
+          <label class="block text-xs muted mb-1" for="mcp-pass" id="mcp-pass-label">Passphrase (blank = generate one)</label>
           <input id="mcp-pass" type="password" autocomplete="new-password" class="input" placeholder="min 8 characters"
                  title="Used to derive the encryption key. Never saved by Finetune Studio. Lose it and the package cannot be opened.">
+        </div>
+        <div class="col-span-8 text-xs" id="mcp-newpass-row" hidden>
+          <label class="flex items-center gap-2" title="Running copies of the earlier version then need the new passphrase in their keyfile before update.sh can install this one."><input id="mcp-newpass" type="checkbox"> Use a new passphrase for this version (blank = generate one)</label>
         </div>
       </div>
       <div class="sev-warning text-sm mb-2" id="mcp-blocker" role="status" aria-live="polite" hidden></div>
@@ -653,6 +656,7 @@
       hide_file_names: g('mcp-hide-names').checked,
       scope: mcpScope(),
       new_version_of: document.getElementById('mcp-base').value || null,
+      new_passphrase: !!document.getElementById('mcp-base').value && g('mcp-newpass').checked,
       version: document.getElementById('mcp-version').value.trim() || null,
       name: g('mcp-name').value.trim() || g('mcp-name').placeholder || null,
       audience: g('mcp-audience').value || null,
@@ -692,12 +696,44 @@
     var next = p ? parts[0] + '.' + ((parts[1] || 0) + 1) + '.0' : '1.0.0';
     document.getElementById('mcp-version').placeholder = next;
     if (p) {
-      if (p.name && !document.getElementById('mcp-name').value) document.getElementById('mcp-name').value = p.name;
-      if (p.audience) document.getElementById('mcp-audience').value = p.audience;
+      if (p.name) document.getElementById('mcp-name').value = p.name;
+      applyBaseSettings(p.settings || {});
     }
-    note.textContent = p ? 'Same package id (' + id + '), version ' + p.latest + ' \u2192 ' + next
-      + ': the export lists the documents added, changed and removed since ' + p.latest + '.'
+    var enc = p && (p.settings || {}).encrypted !== false;
+    document.getElementById('mcp-newpass-row').hidden = !enc;
+    if (!enc) document.getElementById('mcp-newpass').checked = false;
+    syncPassLabel();
+    note.textContent = p ? 'Version ' + next + ' of \u201c' + (p.name || id) + '\u201d (now ' + p.latest
+      + '): it keeps that package\u2019s documents, original files, hidden names and audience unless you change them'
+      + ' here (anything wider asks you to confirm), and lists the documents added, changed and removed.'
       : 'A new package id; its later exports can be new versions of it.';
+  }
+  // A new version starts from its base's settings, not the form's defaults: a public bot's next version must not
+  // quietly become the internal package.
+  function applyBaseSettings(st) {
+    var g = function (id) { return document.getElementById(id); };
+    if (st.audience) g('mcp-audience').value = st.audience;
+    g('mcp-originals').checked = !!st.include_originals;
+    g('mcp-hide-names').checked = !!st.hide_file_names;
+    if (st.encrypted === false) g('mcp-noenc').checked = true; else g('mcp-noenc').checked = false;
+    var sc = st.scope;
+    var some = !!(sc && ((sc.include || []).length || (sc.tags || []).length || (sc.document_ids || []).length
+      || (sc.exclude || []).length));
+    g(some ? 'mcp-scope-some' : 'mcp-scope-all').checked = true;
+    var want = { folder: (sc && sc.include) || [], tag: (sc && sc.tags) || [], doc: (sc && sc.document_ids) || [] };
+    document.querySelectorAll('#mcp-scope input[type=checkbox]').forEach(function (el) {
+      el.checked = (want[el.dataset.kind] || []).indexOf(el.value) >= 0;
+    });
+    baseScope = some ? sc : null;
+    syncScope();
+  }
+  var baseScope = null;
+  function syncPassLabel() {
+    var base = !!document.getElementById('mcp-base').value, fresh = document.getElementById('mcp-newpass').checked;
+    var row = document.getElementById('mcp-newpass-row');
+    document.getElementById('mcp-pass-label').textContent = base && !row.hidden && !fresh
+      ? 'Passphrase of the current version (required: running copies keep working)'
+      : 'Passphrase (blank = generate one)';
   }
   window.loadPackageHistory = async function (select) {
     try {
@@ -728,6 +764,7 @@
     } catch (e) { note.textContent = 'Could not read it: ' + (e.message || e); }
   };
   document.getElementById('mcp-base').addEventListener('change', syncVersion);
+  document.getElementById('mcp-newpass').addEventListener('change', syncPassLabel);
 
   // Audience scope: which documents go in the package. The same rule as smart_brain/scope.py: a document is in when
   // it matches any chosen folder, tag or single document (nothing chosen = all).
@@ -736,9 +773,11 @@
     return [].slice.call(document.querySelectorAll('#' + box + ' input:checked')).map(function (el) { return el.value; });
   }
   function mcpScope() {
-    if (!document.getElementById('mcp-scope-some').checked) return null;
+    // "All documents" is sent as an empty choice, not null: null means "keep the base version's scope".
+    if (!document.getElementById('mcp-scope-some').checked) return { include: [], tags: [], document_ids: [], exclude: [] };
     return { include: scopeChecked('mcp-scope-folders'), tags: scopeChecked('mcp-scope-tags'),
-             document_ids: scopeChecked('mcp-scope-docs') };
+             document_ids: scopeChecked('mcp-scope-docs'),
+             exclude: (document.getElementById('mcp-base').value && baseScope && baseScope.exclude) || [] };
   }
   function scopeSelected(sc, d) {
     if (!sc || !(sc.include.length || sc.tags.length || sc.document_ids.length)) return true;
@@ -780,6 +819,7 @@
       scopeDocs.forEach(function (x) { docs.append(scopeBox(x.document_id, x.path, 'doc')); });
     } catch (e) { /* the picker stays empty: All documents still works */ }
     syncScope();
+    if (document.getElementById('mcp-base').value) syncVersion();   // the boxes exist now: tick the base's scope
   };
   ['mcp-scope-all', 'mcp-scope-some'].forEach(function (id) {
     document.getElementById(id).addEventListener('change', syncScope);
@@ -913,12 +953,13 @@
     if (navigator.clipboard) navigator.clipboard.writeText(v);
   };
 
-  window.startMcpPackage = async function () {
+  window.startMcpPackage = async function (allowWiden) {
     var btn = document.getElementById('mcp-pkg-btn');
     var note = document.getElementById('mcp-pkg-note');
     var passEl = document.getElementById('mcp-pass');
     var body = mcpVals();
     if (passEl.value && body.encrypt) body.passphrase = passEl.value;
+    if (allowWiden === true) body.allow_widen = true;
     if (note) note.textContent = body.include_models
       ? 'Building the package with the models inside (about 0.2 GB with the MiniLM models, about 4.5 GB with e5-large and bge-reranker-v2-m3) \u2014 this can take a few minutes, then the download starts.'
       : 'Building the package \u2014 the download starts when it is ready.';
@@ -933,10 +974,12 @@
           + (d.package.parent_version ? ' (after ' + d.package.parent_version + '): ' + (ch.added || []).length + ' added, '
              + (ch.changed || []).length + ' changed, ' + (ch.removed || []).length + ' removed.' : ' (first version).');
         document.getElementById('mcp-version').value = '';
+        document.getElementById('mcp-base').value = '';   // the next export is a new package unless one is picked
         if (window.loadPackageVersions) window.loadPackageVersions();
-        loadPackageHistory(d.package.package_id).then(function () {   // the next export defaults to its next version
+        loadPackageHistory('').then(function () {
           var vn = document.getElementById('mcp-version-note');
-          vn.textContent = built + ' Next export: ' + vn.textContent;
+          vn.textContent = built + ' The next export is a new package: to publish a later version of this one, pick'
+            + ' \u201cNew version of\u201d it under Package.';
         });
       }
       if (note) note.textContent = (d.encrypted ? 'Encrypted package ' : 'PLAINTEXT package ')
@@ -949,6 +992,17 @@
            : d.verified ? ' Not self-tested: ' + d.verified.detail + '.' : '');
       window.location.href = d.download_url;
     } catch (e) {
+      if (e && e.code === 'widens_package' && allowWiden !== true) {
+        if (btn) btn.disabled = false;
+        var list = ((e.data && e.data.widens) || []).map(function (w) { return w.text; }).join('; ');
+        var ok = await window.fts.confirm('This version opens up more than the one before it: ' + list
+          + '. Running copies refuse it in update.sh unless --allow-widen is given, and CHANGES.md lists it. '
+          + 'Build it anyway?', { title: 'Wider than the previous version', danger: true,
+                                  okText: 'Build the wider version' });
+        if (ok) return startMcpPackage(true);
+        if (note) note.textContent = 'Not built: change the documents or options back, or export a new package instead.';
+        return;
+      }
       if (note) note.textContent = 'Package build failed: ' + (e.message || e);
       notify(String(e.message || e), 'error');
     } finally {

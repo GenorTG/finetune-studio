@@ -138,7 +138,9 @@ handles:
   e5-large and bge-reranker-v2-m3)
 - **Package options**: MCP over stdio *and* HTTP, a browser chat page, only some folders or tags in a package (a
   public bot from `public/`), the original files on request, hidden file names for public bots, and versions: a new
-  version reports the documents added, changed and removed, and `bash update.sh NEW.tar.gz` updates a running copy
+  version keeps its package's scope and reports the documents added, changed and removed, and
+  `bash update.sh NEW.tar.gz --keyfile passphrase.txt` updates a running copy (refusing a wider version unless
+  `--allow-widen`)
 
 ### Use case 2 — Train an adapter (LoRA) on your pairs
 

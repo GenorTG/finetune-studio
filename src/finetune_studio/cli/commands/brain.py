@@ -240,11 +240,26 @@ def _export(args: argparse.Namespace) -> None:
         except Exception as e:  # noqa: BLE001 - wrong passphrase / not a package: the reason is the message
             _die(f"cannot read {args.base}: {e}")
         pm.add_history(history_dir, {**base, "origin": "uploaded", "filename": Path(args.base).name,
-                                     "name": Path(args.base).name})
+                                     "name": base.get("name") or Path(args.base).name})
+        if passphrase is None and not args.new_passphrase and args.base_passphrase_file:
+            passphrase = _read_pass(args.base_passphrase_file)   # running copies keep their keyfile
     elif args.new_version_of:
         base = pm.latest(history_dir, args.new_version_of)
         if base is None:
             _die(f"no package {args.new_version_of!r} in {pm.history_path(history_dir)}")
+    from finetune_studio.smart_brain import package_versions as pv
+
+    audience = getattr(args, "audience", None) or (base or {}).get("audience") or ""
+    if base:   # a new version keeps what its base was for: only flags given on the command line change it
+        was = pv.base_settings(base)
+        inherit = {k: was[k] for k in ("include_originals", "hide_file_names") if k not in patch}
+        if inherit:
+            try:
+                cfg = cfg.model_copy(update=inherit)
+            except (ValidationError, ValueError) as e:
+                _die(str(e))
+        if not args.name and base.get("name") and not str(base.get("name")).endswith((".tar.gz", ".zip", ".tar")):
+            title = base["name"]
     safe = "".join(c if c.isalnum() or c in "._-" else "-" for c in title).strip(".-")[:48] or "brain"
     ext = "zip" if cfg.archive_format == "zip" else cfg.archive_format
     from finetune_studio.smart_brain import originals as brain_originals
@@ -252,11 +267,27 @@ def _export(args: argparse.Namespace) -> None:
 
     pid = resolve_project(args.project)["id"] if args.project else None
     docs = brain_scope.documents(corpus, pid)
+    asked = brain_scope.DocumentScope(include=args.include or [], exclude=args.exclude or [], tags=args.tag or [])
+    scope_req = pv.inherit_scope(None if asked.is_all() else asked, base)
     try:
-        keep, scope_record = brain_scope.resolve(brain_scope.DocumentScope(
-            include=args.include or [], exclude=args.exclude or [], tags=args.tag or []), docs)
+        keep, scope_record = brain_scope.resolve(scope_req, docs)
     except ValueError as e:
         _die(str(e))
+    widens = pv.widening(base, docs, keep, include_originals=cfg.include_originals,
+                         hide_file_names=cfg.hide_file_names, audience=audience, encrypt=cfg.encrypt) if base else []
+    if widens and not args.allow_widen:
+        _die(f"this version would open up more than version {base.get('version')}: "
+             + "; ".join(w["text"] for w in widens) + ". Add --allow-widen to export it anyway, or export a new "
+             "package (without --new-version-of).")
+    problem = pv.passphrase_problem(base, encrypt=cfg.encrypt, passphrase=passphrase,
+                                    new_passphrase=args.new_passphrase)
+    if problem:
+        _die(problem.replace("enter the passphrase", "give --passphrase-file with the passphrase")
+             .replace("choose a new passphrase on purpose", "add --new-passphrase"))
+    if base and cfg.encrypt and passphrase and not args.new_passphrase \
+            and pv.passphrase_matches_base(base, history_dir, passphrase) is False:
+        _die(f"--passphrase-file does not open version {base.get('version')}: running copies could not open the "
+             "new version (add --new-passphrase to change it on purpose)")
     probes = brain_scope.probe_queries(corpus, {d.document_id for d in docs} - keep) if keep is not None else {}
     doc_rows = pm.document_manifest(corpus, pid, keep)
     try:
@@ -265,14 +296,21 @@ def _export(args: argparse.Namespace) -> None:
         _die(str(e))
     diff = pm.changes(base["documents"] if base else None, doc_rows)
     record["changes"] = pm.summary(diff)
-    changes_md = pm.changes_markdown(record, diff)
     out = out_dir / pm.package_filename(safe, record, ext=ext, models=cfg.include_models, encrypted=cfg.encrypt)
     originals = brain_originals.collect(corpus, pid) if cfg.include_originals else []
+    shipped_originals = sum(1 for o in originals if keep is None or o.document_id in keep)
+    record["policy"] = pv.policy(scope_record, originals=shipped_originals, hide_file_names=cfg.hide_file_names,
+                                 audience=audience, encrypted=cfg.encrypt)
+    record["widens"] = widens
+    record["passphrase_changed"] = bool(base and cfg.encrypt and args.new_passphrase)
+    record["name"], record["audience"] = title, audience     # inside the (encrypted) manifest only
+    changes_md = pm.changes_markdown(record, diff) + pv.widening_markdown(record["parent_version"], widens)
     try:
         result = build_package(corpus, out, name=title, config=cfg, passphrase=passphrase,
                                identity=_identity_for(args, package=True), originals=originals,
                                documents=keep, scope=scope_record, package=record, changes_md=changes_md,
-                               changes_md_public=pm.changes_markdown(record, diff, names=False))
+                               changes_md_public=pm.changes_markdown(record, diff, names=False)
+                               + pv.widening_markdown(record["parent_version"], widens, names=False))
     except (FileNotFoundError, ValueError) as e:
         _die(str(e))
     from finetune_studio.smart_brain.server_package import (
@@ -283,7 +321,12 @@ def _export(args: argparse.Namespace) -> None:
     verified = verify_package(result.path, result.passphrase or passphrase, studio_models=studio_models_for(corpus),
                               expected_originals={o.document_id: o.sha256 for o in originals}, out_of_scope=probes)
     pm.add_history(history_dir, {**record, "origin": "exported", "filename": result.path.name, "name": title,
-                                 "scope": scope_record["label"], "encrypted": result.encrypted, "changes_md": changes_md})
+                                 "scope": scope_record["label"],
+                                 "scope_spec": scope_req.model_dump() if scope_req and not scope_req.is_all() else {},
+                                 "audience": audience, "originals": shipped_originals,
+                                 "include_originals": bool(cfg.include_originals),
+                                 "hide_file_names": bool(cfg.hide_file_names), "encrypted": result.encrypted,
+                                 "changes_md": changes_md})
     if args.project:
         from finetune_studio.cli.commands.dataset import resolve_project
         from finetune_studio.knowledge.readiness import record_package
@@ -292,8 +335,8 @@ def _export(args: argparse.Namespace) -> None:
                        encrypted=result.encrypted, identity=bool(_identity_for(args)), verified=verified)
     print(json.dumps({"path": str(result.path), "size": result.size, "encrypted": result.encrypted,
                       "verified": verified, "layers": result.layers,
-                      "original_files": sum(1 for o in originals if keep is None or o.document_id in keep),
-                      "scope": scope_record,
+                      "original_files": shipped_originals,
+                      "scope": scope_record, "widens": widens,
                       "package": {k: record[k] for k in ("package_id", "version", "parent_version", "created")},
                       "changes": record["changes"],
                       "pipeline": pipeline_text(cfg, bundled_reranker=result.layers.get("reranker", False)),
@@ -577,6 +620,14 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     sp.add_argument("--encrypt", action=bo, default=None, help="encrypt the corpus (default on)")
     sp.add_argument("--new-version-of", metavar="PACKAGE_ID",
                     help="a new version of a package in this project's history: same id, next version, change report")
+    sp.add_argument("--allow-widen", action="store_true",
+                    help="with --new-version-of/--base: accept a version that opens up more than its base (documents "
+                         "outside its scope, originals on, file names shown, a public audience changed)")
+    sp.add_argument("--new-passphrase", action="store_true",
+                    help="with --new-version-of/--base: an encrypted new version gets a new passphrase on purpose "
+                         "(running copies need it in their keyfile); default: --passphrase-file must hold the old one")
+    sp.add_argument("--audience", choices=["internal", "public", "other"],
+                    help="who uses the package (a label; a new version keeps its base's)")
     sp.add_argument("--base", metavar="ARCHIVE",
                     help="a new version of this exported package archive (add --base-passphrase-file if encrypted)")
     sp.add_argument("--base-passphrase-file", help="passphrase of the --base archive")
