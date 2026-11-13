@@ -34,6 +34,9 @@ turns that section into the release's notes.
   `passphrase.txt` beside `server.py` (which `setup.sh` now offers to write) when no `--keyfile` is given.
 - `update.sh` takes the new version's settings (answer model, hidden names, …) and keeps only the `rag.config.json`
   values you changed after install, and prints both; relative archive and keyfile paths work from any folder.
+- The Smart Brain quiz checks an "unanswerable" question against the passages sharing its words as well as the top
+  search hits, so an answer split over two files is found; on a test run, **The documents answer this** fixes one it
+  still missed (your Pass, the model's answer as key, the quiz file corrected for the next run).
 - After a package build the Package page goes back to "A new package" instead of silently making the next export a
   new version of the one just built.
 - The package README's Claude Code, Codex and Cursor MCP commands include `--keyfile` for an encrypted package.
