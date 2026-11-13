@@ -877,7 +877,8 @@ class Corpus:
         if not d.is_dir():
             return False
         names = {p.name for p in d.iterdir()}
-        return bool({"config.json", "sentence_bert_config.json"} & names
+        # modules.json: a sentence-transformers model whose weights sit in a module folder (CLIP: 0_CLIPModel/)
+        return bool({"config.json", "sentence_bert_config.json", "modules.json"} & names
                     or {n for n in names if n.endswith((".safetensors", ".bin"))})
 
     def local_embedder(self):

@@ -35,9 +35,12 @@ def fake_models(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(ie, "cached_image_embedder", lambda model_id=None, device="auto": FakeEmbedder())
     monkeypatch.setattr(srv, "open_image_encoder", lambda image_dir, text_dir, device: _FakeEncoder())
     image_dir, text_dir = tmp_path / "m" / "image", tmp_path / "m" / "text"
-    for d in (image_dir, text_dir):
-        d.mkdir(parents=True)
-        (d / "config.json").write_text("{}")
+    # the real layouts: CLIP = modules.json + 0_CLIPModel/ (no root config.json); the text encoder has a config.json
+    (image_dir / "0_CLIPModel").mkdir(parents=True)
+    (image_dir / "modules.json").write_text("[]")
+    (image_dir / "0_CLIPModel" / "config.json").write_text("{}")
+    text_dir.mkdir(parents=True)
+    (text_dir / "config.json").write_text("{}")
     monkeypatch.setattr(ie, "on_disk", lambda model_id=None: True)
     monkeypatch.setattr(ie, "model_dirs", lambda spec: (image_dir, text_dir))
 
@@ -84,7 +87,7 @@ def test_plain_package_ships_vectors_thumbnails_and_the_model(corpus_dir: Path, 
     assert all("file_id" not in r and "source_sha" not in r for r in records)   # studio-only fields stay home
     assert all((c / r["thumbnail"]).is_file() for r in records)
     assert not any((c / r["path"]).exists() for r in records)                    # full pictures: only with originals
-    assert (c / "image_model" / "image" / "config.json").is_file() and (c / "image_model" / "text").is_dir()
+    assert (c / "image_model" / "image" / "modules.json").is_file() and (c / "image_model" / "text").is_dir()
     manifest = json.loads((c / "manifest.json").read_text())
     assert manifest["search_layers"]["image"] is True and manifest["extra"]["image_search"]["assets"] == 2
     assert "Image search" in (root / "README.md").read_text()
@@ -118,7 +121,7 @@ def test_encrypted_package_keeps_pictures_inside_the_container(corpus_dir: Path,
     root, _a, pw = _export(_with_images(corpus_dir), tmp_path, encrypt=True)
     names = (root / "_names.txt").read_text()
     assert "image_assets" not in names and "image_vectors" not in names    # only corpus.enc + the public model
-    assert "image_model/image/config.json" in names
+    assert "image_model/image/modules.json" in names
     c = srv.Corpus(root / "corpus", srv.resolve_config({}, {}, {})[0], passphrase=pw or "correct horse battery")
     found = c.search_images("SnackGrid photo", thumbnails=True)
     assert found["hits"][0]["document_id"] == "c1" and found["hits"][0]["thumbnail"].startswith("data:image/jpeg")
