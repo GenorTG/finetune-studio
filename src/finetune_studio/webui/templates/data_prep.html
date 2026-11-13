@@ -10,7 +10,7 @@
     <b>Step 1 · Files &amp; Knowledge → pairs.</b> A model cannot learn from raw documents — it learns
     from questions and their answers. This page reads each parsed file and writes those
     pairs for you; you approve or edit them, then export them as the <b>dataset</b> that
-    <a href="/projects/{{ pid }}/training" data-link>training (step 2)</a> consumes.
+    <a href="/projects/{{ pid }}/training" data-link>training (optional)</a> consumes.
     <br><span class="text-xs">Files come from the
     <a href="/projects/{{ pid }}/data" data-link>files</a>, parsed once for training and the Smart Brain. Writing the pairs
     uses the AI assistant <span class="mono" id="dp-helper-label">{{ helper_label | replace("Helper · ", "", 1) }}</span>. Want to mine them conversationally instead?
@@ -74,7 +74,7 @@
       <div class="fl-section-head fl-files-head">
         <span class="muted text-xs" id="fl-files-label">ALL FILES</span>
         <div class="flex gap-2 fl-actions">
-          <input type="text" id="fl-search" placeholder="Search filenames…" class="input fl-search" oninput="flSearch(this.value)">
+          <input type="text" id="fl-search" aria-label="Search file names" placeholder="Search filenames…" class="input fl-search" oninput="flSearch(this.value)">
           <label class="btn fl-upload-btn" title="Click or drop files here">
             <input type="file" id="fl-upload-input" multiple hidden onchange="flUploadFiles(this.files)">
             ⬆ Upload

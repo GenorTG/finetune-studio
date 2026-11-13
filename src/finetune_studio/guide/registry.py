@@ -78,6 +78,8 @@ def _pages() -> dict[str, Page]:
 
 
 PAGES: dict[str, Page] = _pages()
+#: Words people use for a page that is registered under another key ("package" is the Package page at /export).
+PAGE_ALIASES = {"package": "export", "brain_package": "export", "knowledge_package": "export"}
 
 
 def _controls() -> dict[str, Control]:
@@ -213,6 +215,11 @@ def _controls() -> dict[str, Control]:
         ("export.package_version", "export", "#mcp-versioning", "Package: new package or new version of one"),
         ("export.package_base", "export", "#mcp-base", "Package: which package this is a new version of"),
         ("export.package_base_upload", "export", "#mcp-base-upload", "Package: read an exported package as the base"),
+        ("export.package_embed_url", "export", "#mcp-embed-url",
+         "Package: embeddings endpoint for meaning search where it runs (without the models inside)"),
+        ("export.package_search_where", "export", "#mcp-search-where", "Package: how it will search where it runs"),
+        ("export.package_new_passphrase", "export", "#mcp-newpass",
+         "Package: give a new version of an encrypted package a new passphrase"),
         ("export.package_originals", "export", "#mcp-originals", "Package: include original files (downloadable)"),
         ("export.package_hide_names", "export", "#mcp-hide-names", "Package: hide file names in answers (public bot)"),
         ("export.runs", "export", "#export-runs", "Training runs"),
@@ -322,7 +329,7 @@ def selector_tokens(selector: str) -> list[tuple[str, str]]:
 
 def resolve_page_url(page_key: str, pid: str | None) -> tuple[str | None, str | None]:
     """``(url, error)`` for an allow-listed page key under the active project."""
-    page = PAGES.get(page_key)
+    page = PAGES.get(PAGE_ALIASES.get(page_key, page_key))
     if page is None:
         return None, f"unknown page {page_key!r}; allowed: {', '.join(sorted(PAGES))}"
     if page.project:

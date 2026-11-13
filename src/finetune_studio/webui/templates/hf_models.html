@@ -16,11 +16,11 @@
 {# Filters bar — sticky #}
 <div class="card mb-4" id="filter-bar">
   <div class="flex gap-3 items-center">
-    <input id="hf-q" class="input flex-1" placeholder="Search qwen, llama, polish embed…"
+    <input id="hf-q" aria-label="Search Hugging Face models" class="input flex-1" placeholder="Search qwen, llama, polish embed…"
            autofocus
            oninput="onHfQueryInput()"
            onkeydown="if(event.key==='Enter'){event.preventDefault();doSearch();}">
-    <select id="hf-task" class="select">
+    <select id="hf-task" aria-label="Model task" class="select">
       <option value="text-generation" selected>text-generation</option>
       <option value="image-text-to-text">image-text-to-text (vision)</option>
       <option value="feature-extraction">feature-extraction (embed)</option>
@@ -30,7 +30,7 @@
       <option value="automatic-speech-recognition">automatic-speech-recognition</option>
       <option value="">— any —</option>
     </select>
-    <select id="hf-sort" class="select">
+    <select id="hf-sort" aria-label="Sort models by" class="select">
       <option value="downloads" selected>Downloads</option>
       <option value="likes">Likes</option>
       <option value="trending">Trending</option>

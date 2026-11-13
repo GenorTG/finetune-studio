@@ -780,6 +780,7 @@ class Corpus:
             "original_files": len(self.originals),
             "scope": self.manifest.get("scope") or {"label": "all documents"},
             "package": self.manifest.get("package") or {},
+            "hide_file_names": bool(self.cfg.get("hide_file_names")),
             "answer_connection": {
                 "configured": bool(self.cfg["answer"] and self.cfg["llm_base_url"] and self.cfg["llm_model"]),
                 "provider": self.cfg["provider"], "base_url": self.cfg["llm_base_url"], "model": self.cfg["llm_model"],
@@ -1616,7 +1617,51 @@ def serve_mcp(corpus: Corpus | LoadingCorpus) -> None:
 
 
 #: Never replaced by an update: local settings, the venv and what setup.sh wrote.
-UPDATE_KEEP = frozenset({CONFIG_NAME, ".venv", "MCP-ENTRY.txt", "rag-server.log", "rag-server.pid"})
+UPDATE_KEEP = frozenset({CONFIG_NAME, ".venv", "MCP-ENTRY.txt", "rag-server.log", "rag-server.pid", "passphrase.txt"})
+#: The rag.config.json the package was shipped with: an update keeps only the keys the user changed since.
+SHIPPED_CONFIG_NAME = "rag.config.shipped.json"
+#: Packages from before SHIPPED_CONFIG_NAME: only these local keys survive an update (where and how it runs).
+DEPLOY_KEYS = frozenset({"host", "port", "device", "top_k", "max_per_document", "auth_token", "embed_base_url",
+                         "embed_model", "embed_api_key", "llm_api_key"})
+#: A keyfile next to server.py that update.sh and setup.sh use when no --keyfile is given.
+DEFAULT_KEYFILE = "passphrase.txt"
+
+
+def _widened(current: dict, new: dict, local_cfg: dict, new_cfg: dict) -> list[str]:
+    """What installing ``new`` over ``current`` would open up on this running copy (empty: nothing)."""
+    out: list[str] = []
+    cur, nxt = current.get("policy") or {}, new.get("policy") or {}
+    codes = set(new.get("widens") or [])
+    if "scope" in codes or (cur.get("scope") == "part" and nxt.get("scope") == "all"):
+        out.append(f"documents: more than version {current.get('version')} carried "
+                   f"({cur.get('documents', '?')} -> {nxt.get('documents', '?')} documents"
+                   + (", now all of the index" if nxt.get("scope") == "all" else "") + ")")
+    if "originals" in codes or (not cur.get("originals") and nxt.get("originals")):
+        out.append(f"original files: {cur.get('originals') or 'none'} -> {nxt.get('originals') or 'on'} "
+                   "(downloadable by anyone who reaches this server)")
+    hid_before = bool(local_cfg.get("hide_file_names", cur.get("hide_file_names")))
+    if "file_names" in codes or (hid_before and not bool(new_cfg.get("hide_file_names", nxt.get("hide_file_names")))):
+        out.append("file names in answers: hidden -> shown")
+    if "audience" in codes or (cur.get("audience") == "public" and nxt.get("audience") not in (None, "", "public")):
+        out.append(f"used by: {cur.get('audience') or 'public'} -> {nxt.get('audience')}")
+    if "encryption" in codes or (cur.get("encrypted") and nxt.get("encrypted") is False):
+        out.append("encryption: on -> off")
+    return out
+
+
+def merge_config(local_cfg: dict, old_shipped: dict | None, new_cfg: dict) -> tuple[dict, list[str], list[str]]:
+    """``(merged, kept, taken)``: the new version's settings, with the local values the user changed after install.
+
+    A key counts as the user's when it differs from what the old version shipped (``old_shipped``); without that
+    record (a package from before it) only where-and-how-it-runs keys (``DEPLOY_KEYS``) are kept. ``taken`` lists
+    the keys whose value now comes from the new version and differs from the local one."""
+    if old_shipped is not None:
+        mine = {k for k, v in local_cfg.items() if k not in old_shipped or old_shipped[k] != v}
+    else:
+        mine = {k for k in local_cfg if k in DEPLOY_KEYS}
+    merged = {**new_cfg, **{k: local_cfg[k] for k in mine}}
+    taken = sorted(k for k in new_cfg if k not in mine and k in local_cfg and local_cfg[k] != new_cfg[k])
+    return merged, sorted(mine), taken
 
 
 def _version_key(version) -> tuple:
@@ -1645,19 +1690,26 @@ def _extract_archive(archive: Path, dest: Path) -> Path:
     else:
         with tarfile.open(archive) as tf:
             members = [m for m in tf.getmembers() if safe(m.name) and (m.isfile() or m.isdir())]
-            tf.extractall(dest, members=members)
+            if hasattr(tarfile, "data_filter"):     # Python 3.12+: also strip odd modes/owners
+                tf.extractall(dest, members=members, filter="data")
+            else:
+                tf.extractall(dest, members=members)
     server = sorted(dest.rglob("server.py"), key=lambda p: len(p.parts))
     if not server:
         raise ConfigError(f"{archive} is not a Smart Brain package (no server.py inside)")
     return server[0].parent
 
 
-def apply_update(pkg_dir: Path, archive: str | Path, *, force: bool = False, passphrase: str | None = None) -> dict:
+def apply_update(pkg_dir: Path, archive: str | Path, *, force: bool = False, passphrase: str | None = None,
+                 allow_widen: bool = False) -> dict:
     """Replace this package with a newer version of it, in place.
 
-    The new archive's corpus, server and scripts replace the old ones; ``rag.config.json`` keeps every local value
-    (keys the new version adds are filled in), and the venv, the keyfile and anything else not in the archive stay.
-    A different ``package_id``, or a version not newer than the installed one, is refused unless ``force``; with ``passphrase`` the new corpus is opened first, so a
+    The new archive's corpus, server and scripts replace the old ones; ``rag.config.json`` takes the new version's
+    settings and keeps the values the user changed after install (``merge_config``); the venv, the keyfile and
+    anything else not in the archive stay. A different ``package_id``, or a version not newer than the installed
+    one, is refused unless ``force``. A version that opens up more than the installed one (more documents, original
+    files, file names shown, a public audience changed, encryption off: ``_widened``) is refused unless
+    ``allow_widen``. An encrypted new version is opened with ``passphrase`` first (required unless ``force``), so a
     wrong passphrase never replaces a working package. Returns ``{"from", "to", "package_id", ...}``."""
     import shutil
     import tempfile
@@ -1682,20 +1734,44 @@ def apply_update(pkg_dir: Path, archive: str | Path, *, force: bool = False, pas
             if _version_key(new.get("version")) <= _version_key(current.get("version")):
                 raise ConfigError(f"the archive is version {new.get('version')}, not newer than the installed "
                                   f"{current.get('version')}: add --force to install it anyway")
-        enc = new_root / "corpus" / ENC_NAME
-        if passphrase and enc.is_file():
-            try:
-                _load_container_module().ContainerReader(enc, passphrase).close()
-            except Exception as e:  # wrong passphrase or a damaged file: keep the working package
-                raise ConfigError(f"the new corpus does not open with this passphrase ({e}); nothing was changed") from e
-        old_req = (pkg_dir / "requirements.txt").read_text(encoding="utf-8") \
-            if (pkg_dir / "requirements.txt").is_file() else ""
         local_cfg = {}
         if (pkg_dir / CONFIG_NAME).is_file():
             local_cfg = json.loads((pkg_dir / CONFIG_NAME).read_text(encoding="utf-8"))
         new_cfg = {}
         if (new_root / CONFIG_NAME).is_file():
             new_cfg = json.loads((new_root / CONFIG_NAME).read_text(encoding="utf-8"))
+        old_shipped = None
+        if (pkg_dir / SHIPPED_CONFIG_NAME).is_file():
+            old_shipped = json.loads((pkg_dir / SHIPPED_CONFIG_NAME).read_text(encoding="utf-8"))
+        widened = _widened(current, new, local_cfg, new_cfg)
+        if widened and not allow_widen:
+            raise ConfigError(f"version {new.get('version')} opens up more than the installed "
+                              f"{current.get('version')}: " + "; ".join(widened)
+                              + ". Nothing was changed. If this copy may serve that, add --allow-widen.")
+        enc = new_root / "corpus" / ENC_NAME
+        passphrase_note = ""
+        if enc.is_file() and not passphrase and not force:
+            raise ConfigError("the new version is encrypted: give --keyfile PATH (the passphrase file this server "
+                              f"uses, or put it in {DEFAULT_KEYFILE} here) so it is opened before anything changes"
+                              + (". Its passphrase was CHANGED at export: use the new one, and give it to this "
+                                 "server's keyfile before restarting" if new.get("passphrase_changed") else ""))
+        if passphrase and enc.is_file():
+            try:
+                _load_container_module().ContainerReader(enc, passphrase).close()
+            except Exception as e:  # wrong passphrase or a damaged file: keep the working package
+                hint = (" (this version was exported with a NEW passphrase: ask whoever exported it)"
+                        if new.get("passphrase_changed") else "")
+                raise ConfigError(f"the new corpus does not open with this passphrase ({e}){hint}; nothing was "
+                                  "changed") from e
+            old_enc = pkg_dir / "corpus" / ENC_NAME
+            if old_enc.is_file():
+                try:
+                    _load_container_module().ContainerReader(old_enc, passphrase).close()
+                except Exception:  # noqa: BLE001 - the installed corpus has another passphrase
+                    passphrase_note = ("the new version has a NEW passphrase: put it in the keyfile this server "
+                                       "starts with (setup.sh service, MCP client) before restarting")
+        old_req = (pkg_dir / "requirements.txt").read_text(encoding="utf-8") \
+            if (pkg_dir / "requirements.txt").is_file() else ""
         replaced = []
         for item in sorted(new_root.iterdir()):
             if item.name in UPDATE_KEEP:
@@ -1707,13 +1783,14 @@ def apply_update(pkg_dir: Path, archive: str | Path, *, force: bool = False, pas
                 target.unlink()
             os.replace(item, target)     # a running update.sh keeps reading its old copy (new inode)
             replaced.append(item.name)
-        merged = {**new_cfg, **local_cfg}
+        merged, kept, taken = merge_config(local_cfg, old_shipped, new_cfg)
         (pkg_dir / CONFIG_NAME).write_text(json.dumps(merged, indent=2) + "\n", encoding="utf-8")
         new_req = (pkg_dir / "requirements.txt").read_text(encoding="utf-8") \
             if (pkg_dir / "requirements.txt").is_file() else ""
         return {"package_id": new["package_id"], "from": current.get("version"), "to": new.get("version"),
-                "replaced": replaced, "kept_config": sorted(local_cfg),
-                "added_config": sorted(set(new_cfg) - set(local_cfg)), "requirements_changed": old_req != new_req}
+                "replaced": replaced, "kept_config": kept, "new_config": taken,
+                "added_config": sorted(set(new_cfg) - set(local_cfg)), "widened": widened,
+                "passphrase_note": passphrase_note, "requirements_changed": old_req != new_req}
     finally:
         shutil.rmtree(stage, ignore_errors=True)
 
@@ -1767,6 +1844,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--update", metavar="ARCHIVE",
                     help="replace this package with a newer version of it (keeps rag.config.json and the keyfile)")
     ap.add_argument("--force", action="store_true", help="with --update: accept another package id")
+    ap.add_argument("--allow-widen", dest="allow_widen", action="store_true",
+                    help="with --update: accept a version that opens up more than the installed one (more "
+                         "documents, original files, file names shown, encryption off)")
     return ap
 
 
@@ -1783,15 +1863,25 @@ def main(argv: list[str] | None = None) -> int:
     if args.update:
         try:
             pw = None
-            if args.keyfile or env.get("RAG_PASSPHRASE") or env.get("RAG_KEYFILE"):
-                pw = read_passphrase(args.keyfile, env)
-            done = apply_update(HERE, args.update, force=args.force, passphrase=pw)
+            keyfile = args.keyfile or (str(HERE / DEFAULT_KEYFILE) if (HERE / DEFAULT_KEYFILE).is_file()
+                                       and not (env.get("RAG_PASSPHRASE") or env.get("RAG_KEYFILE")) else None)
+            if keyfile or env.get("RAG_PASSPHRASE") or env.get("RAG_KEYFILE"):
+                pw = read_passphrase(keyfile, env)
+            done = apply_update(HERE, args.update, force=args.force, passphrase=pw, allow_widen=args.allow_widen)
         except ConfigError as e:
             print(f"update refused: {e}", file=sys.stderr)
             return 2
         print(json.dumps(done, indent=2))
         print(f"updated package {done['package_id']}: version {done['from'] or '(none)'} -> {done['to']}",
               file=sys.stderr)
+        if done["kept_config"]:
+            print("kept your settings: " + ", ".join(done["kept_config"]), file=sys.stderr)
+        if done["new_config"]:
+            print("new version's settings: " + ", ".join(done["new_config"]), file=sys.stderr)
+        for line in done["widened"]:
+            print(f"WIDER (allowed with --allow-widen): {line}", file=sys.stderr)
+        if done["passphrase_note"]:
+            print("NOTE: " + done["passphrase_note"], file=sys.stderr)
         return 0
     try:
         file_cfg, cfg_path = load_config_file(args.config, env)
@@ -1817,7 +1907,11 @@ def main(argv: list[str] | None = None) -> int:
         # Security gate first: no passphrase prompt / decrypt for a refused start.
         if args.http is not None:
             check_bind_security(cfg)
-        passphrase = read_passphrase(args.keyfile, env) if encrypted else None
+        keyfile = args.keyfile
+        if encrypted and not keyfile and not (env.get("RAG_PASSPHRASE") or env.get("RAG_KEYFILE")) \
+                and (HERE / DEFAULT_KEYFILE).is_file():
+            keyfile = str(HERE / DEFAULT_KEYFILE)      # setup.sh writes it: MCP clients need no flag
+        passphrase = read_passphrase(keyfile, env) if encrypted else None
         if args.http is None and not args.query and not args.ask:   # stdio MCP: answer the handshake while it opens
             corpus = LoadingCorpus(cfg, lambda: Corpus(corpus_path, cfg, passphrase))
         else:
@@ -1845,7 +1939,14 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         return 0
     if args.http is not None:
-        serve_http(corpus, cfg)
+        try:
+            serve_http(corpus, cfg)
+        except OSError as e:
+            if e.errno in (98, 48, 10048):     # EADDRINUSE on Linux / macOS / Windows
+                print(f"port {cfg['port']} is in use: start it on another one, e.g. bash run-http.sh --port "
+                      f"{int(cfg['port']) + 1}", file=sys.stderr)
+                return 2
+            raise
         return 0
     serve_mcp(corpus)
     return 0
@@ -1880,7 +1981,7 @@ button:disabled{opacity:.6;cursor:wait}#chat{display:grid;gap:12px;margin:14px 0
 <p class="small muted">Your question and the passages found are sent to the provider you pick. The key goes to this server with each question and is never stored here. Over a network, use HTTPS.</p>
 </details>
 <section id="chat" aria-live="polite"></section>
-<form id="ask" class="card"><label for="question">Your question</label><textarea id="question" required placeholder="Ask about the documents…"></textarea>
+<form id="ask" class="card"><label for="question">Your question</label><textarea id="question" required placeholder="Ask about the documents… (Enter asks, Shift+Enter: new line)"></textarea>
 <div class="bar" style="margin-top:10px"><button id="send">Ask</button><button type="button" class="ghost" id="reset">New conversation</button><span class="small muted" id="status"></span></div></form>
 <script src="/app.js"></script></main></html>"""
 
@@ -1892,7 +1993,9 @@ const PRESETS = {
   openrouter: { label: 'OpenRouter', api: 'openai', base: 'https://openrouter.ai/api/v1' },
   local: { label: 'Local server (Ollama, LM Studio, llama.cpp…)', api: 'openai', base: 'http://127.0.0.1:11434/v1' },
   other: { label: 'Other OpenAI-compatible API', api: 'openai', base: '' },
+  search: { label: 'No answer model: show the matching passages', api: '', base: '' },
 };
+let hideNames = false;
 let history = [];
 let pkg = null;   // the package's own connection, when it has one
 const saved = JSON.parse(localStorage.getItem('sb-conn') || '{}');
@@ -1910,12 +2013,13 @@ function fillKinds() {
   sel.value = saved.kind && [...sel.options].some((o) => o.value === saved.kind) ? saved.kind : (pkg ? 'package' : 'openai');
 }
 function syncKind(fromUser) {
-  const k = $('kind').value, custom = k !== 'package';
+  const k = $('kind').value, custom = k !== 'package' && k !== 'search';
   $('custom').hidden = !custom;
   if (custom && (fromUser || !$('base').value)) $('base').value = (saved.kind === k && saved.base) || PRESETS[k].base;
   if (custom && !fromUser && saved.kind === k && saved.model) $('model').value = saved.model;
   $('key').placeholder = k === 'local' ? 'Usually not needed for a local server' : "Your provider's key";
-  $('conn-summary').textContent = 'Answer with: ' + (k === 'package' ? `this package's connection (${pkg.model})` : PRESETS[k].label + ($('model').value ? ' · ' + $('model').value : ''));
+  $('conn-summary').textContent = 'Answer with: ' + (k === 'package' ? `this package's connection (${pkg.model})`
+    : k === 'search' ? 'no model (passages only)' : PRESETS[k].label + ($('model').value ? ' · ' + $('model').value : ''));
 }
 function remember() {
   const k = $('kind').value;
@@ -1932,11 +2036,14 @@ async function load() {
     const h = await r.json();
     const c = h.answer_connection || {};
     pkg = c.configured ? c : null;
+    hideNames = !!h.hide_file_names;
     $('stats').textContent = `${h.documents} documents · ${h.chunks} passages · search: ${h.mode}`;
     const p = await fetch('/profile', { headers: headers() }).then((x) => x.ok ? x.json() : {});
     if (p.name) { $('title').textContent = p.name; document.title = p.name; }
   } catch (e) { $('status').textContent = 'Could not reach the server: ' + e.message; }
-  fillKinds(); syncKind(false);
+  fillKinds();
+  if (!pkg && !saved.kind) $('kind').value = 'search';   // no connection anywhere: questions still find the passages
+  syncKind(false);
   if (!pkg && !saved.model) $('conn').open = true;
 }
 const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -1954,8 +2061,11 @@ function bubble(cls, text) {
   $('chat').append(d); d.scrollIntoView({ block: 'nearest' });
   return d;
 }
-function sources(box, list) {
+function sources(box, list, answer) {
   if (!list || !list.length) return;
+  // The files the answer names (it cites them as [file]); all retrieved files only when it names none.
+  const cited = answer ? list.filter((s) => s.filename && answer.includes(s.filename)) : [];
+  if (cited.length) list = cited;
   const wrap = document.createElement('div'); wrap.className = 'src'; wrap.textContent = 'Sources';
   const seen = new Map();
   for (const s of list) {
@@ -1992,7 +2102,22 @@ $('ask').addEventListener('submit', async (e) => {
   e.preventDefault();
   const q = $('question').value.trim(); if (!q) return;
   const k = $('kind').value;
-  if (k !== 'package' && (!$('base').value.trim() || !$('model').value.trim())) { $('conn').open = true; $('status').textContent = 'Pick a provider and enter its model first.'; return; }
+  if (k === 'search') {   // no answer model: the passages that match, with their files unless names are hidden
+    bubble('user', q); $('question').value = ''; $('send').disabled = true; $('status').textContent = 'Searching…';
+    try {
+      const r = await fetch('/search', { method: 'POST', headers: headers(), body: JSON.stringify({ query: q, top_k: 5 }) });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || `request failed (${r.status})`);
+      const hits = Array.isArray(d) ? d : (d.results || d.hits || []);
+      const text = hits.length ? hits.map((h, i) => (hideNames ? `Passage ${i + 1}` : `${i + 1}. ${h.filename || 'document'}`)
+        + '\n' + String(h.text || h.preview || '').trim()).join('\n\n') : 'Nothing in the documents matches that.';
+      bubble('bot', text);
+      $('status').textContent = 'No answer model is set: these are the passages that match. Pick a provider under "Answer with" for written answers.';
+    } catch (err) { bubble('err', err.message); $('question').value = q; $('status').textContent = ''; }
+    finally { $('send').disabled = false; $('question').focus(); }
+    return;
+  }
+  if (k !== 'package' && (!$('base').value.trim() || !$('model').value.trim())) { $('conn').open = true; $('status').textContent = 'Pick a provider and enter its model first (or "No answer model" for the passages only).'; return; }
   bubble('user', q); $('question').value = ''; $('send').disabled = true; $('status').textContent = 'Searching and asking…';
   const body = { question: q, history };
   if (k === 'package') body.provider = 'package';
@@ -2001,11 +2126,15 @@ $('ask').addEventListener('submit', async (e) => {
     const r = await fetch('/ask', { method: 'POST', headers: headers(), body: JSON.stringify(body) });
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || `request failed (${r.status})`);
-    const a = bubble('bot', d.answer); sources(a, d.sources);
+    const a = bubble('bot', d.answer); sources(a, d.sources, d.answer);
     history.push({ role: 'user', content: q }, { role: 'assistant', content: d.answer }); history = history.slice(-12);
     $('status').textContent = d.weak ? 'The passages found may not cover the whole question.' : '';
   } catch (err) { bubble('err', err.message); $('question').value = q; $('status').textContent = ''; }
   finally { $('send').disabled = false; $('question').focus(); }
+});
+// Enter asks, Shift+Enter is a new line.
+$('question').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); $('ask').requestSubmit(); }
 });
 load();
 """

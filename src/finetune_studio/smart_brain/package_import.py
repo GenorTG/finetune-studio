@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextlib
 import json
+import re
 import shutil
 import tarfile
 import time
@@ -28,6 +29,35 @@ def _names(archive: Path) -> list[str]:
             return zf.namelist()
     with tarfile.open(archive) as tf:
         return tf.getnames()
+
+
+def check_archive(archive: str | Path, shown_name: str = "") -> None:
+    """Read the whole archive's table of contents once: a truncated download or a file that is not a tar/zip
+    archive raises ``ValueError`` with a reason the user can act on (it raised EOFError / BadZipFile -> HTTP 500)."""
+    name = shown_name or Path(archive).name
+    try:
+        if zipfile.is_zipfile(archive):
+            with zipfile.ZipFile(archive) as zf:
+                bad = zf.testzip()
+            if bad:
+                raise ValueError(f"{name} is damaged ({bad} does not read back): download it again")
+            return
+        with tarfile.open(archive) as tf:
+            for _ in tf:       # walks to the end: a cut-off file fails here
+                pass
+    except ValueError:
+        raise
+    except (OSError, EOFError, tarfile.TarError, zipfile.BadZipFile) as e:
+        raise ValueError(f"{name} is not a Smart Brain package or index, or it is damaged (cut off or not a .tar.gz "
+                         f"/ .zip archive): download it again ({type(e).__name__})") from e
+
+
+def has_version_record(archive: str | Path) -> bool:
+    """A package with a ``package.json`` beside its corpus (exported with package versions)."""
+    try:
+        return any(n.endswith("/package.json") or n == "package.json" for n in _names(Path(archive)))
+    except (OSError, EOFError, tarfile.TarError, zipfile.BadZipFile):
+        return False
 
 
 def is_server_package(archive: str | Path) -> bool:
@@ -128,6 +158,7 @@ def _restore_index(pkg: _Package, target: Path) -> dict[str, Any]:
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_bytes(pkg.read(name))
     record = manifest.pop("package", None) or {}
+    settings = _settings_from(manifest, pkg)
     extra = manifest.setdefault("extra", {})
     extra["package"] = record
     if manifest.get("scope"):
@@ -139,8 +170,34 @@ def _restore_index(pkg: _Package, target: Path) -> dict[str, Any]:
         manifest.pop(key, None)
     _portable_embedder(manifest)
     (target / "manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
-    return {"record": record, "vectors": vectors, "documents": int(manifest.get("documents") or 0),
-            "chunks": len(rows)}
+    return {"record": record, "settings": settings, "vectors": vectors,
+            "documents": int(manifest.get("documents") or 0), "chunks": len(rows)}
+
+
+def _settings_from(manifest: dict, pkg: _Package) -> dict[str, Any]:
+    """What the package was exported with (its scope, originals, hidden names, audience, encryption): the history
+    keeps them, so "a new version of" an opened package keeps them too."""
+    scope = manifest.get("scope") or {}
+    record = manifest.get("package") or {}
+    policy = record.get("policy") or {}
+    out: dict[str, Any] = {"encrypted": pkg._reader is not None,
+                           "include_originals": bool(manifest.get("original_files")),
+                           "originals": int(manifest.get("original_files") or 0)}
+    if scope:
+        out["scope"] = scope.get("label") or "all documents"
+        out["scope_spec"] = ({k: list(scope.get(k) or []) for k in ("include", "exclude", "tags", "document_ids")}
+                             if out["scope"] != "all documents" else {})
+    hide = policy.get("hide_file_names")
+    if hide is None:
+        try:
+            hide = bool(json.loads((pkg.root / "rag.config.json").read_text(encoding="utf-8")).get("hide_file_names"))
+        except (OSError, ValueError):
+            hide = None
+    if hide is not None:
+        out["hide_file_names"] = bool(hide)
+    if policy.get("audience") or record.get("audience"):
+        out["audience"] = policy.get("audience") or record.get("audience")
+    return out
 
 
 def _folder_id(pid: str, name: str, cache: dict[str, str]) -> str:
@@ -180,9 +237,21 @@ def _restore_files(pid: str, pkg: _Package, record: dict) -> list[dict]:
     return out
 
 
-def import_package(pid: str, archive: str | Path, passphrase: str | None, *, overwrite: bool = False) -> dict[str, Any]:
+def _display_name(record: dict, file_name: str) -> str:
+    """The package's own name (inside its manifest since 0.5), else the file name the user chose (never the staged
+    temp name ``upload-<time>.tar.gz``), without the archive extension and the export's own suffix."""
+    if record.get("name"):
+        return str(record["name"])
+    stem = re.sub(r"(\.tar\.gz|\.tgz|\.tar|\.zip)$", "", Path(file_name).name, flags=re.IGNORECASE)
+    stem = re.sub(r"-smart-brain-[0-9a-f]{8}-v[\w.+-]+$", "", stem)
+    return stem or Path(file_name).name
+
+
+def import_package(pid: str, archive: str | Path, passphrase: str | None, *, overwrite: bool = False,
+                   display_name: str | None = None) -> dict[str, Any]:
     """Open a server package as ``pid``'s starting knowledge. The caller registers the index afterwards
-    (``knowledge.index.register_import``, ``identity.adopt_imported``)."""
+    (``knowledge.index.register_import``, ``identity.adopt_imported``). ``display_name`` is the file name the user
+    uploaded (the archive itself may be a staged temp copy)."""
     from . import package_meta
 
     archive = Path(archive)
@@ -204,8 +273,10 @@ def import_package(pid: str, archive: str | Path, passphrase: str | None, *, ove
         shutil.rmtree(staging, ignore_errors=True)
     record = restored["record"]
     if record.get("package_id"):
-        package_meta.add_history(package_meta.package_dir(pid), {**record, "origin": "opened", "filename": archive.name,
-                                                     "name": archive.name, "changes_md": changes_md})
+        shown = Path(display_name).name if display_name else archive.name
+        package_meta.add_history(package_meta.package_dir(pid), {
+            **record, **restored["settings"], "origin": "opened", "filename": shown,
+            "name": _display_name(record, shown), "changes_md": changes_md})
     return {"package_id": record.get("package_id"), "version": record.get("version"),
             "documents": restored["documents"], "chunks": restored["chunks"], "vectors": restored["vectors"],
             "files": files, "restored_files": sum(1 for f in files if f["status"] == "restored"),
@@ -220,7 +291,10 @@ def read_record(archive: str | Path, passphrase: str | None, workdir: Path) -> d
     try:
         pkg = _Package(_unpack(Path(archive), staging), passphrase)
         try:
-            record = json.loads(pkg.read("manifest.json").decode("utf-8")).get("package") or {}
+            manifest = json.loads(pkg.read("manifest.json").decode("utf-8"))
+            record = manifest.get("package") or {}
+            if record.get("package_id"):
+                record = {**record, **_settings_from(manifest, pkg)}
         finally:
             pkg.close()
     finally:

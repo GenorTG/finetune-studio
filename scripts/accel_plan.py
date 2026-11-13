@@ -528,7 +528,7 @@ def detect(force_cpu: bool = False, force_vendor: str = "") -> GpuInfo:
         for g in gpus:
             if g.compute_cap and tag and float(g.compute_cap) < _tag_floor(tag):
                 notes.append(f"GPU{f' {g.index}' if g.index >= 0 else ''} ({g.name}, sm_{g.compute_cap.replace('.', '')}) is too old for "
-                             f"torch {tag} wheels; PyTorch will skip it (use CUDA_VISIBLE_DEVICES).")
+                             f"torch {tag} wheels; PyTorch will skip it (choose the card to use in Settings → Compute device).")
         if tag and BLACKWELL_MIN_TAG > _tag_ver(tag) and newest >= 10:
             notes.append("Blackwell GPU needs a CUDA 12.8+ driver (>=570).")
         return GpuInfo("nvidia", gpus[0].name, driver, tag, f"{newest:.1f}" if newest else "",

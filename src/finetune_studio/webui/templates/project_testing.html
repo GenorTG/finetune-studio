@@ -30,7 +30,14 @@
     <div class="col-span-5">
       <label class="block text-xs muted mb-1" for="t-model">Model under test</label>
       <select id="t-model" aria-label="Model to test" class="select" data-exports="{{ models|length }}">
-        <option value="">— latest merged export —</option>
+        {% if models %}<option value="">— latest merged export —</option>{% endif %}
+        {% if api_readers %}
+        <optgroup label="AI assistant connections (Smart Brain tests; no GPU)" id="t-model-api">
+          {% for r in api_readers %}
+          <option value="{{ r.value }}" data-api="1"{% if default_model_path == r.value %} selected{% endif %}>{{ r.label }}{% if r.model and r.model not in r.label %} · {{ r.model }}{% endif %}{% if 'API' not in r.label %} · API{% endif %}</option>
+          {% endfor %}
+        </optgroup>
+        {% endif %}
         {% if project.base_model %}<option value="__base__" title="{{ project.base_model }}"{% if base_model_missing %} disabled{% endif %}>Base model (untrained) · {{ project.base_model|model_label }}{% if base_model_missing %} — file missing on disk{% endif %}</option>{% endif %}
         {% for m in models %}
         <option value="{{ m.path }}"{% if default_model_path and m.path == default_model_path %} selected{% endif %}>{{ m.name }} · {{ m.format }} ({{ m.size_gb }} GB)</option>
@@ -38,13 +45,14 @@
         {% if library_models %}
         <optgroup label="Installed models (Model library)">
           {% for m in library_models %}
-          <option value="{{ m.path }}">{{ m.name }} · {{ m.format }}{% if m.size_gb %} ({{ m.size_gb }} GB){% endif %}</option>
+          <option value="{{ m.path }}"{% if not models and not api_readers and loop.first %} selected{% endif %}>{{ m.name }} · {{ m.format }}{% if m.size_gb %} ({{ m.size_gb }} GB){% endif %}</option>
           {% endfor %}
         </optgroup>
         {% endif %}
       </select>
-      {% if not models and library_models %}
-      <div class="text-xs dim mt-1">No exports from this project yet: test any installed model (e.g. as a Smart Brain reader), or <a href="/projects/{{ pid }}/export" data-link>export a completed run →</a></div>
+      <div class="text-xs dim mt-1" id="t-model-api-note" hidden>An AI assistant connection answers from the Smart Brain over its API: nothing loads on the GPU. It reads only in <b>Smart Brain</b> tests.</div>
+      {% if not models and (library_models or api_readers) %}
+      <div class="text-xs dim mt-1">No exports from this project yet: test the Smart Brain with an AI assistant connection or any installed model, or <a href="/projects/{{ pid }}/export" data-link>export a completed run →</a></div>
       {% elif not models %}
       <div class="text-xs dim mt-1">No project merged/GGUF exports yet. <a href="/projects/{{ pid }}/export" data-link>Export a completed run →</a></div>
       {% endif %}
@@ -278,6 +286,13 @@
     $('t-suite-wrap').style.display = m === 'dataset' ? 'none' : '';
     $('t-suite-import-box').style.display = m === 'dataset' ? 'none' : '';
     $('t-reworded-box').style.display = m === 'dataset' ? 'none' : '';
+    // An AI assistant connection reads only in Smart Brain tests: off (and moved off) in the other modes.
+    const sel = $('t-model');
+    sel.querySelectorAll('option[data-api]').forEach(o => { o.disabled = m !== 'brain'; });
+    if (m !== 'brain' && sel.selectedOptions[0] && sel.selectedOptions[0].dataset.api) {
+      const first = [].find.call(sel.options, o => !o.disabled && !o.dataset.api);
+      sel.value = first ? first.value : '';
+    }
     syncRunButton();
   }
 
@@ -293,7 +308,9 @@
     const m = mode();
     // "— latest merged export —" with no export only ever answered 400: say what is missing instead of offering Run.
     const sel = $('t-model');
-    const modelOk = !!sel.value || Number(sel.dataset.exports || 0) > 0;
+    const opt = sel.selectedOptions[0];
+    $('t-model-api-note').hidden = !(opt && opt.dataset.api);
+    const modelOk = (!!sel.value && !(opt && opt.disabled)) || (!sel.value && Number(sel.dataset.exports || 0) > 0);
     const suiteOk = m === 'dataset' || !!$('t-suite').value;
     const datasetOk = m !== 'dataset' || $('t-train-ds').options.length > 1;
     const ready = modelOk && suiteOk && datasetOk;
@@ -305,11 +322,11 @@
     btn.title = ready ? 'Start the test' : (missing === 'dataset'
       ? 'No training dataset is registered yet'
       : missing === 'model'
-        ? 'No model to test yet: choose the base or an installed model'
+        ? 'No model to test yet: choose an AI assistant connection (Smart Brain), the base or an installed model'
         : 'Pick a quiz first');
     if (status && !status.dataset.busy) {
       if (missing === 'dataset') status.textContent = 'No training dataset yet. Export approved pairs from Pairs first.';
-      else if (missing === 'model') status.textContent = 'Pick a model to test (the base or an installed one).';
+      else if (missing === 'model') status.textContent = 'Pick a model to test (an AI assistant connection for Smart Brain, the base or an installed one).';
       else if (missing === 'quiz') status.textContent = 'Pick a quiz first.';
       else status.textContent = m === 'dataset' ? 'Ready — dataset check.' : ('Ready — ' + suiteLabel());
     }
@@ -744,13 +761,33 @@
       + '<button type="button" class="btn sm" data-v="pass" id="rv-pass">Pass <kbd>1</kbd></button>'
       + '<button type="button" class="btn sm" data-v="partial" id="rv-partial">Partial <kbd>2</kbd></button>'
       + '<button type="button" class="btn sm" data-v="fail" id="rv-fail">Fail <kbd>3</kbd></button>'
-      + '<button type="button" class="btn sm ghost" data-v="" id="rv-clear" title="Withdraw your verdict; the AI verdict applies again">Clear mine <kbd>0</kbd></button></div>'
+      + '<button type="button" class="btn sm ghost" data-v="" id="rv-clear" title="Withdraw your verdict; the AI verdict applies again">Clear mine <kbd>0</kbd></button>'
+      + (c.expect_abstain ? '<button type="button" class="btn sm" id="rv-answerable" title="The documents DO answer this question (the quiz check missed it): the model\u2019s answer becomes its key, your verdict is Pass, and the quiz file is corrected for the next run">The documents answer this</button>' : '')
+      + '</div>'
       + '<input type="text" id="rv-note" class="input text-xs" placeholder="optional note (why)" value="' + esc(S.notes[c.id] || '') + '" aria-label="Note for your verdict">';
     pane.innerHTML = h;
     pane.querySelectorAll('button[data-v]').forEach(function(b) {
       b.addEventListener('click', function() { setVerdict(b.getAttribute('data-v')); });
     });
     $('rv-note').addEventListener('input', function(ev) { S.notes[c.id] = ev.target.value; });
+    const ans = $('rv-answerable');
+    if (ans) ans.addEventListener('click', markAnswerable);
+  }
+
+  async function markAnswerable() {
+    const c = curCase();
+    if (!c) return;
+    try {
+      const r = await jreq('POST', BASE + '/runs/' + S.cur + '/cases/' + encodeURIComponent(c.id) + '/answerable', {});
+      const idx = S.cases.findIndex(function(x) { return x.id === c.id; });
+      if (idx >= 0 && r.case) S.cases[idx] = r.case;
+      delete S.full[c.id]; S.paneSig = '';
+      if (S.run) { S.run.scores = r.scores; }
+      renderSummary(S.run, r.agreement); renderFilters(); renderList(); renderPane();
+      notify(r.suite_updated ? 'Marked answerable: the quiz file is corrected for the next run.'
+        : 'Marked answerable for this run (the quiz file was not found to correct).', 'success');
+      refresh(false);
+    } catch (e) { notify('Could not mark it answerable: ' + e.message, 'error'); }
   }
 
   async function setVerdict(v) {

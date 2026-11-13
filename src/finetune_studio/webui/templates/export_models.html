@@ -160,21 +160,21 @@
       <div class="grid grid-12 gap-3 items-end mb-2">
         <div class="col-span-2">
           <label class="block text-xs muted mb-1">Archive</label>
-          <select id="mcp-fmt" class="select">
+          <select id="mcp-fmt" aria-label="Archive format" class="select">
             <option value="tar.gz">.tar.gz</option><option value="tar">.tar</option><option value="zip">.zip</option>
           </select>
         </div>
         <div class="col-span-2">
           <label class="block text-xs muted mb-1">Device</label>
-          <input id="mcp-device" type="text" class="input" value="auto" title="auto (GPU first, CPU only without one) | cpu | cuda | cuda:N | xpu | mps">
+          <input id="mcp-device" aria-label="Device" type="text" class="input" value="auto" title="auto (GPU first, CPU only without one) | cpu | cuda | cuda:N | xpu | mps">
         </div>
         <div class="col-span-2">
           <label class="block text-xs muted mb-1">Bind host</label>
-          <input id="mcp-host" type="text" class="input" value="127.0.0.1" title="Default 127.0.0.1. A non-loopback host needs an auth token at runtime (RAG_AUTH_TOKEN) or the server refuses to start.">
+          <input id="mcp-host" aria-label="Bind host" type="text" class="input" value="127.0.0.1" title="Default 127.0.0.1. A non-loopback host needs an auth token at runtime (RAG_AUTH_TOKEN) or the server refuses to start.">
         </div>
         <div class="col-span-1">
           <label class="block text-xs muted mb-1">Port</label>
-          <input id="mcp-port" type="number" min="1" max="65535" class="input" value="8899">
+          <input id="mcp-port" aria-label="Port" type="number" min="1" max="65535" class="input" value="8899">
         </div>
         <div class="col-span-1">
           <label class="block text-xs muted mb-1" for="mcp-topk" title="How many matching passages each search returns.">Results returned</label>
@@ -203,6 +203,17 @@
         </label>
         <div class="text-xs mt-2" id="mcp-pipeline" role="status" aria-live="polite"></div>
       </fieldset>
+      <div class="grid grid-12 gap-3 items-end mb-2" id="mcp-embed-row">
+        <div class="col-span-8">
+          <label class="block text-xs muted mb-1" for="mcp-embed-url">Embeddings endpoint where it runs (meaning search without the models inside)</label>
+          <input id="mcp-embed-url" type="text" class="input" placeholder="http://127.0.0.1:11434/v1"
+                 title="An OpenAI-compatible /embeddings endpoint serving the index's embedding model (Ollama, LM Studio, vLLM, OpenAI). Its key is never in the package: set RAG_EMBED_API_KEY where the server runs.">
+        </div>
+        <div class="col-span-4">
+          <label class="block text-xs muted mb-1" for="mcp-embed-model">Embedding model name</label>
+          <input id="mcp-embed-model" type="text" class="input" placeholder="the index's embedder">
+        </div>
+      </div>
       <div class="flex gap-4 items-center mb-2 text-xs">
         <label class="flex items-center gap-2" title="Ship the embedding model (for meaning search) and the reranker inside, for fully offline use (about 0.2 GB with the small MiniLM models, about 4.5 GB with e5-large and bge-reranker-v2-m3). Model weights are public and are NOT encrypted."><input id="mcp-models" type="checkbox"> Include models (not encrypted)</label>
         <label class="flex items-center gap-2 brain-plaintext-opt" title="Off the default path. Documents and index become plain files in the archive."><input id="mcp-noenc" type="checkbox"> Export WITHOUT encryption (plaintext)</label>
@@ -211,11 +222,15 @@
       </details>
       <div class="grid grid-12 gap-3 items-end mb-2">
         <div class="col-span-4">
-          <label class="block text-xs muted mb-1">Passphrase (blank = generate one)</label>
+          <label class="block text-xs muted mb-1" for="mcp-pass" id="mcp-pass-label">Passphrase (blank = generate one)</label>
           <input id="mcp-pass" type="password" autocomplete="new-password" class="input" placeholder="min 8 characters"
                  title="Used to derive the encryption key. Never saved by Finetune Studio. Lose it and the package cannot be opened.">
         </div>
+        <div class="col-span-8 text-xs" id="mcp-newpass-row" hidden>
+          <label class="flex items-center gap-2" title="Running copies of the earlier version then need the new passphrase in their keyfile before update.sh can install this one."><input id="mcp-newpass" type="checkbox"> Use a new passphrase for this version (blank = generate one)</label>
+        </div>
       </div>
+      <div class="text-sm mb-2" id="mcp-search-where" role="status" aria-live="polite"></div>
       <div class="sev-warning text-sm mb-2" id="mcp-blocker" role="status" aria-live="polite" hidden></div>
       <div class="flex gap-2 items-center">
         <button class="btn primary" type="button" id="mcp-pkg-btn" onclick="startMcpPackage()"
@@ -231,7 +246,7 @@
           <button class="btn" type="button" onclick="hideMcpPass()">I saved it</button>
         </div>
       </div>
-      <p class="text-xs dim mt-2" id="mcp-pkg-note">Runs anywhere with Python 3.10+. Keyword search works out of the box; for meaning-based search point it at an embeddings endpoint or include the models. Settings baked in here are written to <code>rag.config.json</code> inside the package and can be overridden by env vars and flags.</p>
+      <p class="text-xs dim mt-2" id="mcp-pkg-note">Runs anywhere with Python 3.10+. Word search works out of the box; meaning search needs the models inside or an embeddings endpoint where it runs (see the line above the button). Settings baked in here are written to <code>rag.config.json</code> inside the package and can be overridden by env vars and flags.</p>
   </div>
 </section>
 
@@ -590,6 +605,13 @@
       if (stop) blocker.innerHTML = '⚠ ' + esc(stop.detail) + ' <a href="/projects/' + encodeURIComponent(PID) + esc(stop.href)
         + '" data-link>Open the knowledge check</a>';
     }
+    // The export refuses superseded documents nobody accepted (409): the button says so instead of failing on click.
+    window.PACKAGE_BLOCKED = stop && /superseded/i.test(stop.detail || '') ? stop.detail : '';
+    const pkgBtn = document.getElementById('mcp-pkg-btn');
+    if (pkgBtn && window.PACKAGE_BLOCKED) {
+      pkgBtn.disabled = true;
+      pkgBtn.title = 'Not yet: ' + window.PACKAGE_BLOCKED;
+    }
     list.innerHTML = (d.steps || []).map((st) => {
       const pill = PILL[st.state] || PILL.todo;
       return '<li class="package-step is-' + esc(st.state) + '"><div class="package-step-head">'
@@ -651,8 +673,11 @@
       llm_connection: g('mcp-llm-conn').value || null,
       include_originals: g('mcp-originals').checked,
       hide_file_names: g('mcp-hide-names').checked,
+      embed_base_url: g('mcp-embed-url').value.trim(),
+      embed_model: g('mcp-embed-model').value.trim(),
       scope: mcpScope(),
       new_version_of: document.getElementById('mcp-base').value || null,
+      new_passphrase: !!document.getElementById('mcp-base').value && g('mcp-newpass').checked,
       version: document.getElementById('mcp-version').value.trim() || null,
       name: g('mcp-name').value.trim() || g('mcp-name').placeholder || null,
       audience: g('mcp-audience').value || null,
@@ -677,7 +702,7 @@
     if (pub) {
       document.getElementById('mcp-hide-names').checked = true;
       document.getElementById('mcp-originals').checked = false;
-      note.textContent = 'Public bot: file names are hidden in answers and the original files stay out. Choose "Only these" below and pick the public folder, so nothing internal is inside.';
+      note.textContent = 'Public bot: file names are hidden in answers and the original files stay out. Choose "Only these" below and pick the public folder, so nothing internal is inside. The server itself still lists every file name in the package (/health, /search, rag_info, rag_list_documents): open only /ask and the chat page to the public, through a gateway (see the deployment guide).';
     } else {
       note.textContent = '';
     }
@@ -692,12 +717,44 @@
     var next = p ? parts[0] + '.' + ((parts[1] || 0) + 1) + '.0' : '1.0.0';
     document.getElementById('mcp-version').placeholder = next;
     if (p) {
-      if (p.name && !document.getElementById('mcp-name').value) document.getElementById('mcp-name').value = p.name;
-      if (p.audience) document.getElementById('mcp-audience').value = p.audience;
+      if (p.name) document.getElementById('mcp-name').value = p.name;
+      applyBaseSettings(p.settings || {});
     }
-    note.textContent = p ? 'Same package id (' + id + '), version ' + p.latest + ' \u2192 ' + next
-      + ': the export lists the documents added, changed and removed since ' + p.latest + '.'
+    var enc = p && (p.settings || {}).encrypted !== false;
+    document.getElementById('mcp-newpass-row').hidden = !enc;
+    if (!enc) document.getElementById('mcp-newpass').checked = false;
+    syncPassLabel();
+    note.textContent = p ? 'Version ' + next + ' of \u201c' + (p.name || id) + '\u201d (now ' + p.latest
+      + '): it keeps that package\u2019s documents, original files, hidden names and audience unless you change them'
+      + ' here (anything wider asks you to confirm), and lists the documents added, changed and removed.'
       : 'A new package id; its later exports can be new versions of it.';
+  }
+  // A new version starts from its base's settings, not the form's defaults: a public bot's next version must not
+  // quietly become the internal package.
+  function applyBaseSettings(st) {
+    var g = function (id) { return document.getElementById(id); };
+    if (st.audience) g('mcp-audience').value = st.audience;
+    g('mcp-originals').checked = !!st.include_originals;
+    g('mcp-hide-names').checked = !!st.hide_file_names;
+    if (st.encrypted === false) g('mcp-noenc').checked = true; else g('mcp-noenc').checked = false;
+    var sc = st.scope;
+    var some = !!(sc && ((sc.include || []).length || (sc.tags || []).length || (sc.document_ids || []).length
+      || (sc.exclude || []).length));
+    g(some ? 'mcp-scope-some' : 'mcp-scope-all').checked = true;
+    var want = { folder: (sc && sc.include) || [], tag: (sc && sc.tags) || [], doc: (sc && sc.document_ids) || [] };
+    document.querySelectorAll('#mcp-scope input[type=checkbox]').forEach(function (el) {
+      el.checked = (want[el.dataset.kind] || []).indexOf(el.value) >= 0;
+    });
+    baseScope = some ? sc : null;
+    syncScope();
+  }
+  var baseScope = null;
+  function syncPassLabel() {
+    var base = !!document.getElementById('mcp-base').value, fresh = document.getElementById('mcp-newpass').checked;
+    var row = document.getElementById('mcp-newpass-row');
+    document.getElementById('mcp-pass-label').textContent = base && !row.hidden && !fresh
+      ? 'Passphrase of the current version (required: running copies keep working)'
+      : 'Passphrase (blank = generate one)';
   }
   window.loadPackageHistory = async function (select) {
     try {
@@ -728,6 +785,7 @@
     } catch (e) { note.textContent = 'Could not read it: ' + (e.message || e); }
   };
   document.getElementById('mcp-base').addEventListener('change', syncVersion);
+  document.getElementById('mcp-newpass').addEventListener('change', syncPassLabel);
 
   // Audience scope: which documents go in the package. The same rule as smart_brain/scope.py: a document is in when
   // it matches any chosen folder, tag or single document (nothing chosen = all).
@@ -736,9 +794,11 @@
     return [].slice.call(document.querySelectorAll('#' + box + ' input:checked')).map(function (el) { return el.value; });
   }
   function mcpScope() {
-    if (!document.getElementById('mcp-scope-some').checked) return null;
+    // "All documents" is sent as an empty choice, not null: null means "keep the base version's scope".
+    if (!document.getElementById('mcp-scope-some').checked) return { include: [], tags: [], document_ids: [], exclude: [] };
     return { include: scopeChecked('mcp-scope-folders'), tags: scopeChecked('mcp-scope-tags'),
-             document_ids: scopeChecked('mcp-scope-docs') };
+             document_ids: scopeChecked('mcp-scope-docs'),
+             exclude: (document.getElementById('mcp-base').value && baseScope && baseScope.exclude) || [] };
   }
   function scopeSelected(sc, d) {
     if (!sc || !(sc.include.length || sc.tags.length || sc.document_ids.length)) return true;
@@ -780,6 +840,7 @@
       scopeDocs.forEach(function (x) { docs.append(scopeBox(x.document_id, x.path, 'doc')); });
     } catch (e) { /* the picker stays empty: All documents still works */ }
     syncScope();
+    if (document.getElementById('mcp-base').value) syncVersion();   // the boxes exist now: tick the base's scope
   };
   ['mcp-scope-all', 'mcp-scope-some'].forEach(function (id) {
     document.getElementById(id).addEventListener('change', syncScope);
@@ -853,12 +914,31 @@
       warn = 'Answer generation needs the endpoint and model name (they can also be set where the server runs).';
     g('mcp-pipeline').innerHTML = '<b>Pipeline:</b> ' + steps.map(escHtmlLayer).join(' → ')
       + (warn ? '<div class="sev-warning mt-1">⚠ ' + escHtmlLayer(warn) + '</div>' : '');
-    g('mcp-pkg-btn').disabled = !found.length;
+    g('mcp-pkg-btn').disabled = !found.length || !!window.PACKAGE_BLOCKED;
+    // Next to the Build button, always: how the package will find passages where it runs. A default package has the
+    // vectors but no embedder, so it searches by exact words only until the host gives it an embeddings endpoint.
+    var embed = g('mcp-embed-url').value.trim(), where = g('mcp-search-where');
+    var keywordOnly = sem && !models && !embed;
+    where.className = 'text-sm mb-2' + (keywordOnly ? ' sev-warning' : '');
+    where.innerHTML = keywordOnly
+      ? '<b>Where it runs: word search only</b> (exact words, names, codes). Meaning search needs the embedder: tick '
+        + '<a href="#mcp-advanced" data-open-advanced="1">Include models</a> (about 0.2 GB with MiniLM, 4.5 GB with e5-large) or give '
+        + '<a href="#mcp-advanced" data-open-advanced="1">an embeddings endpoint</a> where it runs. The self-test lends it the studio\u2019s embedder.'
+      : '<b>Where it runs:</b> ' + escHtmlLayer(!sem ? 'word search only (meaning search is off)'
+        : models ? (kw ? 'meaning + word search (the embedder is inside)' : 'meaning search (the embedder is inside)')
+        : (kw ? 'meaning + word search with embeddings from ' : 'meaning search with embeddings from ') + embed);
   }
   function escHtmlLayer(t) {
     return String(t).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
   }
-  ['mcp-sem', 'mcp-kw', 'mcp-rerank', 'mcp-models', 'mcp-answer', 'mcp-llm-url', 'mcp-llm-model'].forEach(function (id) {
+  document.getElementById('mcp-search-where').addEventListener('click', function (ev) {
+    var a = ev.target.closest('[data-open-advanced]');
+    if (!a) return;
+    ev.preventDefault();
+    var adv = document.getElementById('mcp-advanced'); adv.open = true;
+    (a.textContent.indexOf('endpoint') >= 0 ? document.getElementById('mcp-embed-url') : document.getElementById('mcp-models')).focus();
+  });
+  ['mcp-sem', 'mcp-kw', 'mcp-rerank', 'mcp-models', 'mcp-answer', 'mcp-llm-url', 'mcp-llm-model', 'mcp-embed-url'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.addEventListener(el.type === 'text' ? 'input' : 'change', syncLayers);
   });
@@ -874,6 +954,7 @@
     g('mcp-answer').checked = !!c.answer_enabled;
     g('mcp-originals').checked = !!c.include_originals;
     g('mcp-hide-names').checked = !!c.hide_file_names;
+    g('mcp-embed-url').value = c.embed_base_url || ''; g('mcp-embed-model').value = c.embed_model || '';
     g('mcp-llm-url').value = c.llm_base_url || ''; g('mcp-llm-model').value = c.llm_model || '';
     g('mcp-llm-provider').value = c.llm_provider || 'openai';
     var pre = [].find.call(g('mcp-llm-preset').options, function (o) { return o.value && o.dataset.url && o.dataset.url === c.llm_base_url; });
@@ -913,12 +994,13 @@
     if (navigator.clipboard) navigator.clipboard.writeText(v);
   };
 
-  window.startMcpPackage = async function () {
+  window.startMcpPackage = async function (allowWiden) {
     var btn = document.getElementById('mcp-pkg-btn');
     var note = document.getElementById('mcp-pkg-note');
     var passEl = document.getElementById('mcp-pass');
     var body = mcpVals();
     if (passEl.value && body.encrypt) body.passphrase = passEl.value;
+    if (allowWiden === true) body.allow_widen = true;
     if (note) note.textContent = body.include_models
       ? 'Building the package with the models inside (about 0.2 GB with the MiniLM models, about 4.5 GB with e5-large and bge-reranker-v2-m3) \u2014 this can take a few minutes, then the download starts.'
       : 'Building the package \u2014 the download starts when it is ready.';
@@ -933,10 +1015,12 @@
           + (d.package.parent_version ? ' (after ' + d.package.parent_version + '): ' + (ch.added || []).length + ' added, '
              + (ch.changed || []).length + ' changed, ' + (ch.removed || []).length + ' removed.' : ' (first version).');
         document.getElementById('mcp-version').value = '';
+        document.getElementById('mcp-base').value = '';   // the next export is a new package unless one is picked
         if (window.loadPackageVersions) window.loadPackageVersions();
-        loadPackageHistory(d.package.package_id).then(function () {   // the next export defaults to its next version
+        loadPackageHistory('').then(function () {
           var vn = document.getElementById('mcp-version-note');
-          vn.textContent = built + ' Next export: ' + vn.textContent;
+          vn.textContent = built + ' The next export is a new package: to publish a later version of this one, pick'
+            + ' \u201cNew version of\u201d it under Package.';
         });
       }
       if (note) note.textContent = (d.encrypted ? 'Encrypted package ' : 'PLAINTEXT package ')
@@ -946,9 +1030,21 @@
         + (d.original_files ? ' ' + d.original_files + ' original file' + (d.original_files === 1 ? '' : 's') + ' inside.' : '')
         + (d.verified && d.verified.ok === true ? ' Self-test passed: ' + d.verified.detail + '.'
            : d.verified && d.verified.ok === false ? ' SELF-TEST FAILED: ' + d.verified.detail + '.'
-           : d.verified ? ' Not self-tested: ' + d.verified.detail + '.' : '');
+           : d.verified ? ' Not self-tested: ' + d.verified.detail + '.' : '')
+        + (d.runtime_search ? ' Search where it runs: ' + d.runtime_search + '.' : '');
       window.location.href = d.download_url;
     } catch (e) {
+      if (e && e.code === 'widens_package' && allowWiden !== true) {
+        if (btn) btn.disabled = false;
+        var list = ((e.data && e.data.widens) || []).map(function (w) { return w.text; }).join('; ');
+        var ok = await window.fts.confirm('This version opens up more than the one before it: ' + list
+          + '. Running copies refuse it in update.sh unless --allow-widen is given, and CHANGES.md lists it. '
+          + 'Build it anyway?', { title: 'Wider than the previous version', danger: true,
+                                  okText: 'Build the wider version' });
+        if (ok) return startMcpPackage(true);
+        if (note) note.textContent = 'Not built: change the documents or options back, or export a new package instead.';
+        return;
+      }
       if (note) note.textContent = 'Package build failed: ' + (e.message || e);
       notify(String(e.message || e), 'error');
     } finally {

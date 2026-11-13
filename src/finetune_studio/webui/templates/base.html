@@ -22,13 +22,14 @@
   <link rel="stylesheet" href="/static/css/base.css?v=1">
   <link rel="stylesheet" href="/static/css/components.css?v=2">
   <link rel="stylesheet" href="/static/css/layout.css?v=1">
-  <link rel="stylesheet" href="/static/css/app.css?v=138">
+  <link rel="stylesheet" href="/static/css/app.css?v=139">
   <link rel="stylesheet" href="/static/css/typography.css?v=1">
   <link rel="stylesheet" href="/static/css/access.css?v=3">
   <script src="/static/js/access.js?v=1"></script>
   <script src="/static/js/api.js?v=1"></script>
 </head>
 <body>
+<a class="skip-link" href="#content">Skip to content</a>
   <div id="toasts" class="toasts" aria-live="polite"></div>
   <div class="app" id="app">
 
@@ -392,6 +393,16 @@
           }
           if (d && d.active && ie && ie.loaded && ie.model_display && d.active.model_id === ie.model) {
             d.active.display = ie.model_display;
+          }
+          if (d && !(d.active && d.active.loaded) && ie && !ie.loaded && ie.loading) {
+            const name = String(ie.loading).split(/[\\/]/).pop().replace(/\.gguf$/i, '');
+            if (lastState !== 'loading:' + name) {
+              lastState = 'loading:' + name;
+              dot.className = 'status-dot busy';
+              lbl.textContent = '◌ loading ' + name;
+              pill.title = 'Loading ' + ie.loading + ' into the inference worker (a test run, a chat or the Vision reader reading pictures).';
+            }
+            return;
           }
           render(d);
         } catch (e) { /* ignore */ }

@@ -51,7 +51,7 @@ def test_python_dash_m_finetune_studio_runs_cli_help():
         timeout=30,
     )
     assert result.returncode == 0
-    assert "finetune-studio" in result.stdout
+    assert "usage: fts " in result.stdout
 
 
 def test_python_dash_m_finetune_studio_cli_runs_cli_help():
@@ -62,7 +62,7 @@ def test_python_dash_m_finetune_studio_cli_runs_cli_help():
         timeout=30,
     )
     assert result.returncode == 0
-    assert "finetune-studio" in result.stdout
+    assert "usage: fts " in result.stdout
 
 
 def test_templates_package_has_no_dead_duplicate_docstring_statement():

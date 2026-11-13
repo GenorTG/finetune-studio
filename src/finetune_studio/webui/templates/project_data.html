@@ -26,12 +26,12 @@
   </div>
   <div class="actions" id="fb-toolbar-actions">
     <span class="pill outline" id="fb-bulk-label" hidden>0 selected</span>
-    <button class="btn sm danger" type="button" id="fb-bulk-delete" disabled>Delete selected</button>
-    <button class="btn sm" type="button" id="fb-bulk-move" disabled>Move to folder</button>
-    <button class="btn sm" type="button" id="wb-bulk-prep" disabled title="Parse the selected files that have no parse yet (or whose parse failed); every upload is parsed on arrival, so this is a retry">⚡ Parse now</button>
-    <button class="btn sm" type="button" id="fb-bulk-zip" disabled title="Download the selected files (raw bytes) as one zip">⬇ Zip</button>
-    <button class="btn sm" type="button" id="fb-bulk-tag" disabled title="Add or remove tags on the selected files">🏷 Tag</button>
-    <button class="btn sm" type="button" id="fb-bulk-reparse" disabled title="Re-run the parser on the selected files (discards manual parsed-text edits)">↻ Re-parse</button>
+    <button class="btn sm danger" type="button" id="fb-bulk-delete" disabled hidden>Delete selected</button>
+    <button class="btn sm" type="button" id="fb-bulk-move" disabled hidden>Move to folder</button>
+    <button class="btn sm" type="button" id="wb-bulk-prep" disabled hidden title="Parse the selected files that have no parse yet (or whose parse failed); every upload is parsed on arrival, so this is a retry">⚡ Parse now</button>
+    <button class="btn sm" type="button" id="fb-bulk-zip" disabled hidden title="Download the selected files (raw bytes) as one zip">⬇ Zip</button>
+    <button class="btn sm" type="button" id="fb-bulk-tag" disabled hidden title="Add or remove tags on the selected files">🏷 Tag</button>
+    <button class="btn sm" type="button" id="fb-bulk-reparse" disabled hidden title="Re-run the parser on the selected files (discards manual parsed-text edits)">↻ Re-parse</button>
     <button class="btn sm" type="button" id="fb-bulk-restore" hidden title="Restore the selected files from trash">⇩ Restore</button>
     <span class="tb-sep" aria-hidden="true"></span>
     <button class="btn sm primary" type="button" id="fb-upload-toggle">⬆ Upload</button>
@@ -65,7 +65,7 @@
 {# ── C. Toolbar ── #}
 <div class="card mb-4">
   <div class="flex gap-2 wrap items-center fb-toolbar">
-    <input class="input fb-search" type="search" id="fb-search" placeholder="Search filename / tag…">
+    <input class="input fb-search" type="search" id="fb-search" aria-label="Search files by name or tag" placeholder="Search filename / tag…">
     <select class="input fb-filter" id="fb-folder" aria-label="Filter by folder">
       <option value="">All folders</option>
     </select>
@@ -377,6 +377,9 @@
     if (tag) tag.disabled = n === 0 || view === 'trash';
     if (rep) rep.disabled = n === 0 || view === 'trash';
     if (res) res.disabled = n === 0;
+    // Nothing selected: the selection tools stay out of the way (a red "Delete selected" on an empty project read as
+    // something to click); they appear with the first ticked file.
+    [del, move, prep, zip, tag, rep].forEach((b) => { if (b) b.hidden = n === 0; });
   }
 
   // A folder holds its sub-folders' files too: "public" shows public/faq/… (folder names are paths: public/faq).
@@ -1377,14 +1380,20 @@
         if (xhr.status >= 400) throw new Error(data.detail || data.error || ('HTTP ' + xhr.status));
         if (progress) progress.hidden = true;
         const c = data.counts || {};
+        // Name what did not go in: which file failed and why, which ones were the same content as a file already here.
+        const rows = data.report || [];
+        const failed = rows.filter((r) => r.status === 'error').map((r) => r.filename + ' (' + (r.error || 'failed') + ')');
+        const dups = rows.filter((r) => r.status === 'duplicate').map((r) => r.filename + ' = ' + (r.duplicate_of || 'a file already here'));
+        const list = (items) => items.slice(0, 5).join('; ') + (items.length > 5 ? '; +' + (items.length - 5) + ' more' : '');
+        const detail = (failed.length ? ' Not added: ' + list(failed) + '.' : '')
+          + (dups.length ? ' Same content as a file already here, skipped: ' + list(dups) + '.' : '');
         if (status) {
-          status.textContent = 'Uploaded ' + (c.uploaded || 0) +
-            (c.duplicates_skipped ? ', ' + c.duplicates_skipped + ' dup' : '') +
-            (c.errors ? ', ' + c.errors + ' err' : '') +
-            ' — queued for parsing';
+          status.textContent = 'Uploaded ' + (c.uploaded || 0) + ' file' + ((c.uploaded || 0) === 1 ? '' : 's')
+            + ' — queued for parsing.' + detail;
         }
+        if (failed.length) notify('Not uploaded: ' + list(failed), 'warn');
         await loadFiles();
-        const head = status ? status.textContent.replace(' — queued for parsing', '') : '';
+        const head = status ? status.textContent.replace(' — queued for parsing.', '') : '';
         pollUntilParsed(15, (stillWaiting) => {
           if (status) status.textContent = head + (stillWaiting ? ' — still parsing after 30 s; reload this page later for the result'
             : ' — parsed; see the Pipeline column');

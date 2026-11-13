@@ -19,6 +19,40 @@ _DONE_STATUSES = frozenset({"done", "completed"})
 _INFERENCE_FORMATS = frozenset({"safetensors", "gguf"})
 
 BASE_MODEL_CHOICE = "__base__"   # the Testing / Compare pages' "untrained base model" entry
+API_READER_PREFIX = "api:"       # "api:<connection id>": a Settings → AI assistant API connection reads (no GPU)
+
+
+def is_api_reader(choice: str) -> bool:
+    return str(choice or "").startswith(API_READER_PREFIX)
+
+
+def api_readers() -> list[dict[str, Any]]:
+    """The API connections (Settings → AI assistant) a Smart Brain test can use as its reader: no GPU, no download.
+    Without them a user with no GPU could not test the package's answers at all."""
+    from finetune_studio.models.assistant import connection_label
+    from finetune_studio.models.manager import get_manager
+
+    out = []
+    for row in get_manager().list_providers():
+        if row.get("kind") != "openai_compat":
+            continue
+        out.append({"value": API_READER_PREFIX + str(row["id"]), "id": row["id"],
+                    "label": connection_label(row), "model": row.get("model_id") or ""})
+    return out
+
+
+def default_reader_for_testing(models: list[dict[str, Any]], readers: list[dict[str, Any]]) -> str | None:
+    """No export of this project yet: the AI assistant's API connection (the helper seat) when it is one, else the
+    first API connection. Never "latest merged export" in a project that has none."""
+    if models:
+        return default_model_path_for_testing(models)
+    from finetune_studio.models.helper import get_helper_provider_id
+
+    seat = API_READER_PREFIX + str(get_helper_provider_id("quiz") or "")
+    for r in readers:
+        if r["value"] == seat:
+            return seat
+    return readers[0]["value"] if readers else None
 
 
 def local_model_missing(path: str) -> bool:
@@ -90,24 +124,38 @@ def models_for_testing_page(project_models: list[dict[str, Any]]) -> list[dict[s
     return usable
 
 
-def library_models_for_testing(project_models: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def library_models_for_testing(project_models: list[dict[str, Any]], pid: str = "",
+                               discovered: list | None = None) -> list[dict[str, Any]]:
     """Installed Model-library models (GGUF / safetensors) that are not already this project's exports.
 
     A Smart-Brain-only project has no trained export, and the picker listed nothing but "latest merged export":
-    no reader could be tested at all (2026-10-21). Vision projectors (mmproj) are not models.
+    no reader could be tested at all (2026-10-21). Vision projectors (mmproj) are not models. Other projects'
+    trained exports are not installed models (the list showed seven of another project's runs), and one model found
+    twice (``models/Qwen3-0.6B`` and the Hugging Face cache's ``Qwen/Qwen3-0.6B``) is listed once.
     """
     from pathlib import Path
 
-    from finetune_studio.webui.app import discovered_models
+    if discovered is None:
+        from finetune_studio.webui.app import discovered_models as discovered
 
     taken = {str(m.get("path") or "").rstrip("/") for m in project_models}
     out: list[dict[str, Any]] = []
-    for m in discovered_models:
+    seen: set[tuple[str, str]] = set()
+    for m in discovered:
         path = str(getattr(m, "path", "") or "").rstrip("/")
         fmt = str(getattr(m, "format", "") or "").lower()
         if not path or path in taken or fmt not in _INFERENCE_FORMATS or Path(path).name.lower().startswith("mmproj"):
             continue
-        out.append({"path": path, "name": getattr(m, "name", "") or Path(path).name, "format": fmt,
+        owner = str(getattr(m, "project_id", "") or "")
+        if owner and owner != pid:
+            continue
+        name = str(getattr(m, "name", "") or Path(path).name)
+        key = (name.rsplit("/", 1)[-1].strip().lower(), fmt)
+        real = os.path.realpath(path)
+        if key in seen or (real, fmt) in seen:
+            continue
+        seen.update({key, (real, fmt)})
+        out.append({"path": path, "name": name.rsplit("/", 1)[-1] if "/" in name else name, "format": fmt,
                     "size_gb": getattr(m, "size_gb", None)})
     return sorted(out, key=lambda m: m["name"].lower())
 
@@ -129,6 +177,13 @@ def target_model(pid: str, override: str) -> str:
     Never "whatever happens to be loaded": the helper or another page's model may be resident.
     A local path that is no longer on disk is refused here, before a run is created.
     """
+    if is_api_reader(override):
+        from finetune_studio.models.manager import get_manager
+
+        row = get_manager().get_provider(override[len(API_READER_PREFIX):])
+        if row is None or row.get("kind") != "openai_compat":
+            raise ValueError(f"{override[len(API_READER_PREFIX):]!r} is not an API connection (Settings → AI assistant)")
+        return override
     if override == BASE_MODEL_CHOICE:
         from finetune_studio import db
         from finetune_studio.db.runs import backfill_project_base_model

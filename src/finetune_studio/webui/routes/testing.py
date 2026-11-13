@@ -30,7 +30,7 @@ from finetune_studio.testing.suite import load_test_suite
 from finetune_studio.webui import testing_jobs
 from finetune_studio.webui.app import inference_engine
 from finetune_studio.webui.live_sse import sse_comment, sse_data, sse_response
-from finetune_studio.webui.testing_models import target_model
+from finetune_studio.webui.testing_models import is_api_reader, target_model
 
 router = APIRouter()
 _log = logging.getLogger(__name__)
@@ -158,6 +158,9 @@ async def run_test_suite(request: Request):
         model = target_model(project_id, str(body.get("model_path") or body.get("path") or "").strip())
     except ValueError as e:
         return JSONResponse({"detail": str(e)}, status_code=400)
+    if is_api_reader(model):
+        return JSONResponse({"detail": "an AI assistant connection can only be the reader of a Smart Brain test "
+                                       "(choose Smart Brain above, or a local model for this test)"}, status_code=400)
     return await _start(testing_jobs.RunSpec(
         project_id=project_id, kind="suite", suite_name=suite_path.rsplit("/", 1)[-1], cases=cases,
         model_path=model, run_id=str(body.get("run_id") or "").strip(), max_tokens=max_tokens,
@@ -258,6 +261,9 @@ async def evaluate_training_dataset(request: Request):
         model = target_model(project_id, str(body.get("model_path") or body.get("path") or "").strip())
     except ValueError as e:
         return JSONResponse({"detail": str(e)}, status_code=400)
+    if is_api_reader(model):
+        return JSONResponse({"detail": "an AI assistant connection can only be the reader of a Smart Brain test "
+                                       "(choose Smart Brain above, or a local model for this test)"}, status_code=400)
     return await _start(testing_jobs.RunSpec(
         project_id=project_id, kind="heldout" if meta.eval_kind == "heldout" else "training_leakage",
         suite_name=suite_label_for_training_eval(meta), cases=cases, model_path=model,
@@ -424,6 +430,43 @@ async def cancel_test_job(pid: str, bid: str):
     if not testing_jobs.cancel(bid):
         return JSONResponse({"detail": "nothing is running for this test run"}, status_code=409)
     return {"ok": True}
+
+
+@router.post("/projects/{pid}/runs/{bid}/cases/{cid}/answerable")
+async def mark_case_answerable(pid: str, bid: str, cid: str, request: Request):
+    """A reviewer says this "unanswerable" question IS answered by the documents (the quiz's check missed an answer
+    spread over several files). The case gets ``answer`` (default: the model's answer) as its key and the reviewer's
+    ``verdict`` (default pass); the quiz file is corrected, so the next run asks it as a normal question."""
+    run = _run_for_project(pid, bid)
+    case = db.get_case(cid)
+    if not case or case.get("benchmark_id") != bid:
+        raise HTTPException(status_code=404, detail="case not found")
+    if not case.get("expect_abstain"):
+        raise HTTPException(status_code=409, detail="this question is not marked unanswerable")
+    body = await _json_object(request)
+    answer = str(body.get("answer") or case.get("model_answer") or "").strip()
+    if not answer:
+        raise HTTPException(status_code=400, detail="give the answer the documents hold (the model gave none)")
+    verdict = str(body.get("verdict") or "pass").strip().lower()
+    if verdict not in jdb.VERDICTS:
+        raise HTTPException(status_code=400, detail=f"verdict must be one of {', '.join(jdb.VERDICTS)}")
+
+    def write() -> dict[str, Any]:
+        from finetune_studio.testing.brain_quiz import mark_answerable
+
+        db.update_case(cid, expect_abstain=0, correct_answer=answer, category="documents")
+        jdb.add_judgement(cid, kind="human", verdict=verdict, judge_model="human",
+                          reasoning="answerable: the documents answer it (marked by a reviewer)")
+        suite = str(((run.get("config") or {}).get("suite_path")) or "")
+        fixed = bool(suite) and mark_answerable(suite, str(case.get("question") or ""), answer)
+        scores = rescore_benchmark(bid)
+        return {"ok": True, "scores": scores, "suite_updated": fixed,
+                "case": _case_payload(db.get_case(cid) or {}, jdb.list_judgements(case_id=cid), full=False),
+                "agreement": jdb.agreement(bid)}
+
+    result = await asyncio.to_thread(write)
+    result["at"] = time.time()
+    return result
 
 
 @router.put("/projects/{pid}/runs/{bid}/cases/{cid}/verdict")

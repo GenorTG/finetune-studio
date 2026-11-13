@@ -148,8 +148,11 @@ Cursor, OpenClaw and other MCP clients; `bash run-mcp.sh` serves MCP on stdio). 
 
 **New versions.** Change files, update the Smart Brain, and export with **Package → New version of …**: the package
 keeps its id, its version goes 1.0.0 → 1.1.0, and `CHANGES.md` (and the Package page's *Package versions*) list the
-documents added, changed and removed. Update a running copy in place with `bash update.sh NEW.tar.gz` (it keeps
-`rag.config.json` and your keyfile, and refuses another package or an older version). To edit a package someone
+documents added, changed and removed. The new version keeps the package's documents, original files, hidden names and
+audience unless you change them (anything wider asks you to confirm), and needs the same passphrase so running copies
+keep working. Update a running copy in place with `bash update.sh NEW.tar.gz --keyfile ../pass.txt` (it keeps your
+keyfile and the `rag.config.json` values you changed, and refuses another package, an older version, or a version that
+opens up more than the running one unless you add `--allow-widen`). To edit a package someone
 gave you, **Smart Brain → Import an index or open a package** turns it back into a project, original files included.
 
 ## Optional: train a model on the same files
@@ -233,7 +236,13 @@ handoff; it opens Training with the dataset preselected.
 
 | Symptom | It means | Fix |
 |---|---|---|
-| "No datasets yet" in Training | Export step didn't run/complete | **pairs** → Export approved → Training; look for the green success + CTA |
+| Smart Brain says "Needs an update" though you changed nothing | The Vision reader read pictures after the build | Click **Update Smart Brain**: the readings go in |
+| Package page: Build is off | Superseded documents block packaging | Open the knowledge check from the line above the button; remove or accept them |
+| Package searches by keyword only where it runs | No embedder inside and no embeddings endpoint | Tick **Include models**, or give an embeddings endpoint (the line above Build says which) |
+| `update.sh` refuses: "opens up more than the installed" | The new version carries more documents, originals or shown names | Check it is meant for this copy, then add `--allow-widen` |
+| `update.sh` refuses: "give --keyfile" | The new version is encrypted | `--keyfile /path/to/passphrase.txt` (or put it in `passphrase.txt` beside `server.py`) |
+| Testing has no model to choose | No export and no local model | Pick an **AI assistant connection** in a Smart Brain test (no GPU needed) |
+| "No datasets yet" in Training (optional) | Export step didn't run/complete | **pairs** → Export approved → Training; look for the green success + CTA |
 | Chat says "no model loaded" | Nothing loaded in inference | Use the ⚠ panel's Load dropdown on the chat page itself |
 | Training starts but feels instant-and-done | Loop returned without real steps | Check the run badge's optimizer-step count; raise epochs / dataset size |
 | Export says merge needed | Adapter trained on 4-bit base | Set base model to the 16-bit sibling (e.g. `Qwen/Qwen3-4B`), not nf4 |

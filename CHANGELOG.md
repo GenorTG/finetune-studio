@@ -9,6 +9,65 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-13
+
+
+- The Guide answers "Is my knowledge ready to package?" from the Package page's own checklist (files read,
+  knowledge check, Smart Brain up to date, then identity, test and package); the training pipeline follows as
+  optional instead of being the answer.
+- Files: the upload result names each file that was not added and why, and the duplicates it skipped; the selection
+  tools appear once a file is ticked; the response holds no server paths. The knowledge check lists files no parser
+  can read (`.exe`, `.bin`, …) and flags a password even next to an API key in the same file.
+- The Package page says, next to the Build button, how the package will search where it runs: a package without
+  the models inside searches by exact words only until the host sets an embeddings endpoint, and the form now takes
+  that endpoint (`--embed-base-url` in the CLI) so meaning search works there. The self-test result says the same
+  instead of only reporting the search it ran with the studio's own embedder.
+- A package's `rag.config.json` turns the reranker on only when its model is inside, and its README no longer
+  says the original files are inside when they are not.
+- A package exported with meaning search off no longer gets the self-test note about needing an embedder.
+- Testing: a Smart Brain test can use an AI assistant API connection as the reader (nothing loads on the GPU), so
+  the package's answers can be tested without a GPU; a project without exports starts on that connection instead of
+  a "latest merged export" it does not have.
+- The Testing, Training, Quick work and Smart Brain chat model lists show this project's exports and installed
+  models only, each model once, never another project's trained runs.
+- A project can no longer be renamed to a blank (or over-long, or another project's) name: Project settings and the
+  API refuse it with the reason. New: `fts projects rename <project> "<name>"`.
+- CLI: an unknown project or another user error is one line ("project not found: … (fts projects list shows them)"),
+  never a Python traceback; `fts brain export --out NAME.tar.gz` writes that file instead of a folder of that name,
+  and the CLI's help calls itself `fts` and leads with the knowledge package.
+
+- Package versions are safe to roll out: a new version keeps its package's documents, original files, hidden file
+  names and audience unless you change them, anything wider (more documents, originals on, names shown, a public
+  audience changed, encryption off) needs a confirmation (`--allow-widen` in the CLI) and is listed in CHANGES.md,
+  and `update.sh` refuses such a version on a running copy unless `--allow-widen` is given.
+- Reading pictures with a local Vision reader no longer happens silently: the upload's note names the model and
+  about how much GPU memory it loads, the top bar shows it loading, it does not start without enough free GPU memory
+  or over a model loaded for Chat or a test, and the Smart Brain says when files were re-read by the Vision reader
+  after the build instead of just "N changed".
+- A new version of an encrypted package needs the current passphrase (or a new one on purpose), so running copies
+  still start after `update.sh`; `update.sh` refuses an encrypted version it cannot open first, and uses
+  `passphrase.txt` beside `server.py` (which `setup.sh` now offers to write) when no `--keyfile` is given.
+- The package's chat page answers without an answer model too (the matching passages; file names stay hidden for a
+  public bot), Enter asks, its sources are the files the answer names; a busy port is one line with the fix; in the
+  studio's Smart Brain chat a declined answer lists what was searched instead of "Sources"; connection tests say
+  "connection refused" / "host not found" in words and show the failure next to the form.
+- `update.sh` takes the new version's settings (answer model, hidden names, …) and keeps only the `rag.config.json`
+  values you changed after install, and prints both; relative archive and keyfile paths work from any folder.
+- The Smart Brain quiz checks an "unanswerable" question against the passages sharing its words as well as the top
+  search hits, so an answer split over two files is found; on a test run, **The documents answer this** fixes one it
+  still missed (your Pass, the model's answer as key, the quiz file corrected for the next run).
+- After a package build the Package page goes back to "A new package" instead of silently making the next export a
+  new version of the one just built.
+- Smaller fixes: `/projects/<id>/package` opens the Package page; the Build button is off (with the reason) while
+  superseded documents block packaging; the Smart Brain no longer says the first build downloads 4 GB when the models
+  are on disk; status pills stay pills on phones; every form control has a name for screen readers; a "Skip to
+  content" link comes first for keyboard users.
+- The package README's Claude Code, Codex and Cursor MCP commands include `--keyfile` for an encrypted package.
+- Opening a package keeps its name (from the package, or the file name you chose) instead of a temporary
+  `upload-<number>.tar.gz` name in Package versions, the base list and the next file name.
+- Importing a damaged or wrong file is refused with a plain reason (HTTP 400, not 500), and the file and its
+  passphrase are checked before you are asked to replace the current index.
+
 ## [0.4.0] - 2026-11-12
 
 - New projects' optional base-model list now excludes inference-only and other projects' exported models, and de-duplicates identical paths.
@@ -221,7 +280,8 @@ numbered `0.1.0.N`, one per commit.
   CLI called them (project files go through Files & Knowledge and Data prep; `fts analyze` / `fts validate-hallucination`
   are unchanged). Unused code: `templates.TemplateManager`, `HallucinationGuardrail` and a few helpers nothing called.
 
-[Unreleased]: https://github.com/GenorTG/finetune-studio/compare/v0.4.0...dev
+[Unreleased]: https://github.com/GenorTG/finetune-studio/compare/v0.5.0...dev
+[0.5.0]: https://github.com/GenorTG/finetune-studio/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/GenorTG/finetune-studio/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/GenorTG/finetune-studio/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/GenorTG/finetune-studio/releases/tag/v0.2.0

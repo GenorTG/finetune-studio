@@ -18,7 +18,7 @@ Did the model actually learn your material? A test is two separate steps. **1 ·
 ## Key controls
 - `#t-bq-btn` — Smart Brain mode: write a quiz from the indexed documents with the AI assistant, including questions they do not answer. Items whose answer is not in their passage are dropped; building again replaces the last quiz.
 - `[name="t-mode"]` — project quiz, Smart Brain or dataset check.
-- `#t-model` — model to test.
+- `#t-model` — model to test. In a **Smart Brain** test it can be an **AI assistant connection** (Settings → AI assistant; the group "AI assistant connections"): it reads the Smart Brain's passages over its API, nothing loads on the GPU, so you can test the package's answers without a GPU. A project without exports starts on that connection (the AI assistant's own, when it is an API one). Installed models list each model once and never another project's trained exports. `#t-model-api-note` says when a connection is chosen.
 - `#t-suite` — question suite.
 - `#t-run-btn` — run the test.
 - `#t-eval-kind` — held-out versus full-training-set evaluation (dataset check).
@@ -26,6 +26,7 @@ Did the model actually learn your material? A test is two separate steps. **1 ·
 - `#t-judge-provider` — the judge model (saved default).
 - `#t-runs` — saved test runs.
 - `#rv-list` — cases of the open run.
+- `#rv-answerable` — on a question the quiz marked unanswerable: **The documents answer this**. The quiz checks such a question against the index's top hybrid-search passages and the passages sharing the most words with it, but an answer spread over several files can still slip through; this button makes the model's answer the key, records your Pass and corrects the quiz file, so the next run asks it as a normal question.
 
 ## What to check
 A run with no verdicts has **no score** — "awaiting judgement" is not 0 %. Read a few judged cases yourself (the AI judge is a model, not truth); the agreement chip compares it with your verdicts. Plain rows measure recall of training facts; grounded rows are asked with their own context. Neither is generalisation — the held-out number is.

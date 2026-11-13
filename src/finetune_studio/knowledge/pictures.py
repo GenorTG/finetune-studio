@@ -79,9 +79,78 @@ def parse_warning(text: str) -> str:
     n = c["pictures_ocr"] + c["scanned_ocr"]
     if not n:
         return ""
-    if reader_state()["mode"] == "off":
+    st = reader_state()
+    if st["mode"] == "off":
         return OCR_ONLY_NOTE.format(n=n)
-    return f"{n} picture(s) read by OCR for now; the Vision reader reads them next (Reading pictures job)"
+    cost = local_reader_cost()
+    where = (f" (it loads {cost['name']} on the GPU, about {cost['gb']:.1f} GB, then unloads it)" if cost
+             else f" ({st['label']})")
+    return (f"{n} picture(s) read by OCR for now; the Vision reader reads them next{where}: Reading pictures job "
+            "in Activity. The Smart Brain then needs an update to use the readings.")
+
+
+def local_reader_cost() -> dict[str, Any] | None:
+    """``{"name", "gb", "path"}`` of a local Vision reader (its GGUF + mmproj on disk), None for an API reader."""
+    from pathlib import Path
+
+    from finetune_studio.models import vision
+
+    try:
+        seat = vision.resolve_seat(vision.get_seat())
+    except Exception:  # noqa: BLE001 - a broken seat: no estimate
+        return None
+    if seat.mode != "local" or not seat.local_model:
+        return None
+    size = 0
+    for f in (seat.local_model, vision.mmproj_for(seat.local_model)):
+        try:
+            size += Path(f).stat().st_size if f else 0
+        except OSError:
+            pass
+    return {"name": Path(seat.local_model).name, "gb": size / 1024**3, "path": seat.local_model}
+
+
+#: Context, compute buffers and the mmproj's own activations on top of the weights (Gemma 4 12B QAT: 10.6 GB
+#: resident for 7.5 GB of files).
+VRAM_OVERHEAD = 1.35
+
+
+def vram_problem() -> str:
+    """Why a local Vision reader must not load now ("" when it may): not enough free GPU memory. Other programs'
+    memory is never freed for it (a game, ComfyUI, another service); the job waits for a later start instead."""
+    cost = local_reader_cost()
+    if not cost:
+        return ""
+    try:
+        from finetune_studio.webui.gpu_probe import free_and_consumers
+
+        free_mib, users = free_and_consumers()
+    except Exception:  # noqa: BLE001 - no probe: the loader's own fit logic decides
+        return ""
+    if free_mib is None:
+        return ""
+    need = cost["gb"] * VRAM_OVERHEAD
+    free = free_mib / 1024
+    if free >= need:
+        return ""
+    by = ", ".join(f"{u.get('name') or u.get('pid')}" for u in users[:3])
+    return (f"not enough free GPU memory to load the Vision reader {cost['name']} (about {need:.1f} GB needed, "
+            f"{free:.1f} GB free{'; in use by ' + by if by else ''}). Pictures keep their OCR text for now: start "
+            "Reading pictures from the Knowledge check when the GPU is free, or use an API vision model.")
+
+
+def _worker_holds_other_model() -> str:
+    """The model another page loaded into the one inference worker ("" when none): the Vision reader would replace
+    it, so the upload's automatic start leaves it alone."""
+    from finetune_studio.models.manager import get_manager
+
+    try:
+        eng = get_manager().engine
+        held = str(getattr(eng, "model_path", "") or "") if eng.model is not None else ""
+    except Exception:  # noqa: BLE001 - unknown: assume free
+        return ""
+    cost = local_reader_cost()
+    return held if held and cost and held != cost["path"] else ""
 
 
 def reader_state() -> dict[str, Any]:
@@ -165,6 +234,15 @@ def start(pid: str, *, file_ids: list[str] | None = None, auto: bool = False) ->
     if reader_state()["mode"] == "off":
         raise PicturesError("no Vision reader is set: pictures keep their OCR text. Set one in Settings → AI "
                             "assistant → Reading pictures (a local model with an mmproj, or an API vision model).")
+    problem = vram_problem()
+    if problem:
+        raise PicturesError(problem, 409)
+    if auto:
+        held = _worker_holds_other_model()
+        if held:
+            raise PicturesError(f"{held.rsplit('/', 1)[-1]} is loaded (Chat, a test): reading pictures would unload "
+                                "it, so it waits; start Reading pictures from the Knowledge check when you are done",
+                                409)
     running = _running(pid)
     if running is not None:
         return {**_job_view(running), "already_running": True}

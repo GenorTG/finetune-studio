@@ -125,8 +125,11 @@ private and use a trusted MCP client instead.
 ## 5. Publish an update
 
 When the source documents change, update the Smart Brain, run the quiz again, then use **Package → New version of this**
-to export a newer version of the same package. Keep its package identity and passphrase so the installed keyfile still
-opens it. Keep the downloaded archive as a rollback copy until the update is verified.
+to export a newer version of the same package. Picking it loads that package's documents, original files, hidden file
+names and audience into the form; a version that opens up more (documents outside its scope, originals turned on, file
+names shown, a public audience changed, encryption off) asks you to confirm and is listed in `CHANGES.md`. Enter the
+current version's passphrase (the form requires it) so the installed keyfile still opens the new version; choose a new
+one only on purpose. Keep the downloaded archive as a rollback copy until the update is verified.
 
 On the package host, from its installed directory:
 
@@ -135,9 +138,13 @@ bash update.sh /path/to/new-version.tar.gz \
   --keyfile "$HOME/.config/fts/brain-passphrase.txt"
 ```
 
-The updater checks that this is the same package and a newer version, opens the new encrypted corpus before replacing
-anything, and keeps the runtime configuration and keyfile. A systemd user service is restarted automatically; otherwise
-restart the server or MCP client. The simplest update keeps the same passphrase. If you change it, update the contents
+The updater checks that this is the same package and a newer version, refuses a version that opens up more than the
+installed one (more documents, original files, file names shown, a public audience changed, encryption off) unless
+you add `--allow-widen`, opens the new encrypted corpus before replacing anything (an encrypted update needs
+`--keyfile`, or `passphrase.txt` beside `server.py`), and keeps the keyfile. In `rag.config.json` it keeps the values you
+changed after install and takes the new version's other settings (answer model, hidden names, …); it prints both. A
+systemd user service is restarted automatically; otherwise restart the server or MCP client. The simplest update keeps
+the same passphrase; the updater says when the new version has a new one. If you change it, update the contents
 of the configured keyfile before restarting the service; keep a secure backup of the old keyfile until rollback is no
 longer needed. If you change the keyfile's path, update the service/MCP command too. For `setup.sh` installations,
 `bash setup.sh --update /path/to/new-version.tar.gz --keyfile ...` is equivalent.
@@ -155,6 +162,7 @@ and document counts; then ask a question whose answer changed. For stdio, restar
 | Encrypted package will not start | Confirm the keyfile contains the exact export passphrase and is readable by the service account. |
 | HTTPS works but MCP does not | Use the `/mcp` path, preserve the `Authorization` header, and verify the client supports Streamable HTTP. |
 | New package is refused | It must be a newer version of the same package; re-export with **New version of this**. |
+| Update refused: "opens up more than the installed" | The new version carries more than the running copy (documents, originals, file names). Check it is meant for this copy; then `--allow-widen`. |
 | Search works but answers do not | Answer generation is optional; configure the package's answer connection or let the MCP client write answers from `rag_search` passages. |
 
 For the generated package's complete configuration and API reference, read its `README.md`; it describes the exact

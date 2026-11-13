@@ -102,9 +102,9 @@
       <h3 class="text-xs muted mb-1">Password</h3>
       <p class="text-xs dim mb-2" id="access-pw-note"></p>
       <form id="access-pw-form" class="access-form mb-3" autocomplete="off">
-        <input id="access-pw-current" class="input" type="password" autocomplete="current-password"
+        <input id="access-pw-current" aria-label="Current password" class="input" type="password" autocomplete="current-password"
                placeholder="Current password" hidden>
-        <input id="access-pw-new" class="input" type="password" autocomplete="new-password" placeholder="New password">
+        <input id="access-pw-new" aria-label="New password" class="input" type="password" autocomplete="new-password" placeholder="New password">
         <div class="flex gap-2">
           <button class="btn sm primary" type="submit" id="access-pw-save">Set password</button>
           <button class="btn sm" type="button" id="access-pw-off" hidden>Turn password off</button>
@@ -153,7 +153,7 @@
       <p class="text-xs dim mb-2">For scripts and other tools: <code>Authorization: Bearer &lt;token&gt;</code>. Only used while a password is set.</p>
       <ul id="access-tokens" class="access-list mb-2"></ul>
       <form id="access-token-form" class="flex gap-2 mb-2">
-        <input id="access-token-name" class="input" type="text" maxlength="60" placeholder="Token name, e.g. backup script">
+        <input id="access-token-name" aria-label="Token name" class="input" type="text" maxlength="60" placeholder="Token name, e.g. backup script">
         <button class="btn sm" type="submit">Create token</button>
       </form>
       <p id="access-token-new" class="access-secret mb-3" hidden></p>
@@ -381,6 +381,6 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="/static/js/settings.js?v=25"></script>
+<script src="/static/js/settings.js?v=26"></script>
 <script src="/static/js/security.js?v=5"></script>
 {% endblock %}

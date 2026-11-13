@@ -359,11 +359,11 @@
     <div class="col-span-5">
       <label class="block text-xs muted mb-1">File name (without extension)</label>
       {% set _bundle_default = ((project.name|trim|lower|replace(' ', '-')) ~ '-docs-v1') if project and project.name else 'my-docs-v1' %}
-      <input id="bundle-name" type="text" placeholder="{{ _bundle_default }}" value="{{ _bundle_default }}" class="input">
+      <input id="bundle-name" aria-label="Index bundle name" type="text" placeholder="{{ _bundle_default }}" value="{{ _bundle_default }}" class="input">
     </div>
     <div class="col-span-5">
       <label class="block text-xs muted mb-1">Passphrase (blank = generate one)</label>
-      <input id="bundle-pass" type="password" autocomplete="new-password" class="input" placeholder="min 8 characters">
+      <input id="bundle-pass" aria-label="Index bundle passphrase" type="password" autocomplete="new-password" class="input" placeholder="min 8 characters">
     </div>
     <div class="col-span-2">
       <button id="bundle-btn" onclick="startBundleDownload()" class="btn primary w-full" title="Encrypt the index into a single .ftsrag file you can move to another studio.">Export</button>
@@ -611,7 +611,10 @@
 
   function changesText(st) {
     const n = (a) => (a || []).length;
-    return [n(st.stale) ? n(st.stale) + ' changed' : '', n(st.missing) ? n(st.missing) + ' new' : '',
+    const vision = n(st.stale_vision), edited = n(st.stale) - vision;
+    return [edited > 0 ? edited + ' changed' : '',
+            vision ? vision + (vision === 1 ? ' file' : ' files') + ' re-read by the Vision reader (pictures)' : '',
+            n(st.missing) ? n(st.missing) + ' new' : '',
             n(st.removed) ? n(st.removed) + ' removed' : '', st.facts_changed ? 'reviewed facts changed' : '']
       .filter(Boolean).join(' · ');
   }
@@ -631,7 +634,10 @@
                sub: count(d.documents, 'document') + ' · ' + count(d.chunks, 'passage') + ' indexed. Ask below.', action: '' };
     }
     if (built) {
-      return { key: 'stale', pill: 'Needs an update', tone: 'solid-amber', title: 'Your files changed since the last build',
+      const onlyVision = (st.stale_vision || []).length && (st.stale_vision || []).length === (st.stale || []).length
+        && !(st.missing || []).length && !(st.removed || []).length && !st.facts_changed;
+      return { key: 'stale', pill: 'Needs an update', tone: 'solid-amber',
+               title: onlyVision ? 'The Vision reader read pictures after the last build' : 'Your files changed since the last build',
                sub: (changesText(st) || 'Files changed') + '. Answers still use the old index until you update it.',
                action: 'Update Smart Brain' };
     }
@@ -644,7 +650,7 @@
                sub: count(files.total, 'file') + ' uploaded. You can build as soon as one is ready.', action: 'Build Smart Brain' };
     }
     return { key: 'unbuilt', pill: 'One step left', tone: 'solid-purple', title: count(files.ready, 'file') + ' ready to index',
-             sub: 'Building takes a minute or two. The first build also downloads the search models (about 4 GB).',
+             sub: 'Building takes a minute or two.' + (d.models_on_disk === false ? ' The first build also downloads the search models (about 4 GB).' : ''),
              action: 'Build Smart Brain' };
   }
 
@@ -1003,7 +1009,10 @@
     });
   }
 
-  function sourcesHtml(msgId, groups) {
+  // "I don't have that", "not in the documents": the model declined (the prompt's own wording, and common variants).
+  const DECLINE_RE = /\b(?:i (?:do not|don['\u2019]t) (?:have|know|see|find)|(?:is|are) not (?:in|stated in|covered (?:in|by)|mentioned in) the (?:provided )?(?:documents|context|passages|files)|no information (?:about|on)|cannot find)\b/i;
+
+  function sourcesHtml(msgId, groups, declined) {
     const row = function (g) {
       const count = g.passages.length === 1 ? '1 passage' : g.passages.length + ' passages';
       return '<details class="brain-source" id="src-' + msgId + '-' + g.id + '"><summary>' + esc(g.name)
@@ -1013,6 +1022,11 @@
     };
     const used = groups.filter(function (g) { return g.cited; });
     const also = groups.filter(function (g) { return !g.cited; });
+    // A declined answer cites nothing: what it read is not a source of anything, only what was searched.
+    if (!used.length && declined) {
+      return '<div class="brain-sources"><details class="brain-sources-more"><summary>Searched ' + also.length
+        + (also.length === 1 ? ' file' : ' files') + ': none answers this</summary>' + also.map(row).join('') + '</details></div>';
+    }
     // No file named at all: every file it read is simply "Sources".
     const first = used.length ? used : also;
     let html = '<div class="brain-sources"><div class="brain-sources-label">Sources</div>' + first.map(row).join('');
@@ -1071,7 +1085,7 @@
         html += '<div class="text-xs dim mt-1">Part of the answer was missing, so it searched again for "' + esc(fu.query) + '"'
           + (fu.added_sources && fu.added_sources.length ? ' and added ' + esc(fu.added_sources.join(', ')) : ' (nothing new found)') + '.</div>';
       }
-      if (sources.length) html += sourcesHtml(msgId, groups);
+      if (sources.length) html += sourcesHtml(msgId, groups, DECLINE_RE.test(reply) && !groups.some(function (g) { return g.cited; }));
       pending.innerHTML = html;
       box.scrollTop = box.scrollHeight;
       const n = document.getElementById('chat-new-btn');
@@ -1144,16 +1158,25 @@
     const isEnc = /\.ftsrag$/i.test(f.name);
     const pass = document.getElementById('bundle-import-pass').value;
     if (isEnc && !pass) { status.textContent = 'This bundle is encrypted: enter the passphrase it was exported with.'; return; }
-    if (window.BRAIN_HAS_INDEX && !await fts.confirm('This project already has an index. Importing replaces it with the bundle\u2019s. Continue?',
-        {danger: true, okText: 'Replace with the bundle'})) return;
     const fd = new FormData();
     fd.append('file', f);
     fd.append('passphrase', pass);
-    status.textContent = 'Decrypting and importing ' + f.name + '…';
+    status.textContent = 'Checking ' + f.name + '…';
     const btn = document.getElementById('bundle-import-btn');
     btn.disabled = true;
     try {
-      const d = await api().post('/api/projects/' + PID + '/brain/import?overwrite=true', fd);
+      let d;
+      try {   // the server checks the file (and its passphrase) first; only then is replacing the index asked
+        d = await api().post('/api/projects/' + PID + '/brain/import' + (window.BRAIN_HAS_INDEX ? '' : '?overwrite=true'), fd);
+      } catch (e) {
+        if (!(e && e.status === 409)) throw e;
+        const p = (e.data && e.data.package) || {};
+        const what = p.version ? 'package \u201c' + (p.name || p.package_id) + '\u201d v' + p.version : 'the bundle\u2019s index';
+        if (!await fts.confirm('This project already has an index. Opening ' + what + ' replaces it. Continue?',
+            {danger: true, okText: 'Replace the index'})) { status.textContent = 'Not imported: the index is unchanged.'; return; }
+        status.textContent = 'Decrypting and importing ' + f.name + '…';
+        d = await api().post('/api/projects/' + PID + '/brain/import?overwrite=true', fd);
+      }
       document.getElementById('bundle-import-pass').value = '';
       status.textContent = 'Imported “' + (d.imported_from || f.name) + '”: ' + (d.documents || 0) + ' documents, '
         + (d.chunks || 0) + ' passages'
@@ -1272,7 +1295,13 @@
       const r = await fetch('/api/models/list?for_selector=true');
       if (r.ok) models = await r.json();
     } catch (_e) { /* the empty case below says what to do */ }
-    const usable = (models || []).filter(function (m) { return m && m.path; })
+    const seenNames = new Set();   // this project's exports + installed models, each once (not other projects' runs)
+    const usable = (models || []).filter(function (m) {
+      if (!m || !m.path || (m.project_id && m.project_id !== PID)) return false;
+      const key = String(m.name || '').split('/').pop().toLowerCase() + '|' + (m.format || '');
+      if (seenNames.has(key)) return false;
+      seenNames.add(key); return true;
+    })
       .sort(function (a, b) { return Number(a.category === 'trained_export') - Number(b.category === 'trained_export'); });
     if (sel) {
       sel.innerHTML = usable.map(function (m) {
@@ -1513,7 +1542,7 @@
   window.quickIndex = async function () {
     const status = document.getElementById('build-status');
     setBuildBusy(true);
-    status.textContent = 'Starting… (the first build downloads the search models, about 4 GB)';
+    status.textContent = 'Starting…' + (lastBrainState && lastBrainState.models_on_disk === false ? ' (the first build downloads the search models, about 4 GB)' : '');
     try {
       // The parse step and the build run in one job (it runs on its own: you can leave this page). A job that
       // cannot start is a 4xx/5xx whose detail says why.

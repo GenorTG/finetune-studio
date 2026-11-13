@@ -15,8 +15,9 @@ import argparse
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="finetune-studio",
-        description="Finetune Studio — model training & RAG CLI",
+        prog="fts",
+        description="Finetune Studio — prepare, check, test and package knowledge (Smart Brain packages); "
+                    "optional model training",
     )
     sub = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -65,6 +66,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_projects_create.add_argument("--allow-duplicate", action="store_true",
                                    help="Allow another project with the same name")
     p_projects_create.add_argument("--json", action="store_true", help="Output as JSON")
+    p_projects_rename = projects_sub.add_parser("rename", help="Rename a project (Project settings → Name)")
+    p_projects_rename.add_argument("project", help="Project id or name")
+    p_projects_rename.add_argument("name", help="The new name (1-120 characters)")
+    p_projects_rename.add_argument("--json", action="store_true", help="Output as JSON")
     p_projects_delete = projects_sub.add_parser("delete", help="Delete a project and all of its stored data")
     p_projects_delete.add_argument("project", help="Project id or name")
     p_projects_delete.add_argument("--yes", action="store_true", help="Confirm deletion without prompting")

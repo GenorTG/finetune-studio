@@ -16,7 +16,9 @@ import asyncio
 import logging
 import re
 import shutil
+import tarfile
 import time
+import zipfile
 from pathlib import Path
 from typing import Any, Literal
 
@@ -26,6 +28,7 @@ from pydantic import BaseModel, Field
 
 from finetune_studio.data.fs.paths import brain_index_dir, project_dir
 from finetune_studio.smart_brain.scope import DocumentScope
+from finetune_studio.webui.errors import ApiError
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -169,11 +172,21 @@ async def brain_import(pid: str, file: UploadFile, overwrite: bool = False,
 
     opened: dict | None = None
     try:
+        # The file is checked before anything else (and before the "replace the index?" question): a damaged or
+        # wrong file is a 400 with a plain reason, not a 500 after the user agreed to replace their index.
+        if suffix != sb.BUNDLE_EXT:
+            await asyncio.to_thread(package_import.check_archive, tmp_path, filename)
         if suffix != sb.BUNDLE_EXT and await asyncio.to_thread(package_import.is_server_package, tmp_path):
-            if index.exists() and not overwrite:
-                raise FileExistsError(f"Corpus already exists at {index.dir}; pass overwrite=True to replace.")
+            if (index.exists() or (index.dir / "manifest.json").is_file()) and not overwrite:   # keyword-only too
+                record = await asyncio.to_thread(package_import.read_record, tmp_path, passphrase or None,
+                                                 project_dir(pid) / "brain-import-staging") \
+                    if await asyncio.to_thread(package_import.has_version_record, tmp_path) else {}
+                return JSONResponse({"detail": "this project already has an index: opening the package replaces it",
+                                     "code": "index_exists",
+                                     "package": {k: record.get(k) for k in ("package_id", "version", "name")}},
+                                    status_code=409)
             opened = await asyncio.to_thread(package_import.import_package, pid, tmp_path, passphrase or None,
-                                             overwrite=True)
+                                             overwrite=True, display_name=filename)
         elif suffix == sb.BUNDLE_EXT:
             if not passphrase:
                 return JSONResponse({"detail": "this bundle is encrypted; a passphrase is required"},
@@ -200,6 +213,9 @@ async def brain_import(pid: str, file: UploadFile, overwrite: bool = False,
         return JSONResponse({"detail": str(e)}, status_code=400)
     except ValueError as e:
         return JSONResponse({"detail": str(e)}, status_code=400)
+    except (EOFError, OSError, tarfile.TarError, zipfile.BadZipFile) as e:   # damaged past the first check
+        return JSONResponse({"detail": f"{filename} could not be read: it is damaged or not a Smart Brain package "
+                                       f"({type(e).__name__})"}, status_code=400)
     except Exception as e:
         log.exception("bundle import failed")
         return JSONResponse({"detail": f"bundle import failed: {type(e).__name__}"}, status_code=500)
@@ -267,14 +283,17 @@ class StandaloneRequest(ExportConfigPatch):
     name: str | None = Field(default=None, max_length=120)   # the package's name (shown in its versions; file name)
     audience: Literal["internal", "public", "other"] | None = None   # a label: who uses it (staff / customers)
     passphrase: str | None = Field(default=None, repr=False)
-    scope: DocumentScope | None = None    # which documents go in (default: all)
+    scope: DocumentScope | None = None    # which documents go in (None: all, or the base version's scope; {}: all)
     new_version_of: str | None = None     # a package id from this project's package history: keep it, bump the version
     version: str | None = None            # override the bumped version
+    allow_widen: bool = False             # confirmed: this version may open up more than its base (see package_versions)
+    new_passphrase: bool = False          # confirmed: a new version of an encrypted package gets another passphrase
 
 
 def _patch_values(p: ExportConfigPatch) -> dict[str, Any]:
     values = {k: v for k, v in p.model_dump().items()
-              if v is not None and k not in ("scope", "name", "audience", "passphrase", "new_version_of", "version")}
+              if v is not None and k not in ("scope", "name", "audience", "passphrase", "new_version_of", "version", "allow_widen",
+                        "new_passphrase")}
     conn = values.pop("llm_connection", None)
     if conn:
         values = {**connection_llm_settings(conn), **values}   # a typed endpoint or model wins
@@ -378,7 +397,7 @@ async def brain_package_base(pid: str, file: UploadFile, passphrase: str = Form(
     finally:
         tmp.unlink(missing_ok=True)
     await asyncio.to_thread(pm.add_history, _package_dir(pid), {**record, "origin": "uploaded", "filename": name,
-                                                                "name": name})
+                                                                "name": record.get("name") or name})
     return {k: record.get(k) for k in ("package_id", "version", "parent_version", "created")} | {
         "documents": len(record.get("documents") or [])}
 
@@ -438,27 +457,53 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
             status_code=409,
             detail="Review superseded documents before packaging: " + ", ".join(filenames) + ". " + SUPERSEDED_HINT,
         )
-    try:
-        cfg = ec.effective_config(pid, _patch_values(req))
-    except ValueError as e:
-        raise HTTPException(status_code=422, detail=str(e)) from e
     from finetune_studio.smart_brain import package_meta as pm
+    from finetune_studio.smart_brain import package_versions as pv
 
-    title = (req.name or "").strip() or proj["name"] or pid
     out_dir = _package_dir(pid)
     base = None
     if req.new_version_of:
         base = pm.latest(out_dir, req.new_version_of)
         if base is None:
             raise HTTPException(status_code=404, detail=f"no package {req.new_version_of!r} in this project's history")
+    patch = _patch_values(req)
+    if base:   # a new version keeps what its base was for, unless the request says otherwise
+        was = pv.base_settings(base)
+        patch.setdefault("include_originals", was["include_originals"])
+        patch.setdefault("hide_file_names", was["hide_file_names"])
+    try:
+        cfg = ec.effective_config(pid, patch)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e)) from e
+    title = (req.name or "").strip() or (base or {}).get("name") or proj["name"] or pid
+    audience = req.audience or (base or {}).get("audience") or ""
     from finetune_studio.smart_brain import originals as brain_originals
     from finetune_studio.smart_brain import scope as brain_scope
 
     docs = await asyncio.to_thread(brain_scope.documents, corpus, pid)
+    scope_req = pv.inherit_scope(req.scope, base)
     try:
-        keep, scope_record = brain_scope.resolve(req.scope, docs)
+        keep, scope_record = brain_scope.resolve(scope_req, docs)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
+    widens = pv.widening(base, docs, keep, include_originals=cfg.include_originals,
+                         hide_file_names=cfg.hide_file_names, audience=audience, encrypt=cfg.encrypt) if base else []
+    if widens and not req.allow_widen:
+        raise ApiError(409, f"Version {pm.bump_minor(base.get('version'))} would open up more than version "
+                            f"{base.get('version')} of {base.get('name') or base['package_id']}: "
+                            + "; ".join(w["text"] for w in widens)
+                            + ". Confirm it (allow_widen), or export a new package instead.",
+                       code="widens_package", widens=widens)
+    problem = pv.passphrase_problem(base, encrypt=cfg.encrypt, passphrase=req.passphrase,
+                                    new_passphrase=req.new_passphrase)
+    if problem:
+        raise ApiError(422, problem, code="passphrase_required")
+    if base and cfg.encrypt and req.passphrase and not req.new_passphrase:
+        same = await asyncio.to_thread(pv.passphrase_matches_base, base, out_dir, req.passphrase)
+        if same is False:
+            raise ApiError(422, f"That is not the passphrase of version {base.get('version')}: running copies "
+                                "could not open the new version. Enter the old passphrase, or choose a new one "
+                                "on purpose.", code="passphrase_mismatch")
     probes = (await asyncio.to_thread(brain_scope.probe_queries, corpus, {d.document_id for d in docs} - keep)
               if keep is not None else {})
     originals = await asyncio.to_thread(brain_originals.collect, corpus, pid) if cfg.include_originals else []
@@ -469,7 +514,15 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
         raise HTTPException(status_code=422, detail=str(e)) from e
     diff = pm.changes(base["documents"] if base else None, doc_rows)
     record["changes"] = pm.summary(diff)
-    changes_md = pm.changes_markdown(record, diff)
+    shipped_originals = sum(1 for o in originals if keep is None or o.document_id in keep)
+    record["policy"] = pv.policy(scope_record, originals=shipped_originals, hide_file_names=cfg.hide_file_names,
+                                 audience=audience, encrypted=cfg.encrypt)
+    record["widens"] = widens
+    record["passphrase_changed"] = bool(base and cfg.encrypt and req.new_passphrase)
+    record["name"], record["audience"] = title, audience     # inside the (encrypted) manifest only
+    changes_md = pm.changes_markdown(record, diff) + pv.widening_markdown(record["parent_version"], widens)
+    changes_md_public = (pm.changes_markdown(record, diff, names=False)
+                         + pv.widening_markdown(record["parent_version"], widens, names=False))
     ext = "zip" if cfg.archive_format == "zip" else cfg.archive_format
     out_path = out_dir / pm.package_filename(title, record, ext=ext, models=cfg.include_models, encrypted=cfg.encrypt)
     try:
@@ -477,7 +530,7 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
             build_package, corpus, out_path, name=title, config=cfg,
             passphrase=(req.passphrase or None), identity=brain_identity.package_record(pid), originals=originals,
             documents=keep, scope=scope_record, package=record, changes_md=changes_md,
-            changes_md_public=pm.changes_markdown(record, diff, names=False))
+            changes_md_public=changes_md_public)
     except FileNotFoundError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except ValueError as e:
@@ -499,8 +552,8 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
                                        out_of_scope=probes)
     await asyncio.to_thread(pm.add_history, out_dir, {
         **record, "origin": "exported", "filename": result.path.name, "name": title, "scope": scope_record["label"],
-        "audience": req.audience or (base or {}).get("audience") or "",
-        "originals": sum(1 for o in originals if keep is None or o.document_id in keep),
+        "scope_spec": scope_req.model_dump() if scope_req and not scope_req.is_all() else {},
+        "audience": audience, "originals": shipped_originals, "include_originals": bool(cfg.include_originals),
         "hide_file_names": bool(cfg.hide_file_names), "encrypted": result.encrypted, "changes_md": changes_md})
     await asyncio.to_thread(record_package, pid, filename=result.path.name, size=result.size, encrypted=result.encrypted,
                             identity=brain_identity.is_set(brain_identity.load(pid)), verified=verified)
@@ -515,8 +568,10 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
             "passphrase": result.passphrase,
             "config": cfg.model_dump(),
             "layers": result.layers,
-            "original_files": sum(1 for o in originals if keep is None or o.document_id in keep),
+            "runtime_search": result.runtime_search,
+            "original_files": shipped_originals,
             "scope": scope_record,
+            "widens": widens,
             "package": {k: record[k] for k in ("package_id", "version", "parent_version", "created")},
             "changes": record["changes"],
             "identity": brain_identity.is_set(brain_identity.load(pid)),

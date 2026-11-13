@@ -18,11 +18,13 @@ import asyncio
 import logging
 import re
 import time
+from typing import Any
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 from finetune_studio import db
+from finetune_studio.webui.errors import ApiError
 
 log = logging.getLogger(__name__)
 
@@ -61,12 +63,35 @@ async def list_projects():
     return db.list_projects()
 
 
+PROJECT_NAME_MAX = 120
+
+
+def clean_project_name(raw: Any) -> str:
+    """A project name: trimmed, one line, 1-120 characters. A blank name made the project nameless (an empty
+    breadcrumb, unreachable by name from the CLI); a non-string or control characters are refused too."""
+    if not isinstance(raw, str):
+        raise ApiError(422, "name: give the project a name (text)", code="invalid_name")
+    name = " ".join(raw.split())
+    if not name:
+        raise ApiError(422, "name: a project needs a name (it cannot be blank)", code="invalid_name")
+    if len(name) > PROJECT_NAME_MAX:
+        raise ApiError(422, f"name: at most {PROJECT_NAME_MAX} characters (this one has {len(name)})",
+                       code="invalid_name")
+    if any(ord(ch) < 32 or ord(ch) == 127 for ch in name):
+        raise ApiError(422, "name: no control characters", code="invalid_name")
+    return name
+
+
+def _name_taken(name: str, *, other_than: str | None = None) -> bool:
+    return any((x.get("name") or "").strip().lower() == name.lower() and x.get("id") != other_than
+               for x in db.list_projects())
+
+
 @router.post("")
 async def create_project(request: Request):
     body = await request.json()
-    name = (body.get("name") or "Untitled").strip()
-    if not body.get("allow_duplicate") and any(
-            (x.get("name") or "").strip().lower() == name.lower() for x in db.list_projects()):
+    name = clean_project_name(body.get("name") if body.get("name") is not None else "Untitled")
+    if not body.get("allow_duplicate") and _name_taken(name):
         return JSONResponse(
             {"detail": f'A project named "{name}" already exists. Pick a different name.',
              "code": "duplicate_name"}, status_code=409)
@@ -117,6 +142,11 @@ async def update_project(pid: str, request: Request):
     if missing is not None:
         return missing
     body = await request.json()
+    if "name" in body:
+        body["name"] = clean_project_name(body["name"])
+        if _name_taken(body["name"], other_than=pid):
+            raise ApiError(409, f'A project named "{body["name"]}" already exists. Pick a different name.',
+                           code="duplicate_name")
     return db.update_project(pid, **body)
 
 

@@ -141,11 +141,13 @@ def _check_files(sources: list[Source], texts: dict[str, str],
         if leaks:
             out.append(_finding("secret", "error", f"{s.filename} contains {' and '.join(leaks)}",
                                 "Remove it from the text in Files before you package this: whoever gets the package can read it.", [s]))
-        else:
-            hits = [m.group(0).split(m.group(1))[0].strip() + " " + m.group(1)[:2] + "…" for m in _CREDENTIAL.finditer(text)]
-            if hits:
-                out.append(_finding("credential", "warning", f"{s.filename} seems to contain a password or key",
-                                    "Check it, and remove it in Files if it is real.", [s], hits[:3]))
+        # A labelled password is its own finding, also next to a key the check above found: it reported the API key
+        # and stayed silent about "password: hunter2hunter2" in the same file.
+        hits = [m.group(0).split(m.group(1))[0].strip() + " " + m.group(1)[:2] + "…" for m in _CREDENTIAL.finditer(text)
+                if not any(rx.search(m.group(1)) for _what, rx in _SECRETS)]
+        if hits:
+            out.append(_finding("credential", "warning", f"{s.filename} seems to contain a password or key",
+                                "Check it, and remove it in Files if it is real.", [s], hits[:3]))
 
     by_text: dict[str, list[Source]] = defaultdict(list)
     for s in ready:
@@ -463,6 +465,26 @@ def forget_cached(pid: str | None = None) -> None:
             _TEXT_CHECKS.pop(pid, None)
 
 
+def _check_unparsable(pid: str) -> list[Finding]:
+    """Files in the library no parser reads (``.exe``, ``.bin``, …): listed in Files, never in the Smart Brain. The
+    check said nothing about them (walkthrough 2026-11-13 m10)."""
+    from finetune_studio.data.fs import file_library as fl
+    from finetune_studio.knowledge import sources as ks
+
+    try:
+        names = [f for f in fl.list_files(pid) if not ks.is_parseable(str(f.get("original_name") or ""))]
+    except Exception:  # noqa: BLE001 - the library is unreadable: the other checks report what they can
+        return []
+    if not names:
+        return []
+    shown = ", ".join(str(f.get("original_name")) for f in names[:8]) + (f" (+{len(names) - 8} more)" if len(names) > 8 else "")
+    key = hashlib.sha256("|".join(["unparsable", *sorted(str(f.get("id")) for f in names)]).encode()).hexdigest()[:16]
+    return [Finding("unparsable", "warning", f"{len(names)} file(s) no parser can read: {shown}",
+                    "They are not in the Smart Brain. Remove them in Files, or convert them to PDF, a text or an Office "
+                    "file.", [{"id": "", "file_id": str(f.get("id")), "name": str(f.get("original_name"))}
+                              for f in names[:20]], [], key)]
+
+
 def lint(pid: str) -> dict[str, Any]:
     """Run every check. Blocking (reads every parsed file): async callers use a thread."""
     sources = [s for s in list_sources(pid) if not s.deleted]
@@ -480,7 +502,7 @@ def lint(pid: str) -> dict[str, Any]:
         text_findings = [*file_findings, *version_findings, *_check_conflicts(pid, sources, outdated, pairs)]
         with _CACHE_LOCK:
             _TEXT_CHECKS[pid] = (key, [copy.deepcopy(f) for f in text_findings])
-    findings = [*text_findings, *_check_pictures(pid, sources), *_check_index(pid, sources)]
+    findings = [*text_findings, *_check_pictures(pid, sources), *_check_index(pid, sources), *_check_unparsable(pid)]
     for f in findings:
         f.ignored = f.key in ignored
     findings.sort(key=lambda f: (f.ignored, {"error": 0, "warning": 1}.get(f.severity, 2), f.rule))
