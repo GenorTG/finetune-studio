@@ -46,3 +46,15 @@ def test_route_and_form_say_where_it_runs(client, export_env) -> None:  # noqa: 
     for marker in ('id="mcp-search-where"', 'id="mcp-embed-url"', "embed_base_url: g('mcp-embed-url')",
                    "Where it runs: word search only", "Search where it runs: "):
         assert marker in page, marker
+
+
+def test_a_word_search_package_is_not_told_it_needs_an_embedder(corpus_dir: Path, tmp_path: Path) -> None:  # noqa: F811
+    from finetune_studio.smart_brain.server_package import verify_package
+
+    fake = tmp_path / "embedder"
+    fake.mkdir()
+    built = build_package(corpus_dir, tmp_path / "w.tar.gz", config=BrainExportConfig(kdf_log_n=10, semantic_search=False),
+                          passphrase=PASS)
+    out = verify_package(built.path, PASS, studio_models={"embedder": fake})
+    assert out["ok"] is True, out
+    assert "runtime_search" not in out and "where it runs" not in out["detail"]

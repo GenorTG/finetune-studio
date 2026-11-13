@@ -1239,7 +1239,7 @@ def verify_package(archive: str | Path, passphrase: str | None, *, studio_models
             out["lent"] = {"embedder": "meaning search ran with the studio's copy of the embedder: it is not inside "
                                        "this package, so where it runs it needs RAG_EMBED_BASE_URL or a rebuild with "
                                        "Include models"}
-            if not runtime_cfg.get("embed_base_url") and not embed_base_url:
+            if shipped_semantic and not runtime_cfg.get("embed_base_url") and not embed_base_url:
                 out["runtime_search"] = ("where it runs: word search only, until the host sets an embeddings "
                                          "endpoint (RAG_EMBED_BASE_URL) or it is exported with Include models; "
                                          "meaning search was checked with the studio's copy of the embedder")

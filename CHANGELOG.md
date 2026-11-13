@@ -22,6 +22,7 @@ turns that section into the release's notes.
   instead of only reporting the search it ran with the studio's own embedder.
 - A package's `rag.config.json` turns the reranker on only when its model is inside, and its README no longer
   says the original files are inside when they are not.
+- A package exported with meaning search off no longer gets the self-test note about needing an embedder.
 - Testing: a Smart Brain test can use an AI assistant API connection as the reader (nothing loads on the GPU), so
   the package's answers can be tested without a GPU; a project without exports starts on that connection instead of
   a "latest merged export" it does not have.
