@@ -249,6 +249,15 @@ async def hf_models_alias(request: Request):
     )
 
 
+@router.get("/projects/{pid}/package", response_class=HTMLResponse)
+def package_page_alias(pid: str, request: Request):
+    """``/package`` is the word on the button and in the docs: the page itself lives at ``/export``."""
+    from fastapi.responses import RedirectResponse
+
+    query = ("?" + request.url.query) if request.url.query else ""
+    return RedirectResponse(f"/projects/{pid}/export{query}", status_code=307)
+
+
 @router.get("/projects/{pid}/export", response_class=HTMLResponse)
 def export_page(pid: str, request: Request):
     """Model export page — choose format, quant, and browse trained exports.

@@ -32,6 +32,10 @@ turns that section into the release's notes.
   values you changed after install, and prints both; relative archive and keyfile paths work from any folder.
 - After a package build the Package page goes back to "A new package" instead of silently making the next export a
   new version of the one just built.
+- Smaller fixes: `/projects/<id>/package` opens the Package page; the Build button is off (with the reason) while
+  superseded documents block packaging; the Smart Brain no longer says the first build downloads 4 GB when the models
+  are on disk; status pills stay pills on phones; every form control has a name for screen readers; a "Skip to
+  content" link comes first for keyboard users.
 - The package README's Claude Code, Codex and Cursor MCP commands include `--keyfile` for an encrypted package.
 
 ## [0.4.0] - 2026-11-12
