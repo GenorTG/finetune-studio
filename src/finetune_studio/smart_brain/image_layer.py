@@ -38,7 +38,7 @@ VECTORS = "image_vectors.npy"
 ASSETS_DIR = "image_assets"
 # Bump when what extraction produces changes (captions, contexts): a layer of an older version is extracted again
 # at the next build (its vectors are still reused by picture hash).
-EXTRACT_VERSION = 2
+EXTRACT_VERSION = 3
 
 
 @dataclass

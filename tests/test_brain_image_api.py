@@ -243,3 +243,21 @@ def test_vectors_and_records_stay_aligned_after_remove(indexed) -> None:
     BrainIndex(corpus).remove_source("abc123def456")
     records, vectors, _ = image_layer.read_layer(corpus)
     assert vectors is None or (len(records) == vectors.shape[0] == 0) or np.all(vectors.shape[0] == len(records))
+
+
+def test_docx_context_is_the_heading_and_caption_of_that_picture_only(tmp_path: Path) -> None:
+    from docx import Document
+    from docx.shared import Inches
+
+    from finetune_studio.data import figures
+
+    doc = Document()
+    for name, colour in (("Brewline BL-520 Duo", "red"), ("Brewline BL-900 Atelier", "blue")):
+        doc.add_heading(name, 2)
+        doc.add_picture(io.BytesIO(_png(COLOURS[colour], 200, noise=11)), width=Inches(2))
+        doc.add_paragraph(f"{name}: caption text.")
+    doc.save(tmp_path / "c.docx")
+    found = figures.extract(tmp_path / "c.docx")
+    ctx = figures.contexts(tmp_path / "c.docx", found)
+    assert "BL-900" in ctx[found[1].n] and "BL-520" not in ctx[found[1].n]
+    assert "BL-520" in ctx[found[0].n] and "BL-900" not in ctx[found[0].n]
