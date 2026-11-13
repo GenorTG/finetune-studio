@@ -51,6 +51,10 @@ turns that section into the release's notes.
   are on disk; status pills stay pills on phones; every form control has a name for screen readers; a "Skip to
   content" link comes first for keyboard users.
 - The package README's Claude Code, Codex and Cursor MCP commands include `--keyfile` for an encrypted package.
+- Opening a package keeps its name (from the package, or the file name you chose) instead of a temporary
+  `upload-<number>.tar.gz` name in Package versions, the base list and the next file name.
+- Importing a damaged or wrong file is refused with a plain reason (HTTP 400, not 500), and the file and its
+  passphrase are checked before you are asked to replace the current index.
 
 ## [0.4.0] - 2026-11-12
 

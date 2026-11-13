@@ -79,7 +79,8 @@ def test_the_import_form_is_outside_the_panels_that_need_an_index() -> None:
     assert 'id="bundle-import-file"' in panel and 'id="bundle-import-btn"' in panel
     assert "data-needs-index" not in html.split('id="brain-import-panel"', 1)[0].rsplit("<details", 1)[1]
     assert 'id="bundle-import-file"' not in html.split('id="brain-copy-panel"', 1)[1].split("</details>", 1)[0]
-    assert "window.BRAIN_HAS_INDEX && !await fts.confirm" in html          # only an existing index asks first
+    # Only an existing index asks first, and only after the server checked the file (a 409 from the import).
+    assert "(window.BRAIN_HAS_INDEX ? '' : '?overwrite=true')" in html and "e.status === 409" in html
     assert "Imported from “" in html and "file(s) came with the bundle" in html
 
 
