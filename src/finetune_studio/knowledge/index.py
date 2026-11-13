@@ -41,6 +41,7 @@ class IndexState:
     imported_from: str = ""                              # the bundle's index name ("" = built here)
     fact_cards: bool = False                             # the last build indexed the approved pairs as fact cards
     facts_changed: bool = False                          # ... and pairs were approved, edited or un-approved since
+    stale_vision: list[str] = field(default_factory=list)  # of ``stale``: re-read by the Vision reader since the build
 
     @property
     def fresh(self) -> bool:
@@ -50,7 +51,7 @@ class IndexState:
         return {"built": self.built, "fresh": self.fresh, "indexed": self.indexed, "stale": self.stale,
                 "missing": self.missing, "removed": self.removed, "imported": self.imported,
                 "imported_from": self.imported_from, "fact_cards": self.fact_cards,
-                "facts_changed": self.facts_changed}
+                "facts_changed": self.facts_changed, "stale_vision": self.stale_vision}
 
 
 def _approved_facts(pid: str) -> dict[str, list[tuple[str, str, str]]]:
@@ -132,6 +133,8 @@ def state(pid: str) -> IndexState:
             st.missing.append(sid)
         elif built[sid] != s.text_sha:
             st.stale.append(sid)
+            if str(s.parser or "").endswith("+vision"):   # its pictures were read after the build (Reading pictures)
+                st.stale_vision.append(sid)
         else:
             st.indexed.append(sid)
     gone = [sid for sid in built if sid not in ready]

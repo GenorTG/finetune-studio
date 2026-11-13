@@ -22,6 +22,10 @@ turns that section into the release's notes.
   names and audience unless you change them, anything wider (more documents, originals on, names shown, a public
   audience changed, encryption off) needs a confirmation (`--allow-widen` in the CLI) and is listed in CHANGES.md,
   and `update.sh` refuses such a version on a running copy unless `--allow-widen` is given.
+- Reading pictures with a local Vision reader no longer happens silently: the upload's note names the model and
+  about how much GPU memory it loads, the top bar shows it loading, it does not start without enough free GPU memory
+  or over a model loaded for Chat or a test, and the Smart Brain says when files were re-read by the Vision reader
+  after the build instead of just "N changed".
 - A new version of an encrypted package needs the current passphrase (or a new one on purpose), so running copies
   still start after `update.sh`; `update.sh` refuses an encrypted version it cannot open first, and uses
   `passphrase.txt` beside `server.py` (which `setup.sh` now offers to write) when no `--keyfile` is given.

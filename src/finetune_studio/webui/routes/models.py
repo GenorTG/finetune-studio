@@ -328,8 +328,12 @@ async def inference_status():
             model_display = _naming.display_for_path(inference_engine.model_path or "")
         except Exception:  # noqa: BLE001  # display helper must never break status
             model_display = None
+    loading = None if loaded else (getattr(inference_engine, "_loading_path", None) or None)
     return {
         "loaded": loaded,
+        # A model on its way into the worker (a test run, the Vision reader reading pictures): the top bar shows it
+        # instead of "no model" for the minute a 12B takes.
+        "loading": loading,
         "model": inference_engine.model_path if loaded else None,
         "model_display": model_display,
         "vision": getattr(inference_engine, "vision", False) if loaded else False,

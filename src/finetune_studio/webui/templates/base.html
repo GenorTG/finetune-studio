@@ -393,6 +393,16 @@
           if (d && d.active && ie && ie.loaded && ie.model_display && d.active.model_id === ie.model) {
             d.active.display = ie.model_display;
           }
+          if (d && !(d.active && d.active.loaded) && ie && !ie.loaded && ie.loading) {
+            const name = String(ie.loading).split(/[\\/]/).pop().replace(/\.gguf$/i, '');
+            if (lastState !== 'loading:' + name) {
+              lastState = 'loading:' + name;
+              dot.className = 'status-dot busy';
+              lbl.textContent = '◌ loading ' + name;
+              pill.title = 'Loading ' + ie.loading + ' into the inference worker (a test run, a chat or the Vision reader reading pictures).';
+            }
+            return;
+          }
           render(d);
         } catch (e) { /* ignore */ }
       }
