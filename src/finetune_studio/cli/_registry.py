@@ -103,9 +103,17 @@ def main() -> None:
     if args.command is None:
         parser.print_help()
         sys.exit(0)
+    from finetune_studio.cli.commands.dataset import DatasetBuildError
+    from finetune_studio.knowledge.errors import KnowledgeError
+
     try:
         COMMANDS[args.command](args)
     except OSError as exc:
         # Missing/unreadable/unwritable user paths are user errors, not crashes.
         print(f"Error: {exc.strerror or exc}: {exc.filename or ''}".rstrip(": "), file=sys.stderr)
         sys.exit(1)
+    except (DatasetBuildError, KnowledgeError) as exc:
+        # An unknown project, a missing index, nothing parsed yet: say so in one line, never a traceback.
+        hint = " (fts projects list shows them)" if "project not found" in str(exc) else ""
+        print(f"Error: {exc}{hint}", file=sys.stderr)
+        sys.exit(2)

@@ -15,8 +15,9 @@ import argparse
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="finetune-studio",
-        description="Finetune Studio — model training & RAG CLI",
+        prog="fts",
+        description="Finetune Studio — prepare, check, test and package knowledge (Smart Brain packages); "
+                    "optional model training",
     )
     sub = parser.add_subparsers(dest="command", help="Available commands")
 
