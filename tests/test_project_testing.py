@@ -123,7 +123,7 @@ def test_testing_page_offers_installed_library_models(client, monkeypatch, tmp_p
     body = client.get(f"/projects/{_project(client)}/testing").text
     assert 'label="Installed models (Model library)"' in body and str(gguf) in body
     assert str(proj) not in body                      # a vision projector is not a model
-    assert "test any installed model" in body
+    assert "or any installed model" in body
 
 
 def test_testing_page_without_exports_offers_the_base_model_not_export_first(client) -> None:
