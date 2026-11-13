@@ -263,3 +263,21 @@ def test_clean_drops_markdown_escapes_of_blank_form_fields() -> None:
     assert clean(r"Closed by: \_\_\_\_ (Kowarzik) date: \_\_ \*urgent\* C:\temp") == \
         r"Closed by: ____ (Kowarzik) date: __ *urgent* C:\temp"
     assert "one line per line" in READ_PROMPT
+
+
+@pytest.mark.parametrize("reading, kept", [
+    ("I cannot fulfill this request because there is no text, table, or chart in the provided image to transcribe."
+     "\n\n**Drawing:**\nThe image shows a black and white dual-spout coffee machine.",
+     "The image shows a black and white dual-spout coffee machine."),
+    ("I cannot transcribe any text from this image because there is no legible text present. The image is a pixel "
+     "art warehouse with shelves.", "The image is a pixel art warehouse with shelves."),
+    ("Revenue | FY24 | 3.2", "Revenue | FY24 | 3.2"),
+    ("I cannot see the bottom row clearly. Total | 4", "I cannot see the bottom row clearly. Total | 4"),
+])
+def test_a_readings_opening_refusal_sentence_is_dropped(reading: str, kept: str) -> None:
+    """Gemma 4 opened 10 of 45 picture readings with "I cannot fulfill this request because there is no text..."
+    before describing the picture; that sentence was shown as the picture's description (live walk 2026-11-13)."""
+    from finetune_studio.models import vision
+
+    assert vision.clean(reading) == kept
+    assert vision.strip_refusal(reading) == kept
