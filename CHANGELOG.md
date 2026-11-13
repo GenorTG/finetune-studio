@@ -9,6 +9,9 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Image search answers better: the answer model is told the text around each matching picture (caption, slide or
+  cell text), Excel pictures carry the cells around them, plural words match ("plates" finds a plate), and a build
+  re-extracts pictures when the extraction itself improved. Long file names wrap in the picture results.
 - Packages can ship **Image search** (Package → search layers, with Include models): the pictures of the package's
   documents as vectors and thumbnails inside the encrypted corpus plus the CLIP model; `POST /search/image` (text or
   `image_base64`), `GET /images/<id>/thumb`, the MCP tool `rag_search_images` (thumbnails as image content), an

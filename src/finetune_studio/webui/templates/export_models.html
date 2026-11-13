@@ -918,7 +918,7 @@
     else steps.push(found.join(' + '));
     if (sem && kw) steps.push('rank fusion (RRF)');
     if (rr.checked && models) steps.push('reranker');
-    if (img.checked && models) steps.push('+ pictures (Image search)');
+    if (img.checked && models) steps.push('image search (pictures)');
     steps.push(ans ? 'LLM answer with sources' : 'passages with sources');
     if (!warn && sem && !models && !kw) warn = 'Meaning search alone needs the embedder inside (Include models) or an embeddings API where it runs.';
     if (!warn && ans && !(g('mcp-llm-url').value.trim() && g('mcp-llm-model').value.trim()))
