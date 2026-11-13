@@ -118,7 +118,9 @@ def _parse_source_background(pid: str, source_id: str) -> None:
 def _stage_for_parse(pid: str, file_id: str, background: BackgroundTasks, item: dict) -> None:
     """Queue a readable upload for its one parse and report the source on the upload row."""
     source = sources.stage(pid, file_id)
-    item.update({"source": source.as_dict(), "source_id": source.id, "parse_status": source.status})
+    # No server paths in the response (raw_path is where the studio keeps the file on its own disk).
+    item.update({"source": {k: v for k, v in source.as_dict().items() if k != "raw_path"}, "source_id": source.id,
+                 "parse_status": source.status})
     if source.status == sources.QUEUED:
         background.add_task(_parse_source_background, pid, source.id)
 
