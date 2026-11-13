@@ -159,6 +159,8 @@ def image_plan(pid: str, docs: list[Any] | None = None, *, previous_dir: Path | 
             continue
         from PIL import Image
 
+        from finetune_studio.models.vision import strip_refusal
+
         sheet = raw.suffix.lower() in (".xlsx", ".xlsm")
         for fig in found:
             try:
@@ -166,6 +168,7 @@ def image_plan(pid: str, docs: list[Any] | None = None, *, previous_dir: Path | 
                     width, height = im.size
                     fmt = (im.format or "PNG").upper()
                 reading, read_by = ("", "") if sheet else readings.get(fig.n, ("", ""))
+                reading = strip_refusal(reading)     # readings stored before the reader dropped the sentence
                 plan.fresh.append(ImageAsset(
                     document_id=source.id, filename=filename, source=path, locator=fig.where,
                     mime_type={"JPEG": "image/jpeg"}.get(fmt, "image/png"), width=int(width), height=int(height),
