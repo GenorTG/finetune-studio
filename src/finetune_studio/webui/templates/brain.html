@@ -611,7 +611,10 @@
 
   function changesText(st) {
     const n = (a) => (a || []).length;
-    return [n(st.stale) ? n(st.stale) + ' changed' : '', n(st.missing) ? n(st.missing) + ' new' : '',
+    const vision = n(st.stale_vision), edited = n(st.stale) - vision;
+    return [edited > 0 ? edited + ' changed' : '',
+            vision ? vision + (vision === 1 ? ' file' : ' files') + ' re-read by the Vision reader (pictures)' : '',
+            n(st.missing) ? n(st.missing) + ' new' : '',
             n(st.removed) ? n(st.removed) + ' removed' : '', st.facts_changed ? 'reviewed facts changed' : '']
       .filter(Boolean).join(' · ');
   }
@@ -631,7 +634,10 @@
                sub: count(d.documents, 'document') + ' · ' + count(d.chunks, 'passage') + ' indexed. Ask below.', action: '' };
     }
     if (built) {
-      return { key: 'stale', pill: 'Needs an update', tone: 'solid-amber', title: 'Your files changed since the last build',
+      const onlyVision = (st.stale_vision || []).length && (st.stale_vision || []).length === (st.stale || []).length
+        && !(st.missing || []).length && !(st.removed || []).length && !st.facts_changed;
+      return { key: 'stale', pill: 'Needs an update', tone: 'solid-amber',
+               title: onlyVision ? 'The Vision reader read pictures after the last build' : 'Your files changed since the last build',
                sub: (changesText(st) || 'Files changed') + '. Answers still use the old index until you update it.',
                action: 'Update Smart Brain' };
     }

@@ -3,6 +3,7 @@ reader automatically when one is set (``knowledge.pictures``)."""
 from __future__ import annotations
 
 import threading
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -26,6 +27,7 @@ def test_parse_warning_names_the_fix_when_no_reader_is_set(monkeypatch) -> None:
     note = pictures.parse_warning(DOC)
     assert note.startswith("2 picture(s) read by OCR only") and "set a vision reader" in note
     monkeypatch.setattr(pictures, "reader_state", lambda: {"mode": "local", "label": "Local · g.gguf"})
+    monkeypatch.setattr(pictures, "local_reader_cost", lambda: None)
     assert "Vision reader reads them next" in pictures.parse_warning(DOC)
     assert pictures.parse_warning("plain text") == ""
 
@@ -126,3 +128,58 @@ def test_start_refuses_without_a_reader_and_with_nothing_left(monkeypatch) -> No
 def test_the_job_kind_is_registered() -> None:
     from finetune_studio.jobs.runner import KINDS
     assert KINDS["pictures"] == "finetune_studio.jobs.kinds.pictures:run"
+
+
+# Walkthrough 2026-11-13 M6: uploading silently loaded a 12 B local vision model (10.6 GB), the top bar said "no
+# model", and the picture job finishing after the first build flipped "Ready" to "Needs an update · 5 changed".
+
+def test_the_upload_note_names_the_local_reader_and_its_cost(monkeypatch) -> None:
+    monkeypatch.setattr(pictures, "reader_state", lambda: {"mode": "local", "label": "Local · g.gguf"})
+    monkeypatch.setattr(pictures, "local_reader_cost", lambda: {"name": "gemma-4-12b.gguf", "gb": 7.8, "path": "/m/g"})
+    note = pictures.parse_warning(DOC)
+    assert "loads gemma-4-12b.gguf on the GPU, about 7.8 GB" in note and "needs an update" in note
+
+
+def test_no_headroom_means_no_load(monkeypatch) -> None:
+    from finetune_studio.webui import gpu_probe
+
+    monkeypatch.setattr(pictures, "local_reader_cost", lambda: {"name": "g.gguf", "gb": 8.0, "path": "/m/g"})
+    monkeypatch.setattr(gpu_probe, "free_and_consumers", lambda: (4 * 1024, [{"name": "ComfyUI", "pid": 7}]))
+    problem = pictures.vram_problem()
+    assert "not enough free GPU memory" in problem and "4.0 GB free" in problem and "ComfyUI" in problem
+    monkeypatch.setattr(pictures, "reader_state", lambda: {"mode": "local", "label": "Local · g.gguf"})
+    with pytest.raises(pictures.PicturesError) as e:
+        pictures.start("p")
+    assert e.value.status == 409 and "not enough free GPU memory" in str(e.value)
+    monkeypatch.setattr(gpu_probe, "free_and_consumers", lambda: (20 * 1024, []))
+    assert pictures.vram_problem() == ""
+    monkeypatch.setattr(pictures, "local_reader_cost", lambda: None)            # an API reader needs no GPU
+    assert pictures.vram_problem() == ""
+
+
+def test_the_upload_does_not_evict_a_loaded_model(monkeypatch) -> None:
+    monkeypatch.setattr(pictures, "reader_state", lambda: {"mode": "local", "label": "Local · g.gguf"})
+    monkeypatch.setattr(pictures, "vram_problem", lambda: "")
+    monkeypatch.setattr(pictures, "_worker_holds_other_model", lambda: "/m/chat-model.gguf")
+    with pytest.raises(pictures.PicturesError, match="chat-model.gguf is loaded"):
+        pictures.start("p", auto=True)
+
+
+def test_index_state_names_files_reread_by_the_vision_reader(monkeypatch) -> None:
+    from finetune_studio.knowledge import index as kindex
+
+    monkeypatch.setattr(kindex, "_manifest_extra", lambda pid: {"built_from": {"a": "h1", "b": "h2"}})
+    monkeypatch.setattr(kindex.sources, "list_sources", lambda pid: [
+        SimpleNamespace(id="a", ready=True, text_sha="new", parser="pdf+vision"),
+        SimpleNamespace(id="b", ready=True, text_sha="new2", parser="pdf")])
+    st = kindex.state("p")
+    assert st.stale == ["a", "b"] and st.stale_vision == ["a"] and st.as_dict()["stale_vision"] == ["a"]
+
+
+def test_status_and_pages_show_what_is_loading() -> None:
+    route = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/routes/models.py").read_text()
+    assert '"loading": loading,' in route and 'getattr(inference_engine, "_loading_path", None)' in route
+    base = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/base.html").read_text()
+    assert "'◌ loading ' + name" in base
+    brain = (Path(__file__).resolve().parents[1] / "src/finetune_studio/webui/templates/brain.html").read_text()
+    assert "re-read by the Vision reader (pictures)" in brain
