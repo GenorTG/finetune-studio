@@ -9,6 +9,12 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- The Package page says, next to the Build button, how the package will search where it runs: a package without
+  the models inside searches by exact words only until the host sets an embeddings endpoint, and the form now takes
+  that endpoint (`--embed-base-url` in the CLI) so meaning search works there. The self-test result says the same
+  instead of only reporting the search it ran with the studio's own embedder.
+- A package's `rag.config.json` turns the reranker on only when its model is inside, and its README no longer
+  says the original files are inside when they are not.
 - A project can no longer be renamed to a blank (or over-long, or another project's) name: Project settings and the
   API refuse it with the reason. New: `fts projects rename <project> "<name>"`.
 

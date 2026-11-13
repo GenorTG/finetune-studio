@@ -553,6 +553,7 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
             "passphrase": result.passphrase,
             "config": cfg.model_dump(),
             "layers": result.layers,
+            "runtime_search": result.runtime_search,
             "original_files": shipped_originals,
             "scope": scope_record,
             "widens": widens,

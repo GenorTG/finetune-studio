@@ -77,6 +77,7 @@ class PackageResult:
     size: int
     passphrase: str | None = field(default=None, repr=False)
     layers: dict[str, bool] = field(default_factory=dict)   # what the package can run (manifest "search_layers")
+    runtime_search: str = ""      # how it finds passages where it runs (BrainExportConfig.runtime_search)
 
 
 _README_TMPL = """# {title}
@@ -870,9 +871,12 @@ def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool,
         tools=", ".join(["`rag_search(query, top_k)`", "`rag_profile()`", "`rag_info()`", "`rag_list_documents()`"]
                         + (["`rag_get_document(document_id)`"] if originals else [])
                         + (["`rag_answer(question)`"] if cfg.answer_enabled else [])),
-        sources_note=("the original documents are inside `corpus.enc` "
-                      "(read lazily, in memory)." if encrypted else
-                      "`corpus/sources/` keeps the parsed text of every document."),
+        sources_note=(("the parsed text" + (" and the original files" if originals else "") + " of every document "
+                       "are inside `corpus.enc` (read lazily, in memory)." + ("" if originals else
+                       " The original files are not in this package."))
+                      if encrypted else
+                      "`corpus/sources/` keeps the parsed text of every document."
+                      + ("" if originals else " The original files are not in this package.")),
     )
 
 
@@ -1105,11 +1109,11 @@ def build_package(
             sink.add_bytes(f"{root}/brain_container.py",
                            _CONTAINER_SRC.read_text(encoding="utf-8"))
         sink.add_bytes(f"{root}/requirements.txt", requirements)
-        sink.add_bytes(f"{root}/{RUNTIME_CONFIG_NAME}",
-                       json.dumps(cfg.runtime_config(), indent=2) + "\n")
+        # The reranker is on only when its model is inside (it said true in packages that shipped none).
+        runtime = {**cfg.runtime_config(), "reranker": bool(rr_src) and cfg.reranker_enabled}
+        sink.add_bytes(f"{root}/{RUNTIME_CONFIG_NAME}", json.dumps(runtime, indent=2) + "\n")
         # The same settings again, never edited: update.sh keeps only the rag.config.json keys that differ from it.
-        sink.add_bytes(f"{root}/rag.config.shipped.json",
-                       json.dumps(cfg.runtime_config(), indent=2) + "\n")
+        sink.add_bytes(f"{root}/rag.config.shipped.json", json.dumps(runtime, indent=2) + "\n")
         sink.add_bytes(f"{root}/mcp-config.example.json",
                        _mcp_config_example(f"{slug}" if encrypted else f"{slug}-brain",
                                            root, encrypted))
@@ -1138,7 +1142,8 @@ def build_package(
 
     log.info("rag package built: %s (%d bytes, encrypted=%s)", out, out.stat().st_size, encrypted)
     return PackageResult(path=out, encrypted=encrypted, root=root,
-                         size=out.stat().st_size, passphrase=generated, layers=dict(manifest["search_layers"]))
+                         size=out.stat().st_size, passphrase=generated, layers=dict(manifest["search_layers"]),
+                         runtime_search=cfg.runtime_search(bundled_embedder=emb_src is not None))
 
 def studio_models_for(corpus_dir: str | Path) -> dict[str, Path]:
     """The studio's own copy of an index's embedder (``{"embedder": dir}``), for checking a package without models."""
@@ -1227,10 +1232,17 @@ def verify_package(archive: str | Path, passphrase: str | None, *, studio_models
             out["scope"] = scope_check
         http = _check_http(root, env, original if original and original.get("ok") else None)
         out["http"] = http
+        runtime_cfg = {}
+        with contextlib.suppress(OSError, ValueError):
+            runtime_cfg = json.loads((root / RUNTIME_CONFIG_NAME).read_text(encoding="utf-8"))
         if lent:
             out["lent"] = {"embedder": "meaning search ran with the studio's copy of the embedder: it is not inside "
                                        "this package, so where it runs it needs RAG_EMBED_BASE_URL or a rebuild with "
                                        "Include models"}
+            if not runtime_cfg.get("embed_base_url") and not embed_base_url:
+                out["runtime_search"] = ("where it runs: word search only, until the host sets an embeddings "
+                                         "endpoint (RAG_EMBED_BASE_URL) or it is exported with Include models; "
+                                         "meaning search was checked with the studio's copy of the embedder")
         out.update(hits=count, identity=bool(profile.get("instructions")),
                    exercised={layer: exercised.get(layer, False) for layer in sorted(active)},
                    ok=(count > 0 and bool(active) and not missing and http["ok"]
@@ -1242,7 +1254,8 @@ def verify_package(archive: str | Path, passphrase: str | None, *, studio_models
                            if missing else "the server opened it but a search found nothing")
                    + ("" if http["ok"] else f"; HTTP server: {http['detail']}")
                    + ("" if original is None else f"; original file: {original['detail']}")
-                   + ("" if scope_check is None else f"; scope: {scope_check['detail']}"))
+                   + ("" if scope_check is None else f"; scope: {scope_check['detail']}")
+                   + (f"; {out['runtime_search']}" if out.get("runtime_search") else ""))
     except (OSError, subprocess.SubprocessError, ValueError, tarfile.TarError, zipfile.BadZipFile) as e:
         out["detail"] = f"could not open the package: {type(e).__name__}: {str(e)[:200]}"
     finally:

@@ -202,6 +202,7 @@ def _export(args: argparse.Namespace) -> None:
         "llm_connection": args.llm_connection, "include_originals": args.originals,
         "hide_file_names": getattr(args, "hide_file_names", None),
         "top_k": args.top_k, "port": args.port, "host": args.host, "device": args.device,
+        "embed_base_url": getattr(args, "embed_base_url", None), "embed_model": getattr(args, "embed_model", None),
     }.items() if v is not None}
     conn = patch.pop("llm_connection", None)
     if conn:
@@ -335,6 +336,7 @@ def _export(args: argparse.Namespace) -> None:
                        encrypted=result.encrypted, identity=bool(_identity_for(args)), verified=verified)
     print(json.dumps({"path": str(result.path), "size": result.size, "encrypted": result.encrypted,
                       "verified": verified, "layers": result.layers,
+                      "runtime_search": result.runtime_search,
                       "original_files": shipped_originals,
                       "scope": scope_record, "widens": widens,
                       "package": {k: record[k] for k in ("package_id", "version", "parent_version", "created")},
@@ -643,6 +645,9 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     sp.add_argument("--originals", action=bo, default=None,
                     help="ship the original uploaded files (encrypted with the corpus); anyone who can reach the "
                          "server can download them: leave off for a public bot (default off)")
+    sp.add_argument("--embed-base-url", help="meaning search where the package runs without the models inside: an "
+                                             "OpenAI-compatible /embeddings endpoint (key: RAG_EMBED_API_KEY there)")
+    sp.add_argument("--embed-model", help="the embedding model name that endpoint expects")
     sp.add_argument("--passphrase-file", help="file holding the passphrase (default: generate one, printed once)")
     sp.add_argument("--format", choices=["tar.gz", "tar", "zip"])
     sp.add_argument("--top-k", type=int)
