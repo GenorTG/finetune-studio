@@ -34,7 +34,7 @@
         {% if api_readers %}
         <optgroup label="AI assistant connections (Smart Brain tests; no GPU)" id="t-model-api">
           {% for r in api_readers %}
-          <option value="{{ r.value }}" data-api="1"{% if default_model_path == r.value %} selected{% endif %}>{{ r.label }}{% if r.model %} · {{ r.model }}{% endif %} · API</option>
+          <option value="{{ r.value }}" data-api="1"{% if default_model_path == r.value %} selected{% endif %}>{{ r.label }}{% if r.model and r.model not in r.label %} · {{ r.model }}{% endif %}{% if 'API' not in r.label %} · API{% endif %}</option>
           {% endfor %}
         </optgroup>
         {% endif %}
