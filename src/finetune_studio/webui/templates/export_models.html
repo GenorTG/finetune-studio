@@ -1080,6 +1080,7 @@
         + ' <span class="text-xs dim">' + esc(p.scope || 'all documents') + ' · ' + esc(p.documents) + ' documents · id '
         + '<span class="mono">' + esc(String(p.package_id).slice(0, 8)) + '</span></span>'
         + ' <button class="btn ghost text-xs" type="button" data-new-version="' + esc(p.package_id) + '">New version of this</button></div>'
+        + (p.versions[0].slug ? ' <span class="text-xs dim">installs as <span class="mono">' + esc(p.versions[0].slug) + '</span></span>' : '')
         + '<div class="table-scroll"><table class="ref-table mt-1"><thead><tr><th>Version</th><th>Built</th><th>Documents</th>'
         + '<th>Original files</th><th>File names in answers</th><th>Changes</th><th>File</th></tr></thead><tbody>'
         + p.versions.map((v) => {

@@ -9,6 +9,13 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Packages have unique, dated names: the archive and its folder are `<project>-<package>-v<version>-<date>`, and the
+  service (`setup.sh --service`) and MCP server are named after the package (`<package>-<id8>`, the same for every
+  version), so two packages on one host no longer collide as `rag-pack`. A copy installed before keeps working on
+  update; `bash update.sh --rename` moves it to the new name. The running package reports its name, version and
+  build date on a public `GET /version`, in `/health`, an `X-Package-Version` header, MCP `serverInfo`, `rag_info`,
+  the chat page and the README; the package check compares them with `package.json`.
+
 ## [0.5.0] - 2026-11-13
 
 

@@ -519,12 +519,13 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
                                  audience=audience, encrypted=cfg.encrypt)
     record["widens"] = widens
     record["passphrase_changed"] = bool(base and cfg.encrypt and req.new_passphrase)
-    record["name"], record["audience"] = title, audience     # inside the (encrypted) manifest only
+    pm.name_record(record, base, name=title, project=proj.get("name") or pid, taken=pm.taken_roots(out_dir))
+    record["audience"] = audience
     changes_md = pm.changes_markdown(record, diff) + pv.widening_markdown(record["parent_version"], widens)
     changes_md_public = (pm.changes_markdown(record, diff, names=False)
                          + pv.widening_markdown(record["parent_version"], widens, names=False))
     ext = "zip" if cfg.archive_format == "zip" else cfg.archive_format
-    out_path = out_dir / pm.package_filename(title, record, ext=ext, models=cfg.include_models, encrypted=cfg.encrypt)
+    out_path = out_dir / pm.package_filename(record, ext=ext, models=cfg.include_models, encrypted=cfg.encrypt)
     try:
         result = await asyncio.to_thread(
             build_package, corpus, out_path, name=title, config=cfg,
@@ -572,7 +573,8 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
             "original_files": shipped_originals,
             "scope": scope_record,
             "widens": widens,
-            "package": {k: record[k] for k in ("package_id", "version", "parent_version", "created")},
+            "package": {k: record.get(k) for k in ("package_id", "version", "parent_version", "created", "name",
+                                                   "slug", "root")},
             "changes": record["changes"],
             "identity": brain_identity.is_set(brain_identity.load(pid)),
         },
