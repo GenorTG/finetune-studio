@@ -391,6 +391,8 @@ def run(pid: str, build_id: str, *, embedder: str | None = None, reset: bool = F
                               progress=(lambda d, t: progress("image_extract", d, t)) if progress else None)
             if plan.fresh:   # download the pinned image model once (shared store); kept-only builds need nothing
                 image_embeddings.ensure_model(plan.model_id)
+            if progress:     # the pictures are found: the text embedder loads next (the page said "94 of 94" meanwhile)
+                progress("embedding", 0, 0)
         image_progress = (lambda done, total: progress("image_embedding", done, total)) if progress else None
         result = BrainIndex(fresh if swap else corpus).build_from_documents(
             docs, name=project["name"], embedder=embedder, chunk_size=0, overlap=0,
