@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-13
+
 - Image search answers better: the answer model is told the text around each matching picture (its own heading and
   caption, slide or cell text), Excel pictures carry the cells around them, plural words match ("plates" finds a plate), and a build
   re-extracts pictures when the extraction itself improved. Long file names wrap in the picture results.
@@ -304,7 +306,8 @@ numbered `0.1.0.N`, one per commit.
   CLI called them (project files go through Files & Knowledge and Data prep; `fts analyze` / `fts validate-hallucination`
   are unchanged). Unused code: `templates.TemplateManager`, `HallucinationGuardrail` and a few helpers nothing called.
 
-[Unreleased]: https://github.com/GenorTG/finetune-studio/compare/v0.5.0...dev
+[Unreleased]: https://github.com/GenorTG/finetune-studio/compare/v0.6.0...dev
+[0.6.0]: https://github.com/GenorTG/finetune-studio/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/GenorTG/finetune-studio/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/GenorTG/finetune-studio/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/GenorTG/finetune-studio/compare/v0.2.0...v0.3.0
