@@ -1058,6 +1058,9 @@ def build_package(
             raise FileNotFoundError(f"corpus missing {req}: {corpus}")
     manifest = json.loads((corpus / "manifest.json").read_text(encoding="utf-8"))
     manifest["search_layers"] = search_layers(cfg)
+    # Hosted packages currently ship passage search only. Do not carry the
+    # studio index's image-layer metadata when its vectors/assets are omitted.
+    (manifest.setdefault("extra", {})).pop("image_search", None)
     if identity:   # inside the manifest, so an encrypted package keeps it encrypted
         manifest["identity"] = dict(identity)
     keep = set(documents) if documents is not None else None

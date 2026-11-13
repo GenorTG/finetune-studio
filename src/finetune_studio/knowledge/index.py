@@ -18,6 +18,7 @@ import logging
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from finetune_studio import db
@@ -98,6 +99,46 @@ def documents(pid: str, *, fact_cards: bool = False) -> list[Any]:
             out.append(IndexDocument(s.id + FACTS_SUFFIX, f"{s.filename} · reviewed facts", path, "\n\n".join(cards),
                                      chunks=cards))
     return out
+
+
+def image_assets(pid: str, docs: list[Any] | None = None) -> list[Any]:
+    """Extract first-class figures from ready project sources for image retrieval."""
+    import io
+
+    from finetune_studio.data import figures
+    from finetune_studio.smart_brain.image_embeddings import ImageAsset
+
+    source_docs = docs if docs is not None else documents(pid)
+    names = {str(d.document_id): (str(d.filename), str(getattr(d, "path", "") or d.filename))
+             for d in source_docs if not str(d.document_id).endswith(FACTS_SUFFIX)}
+    assets: list[ImageAsset] = []
+    for source in sources.list_sources(pid):
+        if not source.ready or source.id not in names:
+            continue
+        raw = Path(source.raw_path)
+        if not raw.is_file():
+            continue
+        try:
+            extracted = figures.extract(raw)
+        except Exception:
+            log.exception("image extraction failed for %s", source.filename)
+            continue
+        if extracted:
+            from PIL import Image
+        for figure in extracted:
+            try:
+                with Image.open(io.BytesIO(figure.data)) as image:
+                    width, height = image.size
+                mime = "image/png" if figure.data.startswith(b"\x89PNG\r\n\x1a\n") else "image/jpeg"
+                filename, path = names[source.id]
+                assets.append(ImageAsset(
+                    document_id=source.id, filename=filename, source=path,
+                    locator=figure.where, mime_type=mime, width=int(width),
+                    height=int(height), data=figure.data,
+                ))
+            except Exception:
+                log.exception("invalid extracted image %d from %s", figure.n, source.filename)
+    return assets
 
 
 def _manifest_extra(pid: str) -> dict[str, Any] | None:
@@ -297,9 +338,12 @@ def run(pid: str, build_id: str, *, embedder: str | None = None, reset: bool = F
         swap = reset and corpus.exists()
         if swap:
             shutil.rmtree(fresh, ignore_errors=True)
+        extracted_images = image_assets(pid, docs)
+        image_progress = (lambda done, total: progress("image_embedding", done, total)) if progress else None
         result = BrainIndex(fresh if swap else corpus).build_from_documents(
             docs, name=project["name"], embedder=embedder, chunk_size=0, overlap=0,
-            splitter="passages", extra=extra, rag_settings=settings, on_batch=on_batch)
+            splitter="passages", extra=extra, rag_settings=settings,
+            image_assets=extracted_images, on_image_batch=image_progress, on_batch=on_batch)
         if swap:
             old = corpus.with_name(corpus.name + ".old")
             shutil.rmtree(old, ignore_errors=True)

@@ -9,6 +9,10 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- The studio's Smart Brain build now keeps extracted pictures as first-class assets with their source document and
+  page/slide, embeds them in a separate multilingual CLIP space, and lets you retrieve them by text description or a
+  transient image upload. OCR and the configured Vision reader remain responsible for reading text and detailed facts.
+
 - Packages have unique, dated names: the archive and its folder are `<project>-<package>-v<version>-<date>`, and the
   service (`setup.sh --service`) and MCP server are named after the package (`<package>-<id8>`, the same for every
   version), so two packages on one host no longer collide as `rag-pack`. A copy installed before keeps working on

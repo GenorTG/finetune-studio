@@ -66,7 +66,7 @@ MODES = frozenset({MODE_BUILD, MODE_QUICK, MODE_REEMBED})
 # What a finished build reports (the job result -> ``status``): counts, the parse step's outcome (quick), the
 # embedder a re-embed used.
 RESULT_KEYS = ("documents", "chunks", "vector_dim", "skipped", "fact_cards", "fact_card_count", "corpus_dir",
-               "promoted", "promoted_files", "failed", "embedder")
+               "promoted", "promoted_files", "failed", "embedder", "image_assets")
 
 
 def _title(mode: str, reset: bool) -> str:
@@ -168,7 +168,7 @@ def status(pid: str, build_id: str) -> dict[str, Any] | None:
     except (FileNotFoundError, ValueError):
         out["mode"] = MODE_BUILD
     state = (job or {}).get("state") or {}
-    if running and state.get("phase") in ("parsing", "embedding"):
+    if running and state.get("phase") in ("parsing", "embedding", "image_embedding"):
         out[str(state["phase"])] = {"done": int(state.get("done") or 0), "total": int(state.get("total") or 0)}
     return out
 

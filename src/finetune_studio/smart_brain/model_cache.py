@@ -34,6 +34,10 @@ from finetune_studio.smart_brain.constants import (
 )
 from finetune_studio.smart_brain.devices import resolve_device
 from finetune_studio.smart_brain.embedders import get_embedder
+from finetune_studio.smart_brain.image_embeddings import (
+    ImageEmbedder,
+    load_image_embedder,
+)
 from finetune_studio.smart_brain.rerankers import get_reranker
 
 log = logging.getLogger(__name__)
@@ -241,6 +245,16 @@ def _guard_reranker(value: tuple[Any, Any], wrap: Callable[[Any], Any]) -> tuple
     return wrap(rerank), name
 
 
+def _guard_image_embedder(value: ImageEmbedder, wrap: Callable[[Any], Any]) -> ImageEmbedder:
+    return ImageEmbedder(
+        encode_images=wrap(value.encode_images),
+        encode_texts=wrap(value.encode_texts),
+        dim=value.dim,
+        image_model=value.image_model,
+        text_model=value.text_model,
+    )
+
+
 def cached_embedder(name: str = DEFAULT_EMBEDDER, device: str = "auto") -> tuple[Any, Any]:
     """``get_embedder`` through the process-wide cache; same ``(encode, info)`` result."""
     resolved = resolve_device(device)
@@ -258,4 +272,14 @@ def cached_reranker(name: str = DEFAULT_RERANKER, device: str = "auto") -> tuple
         ("reranker", name, resolved),
         lambda: get_reranker(name=name, device=resolved),
         _guard_reranker,
+    )
+
+
+def cached_image_embedder(device: str = "auto") -> ImageEmbedder:
+    """The shared multilingual image/text encoder pair, loaded only by builds or image searches."""
+    resolved = resolve_device(device)
+    return brain_model_cache.get_or_load(
+        ("image_embedder", "clip-vit-b32-multilingual", resolved),
+        lambda: load_image_embedder(device=resolved),
+        _guard_image_embedder,
     )

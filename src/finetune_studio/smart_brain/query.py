@@ -145,6 +145,49 @@ class BrainQuery:
             r["rank"] = rank
         return results
 
+    def search_images(
+        self,
+        query: str = "",
+        *,
+        image_data: bytes | None = None,
+        top_k: int = 10,
+    ) -> list[dict]:
+        """Find indexed images by multilingual text or visual similarity to an uploaded image."""
+        if not query.strip() and not image_data:
+            raise ValueError("enter a text query or upload an image")
+        if not 1 <= top_k <= 50:
+            raise ValueError("top_k must be between 1 and 50")
+        assets_path = self.dir / "image_assets.json"
+        vectors_path = self.dir / "image_vectors.npy"
+        if not assets_path.is_file() or not vectors_path.is_file():
+            return []
+
+        import json
+
+        assets = json.loads(assets_path.read_text(encoding="utf-8"))
+        vectors = np.load(vectors_path, allow_pickle=False).astype(np.float32, copy=False)
+        if vectors.ndim != 2 or len(assets) != vectors.shape[0]:
+            raise ValueError("the image index is incomplete; rebuild the Smart Brain index")
+        metadata = (self.manifest.extra or {}).get("image_search") or {}
+        from finetune_studio.smart_brain.model_cache import cached_image_embedder
+
+        embedder = cached_image_embedder()
+        if (int(metadata.get("dimension") or 0) != embedder.dim
+                or vectors.shape[1] != embedder.dim
+                or metadata.get("image_model") != embedder.image_model
+                or metadata.get("text_model") != embedder.text_model):
+            raise ValueError("the image embedding model does not match this index; rebuild the Smart Brain index")
+        if image_data:
+            from finetune_studio.smart_brain.image_embeddings import image_from_bytes
+
+            query_vector = embedder.encode_images([image_from_bytes(image_data)])[0]
+        else:
+            query_vector = embedder.encode_texts(query)
+        scores = vectors @ np.asarray(query_vector, dtype=np.float32)
+        best = np.argsort(-scores)[:top_k]
+        return [{**assets[int(i)], "score": float(scores[int(i)]), "rank": rank}
+                for rank, i in enumerate(best, 1)]
+
     def list_sources(self) -> list[dict]:
         """List current corpus documents from manifest / chunks (not stale dirs)."""
         sources: list[dict] = []
