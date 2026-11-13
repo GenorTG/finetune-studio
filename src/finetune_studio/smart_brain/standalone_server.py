@@ -13,7 +13,7 @@ Searches a corpus produced by Finetune Studio.  Two on-disk layouts:
 Modes
     --http [PORT]   GET /  chat page (bring an OpenAI / Claude / compatible API, or the package's own connection)
                     POST /mcp  MCP over HTTP (streamable HTTP; legacy and 2026-07-28 clients)
-                    REST API:   GET /health   GET /profile   GET /search?q=...&top_k=5[&source_prefix=pl-]
+                    REST API:   GET /health   GET /version (no token needed)   GET /profile   GET /search?q=...&top_k=5[&source_prefix=pl-]
                                 GET /files/<document_id>  (an original file, when the package ships them)
                     Binds 127.0.0.1 by default.  A non-loopback --host
                     REQUIRES an auth token (Authorization: Bearer ...).
@@ -145,6 +145,44 @@ _SEARCH_LINE = re.compile(r"(?:^[\s*`_>#-]*|(?<=[.!?)\]])\s+[*`_]*)SEARCH:[*`_]*
                           re.IGNORECASE | re.MULTILINE)
 _STOP = frozenset(["what", "which", "when", "where", "whom", "whose", "does", "that", "this", "with", "from", "have",
                    "about", "tell", "there", "their", "into"])
+
+
+#: package.json keys GET /version reports (no document names: it is public, like the chat page).
+VERSION_KEYS = ("name", "version", "built", "created", "package_id", "slug", "parent_version", "project",
+                "studio_version", "documents", "manifest_sha256", "scope", "audience", "originals", "layers")
+_PACKAGE_META: dict | None = None
+
+
+def hosted_meta(root: Path | None = None) -> dict:
+    """The package's own metadata (``package.json`` beside server.py, plaintext even for an encrypted corpus), read
+    once: name, version, build date, id, stable install name. ``{}`` for a package exported before it."""
+    global _PACKAGE_META
+    if root is not None:
+        return _read_package_json(root)
+    if _PACKAGE_META is None:
+        _PACKAGE_META = _read_package_json(HERE)
+    return _PACKAGE_META
+
+
+def version_info(meta: Mapping | None = None) -> dict:
+    """``GET /version``: the hosted metadata, the server version, and whether the corpus is encrypted."""
+    meta = hosted_meta() if meta is None else meta
+    out = {k: meta.get(k) for k in VERSION_KEYS if k in meta}
+    out.setdefault("version", None)
+    if "built" not in out and meta.get("created"):
+        out["built"] = str(meta["created"])[:10]
+    out["server"] = f"{SERVER_NAME}/{SERVER_VERSION}"
+    out["encrypted"] = (CORPUS_DIR / ENC_NAME).is_file()
+    return out
+
+
+def version_label(meta: Mapping | None = None) -> str:
+    """``Acme docs · 1.1.0 · 2026-11-13`` (empty for a package without package.json)."""
+    meta = hosted_meta() if meta is None else meta
+    if not meta.get("version"):
+        return ""
+    built = meta.get("built") or str(meta.get("created") or "")[:10]
+    return " · ".join(str(x) for x in (meta.get("name") or "Smart Brain package", meta["version"], built) if x)
 
 
 def _resolve_device(requested: str) -> str:
@@ -780,6 +818,7 @@ class Corpus:
             "original_files": len(self.originals),
             "scope": self.manifest.get("scope") or {"label": "all documents"},
             "package": self.manifest.get("package") or {},
+            "version": version_info(),
             "hide_file_names": bool(self.cfg.get("hide_file_names")),
             "answer_connection": {
                 "configured": bool(self.cfg["answer"] and self.cfg["llm_base_url"] and self.cfg["llm_model"]),
@@ -1118,6 +1157,12 @@ def make_handler(corpus: Corpus, token: str = ""):
     """Request handler class. ``token`` non-empty => Bearer auth required."""
 
     class Handler(BaseHTTPRequestHandler):
+        def end_headers(self):
+            ver = hosted_meta().get("version")
+            if ver:   # every response says which package version answered (proxies, logs, update checks)
+                self.send_header("X-Package-Version", str(ver))
+            super().end_headers()
+
         def _json(self, obj, code=200, extra=None):
             data = json.dumps(obj, ensure_ascii=False).encode()
             self.send_response(code)
@@ -1133,8 +1178,9 @@ def make_handler(corpus: Corpus, token: str = ""):
             """Bearer check (constant time). Without a token the server is
             loopback-only; reject foreign Host headers (DNS rebinding)."""
             if token:
-                if self.command == "GET" and urlparse(self.path).path in ("/", "/app.js"):
-                    return True  # the static client contains no corpus data; API calls remain authenticated
+                if self.command == "GET" and urlparse(self.path).path in ("/", "/app.js", "/version"):
+                    # the static client and the package's name/version hold no corpus data; API calls stay authenticated
+                    return True
                 auth = self.headers.get("Authorization") or ""
                 if auth[:7].lower() == "bearer " and tokens_equal(auth[7:].strip(), token):
                     return True
@@ -1161,6 +1207,8 @@ def make_handler(corpus: Corpus, token: str = ""):
                 self._json({"error": "the MCP endpoint takes POST"}, 405, {"Allow": "POST"})
             elif u.path == "/health":
                 self._json({"ok": True, **corpus.info()})
+            elif u.path == "/version":
+                self._json(version_info())
             elif u.path == "/profile":
                 self._json(corpus.profile())
             elif u.path.startswith("/files/"):
@@ -1180,7 +1228,7 @@ def make_handler(corpus: Corpus, token: str = ""):
                 except ValueError as e:
                     self._json({"error": str(e)}, 400)
             else:
-                self._json({"error": "not found — try /, /health, /profile, /search?q=..., /ask?q=..., /files/<id> "
+                self._json({"error": "not found — try /, /health, /version, /profile, /search?q=..., /ask?q=..., /files/<id> "
                                      "or POST /mcp"}, 404)
 
         def _file(self, document_id: str):
@@ -1344,7 +1392,7 @@ def serve_http(corpus: Corpus, cfg: Mapping) -> None:
     cls = _Server6 if ":" in host else _Server
     srv = cls((host, port), make_handler(corpus, str(cfg["auth_token"])))
     auth = "bearer-token auth ON" if cfg["auth_token"] else "no auth (loopback only)"
-    print(f"[rag-server] {corpus.info()} — listening on http://{host}:{port}/search?q=... "
+    print(f"[rag-server] {version_label() or 'package'} {corpus.info()} — listening on http://{host}:{port}/search?q=... "
           f"({auth})", file=sys.stderr)
     srv.serve_forever()
 
@@ -1434,10 +1482,25 @@ _ANSWER_TOOL = {
 }
 
 
-def _instructions(corpus: Corpus) -> str:
-    base = "Use rag_search for anything about this knowledge base; its passages are the CONTEXT."
-    prompt = corpus.identity.get("system_prompt")
-    return f"{base}\n\n{prompt}" if prompt else ""
+def mcp_server_info(meta: Mapping | None = None) -> dict:
+    """MCP ``serverInfo``: the package's stable install name, its display name and its version (the server's own
+    name and version for a package without package.json)."""
+    meta = hosted_meta() if meta is None else meta
+    if not meta.get("version"):
+        return {"name": SERVER_NAME, "version": SERVER_VERSION}
+    return {"name": meta.get("slug") or SERVER_NAME, "title": meta.get("name") or "Smart Brain package",
+            "version": str(meta["version"])}
+
+
+def _instructions(corpus: Corpus | None) -> str:
+    label = version_label()
+    head = (f"Knowledge package {label} (built {hosted_meta().get('built') or str(hosted_meta().get('created'))[:10]})"
+            ". " if label else "")
+    base = head + "Use rag_search for anything about this knowledge base; its passages are the CONTEXT."
+    prompt = corpus.identity.get("system_prompt") if corpus is not None else ""
+    if prompt:
+        return f"{base}\n\n{prompt}"
+    return base if label else ""
 
 
 class LoadingCorpus:
@@ -1519,7 +1582,7 @@ def mcp_responder(corpus: Corpus | LoadingCorpus, base_url: str = ""):
     server's identity in ``_meta``. A legacy client opens with ``initialize`` and gets its own version back if this
     server speaks it."""
     supported = [*MODERN_VERSIONS, *LEGACY_VERSIONS]
-    server_info = {"name": SERVER_NAME, "version": SERVER_VERSION}
+    server_info = mcp_server_info()
 
     def respond(msg: dict) -> dict | None:
         method = msg.get("method")
@@ -1547,7 +1610,7 @@ def mcp_responder(corpus: Corpus | LoadingCorpus, base_url: str = ""):
         instructions = ""
         if method in ("server/discover", "initialize"):
             opened = _ready(corpus, INSTRUCTIONS_WAIT)
-            instructions = _instructions(opened) if opened is not None else ""
+            instructions = _instructions(opened)
         if method == "server/discover":
             return ok({"supportedVersions": supported, "capabilities": {"tools": {}},
                        **({"instructions": instructions} if instructions else {}),
@@ -1788,6 +1851,7 @@ def apply_update(pkg_dir: Path, archive: str | Path, *, force: bool = False, pas
         new_req = (pkg_dir / "requirements.txt").read_text(encoding="utf-8") \
             if (pkg_dir / "requirements.txt").is_file() else ""
         return {"package_id": new["package_id"], "from": current.get("version"), "to": new.get("version"),
+                "name": new.get("name") or "", "slug": new.get("slug") or "", "built": new.get("built") or "",
                 "replaced": replaced, "kept_config": kept, "new_config": taken,
                 "added_config": sorted(set(new_cfg) - set(local_cfg)), "widened": widened,
                 "passphrase_note": passphrase_note, "requirements_changed": old_req != new_req}
@@ -1872,8 +1936,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"update refused: {e}", file=sys.stderr)
             return 2
         print(json.dumps(done, indent=2))
-        print(f"updated package {done['package_id']}: version {done['from'] or '(none)'} -> {done['to']}",
-              file=sys.stderr)
+        print(f"updated package {done['name'] or done['package_id']}: version {done['from'] or '(none)'} -> "
+              f"{done['to']}" + (f" (built {done['built']})" if done["built"] else ""), file=sys.stderr)
         if done["kept_config"]:
             print("kept your settings: " + ", ".join(done["kept_config"]), file=sys.stderr)
         if done["new_config"]:
@@ -1983,6 +2047,7 @@ button:disabled{opacity:.6;cursor:wait}#chat{display:grid;gap:12px;margin:14px 0
 <section id="chat" aria-live="polite"></section>
 <form id="ask" class="card"><label for="question">Your question</label><textarea id="question" required placeholder="Ask about the documents… (Enter asks, Shift+Enter: new line)"></textarea>
 <div class="bar" style="margin-top:10px"><button id="send">Ask</button><button type="button" class="ghost" id="reset">New conversation</button><span class="small muted" id="status"></span></div></form>
+<p class="small muted" id="pkg-version"></p>
 <script src="/app.js"></script></main></html>"""
 
 _CHAT_JS = r"""'use strict';
@@ -2026,7 +2091,18 @@ function remember() {
   localStorage.setItem('sb-conn', JSON.stringify({ kind: k, base: $('base').value.trim(), model: $('model').value.trim() }));
   if ($('keep').checked) sessionStorage.setItem('sb-key', $('key').value); else sessionStorage.removeItem('sb-key');
 }
+async function showVersion() {   // public: name · version · build date, also before the token is entered
+  try {
+    const v = await fetch('/version').then((x) => x.ok ? x.json() : {});
+    if (v.version) {
+      const label = [v.name || 'Smart Brain package', 'version ' + v.version, v.built].filter(Boolean).join(' · ');
+      $('pkg-version').textContent = label;
+      $('about').title = label;
+    }
+  } catch (e) { /* the version line is optional */ }
+}
 async function load() {
+  showVersion();
   $('key').value = sessionStorage.getItem('sb-key') || '';
   $('keep').checked = !!$('key').value;
   try {

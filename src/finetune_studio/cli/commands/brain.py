@@ -306,7 +306,8 @@ def _export(args: argparse.Namespace) -> None:
         _die(str(e))
     diff = pm.changes(base["documents"] if base else None, doc_rows)
     record["changes"] = pm.summary(diff)
-    out = out_file or out_dir / pm.package_filename(title, record, ext=ext, models=cfg.include_models,
+    pm.name_record(record, base, name=title, project=(resolve_project(args.project)["name"] if args.project else ""), taken=pm.taken_roots(history_dir))
+    out = out_file or out_dir / pm.package_filename(record, ext=ext, models=cfg.include_models,
                                                     encrypted=cfg.encrypt)
     originals = brain_originals.collect(corpus, pid) if cfg.include_originals else []
     shipped_originals = sum(1 for o in originals if keep is None or o.document_id in keep)
@@ -314,7 +315,7 @@ def _export(args: argparse.Namespace) -> None:
                                  audience=audience, encrypted=cfg.encrypt)
     record["widens"] = widens
     record["passphrase_changed"] = bool(base and cfg.encrypt and args.new_passphrase)
-    record["name"], record["audience"] = title, audience     # inside the (encrypted) manifest only
+    record["audience"] = audience
     changes_md = pm.changes_markdown(record, diff) + pv.widening_markdown(record["parent_version"], widens)
     try:
         result = build_package(corpus, out, name=title, config=cfg, passphrase=passphrase,

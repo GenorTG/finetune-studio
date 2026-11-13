@@ -70,8 +70,10 @@ def test_the_package_carries_its_version_everywhere(corpus_dir: Path, tmp_path: 
     record = pm.make_record(base=None, documents=DOCS)
     root = _extract(_build(corpus_dir, tmp_path / "p.tar.gz", record).path, tmp_path / "x")
     public = json.loads((root / "package.json").read_text())
-    assert public == {"format": 1, "package_id": record["package_id"], "version": "1.0.0", "parent_version": None,
-                      "created": record["created"], "documents": 3}
+    assert {k: public[k] for k in ("format", "package_id", "version", "parent_version", "created", "documents")} == {
+        "format": 2, "package_id": record["package_id"], "version": "1.0.0", "parent_version": None,
+        "created": record["created"], "documents": 3}
+    assert public["manifest_sha256"] == pm.manifest_hash(DOCS) and "ledger" not in json.dumps(public)
     assert "ledger" not in (root / "CHANGES.md").read_text() and "ledger" not in (root / "README.md").read_text()
     assert "version **1.0.0**" in (root / "README.md").read_text() and "update.sh" in (root / "README.md").read_text()
     srv = _load_server()
@@ -198,7 +200,8 @@ def test_open_an_encrypted_package_with_originals_and_export_its_next_version(
     assert by_name["Highmere public bot"]["audience"] == "public" and by_name["Highmere staff"]["audience"] == "internal"
     v = by_name["Highmere staff"]["versions"][0]
     assert v["scope"] == "all documents" and v["originals"] == 0 and v["hide_file_names"] is False
-    assert first["filename"].startswith("Highmere-public-bot-smart-brain-")
+    assert first["filename"].startswith("agent-test-open-package-highmere-public-bot-v1.0.0-")
+    assert first["package"]["slug"] == "highmere-public-bot-" + first["package"]["package_id"][:8]
     bad = client.post(f"/api/projects/{pid}/brain/standalone", json={"passphrase": PASS, "audience": "everyone"})
     assert bad.status_code == 422
     assert len({first["filename"], second["filename"], j["filename"]}) == 3
@@ -214,13 +217,21 @@ def test_open_an_encrypted_package_with_originals_and_export_its_next_version(
     assert "open an exported package" in client.get(f"/projects/{pid}/brain").text
 
 
-def test_the_file_name_carries_the_package_id() -> None:
-    rec = {"package_id": "6684261babf54d16", "version": "1.2.0"}
-    assert pm.package_filename("Acme docs!", rec, ext="tar.gz") == "Acme-docs-smart-brain-6684261b-v1.2.0.tar.gz"
-    assert pm.package_filename("", rec, ext="zip", models=True, encrypted=False) == \
-        "package-smart-brain-6684261b-v1.2.0-with-models-PLAINTEXT.zip"
-    other = pm.package_filename("Acme docs!", {**rec, "package_id": "b4b04a7db42a4c7a"}, ext="tar.gz")
-    assert other != pm.package_filename("Acme docs!", rec, ext="tar.gz")
+def test_the_file_name_is_dated_and_unique() -> None:
+    rec = {"package_id": "6684261babf54d16", "version": "1.2.0", "created": "2026-11-13T10:00:00+0100"}
+    pm.name_record(rec, None, name="Acme docs!", project="Quillfen")
+    assert rec["root"] == "quillfen-acme-docs-v1.2.0-20261113" and rec["slug"] == "acme-docs-6684261b"
+    assert pm.package_filename(rec, ext="tar.gz") == "quillfen-acme-docs-v1.2.0-20261113.tar.gz"
+    assert pm.package_filename(rec, ext="zip", models=True, encrypted=False) == \
+        "quillfen-acme-docs-v1.2.0-20261113-with-models-PLAINTEXT.zip"
+    # Another package that would get the same name the same day gets its short id in the name.
+    other = pm.name_record({**rec, "package_id": "b4b04a7db42a4c7a"}, None, name="Acme docs!", project="Quillfen",
+                           taken={rec["root"]: rec["package_id"]})
+    assert other["root"] == "quillfen-acme-docs-b4b04a7d-v1.2.0-20261113" and other["slug"] == "acme-docs-b4b04a7d"
+    # A new version keeps its base's stable name, even when renamed; a package named after its project says it once.
+    nxt = pm.name_record({**rec, "version": "1.3.0"}, rec, name="Acme handbook", project="Quillfen")
+    assert nxt["slug"] == "acme-docs-6684261b" and nxt["root"] == "quillfen-acme-handbook-v1.3.0-20261113"
+    assert pm.dated_root("Quillfen", "Quillfen", rec) == "quillfen-v1.2.0-20261113"
 
 
 def test_upload_an_archive_as_the_base(client, tmp_path: Path, monkeypatch, corpus_dir: Path) -> None:  # noqa: F811

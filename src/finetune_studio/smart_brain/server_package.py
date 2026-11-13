@@ -82,7 +82,7 @@ class PackageResult:
 
 _README_TMPL = """# {title}
 
-Exported from Finetune Studio on {date}.
+{version_line}Exported from Finetune Studio on {date}.
 It is a set of documents, split into searchable chunks, with two ready-made
 ways to query them: a plain HTTP API and an MCP server (the format Claude
 Desktop, OpenClaw, Cursor and friends speak).
@@ -365,9 +365,11 @@ _UPDATE_SH = r"""#!/usr/bin/env bash
 # opened first with --keyfile (default ./passphrase.txt) or RAG_PASSPHRASE, so a wrong passphrase changes nothing.
 # Refused unless you add a flag: another package id or a version not newer (--force); a version that opens up more
 # than this one, e.g. more documents, original files or file names shown (--allow-widen). A running service
-# (setup.sh --service) is restarted.
+# (setup.sh --service) is restarted. `bash update.sh --rename` moves a service/MCP entry from an older install name
+# (rag-pack) to this package's stable name.
 set -euo pipefail
-[ $# -ge 1 ] || { sed -n '2,10p' "$0" | sed 's/^# \?//'; exit 2; }
+[ $# -ge 1 ] || { sed -n '2,11p' "$0" | sed 's/^# \?//'; exit 2; }
+[ "$1" = "--rename" ] && exec bash "$(dirname "$0")/setup.sh" --rename
 ARGS=()   # files given relative to where you are (the archive, the keyfile) still work after the cd below
 for a in "$@"; do
   if [ -f "$a" ]; then ARGS+=("$(cd "$(dirname "$a")" && pwd)/$(basename "$a")"); else ARGS+=("$a"); fi
@@ -376,11 +378,25 @@ cd "$(dirname "$0")"
 [ -x .venv/bin/python ] || bash install.sh
 .venv/bin/python server.py --update "${ARGS[@]}"
 .venv/bin/pip install --quiet -r requirements.txt
-UNIT="fts-brain-$(basename "$(pwd)").service"
-if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet "$UNIT" 2>/dev/null; then
-  systemctl --user restart "$UNIT" && echo "Restarted $UNIT with the new version."
-else
-  echo "Restart the server (bash run-http.sh / run-mcp.sh, or your MCP client) to use the new version."
+PKG_DIR="$(pwd)"
+NAME="$(sed -n 's/^ *"slug": *"\([A-Za-z0-9._-]*\)".*/\1/p' package.json 2>/dev/null | head -n 1 || true)"
+[ -n "$NAME" ] || NAME="$(basename "$PKG_DIR")"
+echo "Package installs as '$NAME' (service fts-brain-$NAME, MCP server name $NAME)."
+RESTARTED=0
+OLD_NAMES=""
+for f in "$HOME/.config/systemd/user"/fts-brain-*.service; do      # every service of this folder, whatever its name
+  [ -f "$f" ] && grep -qx "WorkingDirectory=$PKG_DIR" "$f" || continue
+  U="$(basename "$f")"
+  [ "$U" = "fts-brain-$NAME.service" ] || OLD_NAMES="$OLD_NAMES $U"
+  if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet "$U" 2>/dev/null; then
+    systemctl --user restart "$U" && echo "Restarted $U with the new version." && RESTARTED=1
+  fi
+done
+[ "$RESTARTED" = 1 ] || echo "Restart the server (bash run-http.sh / run-mcp.sh, or your MCP client) to use the new version."
+OLD_MCP="$(sed -n 's/^    "\([^"]*\)": {$/\1/p' MCP-ENTRY.txt 2>/dev/null | head -n 1 || true)"
+if [ -n "$OLD_NAMES" ] || { [ -n "$OLD_MCP" ] && [ "$OLD_MCP" != "$NAME" ]; }; then
+  echo "This copy still runs under an older name (${OLD_NAMES# }${OLD_MCP:+ MCP '$OLD_MCP'}): it keeps working as is."
+  echo "To move the service and MCP entry to '$NAME': bash update.sh --rename"
 fi
 """
 
@@ -394,6 +410,8 @@ _SETUP_SH = r"""#!/usr/bin/env bash
 #   bash setup.sh --uninstall  remove the service (keeps files)
 #   bash setup.sh --update NEW.tar.gz [--keyfile PATH] [--force]
 #                              replace this package with its newer version
+#   bash setup.sh --rename     move a service/MCP entry installed under an older
+#                              name (e.g. rag-pack) to this package's stable name
 #
 # Pass-through flags (forwarded to server.py): --config PATH --device D
 #   --host H --port N --top-k N --no-reranker --keyfile PATH
@@ -403,13 +421,27 @@ _SETUP_SH = r"""#!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
 PKG_DIR="$(pwd)"
-NAME="$(basename "$PKG_DIR")"
+# The stable install name (package name + short id, the same for every version: package.json "slug"); packages
+# from before it use the folder name.
+NAME="$(sed -n 's/^ *"slug": *"\([A-Za-z0-9._-]*\)".*/\1/p' package.json 2>/dev/null | head -n 1 || true)"
+[ -n "$NAME" ] || NAME="$(basename "$PKG_DIR")"
 UNIT="fts-brain-$NAME.service"
-UNIT_PATH="$HOME/.config/systemd/user/$UNIT"
+UNIT_DIR="$HOME/.config/systemd/user"
+UNIT_PATH="$UNIT_DIR/$UNIT"
+# Units of this folder installed under another name (a package from before the stable name: fts-brain-rag-pack).
+other_units() {
+  local f
+  for f in "$UNIT_DIR"/fts-brain-*.service; do
+    [ -f "$f" ] || continue
+    [ "$(basename "$f")" = "$UNIT" ] && continue
+    grep -qx "WorkingDirectory=$PKG_DIR" "$f" && basename "$f"
+  done
+  return 0
+}
 PORT=""
 EXTRA=()          # flags forwarded to server.py (never the port: handled below)
 KEYFILE=""
-ASSUME_YES=0; DO_START=0; DO_SERVICE=0; DO_UNINSTALL=0
+ASSUME_YES=0; DO_START=0; DO_SERVICE=0; DO_UNINSTALL=0; DO_RENAME=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -426,7 +458,8 @@ while [ $# -gt 0 ]; do
     --start)       DO_START=1 ;;
     --service)     DO_SERVICE=1 ;;
     --uninstall)   DO_UNINSTALL=1 ;;
-    -h|--help)     sed -n '2,17p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    --rename)      DO_RENAME=1 ;;
+    -h|--help)     sed -n '2,19p' "$0" | sed 's/^# \?//'; exit 0 ;;
     *) echo "unknown option: $1 (try --help)"; exit 2 ;;
   esac
   shift
@@ -457,7 +490,40 @@ ask_yn() {  # ask_yn "prompt" default(Y|N) -> 0=yes
   case "$ans" in [Yy]*) return 0 ;; *) return 1 ;; esac
 }
 
+if [ "$DO_RENAME" = 1 ]; then
+  OLD_UNITS="$(other_units)"
+  OLD_MCP="$(sed -n 's/^    "\([^"]*\)": {$/\1/p' MCP-ENTRY.txt 2>/dev/null | head -n 1 || true)"
+  if [ -z "$OLD_UNITS" ] && { [ -z "$OLD_MCP" ] || [ "$OLD_MCP" = "$NAME" ]; }; then
+    echo "Nothing to rename: this package already installs as '$NAME'."
+    exit 0
+  fi
+  for OLD in $OLD_UNITS; do
+    WAS_ACTIVE=0; systemctl --user is-active --quiet "$OLD" 2>/dev/null && WAS_ACTIVE=1
+    sed -e "s/^Description=.*/Description=Finetune Studio Smart Brain package ($NAME)/" "$UNIT_DIR/$OLD" > "$UNIT_PATH.tmp"
+    chmod 600 "$UNIT_PATH.tmp"
+    mv "$UNIT_PATH.tmp" "$UNIT_PATH"
+    systemctl --user disable --now "$OLD" 2>/dev/null || true
+    rm -f "$UNIT_DIR/$OLD"
+    systemctl --user daemon-reload
+    systemctl --user enable "$UNIT" >/dev/null 2>&1 || true
+    [ "$WAS_ACTIVE" = 1 ] && systemctl --user start "$UNIT"
+    echo "Service renamed: $OLD -> $UNIT$([ "$WAS_ACTIVE" = 1 ] && echo ' (running)')"
+  done
+  if [ -n "$OLD_MCP" ] && [ "$OLD_MCP" != "$NAME" ]; then
+    sed -i "s/^    \"$OLD_MCP\": {\$/    \"$NAME\": {/" MCP-ENTRY.txt
+    echo "MCP-ENTRY.txt now names the server '$NAME' (was '$OLD_MCP')."
+    echo "Update your MCP clients: rename '$OLD_MCP' to '$NAME' in their config (the command and paths are unchanged)."
+  fi
+  exit 0
+fi
+
 if [ "$DO_UNINSTALL" = 1 ]; then
+  for OLD in $(other_units); do
+    systemctl --user disable --now "$OLD" 2>/dev/null || true
+    rm -f "$UNIT_DIR/$OLD"
+    systemctl --user daemon-reload
+    echo "Service '$OLD' removed."
+  done
   if command -v systemctl >/dev/null 2>&1 && [ -f "$UNIT_PATH" ]; then
     systemctl --user disable --now "$UNIT" 2>/dev/null || true
     rm -f "$UNIT_PATH"
@@ -531,6 +597,9 @@ if [ "$DO_SERVICE" = 1 ] || { [ "$CAN_UNATTEND" = 1 ] && ask_yn "Install as a se
     echo "No systemd user session here — skipping service. Start manually with: bash run-http.sh"
   elif [ "$CAN_UNATTEND" = 0 ]; then
     echo "Encrypted pack: a service needs --keyfile PATH (a passphrase file) — skipping service."
+  elif [ -n "$(other_units)" ]; then
+    echo "This folder already runs as service $(other_units | tr '\n' ' ')(an older name)."
+    echo "Move it to the stable name first: bash setup.sh --rename"
   else
     ENV_LINES=""
     for v in RAG_EMBED_BASE_URL RAG_EMBED_API_KEY RAG_AUTH_TOKEN RAG_LLM_BASE_URL RAG_LLM_MODEL RAG_LLM_API_KEY; do
@@ -540,7 +609,7 @@ Environment=$v=${!v}"
     mkdir -p "$(dirname "$UNIT_PATH")"
     ( umask 077; cat > "$UNIT_PATH" <<UNIT
 [Unit]
-Description=Finetune Studio RAG pack ($NAME)
+Description=Finetune Studio Smart Brain package ($NAME)
 After=network-online.target
 
 [Service]
@@ -837,8 +906,9 @@ def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool,
             models: bool, cfg: BrainExportConfig, bundled_embedder: bool = False,
             bundled_reranker: bool = False, originals: int = 0, scope: dict | None = None,
             package: dict | None = None) -> str:
-    mcp_snippet = _mcp_config_example(slug if encrypted else f"{slug}-brain",
-                                      NEUTRAL_ROOT if encrypted else f"{slug}-brain",
+    named = bool(package and package.get("slug"))
+    mcp_snippet = _mcp_config_example(slug if (encrypted or named) else f"{slug}-brain",
+                                      str(package["root"]) if named else NEUTRAL_ROOT if encrypted else f"{slug}-brain",
                                       encrypted).rstrip("\n")
     mcp_enc_note = ("\nThis pack is encrypted: the MCP client cannot type a "
                     "passphrase, so pass `--keyfile` (as above) or set "
@@ -847,8 +917,15 @@ def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool,
                     "`update.sh` use that file when no `--keyfile` is given.\n") if encrypted else ""
     embed_section = (_README_SECTION_OFFLINE if bundled_embedder else
                      _README_SECTION_API if cfg.semantic_search else "")
+    version_line = ""
+    if package and package.get("version"):
+        version_line = (f"**{package.get('name') or title} · version {package['version']} · built "
+                        f"{str(package.get('created') or '')[:10]}**" + (f" — installs as `{package['slug']}` "
+                        f"(service `fts-brain-{package['slug']}`, MCP server `{package['slug']}`)"
+                        if package.get("slug") else "") + ". `GET /version` on the running server reports the "
+                        "same (`package.json`).\n\n")
     return _README_TMPL.format(
-        title=title, slug=slug, date=time.strftime("%Y-%m-%d"),
+        title=title, slug=slug, date=time.strftime("%Y-%m-%d"), version_line=version_line,
         enc_note=" (**encrypted** in `corpus/corpus.enc`)" if encrypted else "",
         container_note=("; `brain_container.py` next to it opens the encrypted corpus"
                         if encrypted else ""),
@@ -990,7 +1067,13 @@ def build_package(
         if cfg.include_originals else []
     manifest["original_files"] = len(ship_originals)
     title = name or manifest.get("name") or corpus.name
-    if encrypted:  # nothing derived from the project/document names in paths/README
+    if package and package.get("root") and package.get("slug"):
+        # Dated folder (<project>-<package>-v<version>-<date>) and the stable install name (<package>-<id8>: the
+        # service, the MCP server name). Package and project names are public metadata (package.json, /version);
+        # document names stay inside an encrypted corpus.
+        slug, root = str(package["slug"]), str(package["root"])
+        title = str(package.get("name") or title)
+    elif encrypted:  # no version record (direct API use): nothing derived from names in paths/README
         title, slug, root = "Smart Brain knowledge package", NEUTRAL_ROOT, NEUTRAL_ROOT
     else:
         slug = _slug(title)
@@ -1114,15 +1197,15 @@ def build_package(
         sink.add_bytes(f"{root}/{RUNTIME_CONFIG_NAME}", json.dumps(runtime, indent=2) + "\n")
         # The same settings again, never edited: update.sh keeps only the rag.config.json keys that differ from it.
         sink.add_bytes(f"{root}/rag.config.shipped.json", json.dumps(runtime, indent=2) + "\n")
-        sink.add_bytes(f"{root}/mcp-config.example.json",
-                       _mcp_config_example(f"{slug}" if encrypted else f"{slug}-brain",
-                                           root, encrypted))
+        mcp_name = slug if (encrypted or (package and package.get("slug"))) else f"{slug}-brain"
+        sink.add_bytes(f"{root}/mcp-config.example.json", _mcp_config_example(mcp_name, root, encrypted))
         for sh, body in (("install.sh", _INSTALL_SH), ("run-http.sh", _RUN_HTTP_SH),
                          ("run-mcp.sh", _RUN_MCP_SH), ("setup.sh", _SETUP_SH), ("update.sh", _UPDATE_SH)):
             sink.add_bytes(f"{root}/{sh}", body, 0o755)
         if package:
             from .package_meta import public_record
-            sink.add_bytes(f"{root}/package.json", json.dumps(public_record(package), indent=2) + "\n")
+            sink.add_bytes(f"{root}/package.json",
+                           json.dumps(public_record(package, manifest["search_layers"]), indent=2) + "\n")
             sink.add_bytes(f"{root}/CHANGES.md", (changes_md_public if encrypted else changes_md) or changes_md)
         sink.add_bytes(f"{root}/README.md", _readme(
             title=title, slug=slug, embed_model=embed_model,
@@ -1378,6 +1461,15 @@ def _check_http(root: Path, env: dict, original: dict | None = None) -> dict:
             found = json.loads(r.read())
         if "2026-07-28" not in (found.get("result") or {}).get("supportedVersions", []):
             return {"ok": False, "detail": "MCP over HTTP did not answer server/discover"}
+        shipped = json.loads((root / "package.json").read_text(encoding="utf-8")) \
+            if (root / "package.json").is_file() else {}
+        if shipped.get("version"):   # GET /version (public) reports the package.json the archive carries
+            with urllib.request.urlopen(base + "/version", timeout=10) as r:
+                hosted, header = json.loads(r.read()), r.headers.get("X-Package-Version")
+            wrong = [k for k in ("package_id", "version", "name", "slug", "manifest_sha256") if hosted.get(k) != shipped.get(k)]
+            if wrong or header != shipped["version"]:
+                return {"ok": False, "detail": "GET /version does not match package.json: "
+                        + ", ".join(wrong or ["X-Package-Version header"])}
         if original:
             import hashlib
             with urllib.request.urlopen(f"{base}/files/{original['document_id']}", timeout=30) as r:
@@ -1385,8 +1477,8 @@ def _check_http(root: Path, env: dict, original: dict | None = None) -> dict:
                 attached = "attachment" in (r.headers.get("Content-Disposition") or "")
             if got != original["sha256"] or not attached:
                 return {"ok": False, "detail": f"GET /files/{original['document_id']} did not return the original file"}
-            return {"ok": True, "detail": "chat page, MCP over HTTP and the original-file download answer"}
-        return {"ok": True, "detail": "chat page and MCP over HTTP answer"}
+            return {"ok": True, "detail": "chat page, MCP over HTTP, /version and the original-file download answer"}
+        return {"ok": True, "detail": "chat page, MCP over HTTP and /version answer"}
     except (urllib.error.URLError, OSError, ValueError) as e:
         return {"ok": False, "detail": f"{type(e).__name__}: {str(e)[:160]}"}
     finally:

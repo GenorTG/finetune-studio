@@ -82,7 +82,7 @@ def test_new_version_inherits_and_refuses_to_widen_without_confirmation(client, 
     assert kept.status_code == 200, kept.text
     j = kept.json()
     assert j["package"]["version"] == "1.1.0" and j["scope"]["documents"] == 2 and j["original_files"] == 0
-    assert j["widens"] == [] and j["filename"].startswith("Highmere-public-bot-")
+    assert j["widens"] == [] and j["filename"].startswith("agent-test-scope-highmere-public-bot-v1.1.0-")
     row = pm.latest(pm.package_dir(pid), pkg)
     assert row["hide_file_names"] is True and row["audience"] == "public" and row["scope_spec"]["include"] == ["public/"]
 
@@ -107,6 +107,7 @@ def test_new_version_inherits_and_refuses_to_widen_without_confirmation(client, 
     fresh = client.post(url, json={"semantic_search": False, "new_version_of": pkg, "new_passphrase": True})
     assert fresh.status_code == 200 and fresh.json()["passphrase"], fresh.text
     with tarfile.open(pm.package_dir(pid) / fresh.json()["filename"]) as tf:
+        root = next(n for n in tf.getnames() if n.endswith("/package.json"))   # each version has its dated folder
         assert json.loads(tf.extractfile(root).read())["passphrase_changed"] is True
 
 
@@ -159,7 +160,8 @@ def test_update_refuses_a_wider_version_and_needs_the_passphrase(client, export_
     _fake_venv(root)
     assert (root / "rag.config.shipped.json").is_file()
     readme = (root / "README.md").read_text()
-    assert "claude mcp add rag-pack -- bash /ABSOLUTE/PATH/run-mcp.sh --keyfile /ABSOLUTE/PATH/passphrase.txt" in readme
+    assert (f"claude mcp add {json.loads((root / 'package.json').read_text())['slug']} -- bash /ABSOLUTE/PATH/run-mcp.sh "
+            "--keyfile /ABSOLUTE/PATH/passphrase.txt") in readme
     assert '"/ABSOLUTE/PATH/run-mcp.sh", "--keyfile", "/ABSOLUTE/PATH/passphrase.txt"' in readme
     assert "--allow-widen" in readme
     cfg = json.loads((root / "rag.config.json").read_text())

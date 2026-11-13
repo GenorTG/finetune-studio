@@ -243,7 +243,8 @@ def _display_name(record: dict, file_name: str) -> str:
     if record.get("name"):
         return str(record["name"])
     stem = re.sub(r"(\.tar\.gz|\.tgz|\.tar|\.zip)$", "", Path(file_name).name, flags=re.IGNORECASE)
-    stem = re.sub(r"-smart-brain-[0-9a-f]{8}-v[\w.+-]+$", "", stem)
+    stem = re.sub(r"-smart-brain-[0-9a-f]{8}-v[\w.+-]+$", "", stem)            # before 0.6.0
+    stem = re.sub(r"(-[0-9a-f]{8})?-v\d[\w.+]*-\d{8}(-with-models)?(-PLAINTEXT)?$", "", stem)   # <name>-v1.0.0-<date>
     return stem or Path(file_name).name
 
 
