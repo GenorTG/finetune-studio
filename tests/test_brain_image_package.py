@@ -248,7 +248,7 @@ def test_export_page_has_the_image_layer_switch() -> None:
 
 def test_server_file_still_ends_with_its_main_guard() -> None:
     src = Path(srv.__file__).read_text().rstrip()
-    assert src.endswith('if __name__ == "__main__":\n    sys.exit(main())')
+    assert src.endswith('if __name__ == "__main__":\n    _exit_now(main())')
 
 
 def test_one_shared_word_is_not_a_words_match() -> None:
