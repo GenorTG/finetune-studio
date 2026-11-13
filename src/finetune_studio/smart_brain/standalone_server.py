@@ -353,7 +353,13 @@ def image_words(record: Mapping) -> str:
 
 
 def _image_terms(text: str) -> list[str]:
-    return [t for t in tokenize(text) if len(t) > 1 and t not in _IMAGE_STOP]
+    """Terms of a query or a picture's words; a plain plural counts as its singular ("plates" finds "plate")."""
+    out = []
+    for t in tokenize(text):
+        if len(t) <= 1 or t in _IMAGE_STOP:
+            continue
+        out.append(t[:-1] if len(t) > 3 and t.endswith("s") and not t.endswith("ss") else t)
+    return out
 
 
 def image_word_scores(records: list, query: str) -> np.ndarray:
@@ -436,6 +442,7 @@ def rank_images(records: list, vectors: np.ndarray, query_vector: np.ndarray | N
             "kind": r.get("kind", "picture"), "mime_type": r.get("mime_type", ""),
             "width": r.get("width"), "height": r.get("height"),
             "description": str(r.get("description") or "")[:600], "read_by": r.get("read_by", ""),
+            "context": str(r.get("context") or "")[:300],
             "score": round(float(score), 6), "visual_score": round(float(visual[i]), 4),
             "words_score": round(float(words[i]), 4),
             "match": "+".join(m for m, on in (("looks", looks), ("words", said)) if on) or "weak",
@@ -464,7 +471,11 @@ def pictures_note(hits: list[dict], *, attached: bool = False, hide_names: bool 
     for i, h in enumerate(hits, 1):
         where = f"picture {i}" if hide_names else f"{h.get('filename')} · {h.get('locator')}"
         desc = str(h.get("description") or "").strip().replace("\n", " ")
-        lines.append(where + (f" (read in it: {desc[:300]})" if desc else ""))
+        near = str(h.get("context") or "").strip().replace("\n", " ")
+        if hide_names:
+            near = ""   # a public bot's caption text may name files; the passages carry the facts
+        lines.append(where + (f" (text around it: {near[:200]})" if near else "")
+                     + (f" (read in it: {desc[:300]})" if desc else ""))
     if not lines:
         return ""
     return ("\n\n[Pictures shown to the user with your answer, from the documents (Image search): "

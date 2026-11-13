@@ -265,3 +265,48 @@ def test_answer_model_is_told_which_pictures_the_user_sees() -> None:
     assert "picture 1" in srv.pictures_note([{"filename": "secret.docx", "locator": "slide 2"}], hide_names=True)
     assert "secret.docx" not in srv.pictures_note([{"filename": "secret.docx", "locator": "slide 2"}], hide_names=True)
     assert srv.pictures_note([]) == ""
+
+
+def test_plural_and_caption_words_find_the_picture() -> None:
+    records = [{"asset_id": "x", "document_id": "r", "filename": "register.xlsx", "locator": "sheet Plates D2",
+                "context": "sheet Plates Quayside Co-Working, Salford Aquavale AQ-12 rating plate photo"},
+               {"asset_id": "y", "document_id": "s", "filename": "IMG_9.jpg", "context": ""}]
+    far = np.stack([np.asarray([1.0, 0, 0], np.float32), np.asarray([0, 0, 1.0], np.float32)])
+    hits, weak = srv.rank_images(records, far, np.asarray([0, 1.0, 0], np.float32),
+                                 query="show me the rating plate photo of the Quayside cooler")
+    assert not weak and hits[0]["asset_id"] == "x" and "Quayside" in hits[0]["context"]
+    note = srv.pictures_note(hits[:1])
+    assert "text around it: sheet Plates Quayside" in note
+
+
+def test_xlsx_pictures_carry_the_cells_around_them(tmp_path: Path) -> None:
+    import io as _io
+
+    from openpyxl import Workbook
+    from openpyxl.drawing.image import Image as XlImage
+
+    from finetune_studio.data import figures
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Plates"
+    ws.append(["Site", "Unit"])
+    ws.append(["Quayside Co-Working", "Aquavale AQ-12"])
+    ws.add_image(XlImage(_io.BytesIO(_png(COLOURS["green"], 200, noise=3))), "D2")
+    wb.save(tmp_path / "r.xlsx")
+    found = figures.xlsx_pictures(tmp_path / "r.xlsx")
+    assert found and "Quayside Co-Working" in found[0].caption
+    assert "Aquavale AQ-12" in figures.contexts(tmp_path / "r.xlsx", found)[found[0].n]
+
+
+def test_an_older_extraction_is_redone(tmp_path: Path) -> None:
+    plan = image_layer.LayerPlan(fresh=[ie.ImageAsset(
+        document_id="d", filename="a.png", source="a.png", locator="image", mime_type="image/png", width=1, height=1,
+        data=_png(COLOURS["red"]))], model_id=ie.DEFAULT_IMAGE_MODEL)
+    result = image_layer.compute(plan)
+    image_layer.write(tmp_path, result)
+    meta = {**result.meta, "extract_version": 1}
+    (tmp_path / "manifest.json").write_text(json.dumps({"extra": {"image_search": meta}}))
+    assert image_layer.previous_by_source(tmp_path, ie.DEFAULT_IMAGE_MODEL) == {}
+    (tmp_path / "manifest.json").write_text(json.dumps({"extra": {"image_search": result.meta}}))
+    assert set(image_layer.previous_by_source(tmp_path, ie.DEFAULT_IMAGE_MODEL)) == {"d"}

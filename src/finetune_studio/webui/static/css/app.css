@@ -5515,3 +5515,4 @@ html { scroll-padding-top: calc(var(--session-bar-h, 104px) + 8px); }
 }
 .brain-image-weak { opacity: 0.65; }
 .brain-image-desc { max-height: 3.2em; overflow: hidden; }
+.brain-image-card b, .brain-image-card .cell-wrap { overflow-wrap: anywhere; word-break: break-word; }

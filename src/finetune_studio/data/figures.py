@@ -60,6 +60,7 @@ class Figure:
     data: bytes            # PNG or JPEG bytes
     whole_page: bool = False  # a scanned page: the figure IS the page text
     kind_override: str = ""   # a rendered page decides its own kind from its text (``_rendered_kind``)
+    caption: str = ""         # text found with it by the extractor (an xlsx picture: the cells around it)
 
     @property
     def kind(self) -> str:
@@ -299,12 +300,15 @@ def xlsx_pictures(path: Path) -> list[Figure]:
                     log.warning("%s sheet %s: picture unreadable: %s", path.name, ws.title, e)
                     continue
                 if data and _big_enough(data):
-                    cell = ""
+                    cell, near = "", ""
                     frm = getattr(getattr(img, "anchor", None), "_from", None)
                     if frm is not None:
                         from openpyxl.utils import get_column_letter
                         cell = f" {get_column_letter(frm.col + 1)}{frm.row + 1}"
-                    out.append(Figure(len(out) + 1, f"sheet {ws.title}{cell}", s, _to_png(data)))
+                        rows = ws.iter_rows(min_row=max(1, frm.row - 1), max_row=frm.row + 3, values_only=True)
+                        near = " ".join(str(v) for row in rows for v in row if v not in (None, ""))
+                    out.append(Figure(len(out) + 1, f"sheet {ws.title}{cell}", s, _to_png(data),
+                                      caption=f"sheet {ws.title} {near}".strip()))
     finally:
         wb.close()
     return out
@@ -317,6 +321,8 @@ def contexts(path: Path, found: list[Figure], chars: int = 600) -> dict[int, str
     if not found:
         return out
     suffix = path.suffix.lower()
+    if suffix not in (".xlsx", ".xlsm"):
+        out.update({f.n: f.caption[:chars] for f in found if f.caption})
     try:
         if suffix == ".docx":
             from docx import Document
@@ -344,7 +350,7 @@ def contexts(path: Path, found: list[Figure], chars: int = 600) -> dict[int, str
                     out[f.n] = (reader.pages[f.anchor - 1].extract_text() or "").strip()[:chars]
         elif suffix in (".xlsx", ".xlsm"):
             for f in found:
-                out[f.n] = f.where
+                out[f.n] = (f.caption or f.where)[:chars]
     except Exception as e:  # noqa: BLE001 - context is a search aid; a picture without it is still indexed
         log.warning("figure context of %s unreadable: %s", path.name, e)
     return out

@@ -36,6 +36,9 @@ log = logging.getLogger(__name__)
 ASSETS_JSON = "image_assets.json"
 VECTORS = "image_vectors.npy"
 ASSETS_DIR = "image_assets"
+# Bump when what extraction produces changes (captions, contexts): a layer of an older version is extracted again
+# at the next build (its vectors are still reused by picture hash).
+EXTRACT_VERSION = 2
 
 
 @dataclass
@@ -84,7 +87,7 @@ def previous_by_source(corpus: Path, model_id: str) -> dict[str, tuple[str, list
     """``source_id -> (source_sha, records)`` of the previous layer when it was built with ``model_id`` and its
     files are all still there (a source with a missing file is extracted again)."""
     records, vectors, meta = read_layer(corpus)
-    if vectors is None or meta.get("model") != model_id:
+    if vectors is None or meta.get("model") != model_id or int(meta.get("extract_version") or 1) != EXTRACT_VERSION:
         return {}
     out: dict[str, tuple[str, list[dict]]] = {}
     broken: set[str] = set()
@@ -193,7 +196,7 @@ def compute(plan: LayerPlan, *, device: str = "auto",
     meta = {**model_meta, "assets": len(records), "embedded": len(computed),
             "reused": len(records) - sum(1 for r in records if r["sha256"] in computed),
             "documents": len({r["document_id"] for r in records}), "failed": failed[:500],
-            "failed_count": len(failed)}
+            "failed_count": len(failed), "extract_version": EXTRACT_VERSION}
     return LayerResult(records, vectors, meta, files)
 
 
