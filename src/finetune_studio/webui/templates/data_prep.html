@@ -74,7 +74,7 @@
       <div class="fl-section-head fl-files-head">
         <span class="muted text-xs" id="fl-files-label">ALL FILES</span>
         <div class="flex gap-2 fl-actions">
-          <input type="text" id="fl-search" placeholder="Search filenames…" class="input fl-search" oninput="flSearch(this.value)">
+          <input type="text" id="fl-search" aria-label="Search file names" placeholder="Search filenames…" class="input fl-search" oninput="flSearch(this.value)">
           <label class="btn fl-upload-btn" title="Click or drop files here">
             <input type="file" id="fl-upload-input" multiple hidden onchange="flUploadFiles(this.files)">
             ⬆ Upload

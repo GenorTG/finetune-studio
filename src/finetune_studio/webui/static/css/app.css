@@ -5489,3 +5489,11 @@ html { scroll-padding-top: calc(var(--session-bar-h, 104px) + 8px); }
 .package-line-head { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .6rem; }
 .package-line-head .btn { margin-left: auto; }
 #package-form .brain-layers legend { font-size: .8rem; }
+/* Keyboard users skip the header (logo, seven tabs, theme, activity, guide, search) straight to the page. */
+.skip-link { position: absolute; left: -9999px; top: 0; z-index: 1000; }
+.skip-link:focus { left: 8px; top: 8px; padding: 6px 12px; background: var(--bg-nav); color: var(--accent);
+  border: 1px solid var(--accent); border-radius: 6px; }
+@media (max-width: 640px) {
+  /* A status pill in a stacked card head stays a pill (it stretched full width and read as a progress bar). */
+  .card-head > .pill, .card-head > span > .pill { align-self: flex-start; width: auto; }
+}

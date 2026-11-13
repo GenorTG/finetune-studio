@@ -359,11 +359,11 @@
     <div class="col-span-5">
       <label class="block text-xs muted mb-1">File name (without extension)</label>
       {% set _bundle_default = ((project.name|trim|lower|replace(' ', '-')) ~ '-docs-v1') if project and project.name else 'my-docs-v1' %}
-      <input id="bundle-name" type="text" placeholder="{{ _bundle_default }}" value="{{ _bundle_default }}" class="input">
+      <input id="bundle-name" aria-label="Index bundle name" type="text" placeholder="{{ _bundle_default }}" value="{{ _bundle_default }}" class="input">
     </div>
     <div class="col-span-5">
       <label class="block text-xs muted mb-1">Passphrase (blank = generate one)</label>
-      <input id="bundle-pass" type="password" autocomplete="new-password" class="input" placeholder="min 8 characters">
+      <input id="bundle-pass" aria-label="Index bundle passphrase" type="password" autocomplete="new-password" class="input" placeholder="min 8 characters">
     </div>
     <div class="col-span-2">
       <button id="bundle-btn" onclick="startBundleDownload()" class="btn primary w-full" title="Encrypt the index into a single .ftsrag file you can move to another studio.">Export</button>
@@ -650,7 +650,7 @@
                sub: count(files.total, 'file') + ' uploaded. You can build as soon as one is ready.', action: 'Build Smart Brain' };
     }
     return { key: 'unbuilt', pill: 'One step left', tone: 'solid-purple', title: count(files.ready, 'file') + ' ready to index',
-             sub: 'Building takes a minute or two. The first build also downloads the search models (about 4 GB).',
+             sub: 'Building takes a minute or two.' + (d.models_on_disk === false ? ' The first build also downloads the search models (about 4 GB).' : ''),
              action: 'Build Smart Brain' };
   }
 
@@ -1519,7 +1519,7 @@
   window.quickIndex = async function () {
     const status = document.getElementById('build-status');
     setBuildBusy(true);
-    status.textContent = 'Starting… (the first build downloads the search models, about 4 GB)';
+    status.textContent = 'Starting…' + (lastBrainState && lastBrainState.models_on_disk === false ? ' (the first build downloads the search models, about 4 GB)' : '');
     try {
       // The parse step and the build run in one job (it runs on its own: you can leave this page). A job that
       // cannot start is a 4xx/5xx whose detail says why.

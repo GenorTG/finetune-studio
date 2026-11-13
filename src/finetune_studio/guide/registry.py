@@ -78,6 +78,8 @@ def _pages() -> dict[str, Page]:
 
 
 PAGES: dict[str, Page] = _pages()
+#: Words people use for a page that is registered under another key ("package" is the Package page at /export).
+PAGE_ALIASES = {"package": "export", "brain_package": "export", "knowledge_package": "export"}
 
 
 def _controls() -> dict[str, Control]:
@@ -327,7 +329,7 @@ def selector_tokens(selector: str) -> list[tuple[str, str]]:
 
 def resolve_page_url(page_key: str, pid: str | None) -> tuple[str | None, str | None]:
     """``(url, error)`` for an allow-listed page key under the active project."""
-    page = PAGES.get(page_key)
+    page = PAGES.get(PAGE_ALIASES.get(page_key, page_key))
     if page is None:
         return None, f"unknown page {page_key!r}; allowed: {', '.join(sorted(PAGES))}"
     if page.project:

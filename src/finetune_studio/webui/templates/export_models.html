@@ -160,21 +160,21 @@
       <div class="grid grid-12 gap-3 items-end mb-2">
         <div class="col-span-2">
           <label class="block text-xs muted mb-1">Archive</label>
-          <select id="mcp-fmt" class="select">
+          <select id="mcp-fmt" aria-label="Archive format" class="select">
             <option value="tar.gz">.tar.gz</option><option value="tar">.tar</option><option value="zip">.zip</option>
           </select>
         </div>
         <div class="col-span-2">
           <label class="block text-xs muted mb-1">Device</label>
-          <input id="mcp-device" type="text" class="input" value="auto" title="auto (GPU first, CPU only without one) | cpu | cuda | cuda:N | xpu | mps">
+          <input id="mcp-device" aria-label="Device" type="text" class="input" value="auto" title="auto (GPU first, CPU only without one) | cpu | cuda | cuda:N | xpu | mps">
         </div>
         <div class="col-span-2">
           <label class="block text-xs muted mb-1">Bind host</label>
-          <input id="mcp-host" type="text" class="input" value="127.0.0.1" title="Default 127.0.0.1. A non-loopback host needs an auth token at runtime (RAG_AUTH_TOKEN) or the server refuses to start.">
+          <input id="mcp-host" aria-label="Bind host" type="text" class="input" value="127.0.0.1" title="Default 127.0.0.1. A non-loopback host needs an auth token at runtime (RAG_AUTH_TOKEN) or the server refuses to start.">
         </div>
         <div class="col-span-1">
           <label class="block text-xs muted mb-1">Port</label>
-          <input id="mcp-port" type="number" min="1" max="65535" class="input" value="8899">
+          <input id="mcp-port" aria-label="Port" type="number" min="1" max="65535" class="input" value="8899">
         </div>
         <div class="col-span-1">
           <label class="block text-xs muted mb-1" for="mcp-topk" title="How many matching passages each search returns.">Results returned</label>
@@ -605,6 +605,13 @@
       if (stop) blocker.innerHTML = '⚠ ' + esc(stop.detail) + ' <a href="/projects/' + encodeURIComponent(PID) + esc(stop.href)
         + '" data-link>Open the knowledge check</a>';
     }
+    // The export refuses superseded documents nobody accepted (409): the button says so instead of failing on click.
+    window.PACKAGE_BLOCKED = stop && /superseded/i.test(stop.detail || '') ? stop.detail : '';
+    const pkgBtn = document.getElementById('mcp-pkg-btn');
+    if (pkgBtn && window.PACKAGE_BLOCKED) {
+      pkgBtn.disabled = true;
+      pkgBtn.title = 'Not yet: ' + window.PACKAGE_BLOCKED;
+    }
     list.innerHTML = (d.steps || []).map((st) => {
       const pill = PILL[st.state] || PILL.todo;
       return '<li class="package-step is-' + esc(st.state) + '"><div class="package-step-head">'
@@ -907,7 +914,7 @@
       warn = 'Answer generation needs the endpoint and model name (they can also be set where the server runs).';
     g('mcp-pipeline').innerHTML = '<b>Pipeline:</b> ' + steps.map(escHtmlLayer).join(' → ')
       + (warn ? '<div class="sev-warning mt-1">⚠ ' + escHtmlLayer(warn) + '</div>' : '');
-    g('mcp-pkg-btn').disabled = !found.length;
+    g('mcp-pkg-btn').disabled = !found.length || !!window.PACKAGE_BLOCKED;
     // Next to the Build button, always: how the package will find passages where it runs. A default package has the
     // vectors but no embedder, so it searches by exact words only until the host gives it an embeddings endpoint.
     var embed = g('mcp-embed-url').value.trim(), where = g('mcp-search-where');

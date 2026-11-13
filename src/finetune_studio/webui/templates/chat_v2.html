@@ -73,7 +73,7 @@
       <div class="dp-chat-warn-body">
         <p>Load a model here to start chatting — or switch the global one on the <a href="/inference" data-link>Inference</a> tab.</p>
         <div class="dp-chat-warn-load" id="chat-inline-load" hidden>
-          <select id="chat-inline-model" class="select"></select>
+          <select id="chat-inline-model" aria-label="Model to load" class="select"></select>
           {# A bare "0" beside Load read as nothing; empty shows "auto" and loads the same way (0 = auto). #}
           <label class="flex items-center gap-1 text-xs muted" for="chat-inline-ctx">Context
           <input id="chat-inline-ctx" type="number" class="input" value="" min="0" max="1048576" step="512" placeholder="auto"
@@ -108,7 +108,7 @@
   </details>
 
   <div class="flex gap-2 mt-3">
-    <textarea id="chat-input" rows="2" placeholder="Message… (Shift+Enter for newline)" class="input flex-1"></textarea>
+    <textarea id="chat-input" aria-label="Message" rows="2" placeholder="Message… (Shift+Enter for newline)" class="input flex-1"></textarea>
     <button id="chat-send" class="btn primary" onclick="chatSend()">Send</button>
   </div>
 

@@ -71,7 +71,7 @@
 
 <div class="flex mb-4">
   <div class="flex gap-2 items-center">
-    <input id="proj-search" class="input" placeholder="Search projects…" oninput="filterProjects()">
+    <input id="proj-search" aria-label="Search projects" class="input" placeholder="Search projects…" oninput="filterProjects()">
     <select id="proj-sort" class="select" onchange="filterProjects()" title="Sort projects">
       <option value="updated">Last updated</option>
       <option value="created">Newest first</option>

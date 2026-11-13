@@ -109,6 +109,22 @@ class SettingsPatch(BaseModel):
 
 # ── Routes ──────────────────────────────────────────────────────────────
 
+def _search_models_on_disk() -> bool:
+    """The default embedder is already in the shared model store: the first build downloads nothing (the page said
+    "downloads the search models (about 4 GB)" when it was on disk)."""
+    from finetune_studio.data import shared_models as sm
+    from finetune_studio.smart_brain.constants import DEFAULT_EMBEDDER
+
+    def have(kind: str, repo: str) -> bool:
+        try:
+            d = sm._dir_for(kind)
+            return d.is_dir() and any(p.name.startswith(repo.replace("/", "__")) for p in d.iterdir())
+        except OSError:
+            return False
+
+    return have("embedder", DEFAULT_EMBEDDER)
+
+
 @router.get("/{pid}/brain")
 async def brain_status(pid: str):
     missing = _project_404(pid)
@@ -121,7 +137,8 @@ async def brain_status(pid: str):
     sources = list_sources(pid)
     files = {"total": len(sources), "ready": sum(1 for s in sources if s.ready)}   # what the page offers to build
     if not BrainIndex(_corpus_dir(pid)).exists():
-        return {"exists": False, "corpus_dir": str(_corpus_dir(pid)), "state": state, "files": files}
+        return {"exists": False, "corpus_dir": str(_corpus_dir(pid)), "state": state, "files": files,
+                "models_on_disk": _search_models_on_disk()}
     m = json.loads((_corpus_dir(pid) / "manifest.json").read_text())
     return {
         "exists": True,
