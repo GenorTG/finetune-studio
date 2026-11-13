@@ -18,6 +18,9 @@ turns that section into the release's notes.
   supervisor that does not answer is an honest 503.
 - A Smart Brain build with Image search says *Loading the embedder…* once the pictures are found, instead of
   showing the finished *Finding pictures in files 94 of 94* step while the text model loads.
+- A package's stdio MCP server (`server.py --mcp`) no longer crashes on exit ("terminate called without an active
+  exception", about half the runs under load) after answering everything, so the export self-test no longer reports
+  a sound package as "could not open the package".
 
 ## [0.6.0] - 2026-11-13
 
