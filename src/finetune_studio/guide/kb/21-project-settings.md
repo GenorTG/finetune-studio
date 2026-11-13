@@ -8,7 +8,7 @@ keywords: project settings name base model description tags notes system prompt 
 Change settings for this project only: its name, base model, description, tags, notes, and system prompt. The folded WebUI log tail below the form is the studio service log shared across projects.
 
 ## Workflow
-1. Edit the project fields and choose **Save** to store them. These are not the app-wide AI assistant, compute-device, access, or network settings; those live under the top-level **Settings** page.
+1. Edit the project fields and choose **Save** to store them. The name is required (1-120 characters, not blank, not another project's name); `fts projects rename <project> "<new name>"` does the same from the CLI. These are not the app-wide AI assistant, compute-device, access, or network settings; those live under the top-level **Settings** page.
 2. **Export** downloads this project as a `.tar.gz` archive. **Back to overview** returns to the project home.
 3. Expand **WebUI log tail** to fetch the recent service log. **Refresh** reloads it once; **Auto-refresh** polls every five seconds until switched off or you leave the page.
 

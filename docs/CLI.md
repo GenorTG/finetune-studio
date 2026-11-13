@@ -52,6 +52,7 @@ fts projects show <project-id> --json
 fts projects create --name "Maintenance notes" \
   --description "Equipment manuals and maintenance procedures" \
   --base-model /path/to/base-model
+fts projects rename "Maintenance notes" "Maintenance handbook"   # 1-120 characters, unique
 fts projects delete "Maintenance notes"  # asks for confirmation
 fts projects delete <project-id> --yes --json
 ```
