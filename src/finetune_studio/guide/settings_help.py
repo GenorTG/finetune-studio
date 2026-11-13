@@ -154,6 +154,18 @@ SETTING_HELP: dict[str, dict[str, str]] = {
         "pitfall": "1 can hide a second passage you need from a long single-topic document; 0 restores the plain ranking.",
         "kb": "brain",
     },
+    "image_search": {
+        "meaning": "The image layer: every picture in the project's files (photos, scans, charts, the images inside Word, PowerPoint, PDF and Excel files) is embedded with an image/text model, so a description in words or an uploaded picture finds it, with the file and page/slide it came from.",
+        "guidance": "Turn it on when the files hold photos, plates, diagrams or scans people will ask to see; then Update Smart Brain (only new or changed pictures are embedded again). It finds pictures; reading the numbers and labels inside them is still the Vision reader's job.",
+        "pitfall": "The first build with it on downloads the image model (~1.1 GB multilingual, ~0.6 GB English). A package with Image search must bundle that model (Include models).",
+        "kb": "brain",
+    },
+    "image_model": {
+        "meaning": "Which image/text model embeds the pictures: CLIP ViT-B/32 with a multilingual text encoder (questions in 50+ languages, ~1.1 GB, MIT + Apache-2.0) or CLIP ViT-B/32 alone (English questions, ~0.6 GB, MIT).",
+        "guidance": "Keep the multilingual one unless every question is in English and size matters. Both run on a CPU (about 50 ms a picture).",
+        "pitfall": "Changing it re-embeds every picture at the next build.",
+        "kb": "brain",
+    },
     "eval_kind": {
         "meaning": "Held-out validation (the 10% slice the trainer never saw) or the full training set (memorisation check).",
         "guidance": "Held-out is the honest generalisation number.",

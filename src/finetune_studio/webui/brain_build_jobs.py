@@ -66,7 +66,7 @@ MODES = frozenset({MODE_BUILD, MODE_QUICK, MODE_REEMBED})
 # What a finished build reports (the job result -> ``status``): counts, the parse step's outcome (quick), the
 # embedder a re-embed used.
 RESULT_KEYS = ("documents", "chunks", "vector_dim", "skipped", "fact_cards", "fact_card_count", "corpus_dir",
-               "promoted", "promoted_files", "failed", "embedder")
+               "promoted", "promoted_files", "failed", "embedder", "image_assets", "image_failed")
 
 
 def _title(mode: str, reset: bool) -> str:
@@ -79,9 +79,11 @@ def _title(mode: str, reset: bool) -> str:
 
 def start(pid: str, *, embedder: str | None = None, reset: bool = False,
           fact_cards: bool | None = None, mode: str = MODE_BUILD,
-          file_ids: list[str] | None = None) -> dict[str, Any]:
+          file_ids: list[str] | None = None, image_search: bool | None = None,
+          image_model: str | None = None) -> dict[str, Any]:
     """Record the build and launch its job; returns ``build_id``, ``queued_files``, ``pending_parses``,
-    ``fact_cards``, ``gpu``, ``mode``.
+    ``fact_cards``, ``gpu``, ``mode``. ``image_search`` / ``image_model`` (None = the index settings) turn the image
+    layer on or off for this and later builds.
 
     ``mode``: ``build`` embeds every parsed file; ``quick`` parses the pending library files first (``file_ids``
     restricts that step), then builds; ``re-embed`` keeps the documents and replaces the vectors (the current
@@ -107,7 +109,8 @@ def start(pid: str, *, embedder: str | None = None, reset: bool = False,
         id=job_id(bid), kind=KIND, gpu=gpu, stop_grace_s=STOP_GRACE_S, project_id=pid,
         title=_title(mode, reset),
         params={"build_id": bid, "project_id": pid, "embedder": embedder or "", "reset": bool(reset),
-                "fact_cards": bool(plan["fact_cards"]), "mode": mode, "file_ids": list(file_ids or [])},
+                "fact_cards": bool(plan["fact_cards"]), "mode": mode, "file_ids": list(file_ids or []),
+                "image_search": image_search, "image_model": image_model or ""},
     )
     try:
         launch.start(spec)
@@ -168,7 +171,7 @@ def status(pid: str, build_id: str) -> dict[str, Any] | None:
     except (FileNotFoundError, ValueError):
         out["mode"] = MODE_BUILD
     state = (job or {}).get("state") or {}
-    if running and state.get("phase") in ("parsing", "embedding"):
+    if running and state.get("phase") in ("parsing", "embedding", "image_extract", "image_embedding"):
         out[str(state["phase"])] = {"done": int(state.get("done") or 0), "total": int(state.get("total") or 0)}
     return out
 
@@ -220,7 +223,8 @@ def run_in_job(params: dict[str, Any], release_gpu: Any = lambda: None,
             result = index.run(pid, bid, embedder=params.get("embedder") or None, reset=bool(params.get("reset")),
                                fact_cards=bool(params.get("fact_cards")), parse_first=mode == MODE_QUICK,
                                file_ids=list(params.get("file_ids") or []) or None, progress=progress,
-                               on_batch=on_batch)
+                               on_batch=on_batch, image_search=params.get("image_search"),
+                               image_model=params.get("image_model") or None)
     finally:
         release_gpu()
     return {k: result[k] for k in RESULT_KEYS if k in result}

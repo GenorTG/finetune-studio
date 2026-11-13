@@ -34,6 +34,10 @@ from finetune_studio.smart_brain.constants import (
 )
 from finetune_studio.smart_brain.devices import resolve_device
 from finetune_studio.smart_brain.embedders import get_embedder
+from finetune_studio.smart_brain.image_embeddings import (
+    ImageEmbedder,
+    load_image_embedder,
+)
 from finetune_studio.smart_brain.rerankers import get_reranker
 
 log = logging.getLogger(__name__)
@@ -241,6 +245,15 @@ def _guard_reranker(value: tuple[Any, Any], wrap: Callable[[Any], Any]) -> tuple
     return wrap(rerank), name
 
 
+def _guard_image_embedder(value: ImageEmbedder, wrap: Callable[[Any], Any]) -> ImageEmbedder:
+    return ImageEmbedder(
+        encode_images=wrap(value.encode_images),
+        encode_texts=wrap(value.encode_texts),
+        dim=value.dim,
+        model_id=value.model_id,
+    )
+
+
 def cached_embedder(name: str = DEFAULT_EMBEDDER, device: str = "auto") -> tuple[Any, Any]:
     """``get_embedder`` through the process-wide cache; same ``(encode, info)`` result."""
     resolved = resolve_device(device)
@@ -258,4 +271,17 @@ def cached_reranker(name: str = DEFAULT_RERANKER, device: str = "auto") -> tuple
         ("reranker", name, resolved),
         lambda: get_reranker(name=name, device=resolved),
         _guard_reranker,
+    )
+
+
+def cached_image_embedder(model_id: str | None = None, device: str = "auto") -> ImageEmbedder:
+    """The Image search encoders (``image_embeddings.IMAGE_MODELS``), loaded only by builds or image searches."""
+    from finetune_studio.smart_brain.image_embeddings import spec_for
+
+    resolved = resolve_device(device)
+    spec = spec_for(model_id)
+    return brain_model_cache.get_or_load(
+        ("image_embedder", spec.id, resolved),
+        lambda: load_image_embedder(spec.id, device=resolved),
+        _guard_image_embedder,
     )

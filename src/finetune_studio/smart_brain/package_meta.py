@@ -126,28 +126,95 @@ def make_record(*, base: dict | None, documents: list[dict], version: str | None
             "documents": documents}
 
 
-def package_filename(title: str, record: dict, *, ext: str, models: bool = False, encrypted: bool = True) -> str:
-    """The archive's file name. It carries the package id, so two packages of one project (a public bot and the
-    internal one) never share a name: with the bare ``<title>-smart-brain-v1.0.0`` the second export overwrote the
-    first one's file while the history kept pointing both at it."""
-    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", str(title or "")).strip(".-")[:48] or "package"
-    pid = re.sub(r"[^0-9a-f]", "", str(record.get("package_id") or ""))[:8]
-    return (f"{safe}-smart-brain-{pid}-v{record['version']}{'-with-models' if models else ''}"
-            f"{'' if encrypted else '-PLAINTEXT'}.{ext}")
+def slugify(text: str, limit: int = 40) -> str:
+    """Lower-case ASCII words joined by ``-`` (``"Acme docs!"`` -> ``acme-docs``); empty when nothing is left."""
+    s = re.sub(r"[^a-z0-9]+", "-", str(text or "").lower()).strip("-")
+    return s[:limit].strip("-")
 
 
-def public_record(record: dict) -> dict:
-    """``package.json``: no document names (it sits beside an encrypted corpus).
+def short_id(package_id: str) -> str:
+    return re.sub(r"[^0-9a-f]", "", str(package_id or ""))[:8]
+
+
+def stable_slug(name: str, package_id: str) -> str:
+    """The package's install name: the systemd unit (``fts-brain-<slug>``), the MCP server name and the README's MCP
+    entry. Name + short id: the same for every version of one package (an update replaces the same install), never
+    the same for two packages (two packages on one host never collide, as every package's ``rag-pack`` did)."""
+    return f"{slugify(name, 32) or 'package'}-{short_id(package_id)}"
+
+
+def dated_root(project: str, name: str, record: dict) -> str:
+    """``<project>-<package>-v<version>-<YYYYMMDD>``: the archive's file name and the folder it extracts to. The
+    project part is left out when the package is named after the project (no ``acme-acme-``)."""
+    proj, pkg = slugify(project), slugify(name)
+    if not pkg or pkg == proj or (proj and pkg.startswith(proj + "-")):
+        parts = [pkg or proj]
+    else:
+        parts = [p for p in (proj, pkg) if p]
+    day = re.sub(r"\D", "", str(record.get("created") or ""))[:8] or time.strftime("%Y%m%d")
+    return ("-".join(p for p in parts if p) or "package") + f"-v{record['version']}-{day}"
+
+
+def name_record(record: dict, base: dict | None, *, name: str, project: str, taken: dict[str, str] | None = None) -> dict:
+    """Give a new version record its names: ``name``, ``project``, the stable ``slug`` (a new version keeps its
+    base's) and the dated ``root``. ``taken`` maps roots already used in the project to their package id: another
+    package's root gets the short id added, so two packages never share a file or a folder name."""
+    from finetune_studio.version import build_version
+
+    record["name"], record["project"] = name, project
+    record["slug"] = (base or {}).get("slug") or stable_slug(name, record["package_id"])
+    root = dated_root(project, name, record)
+    if (taken or {}).get(root, record["package_id"]) != record["package_id"]:
+        root = root.replace(f"-v{record['version']}-", f"-{short_id(record['package_id'])}-v{record['version']}-")
+    record["root"] = root
+    record["studio_version"] = build_version()
+    return record
+
+
+def package_filename(record: dict, *, ext: str, models: bool = False, encrypted: bool = True) -> str:
+    """The archive's file name: the dated root (``name_record``), plus what kind of archive it is."""
+    root = record.get("root") or dated_root("", record.get("name") or "", record)
+    return f"{root}{'-with-models' if models else ''}{'' if encrypted else '-PLAINTEXT'}.{ext}"
+
+
+def taken_roots(package_dir: Path) -> dict[str, str]:
+    """Roots (file/folder names) the project's history already uses, with the package id that owns each."""
+    return {r["root"]: r["package_id"] for r in read_history(package_dir) if r.get("root")}
+
+
+def manifest_hash(documents: list[dict]) -> str:
+    """sha256 over the sorted (path, sha256) pairs: two builds with the same documents have the same hash."""
+    rows = sorted(f"{d.get('path')}\t{d.get('sha256')}" for d in documents or [])
+    return hashlib.sha256("\n".join(rows).encode("utf-8")).hexdigest()
+
+
+def public_record(record: dict, layers: dict | None = None) -> dict:
+    """``package.json``: the package's hosted metadata, without document names (it sits beside an encrypted corpus).
+
+    Name, stable install name (``slug``), id, version, build date, parent version, project, studio version, scope,
+    audience, original files, search layers, document count and a hash of the document manifest: the server
+    reports it on ``GET /version``, ``/health``, MCP ``serverInfo`` and ``rag_info``; ``setup.sh``/``update.sh``
+    take the unit and MCP name from ``slug``.
 
     ``policy`` (scope all/part, originals, hidden names, audience, encryption), ``widens`` (codes of what this version
     opened up over its parent, confirmed at export) and ``passphrase_changed`` let ``update.sh`` refuse an update
     that widens a running copy."""
-    out = {"format": 1, **{k: record.get(k) for k in ("package_id", "version", "parent_version", "created")},
-           "documents": len(record.get("documents") or [])}
+    docs = record.get("documents") or []
+    out = {"format": 2, **{k: record.get(k) for k in ("package_id", "version", "parent_version", "created")},
+           "documents": len(docs)}
+    for key in ("name", "slug", "root", "project", "studio_version", "audience"):
+        if record.get(key) is not None:
+            out[key] = record[key]
+    out["built"] = str(record.get("created") or "")[:10]
+    out["manifest_sha256"] = manifest_hash(docs)
     if record.get("policy"):
         out["policy"] = dict(record["policy"])
+        out["scope"] = out["policy"].get("label") or out["policy"].get("scope")
+        out["originals"] = out["policy"].get("originals")
         out["widens"] = [w["code"] if isinstance(w, dict) else str(w) for w in record.get("widens") or []]
         out["passphrase_changed"] = bool(record.get("passphrase_changed"))
+    if layers is not None:
+        out["layers"] = {k: bool(v) for k, v in layers.items()}
     return out
 
 
@@ -204,7 +271,7 @@ def packages(package_dir: Path) -> list[dict[str, Any]]:
                     "audience": rows[0].get("audience") or "", "scope": rows[0].get("scope") or "",
                     "documents": len(rows[0].get("documents") or []),
                     "versions": [{k: r.get(k) for k in ("version", "parent_version", "created", "filename", "origin",
-                                                         "scope", "changes", "audience", "originals",
+                                                         "scope", "changes", "audience", "originals", "slug", "root",
                                                          "hide_file_names", "encrypted", "widens")}
                                  | {"documents": len(r.get("documents") or [])}
                                  for r in rows],

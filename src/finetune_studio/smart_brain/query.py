@@ -145,6 +145,33 @@ class BrainQuery:
             r["rank"] = rank
         return results
 
+    def image_layer(self) -> tuple[list[dict], np.ndarray | None, dict]:
+        """``(records, vectors, meta)`` of the index's image layer (loaded once)."""
+        if getattr(self, "_image_layer", None) is None:
+            from finetune_studio.smart_brain import image_layer
+            self._image_layer = image_layer.read_layer(self.dir)
+        return self._image_layer
+
+    def search_images(
+        self,
+        query: str = "",
+        *,
+        image_data: bytes | None = None,
+        top_k: int = 10,
+        group_documents: bool = False,
+    ) -> dict:
+        """Pictures for a text description (50+ languages) or a picture (visual similarity).
+
+        Returns ``hits`` (each with ``score`` = fused rank score, ``visual_score``, ``words_score``, ``match``),
+        ``weak`` (no picture matches: say so instead of showing the nearest), ``mode`` (text / image) and, with
+        ``group_documents``, ``documents`` (the hits grouped by source document: image -> document search).
+        Raises ValueError for a bad query or a layer that needs a rebuild; FileNotFoundError without the model."""
+        from finetune_studio.smart_brain import image_layer
+
+        return image_layer.search(self.dir, query, image_data=image_data, top_k=top_k,
+                                  group_documents=group_documents, rrf_k=int(self.manifest.rag_settings.rrf_k or 60),
+                                  layer=self.image_layer())
+
     def list_sources(self) -> list[dict]:
         """List current corpus documents from manifest / chunks (not stale dirs)."""
         sources: list[dict] = []

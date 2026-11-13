@@ -60,6 +60,7 @@ class Figure:
     data: bytes            # PNG or JPEG bytes
     whole_page: bool = False  # a scanned page: the figure IS the page text
     kind_override: str = ""   # a rendered page decides its own kind from its text (``_rendered_kind``)
+    caption: str = ""         # text found with it by the extractor (an xlsx picture: the cells around it)
 
     @property
     def kind(self) -> str:
@@ -275,6 +276,85 @@ def rendered(path: Path) -> Rendered:
 _BY_SUFFIX = {".docx": _docx, ".pptx": _pptx, ".pdf": _pdf,
               ".png": _image, ".jpg": _image, ".jpeg": _image, ".tif": _image, ".tiff": _image, ".bmp": _image,
               ".webp": _image, ".gif": _image}
+
+
+def xlsx_pictures(path: Path) -> list[Figure]:
+    """Pictures placed on the sheets of a workbook (``sheet <name>``, anchored at their top-left cell). Not part of
+    ``extract``: the xlsx parser reads cells, never pictures; only the Smart Brain's image layer indexes these."""
+    if path.suffix.lower() not in (".xlsx", ".xlsm"):
+        return []
+    try:
+        from openpyxl import load_workbook
+
+        wb = load_workbook(str(path), read_only=False, data_only=True)
+    except Exception as e:  # noqa: BLE001 - a broken or protected workbook has no pictures we can read
+        log.warning("pictures of %s unreadable: %s", path.name, e)
+        return []
+    out: list[Figure] = []
+    try:
+        for s, ws in enumerate(wb.worksheets, 1):
+            for img in getattr(ws, "_images", []):
+                try:
+                    data = img._data()
+                except Exception as e:  # noqa: BLE001 - an unreadable embedded picture is skipped
+                    log.warning("%s sheet %s: picture unreadable: %s", path.name, ws.title, e)
+                    continue
+                if data and _big_enough(data):
+                    cell, near = "", ""
+                    frm = getattr(getattr(img, "anchor", None), "_from", None)
+                    if frm is not None:
+                        from openpyxl.utils import get_column_letter
+                        cell = f" {get_column_letter(frm.col + 1)}{frm.row + 1}"
+                        rows = ws.iter_rows(min_row=max(1, frm.row - 1), max_row=frm.row + 3, values_only=True)
+                        near = " ".join(str(v) for row in rows for v in row if v not in (None, ""))
+                    out.append(Figure(len(out) + 1, f"sheet {ws.title}{cell}", s, _to_png(data),
+                                      caption=f"sheet {ws.title} {near}".strip()))
+    finally:
+        wb.close()
+    return out
+
+
+def contexts(path: Path, found: list[Figure], chars: int = 600) -> dict[int, str]:
+    """The text around each figure (``n -> text``): the paragraphs either side of a docx picture, a slide's text, a
+    PDF page's text layer, a sheet's name. What a picture can be found by when nothing reads it."""
+    out: dict[int, str] = {}
+    if not found:
+        return out
+    suffix = path.suffix.lower()
+    if suffix not in (".xlsx", ".xlsm"):
+        out.update({f.n: f.caption[:chars] for f in found if f.caption})
+    try:
+        if suffix == ".docx":
+            from docx import Document
+
+            body = list(Document(str(path)).element.body.iterchildren())
+            texts = ["".join(t.text or "" for t in child.iter() if t.tag.endswith("}t")).strip() for child in body]
+            for f in found:   # the paragraph before (a heading) and after (a caption): two either side named the
+                # neighbouring pictures' products too, and the answer model picked the wrong one (Tarrowfield)
+                near = [texts[i] for i in range(max(0, f.anchor - 1), min(len(texts), f.anchor + 2)) if texts[i]]
+                out[f.n] = " ".join(near)[:chars]
+        elif suffix == ".pptx":
+            from pptx import Presentation
+
+            slides = {}
+            for i, slide in enumerate(Presentation(str(path)).slides, 1):
+                slides[i] = " ".join(sh.text_frame.text for sh in slide.shapes
+                                     if getattr(sh, "has_text_frame", False) and sh.text_frame.text.strip())
+            for f in found:
+                out[f.n] = slides.get(f.anchor, "")[:chars]
+        elif suffix == ".pdf":
+            from pypdf import PdfReader
+
+            reader = PdfReader(str(path))
+            for f in found:
+                if 1 <= f.anchor <= len(reader.pages) and not f.whole_page:
+                    out[f.n] = (reader.pages[f.anchor - 1].extract_text() or "").strip()[:chars]
+        elif suffix in (".xlsx", ".xlsm"):
+            for f in found:
+                out[f.n] = (f.caption or f.where)[:chars]
+    except Exception as e:  # noqa: BLE001 - context is a search aid; a picture without it is still indexed
+        log.warning("figure context of %s unreadable: %s", path.name, e)
+    return out
 
 
 def extract(path: Path, page_texts: list[str] | None = None) -> list[Figure]:

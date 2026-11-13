@@ -201,6 +201,10 @@
           <input id="mcp-rerank" type="checkbox" checked>
           <span><b>Reranker</b> (cross-encoder) <span class="dim" id="mcp-rerank-note">needs Include models</span></span>
         </label>
+        <label class="brain-layer" title="Image search: the pictures of the documents in the package (photos, scans, charts, images inside Word/PowerPoint/PDF/Excel) as vectors and thumbnails, plus the image model (~1.1 GB, not encrypted). A description or a picture sent to the package finds them (HTTP POST /search/image, MCP rag_search_images, the chat page); /ask shows them to a vision-capable answer model. Full-size pictures ship only with Include original files. Needs Include models: there is no standard image-embeddings API to use instead, and Image search on in the Smart Brain's search settings.">
+          <input id="mcp-images" type="checkbox">
+          <span><b>Image search</b> (pictures) <span class="dim" id="mcp-images-note">needs Include models</span></span>
+        </label>
         <div class="text-xs mt-2" id="mcp-pipeline" role="status" aria-live="polite"></div>
       </fieldset>
       <div class="grid grid-12 gap-3 items-end mb-2" id="mcp-embed-row">
@@ -673,6 +677,7 @@
       llm_connection: g('mcp-llm-conn').value || null,
       include_originals: g('mcp-originals').checked,
       hide_file_names: g('mcp-hide-names').checked,
+      image_search: g('mcp-images').checked && g('mcp-models').checked,
       embed_base_url: g('mcp-embed-url').value.trim(),
       embed_model: g('mcp-embed-model').value.trim(),
       scope: mcpScope(),
@@ -736,6 +741,7 @@
     if (st.audience) g('mcp-audience').value = st.audience;
     g('mcp-originals').checked = !!st.include_originals;
     g('mcp-hide-names').checked = !!st.hide_file_names;
+    if (st.image_search != null) g('mcp-images').checked = !!st.image_search;
     if (st.encrypted === false) g('mcp-noenc').checked = true; else g('mcp-noenc').checked = false;
     var sc = st.scope;
     var some = !!(sc && ((sc.include || []).length || (sc.tags || []).length || (sc.document_ids || []).length
@@ -896,6 +902,10 @@
     g('mcp-fusion-state').textContent = sem && kw ? 'on: merges the two rankings'
       : 'off: runs only when both searches are on';
     rr.disabled = !models;
+    var img = g('mcp-images');
+    img.disabled = !models;
+    g('mcp-images-note').textContent = models ? 'pictures as vectors + thumbnails, and the image model (~1.1 GB)'
+      : 'needs Include models (the image model must be inside the package)';
     g('mcp-rerank-note').textContent = models ? 'rescores the best candidates (slower, more precise)'
       : 'needs Include models (its model must be inside the package)';
     g('mcp-llm').hidden = !ans;
@@ -908,6 +918,7 @@
     else steps.push(found.join(' + '));
     if (sem && kw) steps.push('rank fusion (RRF)');
     if (rr.checked && models) steps.push('reranker');
+    if (img.checked && models) steps.push('image search (pictures)');
     steps.push(ans ? 'LLM answer with sources' : 'passages with sources');
     if (!warn && sem && !models && !kw) warn = 'Meaning search alone needs the embedder inside (Include models) or an embeddings API where it runs.';
     if (!warn && ans && !(g('mcp-llm-url').value.trim() && g('mcp-llm-model').value.trim()))
@@ -938,7 +949,7 @@
     var adv = document.getElementById('mcp-advanced'); adv.open = true;
     (a.textContent.indexOf('endpoint') >= 0 ? document.getElementById('mcp-embed-url') : document.getElementById('mcp-models')).focus();
   });
-  ['mcp-sem', 'mcp-kw', 'mcp-rerank', 'mcp-models', 'mcp-answer', 'mcp-llm-url', 'mcp-llm-model', 'mcp-embed-url'].forEach(function (id) {
+  ['mcp-sem', 'mcp-kw', 'mcp-rerank', 'mcp-models', 'mcp-images', 'mcp-answer', 'mcp-llm-url', 'mcp-llm-model', 'mcp-embed-url'].forEach(function (id) {
     var el = document.getElementById(id);
     if (el) el.addEventListener(el.type === 'text' ? 'input' : 'change', syncLayers);
   });
@@ -954,6 +965,7 @@
     g('mcp-answer').checked = !!c.answer_enabled;
     g('mcp-originals').checked = !!c.include_originals;
     g('mcp-hide-names').checked = !!c.hide_file_names;
+    g('mcp-images').checked = !!c.image_search;
     g('mcp-embed-url').value = c.embed_base_url || ''; g('mcp-embed-model').value = c.embed_model || '';
     g('mcp-llm-url').value = c.llm_base_url || ''; g('mcp-llm-model').value = c.llm_model || '';
     g('mcp-llm-provider').value = c.llm_provider || 'openai';
@@ -1080,6 +1092,7 @@
         + ' <span class="text-xs dim">' + esc(p.scope || 'all documents') + ' · ' + esc(p.documents) + ' documents · id '
         + '<span class="mono">' + esc(String(p.package_id).slice(0, 8)) + '</span></span>'
         + ' <button class="btn ghost text-xs" type="button" data-new-version="' + esc(p.package_id) + '">New version of this</button></div>'
+        + (p.versions[0].slug ? ' <span class="text-xs dim">installs as <span class="mono">' + esc(p.versions[0].slug) + '</span></span>' : '')
         + '<div class="table-scroll"><table class="ref-table mt-1"><thead><tr><th>Version</th><th>Built</th><th>Documents</th>'
         + '<th>Original files</th><th>File names in answers</th><th>Changes</th><th>File</th></tr></thead><tbody>'
         + p.versions.map((v) => {

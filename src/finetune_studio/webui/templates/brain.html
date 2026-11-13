@@ -257,8 +257,30 @@
     <button onclick="runQuery()" id="q-btn" class="btn primary"
             title="Embed your query and retrieve the top-K most similar chunks from the index. Doesn't call the LLM — just shows what the retriever found.">Search</button>
   </div>
+  <label class="flex items-center gap-2 text-xs mt-2" title="Also search the Image search layer: pictures in your files that look like the question or whose caption, page text or reading matches it. Needs Image search on in Search settings and an updated Smart Brain."><input id="q-images" type="checkbox"> Include pictures (Image search)</label>
   <div id="q-status" class="mt-2 text-xs dim"></div>
   <div id="q-results" class="mt-3" hidden></div>
+</details>
+
+<details class="card mb-4" id="brain-image-search" data-needs-index>
+  <summary class="card-head">
+    <div>
+      <div class="card-title">Find images</div>
+      <div class="card-sub">Search pictures in your files by description (50+ languages), or upload a picture to find visually similar ones and the documents they are in. The query upload is temporary. Needs Image search on in Search settings.</div>
+    </div>
+  </summary>
+  <div class="flex gap-2 items-center">
+    <input id="image-query-text" class="input flex-1" type="text" maxlength="1000"
+           placeholder="Describe the image you are looking for…"
+           onkeydown="if(event.key==='Enter'){event.preventDefault();runImageTextSearch();}">
+    <button id="image-query-btn" class="btn primary" onclick="runImageTextSearch()">Search images</button>
+  </div>
+  <div class="flex gap-2 items-center mt-2">
+    <input id="image-query-file" type="file" accept="image/*" class="input flex-1" aria-label="Upload an image to find similar images">
+    <button id="image-file-btn" class="btn" onclick="runImageFileSearch()">Find similar</button>
+  </div>
+  <div id="image-search-status" class="mt-2 text-xs dim" aria-live="polite"></div>
+  <div id="image-search-results" class="mt-3" hidden></div>
 </details>
 
 <details class="card mb-4" id="brain-search-settings" data-needs-index>
@@ -299,13 +321,26 @@
       <button onclick="saveSettings()" class="btn primary w-full">Save</button>
     </div>
   </div>
+  <div class="grid grid-12 gap-3 items-end mt-3" id="s-image-row">
+    <div class="col-span-4">
+      <label class="flex items-center gap-2 text-xs" title="Image search: every picture in your files (photos, scans, charts, the images inside Word, PowerPoint, PDF and Excel files) is embedded with an image/text model, so a description or an uploaded picture finds it. Applies at the next Update Smart Brain; only new or changed pictures are embedded again. The first build with it on downloads the image model once."><input id="s-image-search" type="checkbox"> Image search (pictures)</label>
+      <div id="s-image-layer" class="text-xs dim mt-1"></div>
+    </div>
+    <div class="col-span-6">
+      <label class="block text-xs muted mb-1" for="s-image-model" title="The image/text model that embeds pictures. The multilingual one understands questions in 50+ languages; the English one is half the size. Changing it re-embeds every picture at the next build.">Image model <span class="dim">?</span></label>
+      <select id="s-image-model" aria-label="Image model" class="select">
+        <option value="clip-vit-b32-multilingual" selected>CLIP ViT-B/32 + multilingual text (50+ languages)</option>
+        <option value="clip-vit-b32">CLIP ViT-B/32 (English questions only, smaller)</option>
+      </select>
+    </div>
+  </div>
 </details>
 
 <details class="card mb-4" id="brain-ingest">
   <summary class="card-head">
     <div>
       <div class="card-title">Build options</div>
-      <div class="card-sub">Choose another embedder, rebuild from scratch or replace only the vectors. The first build downloads the embedding model (~2.2 GB) and, on a machine with a GPU, the reranker (~2.2 GB).</div>
+      <div class="card-sub">Choose another embedder, rebuild from scratch or replace only the vectors. The first build downloads the text embedder and, when pictures are found, the separate image/text encoders; on a GPU it may also load the reranker.</div>
     </div>
   </summary>
   <div class="grid grid-12 gap-3 items-end">
@@ -326,7 +361,7 @@
     </div>
     <div class="col-span-2 flex gap-2">
       <button onclick="buildIndex(false)" id="build-btn" class="btn flex-1"
-              title="Build the Smart Brain index: chunk your sources, embed each chunk, index for fast retrieval. First build downloads the embedder (~2.2 GB) which takes a few minutes.">Build</button>
+              title="Build the Smart Brain index: embed passages and any extracted pictures in separate vector spaces. First build downloads the required search encoders.">Build</button>
       <button onclick="buildIndex(true)" id="rebuild-btn" class="btn"
               title="Wipe the existing index and rebuild from scratch: parse, chunk and embed every file again.">⟲ Rebuild from scratch</button>
       <button onclick="reembedIndex()" id="reembed-btn" class="btn"{% if not indexed_doc_count %} disabled{% endif %}
@@ -534,9 +569,13 @@
       rerank_enabled: !!(rerankOn && rerankOn.checked),
       hybrid_enabled: !!(hybridOn && hybridOn.checked),
     };
+    const imgOn = document.getElementById('s-image-search');
+    const imgModel = document.getElementById('s-image-model');
+    if (imgOn) body.image_search = !!imgOn.checked;
+    if (imgModel && imgModel.value) body.image_model = imgModel.value;
     try {
       await api().post('/api/projects/' + PID + '/brain/settings', body);
-      notify('Retrieval settings saved', 'success');
+      notify(body.image_search ? 'Retrieval settings saved — Update Smart Brain to index the pictures' : 'Retrieval settings saved', 'success');
     } catch (e) {
       notify('Save failed: ' + (e.message || e), 'error');
     }
@@ -797,6 +836,44 @@
     }
   };
 
+  function fillImageSettings(s) {
+    const sel = document.getElementById('s-image-model');
+    if (sel && Array.isArray(s.image_models)) {
+      sel.innerHTML = s.image_models.map(function (m) {
+        return '<option value="' + esc(m.id) + '">' + esc(m.label) + ' — ' + esc(m.size_mb) + ' MB, '
+          + esc(m.licence) + (m.on_disk ? '' : ' (downloads at the next build)') + '</option>';
+      }).join('');
+      if (s.image_model) sel.value = s.image_model;
+    }
+    const chk = document.getElementById('s-image-search');
+    if (chk) chk.checked = !!s.image_search;
+    const info = document.getElementById('s-image-layer');
+    if (info) {
+      const l = s.image_layer;
+      info.textContent = l ? (l.assets + ' picture' + (l.assets === 1 ? '' : 's') + ' from ' + l.documents + ' file'
+        + (l.documents === 1 ? '' : 's') + ' indexed' + (l.failed ? ' · ' + l.failed + ' could not be read' : ''))
+        : (s.image_search ? 'On — Update Smart Brain to index the pictures.' : 'Off: pictures are only read as text (OCR / Vision reader).');
+    }
+  }
+
+  function imageUrl(hit, opts) {
+    return '/api/projects/' + encodeURIComponent(PID) + '/brain/images/' + encodeURIComponent(hit.asset_id) + (opts || '');
+  }
+
+  function imageCards(hits) {
+    return '<div class="brain-image-grid">' + hits.map(function (hit) {
+      const fileLink = hit.file_id ? ' · <a href="/api/projects/' + encodeURIComponent(PID) + '/files/' + encodeURIComponent(hit.file_id) + '/raw" target="_blank" rel="noopener">source file</a>' : '';
+      const scores = 'looks ' + Number(hit.visual_score).toFixed(2) + (hit.words_score ? ' · words ' + Number(hit.words_score).toFixed(1) : '');
+      return '<article class="brain-image-card card' + (hit.match === 'weak' ? ' brain-image-weak' : '') + '">'
+        + '<a href="' + imageUrl(hit) + '" target="_blank" rel="noopener"><img class="brain-image-thumb" src="' + imageUrl(hit, '?thumb=1') + '" alt="' + esc((hit.filename || 'Picture') + ' — ' + (hit.locator || '')) + '" loading="lazy"></a>'
+        + '<div class="text-xs mt-2 cell-wrap"><b>' + esc(hit.filename || 'Document') + '</b></div>'
+        + '<div class="text-xs dim">' + esc(hit.locator || '') + ' · ' + esc(scores) + '</div>'
+        + (hit.description ? '<div class="text-xs muted cell-wrap brain-image-desc">' + esc(hit.description.slice(0, 160)) + '</div>' : '')
+        + '<div class="text-xs mt-1"><a href="' + imageUrl(hit) + '" target="_blank" rel="noopener">open</a> · <a href="' + imageUrl(hit, '?download=1') + '">download</a>' + fileLink + '</div>'
+        + '</article>';
+    }).join('') + '</div>';
+  }
+
   // ── Live test query — hits table + Debug JSON ─────────────────────
   window.runQuery = async function() {
     const qEl = document.getElementById('q-text');
@@ -809,7 +886,8 @@
     if (status) status.textContent = 'Searching…';
     if (results) { results.hidden = false; results.innerHTML = '<span class="muted">Searching…</span>'; }
     try {
-      const d = await api().post('/api/projects/' + PID + '/brain/search', { query: q, top_k: 10 });
+      const withImages = !!(document.getElementById('q-images') || {}).checked;
+      const d = await api().post('/api/projects/' + PID + '/brain/search', { query: q, top_k: 10, images: withImages });
       const hits = d.hits || [];
       if (status) status.textContent = hits.length + ' hit' + (hits.length === 1 ? '' : 's');
       if (!hits.length) {
@@ -838,6 +916,13 @@
           + '</tr>';
       });
       html += '</tbody></table></div>';
+      if (withImages) {
+        const imgs = d.images || [];
+        html += '<h4 class="text-sm mt-3">Pictures</h4>';
+        if (d.images_error) html += '<p class="text-sm warn">' + esc(d.images_error) + '</p>';
+        else if (!imgs.length) html += '<p class="text-sm muted">No pictures in this index: turn on Image search in Search settings and update the Smart Brain.</p>';
+        else html += (d.images_weak ? '<p class="text-sm warn">No picture matches well; these are the nearest.</p>' : '') + imageCards(imgs);
+      }
       html += '<details class="mt-2"><summary class="text-xs muted">Debug JSON</summary>'
         + '<pre class="mono text-xs debug-pre">'
         + esc(JSON.stringify(d, null, 2)) + '</pre></details>';
@@ -850,6 +935,59 @@
     } finally {
       if (btn) btn.disabled = false;
     }
+  };
+
+  async function showImageSearchResults(request, status, results) {
+    status.textContent = 'Searching images…';
+    results.hidden = false;
+    results.innerHTML = '<span class="muted">Searching…</span>';
+    try {
+      const data = await request();
+      const hits = data.hits || [];
+      status.textContent = hits.length + ' image' + (hits.length === 1 ? '' : 's') + ' found';
+      if (!hits.length) {
+        results.innerHTML = '<p class="text-sm muted">' + esc(data.note || 'No pictures are indexed yet.') + '</p>';
+        return;
+      }
+      let html = data.weak ? '<p class="text-sm warn">⚠ ' + esc(data.note || 'No picture matches well.') + '</p>' : '';
+      html += imageCards(hits);
+      const docs = data.documents || [];
+      if (docs.length) {
+        html += '<h4 class="text-sm mt-3">Documents with this picture</h4><ul class="text-xs">' + docs.map(function (d) {
+          return '<li><b>' + esc(d.filename || d.document_id) + '</b> · ' + esc(d.images.map(function (i) { return i.locator; }).join(', '))
+            + ' · looks ' + Number(d.visual_score).toFixed(2) + '</li>';
+        }).join('') + '</ul>';
+      }
+      results.innerHTML = html;
+    } catch (e) {
+      const msg = (e && e.message) || String(e);
+      status.textContent = 'Error: ' + msg;
+      results.innerHTML = '<span class="err">' + esc(msg) + '</span>';
+    }
+  }
+
+  window.runImageTextSearch = async function () {
+    const query = (document.getElementById('image-query-text').value || '').trim();
+    const status = document.getElementById('image-search-status');
+    const results = document.getElementById('image-search-results');
+    if (!query) { status.textContent = 'Describe the image you want to find.'; return; }
+    await showImageSearchResults(function () {
+      return api().post('/api/projects/' + PID + '/brain/images/search', { query: query, top_k: 12 });
+    }, status, results);
+  };
+
+  window.runImageFileSearch = async function () {
+    const file = document.getElementById('image-query-file').files[0];
+    const status = document.getElementById('image-search-status');
+    const results = document.getElementById('image-search-results');
+    if (!file) { status.textContent = 'Choose an image first.'; return; }
+    if (file.size > 12 * 1024 * 1024) { status.textContent = 'Image query must be 12 MB or smaller.'; return; }
+    const body = new FormData();
+    body.append('image', file);
+    body.append('top_k', '12');
+    await showImageSearchResults(function () {
+      return api().post('/api/projects/' + PID + '/brain/images/search-by-image', body);
+    }, status, results);
   };
 
   // ── Knowledge check ──────────────────────────────────────────────
@@ -1086,6 +1224,7 @@
           + (fu.added_sources && fu.added_sources.length ? ' and added ' + esc(fu.added_sources.join(', ')) : ' (nothing new found)') + '.</div>';
       }
       if (sources.length) html += sourcesHtml(msgId, groups, DECLINE_RE.test(reply) && !groups.some(function (g) { return g.cited; }));
+      if ((d.images || []).length) html += '<div class="text-xs dim mt-2">Pictures that match the question</div>' + imageCards(d.images);
       pending.innerHTML = html;
       box.scrollTop = box.scrollHeight;
       const n = document.getElementById('chat-new-btn');
@@ -1381,6 +1520,7 @@
       setChk('s-rerank-enabled', s.rerank_enabled);
       setChk('s-hybrid-enabled', s.hybrid_enabled);
       setVal('b-embedder', s.embedder);
+      fillImageSettings(s);
     } catch (_e) { /* no index yet: keep defaults */ }
   };
 
@@ -1443,7 +1583,7 @@
       };
       const applyProgress = function (p) {
         if (!p || typeof p !== 'object' || ended) return;
-        if (p.phase === 'queued' || p.phase === 'parsing' || p.phase === 'embedding') {
+        if (p.phase === 'queued' || p.phase === 'parsing' || p.phase === 'embedding' || p.phase === 'image_extract' || p.phase === 'image_embedding') {
           stopBtn.hidden = false;
           progText.textContent = buildProgressText(p);
           fill.style.width = buildProgressPct(p) + '%';
@@ -1481,6 +1621,13 @@
     const took = p.elapsed_s ? ' · ' + fmtSecs(p.elapsed_s) : '';
     if (p.phase === 'queued') return 'Queued…' + took;
     if (p.phase === 'parsing') return 'Reading files ' + (p.files_done || 0) + ' of ' + (p.files_total || 0) + took;
+    if (p.phase === 'image_extract') return 'Finding pictures in files ' + (p.images_done || 0) + ' of ' + (p.images_total || 0) + took;
+    if (p.phase === 'image_embedding') {
+      const done = p.images_done || 0, total = p.images_total || 0;
+      if (!total) return 'Pictures: nothing new to embed' + took;
+      return done ? 'Embedding pictures ' + done + ' of ' + total + took
+        : 'Loading the image model…' + took;
+    }
     const done = p.passages_done || 0, total = p.passages_total || 0;
     if (!total) return 'Loading the embedder…' + took;
     // Rate from the first embedded batch on: loading the model (seconds to a minute) is not embedding time.
@@ -1495,6 +1642,8 @@
   function buildProgressPct(p) {
     if (p.phase === 'queued') return 2;
     if (p.phase === 'parsing') return 2 + 18 * ((p.files_done || 0) / Math.max(1, p.files_total || 0));
+    if (p.phase === 'image_extract') return 20 + 5 * ((p.images_done || 0) / Math.max(1, p.images_total || 0));
+    if (p.phase === 'image_embedding') return 85 + 13 * ((p.images_done || 0) / Math.max(1, p.images_total || 0));
     if (!p.passages_total) return 20;
     return 20 + 80 * (p.passages_done || 0) / p.passages_total;
   }
@@ -1628,7 +1777,7 @@
   async function resumeBuild() {
     let p;
     try { p = await api().get('/api/projects/' + PID + '/brain/build/status'); } catch (_e) { return; }
-    if (!p || !p.build_id || (p.phase !== 'queued' && p.phase !== 'parsing' && p.phase !== 'embedding')) return;
+    if (!p || !p.build_id || (p.phase !== 'queued' && p.phase !== 'parsing' && p.phase !== 'embedding' && p.phase !== 'image_extract' && p.phase !== 'image_embedding')) return;
     const status = document.getElementById('build-status');
     setBuildBusy(true);
     status.textContent = 'An index build is running…';

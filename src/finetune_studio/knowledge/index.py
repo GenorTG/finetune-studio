@@ -18,6 +18,7 @@ import logging
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from finetune_studio import db
@@ -98,6 +99,85 @@ def documents(pid: str, *, fact_cards: bool = False) -> list[Any]:
             out.append(IndexDocument(s.id + FACTS_SUFFIX, f"{s.filename} · reviewed facts", path, "\n\n".join(cards),
                                      chunks=cards))
     return out
+
+
+IMAGE_SUFFIXES = frozenset({".png", ".jpg", ".jpeg", ".webp", ".gif", ".tif", ".tiff", ".bmp", ".heic", ".heif",
+                            ".docx", ".pptx", ".pdf", ".xlsx", ".xlsm"})
+
+
+def _figure_readings(text: str) -> dict[int, tuple[str, str]]:
+    """``figure n -> (reading, read_by)`` from a parsed text's ``[Figure N · …]`` blocks (OCR or the Vision reader)."""
+    from finetune_studio.data import figures
+
+    out: dict[int, tuple[str, str]] = {}
+    for m in figures.BLOCK_RE.finditer(text or ""):
+        _where, _kind, read_by = figures.header_parts(m.group(2))
+        body = m.group(3).strip()
+        out[int(m.group(1))] = ("" if body == "(no text found)" else body, read_by)
+    return out
+
+
+def image_plan(pid: str, docs: list[Any] | None = None, *, previous_dir: Path | None = None,
+               model_id: str = "", progress: Callable[[int, int], None] | None = None) -> Any:
+    """What the image layer of a build indexes (``smart_brain.image_layer.LayerPlan``).
+
+    Every ready source that can hold pictures: an image file is one picture; docx / pptx / pdf / xlsx give their
+    figures (the same numbering the parser used, so each picture keeps the OCR or Vision-reader reading of its
+    ``[Figure N]`` block) with the text around them. A source whose parsed text is unchanged since the previous
+    layer keeps its records without being opened (``image_layer.previous_by_source``)."""
+    import io
+
+    from finetune_studio.data import figures
+    from finetune_studio.smart_brain import image_layer
+    from finetune_studio.smart_brain.image_embeddings import ImageAsset
+
+    source_docs = docs if docs is not None else documents(pid)
+    names = {str(d.document_id): (str(d.filename), str(getattr(d, "path", "") or d.filename))
+             for d in source_docs if not str(d.document_id).endswith(FACTS_SUFFIX)}
+    previous = image_layer.previous_by_source(previous_dir, model_id) if previous_dir else {}
+    plan = image_layer.LayerPlan(previous_dir=previous_dir, model_id=model_id)
+    todo = [s for s in sources.list_sources(pid)
+            if s.ready and s.id in names and Path(s.filename).suffix.lower() in IMAGE_SUFFIXES]
+    for n_done, source in enumerate(todo, 1):
+        if progress is not None:
+            progress(n_done - 1, len(todo))
+        old = previous.get(source.id)
+        if old is not None and old[0] == source.text_sha:
+            plan.kept.extend(old[1])
+            continue
+        raw = Path(source.raw_path)
+        filename, path = names[source.id]
+        if not raw.is_file():
+            continue
+        try:
+            found = figures.extract(raw) + figures.xlsx_pictures(raw)
+            near = figures.contexts(raw, found)
+            readings = _figure_readings(sources.parsed_text(pid, source))
+        except Exception as e:
+            log.exception("image extraction failed for %s", source.filename)
+            plan.failed.append({"document_id": source.id, "filename": filename, "locator": "", "error": str(e)})
+            continue
+        from PIL import Image
+
+        sheet = raw.suffix.lower() in (".xlsx", ".xlsm")
+        for fig in found:
+            try:
+                with Image.open(io.BytesIO(fig.data)) as im:
+                    width, height = im.size
+                    fmt = (im.format or "PNG").upper()
+                reading, read_by = ("", "") if sheet else readings.get(fig.n, ("", ""))
+                plan.fresh.append(ImageAsset(
+                    document_id=source.id, filename=filename, source=path, locator=fig.where,
+                    mime_type={"JPEG": "image/jpeg"}.get(fmt, "image/png"), width=int(width), height=int(height),
+                    data=fig.data, figure=0 if sheet else fig.n, kind=fig.kind, context=near.get(fig.n, ""),
+                    description=reading, read_by=read_by, source_sha=str(source.text_sha or ""),
+                    file_id=str(source.file_id or "")))
+            except Exception as e:  # noqa: BLE001 - a broken picture is listed as failed, the rest go on
+                plan.failed.append({"document_id": source.id, "filename": filename, "locator": fig.where,
+                                    "error": f"not a readable image: {e}"})
+    if progress is not None:
+        progress(len(todo), len(todo))
+    return plan
 
 
 def _manifest_extra(pid: str) -> dict[str, Any] | None:
@@ -259,13 +339,16 @@ def explain_build_error(e: BaseException) -> str:
 def run(pid: str, build_id: str, *, embedder: str | None = None, reset: bool = False,
         fact_cards: bool = False, parse_first: bool = False, file_ids: list[str] | None = None,
         progress: Callable[[str, int, int], None] | None = None,
-        on_batch: Callable[[int, int], None] | None = None) -> dict[str, Any]:
+        on_batch: Callable[[int, int], None] | None = None,
+        image_search: bool | None = None, image_model: str | None = None) -> dict[str, Any]:
     """Embed every ready source into the project index for a ``prepare``d build row; the row ends done or error
     (with the real error, then re-raised).
 
     ``parse_first`` (the Quick index) parses the pending library files before embedding: the result then carries
     ``promoted`` / ``failed`` (``parse_pending``). ``progress(phase, done, total)`` reports the parse step;
     ``on_batch(done, total)`` the embedding (raising there stops the build; the old index stays whole).
+    ``image_search`` / ``image_model`` (None = the index settings) turn the image layer on or off and pick its model;
+    the choice is kept in the index settings for the next build.
     """
     from finetune_studio.smart_brain import BrainIndex, Manifest, read_json
 
@@ -297,9 +380,23 @@ def run(pid: str, build_id: str, *, embedder: str | None = None, reset: bool = F
         swap = reset and corpus.exists()
         if swap:
             shutil.rmtree(fresh, ignore_errors=True)
+        from finetune_studio.smart_brain import image_embeddings
+
+        images_on = bool(settings.image_search if settings is not None else False) if image_search is None \
+            else bool(image_search)
+        model_id = image_embeddings.spec_for(image_model or (settings.image_model if settings else "")).id
+        plan = None
+        if images_on:
+            plan = image_plan(pid, docs, previous_dir=corpus if corpus.exists() else None, model_id=model_id,
+                              progress=(lambda d, t: progress("image_extract", d, t)) if progress else None)
+            if plan.fresh:   # download the pinned image model once (shared store); kept-only builds need nothing
+                image_embeddings.ensure_model(plan.model_id)
+        image_progress = (lambda done, total: progress("image_embedding", done, total)) if progress else None
         result = BrainIndex(fresh if swap else corpus).build_from_documents(
             docs, name=project["name"], embedder=embedder, chunk_size=0, overlap=0,
-            splitter="passages", extra=extra, rag_settings=settings, on_batch=on_batch)
+            splitter="passages", extra=extra, rag_settings=settings,
+            image_plan=plan, image_settings=(images_on, model_id), on_image_batch=image_progress,
+            on_batch=on_batch)
         if swap:
             old = corpus.with_name(corpus.name + ".old")
             shutil.rmtree(old, ignore_errors=True)

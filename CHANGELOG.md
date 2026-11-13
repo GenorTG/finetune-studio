@@ -9,6 +9,32 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-13
+
+- Image search answers better: the answer model is told the text around each matching picture (its own heading and
+  caption, slide or cell text), Excel pictures carry the cells around them, plural words match ("plates" finds a plate), and a build
+  re-extracts pictures when the extraction itself improved. Long file names wrap in the picture results.
+- Packages can ship **Image search** (Package → search layers, with Include models): the pictures of the package's
+  documents as vectors and thumbnails inside the encrypted corpus plus the CLIP model; `POST /search/image` (text or
+  `image_base64`), `GET /images/<id>/thumb`, the MCP tool `rag_search_images` (thumbnails as image content), an
+  *Attach a picture* button on the chat page, and `/ask` passes matching or attached pictures to vision-capable answer
+  models (OpenAI and Claude image parts) with a text-only fallback. A scoped package carries only its own pictures;
+  the self-test finds a known picture by words and by the picture; `/version` lists the `image` layer.
+- **Image search** (Smart Brain → Search settings): pictures in your files — photos, scans, charts and the images
+  inside Word, PowerPoint, PDF and Excel files — are embedded with a pinned open-licence image/text model (CLIP
+  ViT-B/32 with a multilingual text encoder by default, MIT + Apache-2.0, runs on a CPU), each with a thumbnail, its
+  file and page/slide/paragraph/sheet, and the OCR or Vision-reader reading of the same picture. Find a picture by
+  describing it (50+ languages) or by uploading one (also lists the documents it is in); Test a search and the chat
+  show matching pictures with their own scores; open, download or go to the source file. Builds embed only new or
+  changed pictures; the Knowledge check lists pictures that could not be embedded or that nothing describes.
+
+- Packages have unique, dated names: the archive and its folder are `<project>-<package>-v<version>-<date>`, and the
+  service (`setup.sh --service`) and MCP server are named after the package (`<package>-<id8>`, the same for every
+  version), so two packages on one host no longer collide as `rag-pack`. A copy installed before keeps working on
+  update; `bash update.sh --rename` moves it to the new name. The running package reports its name, version and
+  build date on a public `GET /version`, in `/health`, an `X-Package-Version` header, MCP `serverInfo`, `rag_info`,
+  the chat page and the README; the package check compares them with `package.json`.
+
 ## [0.5.0] - 2026-11-13
 
 
@@ -280,7 +306,8 @@ numbered `0.1.0.N`, one per commit.
   CLI called them (project files go through Files & Knowledge and Data prep; `fts analyze` / `fts validate-hallucination`
   are unchanged). Unused code: `templates.TemplateManager`, `HallucinationGuardrail` and a few helpers nothing called.
 
-[Unreleased]: https://github.com/GenorTG/finetune-studio/compare/v0.5.0...dev
+[Unreleased]: https://github.com/GenorTG/finetune-studio/compare/v0.6.0...dev
+[0.6.0]: https://github.com/GenorTG/finetune-studio/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/GenorTG/finetune-studio/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/GenorTG/finetune-studio/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/GenorTG/finetune-studio/compare/v0.2.0...v0.3.0

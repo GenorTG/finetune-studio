@@ -202,6 +202,7 @@ def _export(args: argparse.Namespace) -> None:
         "llm_provider": args.llm_provider,
         "llm_connection": args.llm_connection, "include_originals": args.originals,
         "hide_file_names": getattr(args, "hide_file_names", None),
+        "image_search": getattr(args, "images", None),
         "top_k": args.top_k, "port": args.port, "host": args.host, "device": args.device,
         "embed_base_url": getattr(args, "embed_base_url", None), "embed_model": getattr(args, "embed_model", None),
     }.items() if v is not None}
@@ -306,7 +307,8 @@ def _export(args: argparse.Namespace) -> None:
         _die(str(e))
     diff = pm.changes(base["documents"] if base else None, doc_rows)
     record["changes"] = pm.summary(diff)
-    out = out_file or out_dir / pm.package_filename(title, record, ext=ext, models=cfg.include_models,
+    pm.name_record(record, base, name=title, project=(resolve_project(args.project)["name"] if args.project else ""), taken=pm.taken_roots(history_dir))
+    out = out_file or out_dir / pm.package_filename(record, ext=ext, models=cfg.include_models,
                                                     encrypted=cfg.encrypt)
     originals = brain_originals.collect(corpus, pid) if cfg.include_originals else []
     shipped_originals = sum(1 for o in originals if keep is None or o.document_id in keep)
@@ -314,7 +316,7 @@ def _export(args: argparse.Namespace) -> None:
                                  audience=audience, encrypted=cfg.encrypt)
     record["widens"] = widens
     record["passphrase_changed"] = bool(base and cfg.encrypt and args.new_passphrase)
-    record["name"], record["audience"] = title, audience     # inside the (encrypted) manifest only
+    record["audience"] = audience
     changes_md = pm.changes_markdown(record, diff) + pv.widening_markdown(record["parent_version"], widens)
     try:
         result = build_package(corpus, out, name=title, config=cfg, passphrase=passphrase,
@@ -652,6 +654,9 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     sp.add_argument("--hide-file-names", dest="hide_file_names", action=bo, default=None,
                     help="a public bot: answers name no source files; /ask returns sources only when asked "
                          '("sources": true) (default off)')
+    sp.add_argument("--images", action=bo, default=None,
+                    help="Image search: ship the index's pictures (vectors + thumbnails; full pictures with "
+                         "--originals) and the image model (needs --models)")
     sp.add_argument("--originals", action=bo, default=None,
                     help="ship the original uploaded files (encrypted with the corpus); anyone who can reach the "
                          "server can download them: leave off for a public bot (default off)")

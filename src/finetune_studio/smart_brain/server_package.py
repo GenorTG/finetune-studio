@@ -48,7 +48,7 @@ import time
 import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import BinaryIO
+from typing import Any, BinaryIO
 
 from .export_config import RUNTIME_CONFIG_NAME, BrainExportConfig
 
@@ -82,7 +82,7 @@ class PackageResult:
 
 _README_TMPL = """# {title}
 
-Exported from Finetune Studio on {date}.
+{version_line}Exported from Finetune Studio on {date}.
 It is a set of documents, split into searchable chunks, with two ready-made
 ways to query them: a plain HTTP API and an MCP server (the format Claude
 Desktop, OpenClaw, Cursor and friends speak).
@@ -365,9 +365,11 @@ _UPDATE_SH = r"""#!/usr/bin/env bash
 # opened first with --keyfile (default ./passphrase.txt) or RAG_PASSPHRASE, so a wrong passphrase changes nothing.
 # Refused unless you add a flag: another package id or a version not newer (--force); a version that opens up more
 # than this one, e.g. more documents, original files or file names shown (--allow-widen). A running service
-# (setup.sh --service) is restarted.
+# (setup.sh --service) is restarted. `bash update.sh --rename` moves a service/MCP entry from an older install name
+# (rag-pack) to this package's stable name.
 set -euo pipefail
-[ $# -ge 1 ] || { sed -n '2,10p' "$0" | sed 's/^# \?//'; exit 2; }
+[ $# -ge 1 ] || { sed -n '2,11p' "$0" | sed 's/^# \?//'; exit 2; }
+[ "$1" = "--rename" ] && exec bash "$(dirname "$0")/setup.sh" --rename
 ARGS=()   # files given relative to where you are (the archive, the keyfile) still work after the cd below
 for a in "$@"; do
   if [ -f "$a" ]; then ARGS+=("$(cd "$(dirname "$a")" && pwd)/$(basename "$a")"); else ARGS+=("$a"); fi
@@ -376,11 +378,25 @@ cd "$(dirname "$0")"
 [ -x .venv/bin/python ] || bash install.sh
 .venv/bin/python server.py --update "${ARGS[@]}"
 .venv/bin/pip install --quiet -r requirements.txt
-UNIT="fts-brain-$(basename "$(pwd)").service"
-if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet "$UNIT" 2>/dev/null; then
-  systemctl --user restart "$UNIT" && echo "Restarted $UNIT with the new version."
-else
-  echo "Restart the server (bash run-http.sh / run-mcp.sh, or your MCP client) to use the new version."
+PKG_DIR="$(pwd)"
+NAME="$(sed -n 's/^ *"slug": *"\([A-Za-z0-9._-]*\)".*/\1/p' package.json 2>/dev/null | head -n 1 || true)"
+[ -n "$NAME" ] || NAME="$(basename "$PKG_DIR")"
+echo "Package installs as '$NAME' (service fts-brain-$NAME, MCP server name $NAME)."
+RESTARTED=0
+OLD_NAMES=""
+for f in "$HOME/.config/systemd/user"/fts-brain-*.service; do      # every service of this folder, whatever its name
+  [ -f "$f" ] && grep -qx "WorkingDirectory=$PKG_DIR" "$f" || continue
+  U="$(basename "$f")"
+  [ "$U" = "fts-brain-$NAME.service" ] || OLD_NAMES="$OLD_NAMES $U"
+  if command -v systemctl >/dev/null 2>&1 && systemctl --user is-active --quiet "$U" 2>/dev/null; then
+    systemctl --user restart "$U" && echo "Restarted $U with the new version." && RESTARTED=1
+  fi
+done
+[ "$RESTARTED" = 1 ] || echo "Restart the server (bash run-http.sh / run-mcp.sh, or your MCP client) to use the new version."
+OLD_MCP="$(sed -n 's/^    "\([^"]*\)": {$/\1/p' MCP-ENTRY.txt 2>/dev/null | head -n 1 || true)"
+if [ -n "$OLD_NAMES" ] || { [ -n "$OLD_MCP" ] && [ "$OLD_MCP" != "$NAME" ]; }; then
+  echo "This copy still runs under an older name (${OLD_NAMES# }${OLD_MCP:+ MCP '$OLD_MCP'}): it keeps working as is."
+  echo "To move the service and MCP entry to '$NAME': bash update.sh --rename"
 fi
 """
 
@@ -394,6 +410,8 @@ _SETUP_SH = r"""#!/usr/bin/env bash
 #   bash setup.sh --uninstall  remove the service (keeps files)
 #   bash setup.sh --update NEW.tar.gz [--keyfile PATH] [--force]
 #                              replace this package with its newer version
+#   bash setup.sh --rename     move a service/MCP entry installed under an older
+#                              name (e.g. rag-pack) to this package's stable name
 #
 # Pass-through flags (forwarded to server.py): --config PATH --device D
 #   --host H --port N --top-k N --no-reranker --keyfile PATH
@@ -403,13 +421,27 @@ _SETUP_SH = r"""#!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
 PKG_DIR="$(pwd)"
-NAME="$(basename "$PKG_DIR")"
+# The stable install name (package name + short id, the same for every version: package.json "slug"); packages
+# from before it use the folder name.
+NAME="$(sed -n 's/^ *"slug": *"\([A-Za-z0-9._-]*\)".*/\1/p' package.json 2>/dev/null | head -n 1 || true)"
+[ -n "$NAME" ] || NAME="$(basename "$PKG_DIR")"
 UNIT="fts-brain-$NAME.service"
-UNIT_PATH="$HOME/.config/systemd/user/$UNIT"
+UNIT_DIR="$HOME/.config/systemd/user"
+UNIT_PATH="$UNIT_DIR/$UNIT"
+# Units of this folder installed under another name (a package from before the stable name: fts-brain-rag-pack).
+other_units() {
+  local f
+  for f in "$UNIT_DIR"/fts-brain-*.service; do
+    [ -f "$f" ] || continue
+    [ "$(basename "$f")" = "$UNIT" ] && continue
+    grep -qx "WorkingDirectory=$PKG_DIR" "$f" && basename "$f"
+  done
+  return 0
+}
 PORT=""
 EXTRA=()          # flags forwarded to server.py (never the port: handled below)
 KEYFILE=""
-ASSUME_YES=0; DO_START=0; DO_SERVICE=0; DO_UNINSTALL=0
+ASSUME_YES=0; DO_START=0; DO_SERVICE=0; DO_UNINSTALL=0; DO_RENAME=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -426,7 +458,8 @@ while [ $# -gt 0 ]; do
     --start)       DO_START=1 ;;
     --service)     DO_SERVICE=1 ;;
     --uninstall)   DO_UNINSTALL=1 ;;
-    -h|--help)     sed -n '2,17p' "$0" | sed 's/^# \?//'; exit 0 ;;
+    --rename)      DO_RENAME=1 ;;
+    -h|--help)     sed -n '2,19p' "$0" | sed 's/^# \?//'; exit 0 ;;
     *) echo "unknown option: $1 (try --help)"; exit 2 ;;
   esac
   shift
@@ -457,7 +490,40 @@ ask_yn() {  # ask_yn "prompt" default(Y|N) -> 0=yes
   case "$ans" in [Yy]*) return 0 ;; *) return 1 ;; esac
 }
 
+if [ "$DO_RENAME" = 1 ]; then
+  OLD_UNITS="$(other_units)"
+  OLD_MCP="$(sed -n 's/^    "\([^"]*\)": {$/\1/p' MCP-ENTRY.txt 2>/dev/null | head -n 1 || true)"
+  if [ -z "$OLD_UNITS" ] && { [ -z "$OLD_MCP" ] || [ "$OLD_MCP" = "$NAME" ]; }; then
+    echo "Nothing to rename: this package already installs as '$NAME'."
+    exit 0
+  fi
+  for OLD in $OLD_UNITS; do
+    WAS_ACTIVE=0; systemctl --user is-active --quiet "$OLD" 2>/dev/null && WAS_ACTIVE=1
+    sed -e "s/^Description=.*/Description=Finetune Studio Smart Brain package ($NAME)/" "$UNIT_DIR/$OLD" > "$UNIT_PATH.tmp"
+    chmod 600 "$UNIT_PATH.tmp"
+    mv "$UNIT_PATH.tmp" "$UNIT_PATH"
+    systemctl --user disable --now "$OLD" 2>/dev/null || true
+    rm -f "$UNIT_DIR/$OLD"
+    systemctl --user daemon-reload
+    systemctl --user enable "$UNIT" >/dev/null 2>&1 || true
+    [ "$WAS_ACTIVE" = 1 ] && systemctl --user start "$UNIT"
+    echo "Service renamed: $OLD -> $UNIT$([ "$WAS_ACTIVE" = 1 ] && echo ' (running)')"
+  done
+  if [ -n "$OLD_MCP" ] && [ "$OLD_MCP" != "$NAME" ]; then
+    sed -i "s/^    \"$OLD_MCP\": {\$/    \"$NAME\": {/" MCP-ENTRY.txt
+    echo "MCP-ENTRY.txt now names the server '$NAME' (was '$OLD_MCP')."
+    echo "Update your MCP clients: rename '$OLD_MCP' to '$NAME' in their config (the command and paths are unchanged)."
+  fi
+  exit 0
+fi
+
 if [ "$DO_UNINSTALL" = 1 ]; then
+  for OLD in $(other_units); do
+    systemctl --user disable --now "$OLD" 2>/dev/null || true
+    rm -f "$UNIT_DIR/$OLD"
+    systemctl --user daemon-reload
+    echo "Service '$OLD' removed."
+  done
   if command -v systemctl >/dev/null 2>&1 && [ -f "$UNIT_PATH" ]; then
     systemctl --user disable --now "$UNIT" 2>/dev/null || true
     rm -f "$UNIT_PATH"
@@ -531,6 +597,9 @@ if [ "$DO_SERVICE" = 1 ] || { [ "$CAN_UNATTEND" = 1 ] && ask_yn "Install as a se
     echo "No systemd user session here — skipping service. Start manually with: bash run-http.sh"
   elif [ "$CAN_UNATTEND" = 0 ]; then
     echo "Encrypted pack: a service needs --keyfile PATH (a passphrase file) — skipping service."
+  elif [ -n "$(other_units)" ]; then
+    echo "This folder already runs as service $(other_units | tr '\n' ' ')(an older name)."
+    echo "Move it to the stable name first: bash setup.sh --rename"
   else
     ENV_LINES=""
     for v in RAG_EMBED_BASE_URL RAG_EMBED_API_KEY RAG_AUTH_TOKEN RAG_LLM_BASE_URL RAG_LLM_MODEL RAG_LLM_API_KEY; do
@@ -540,7 +609,7 @@ Environment=$v=${!v}"
     mkdir -p "$(dirname "$UNIT_PATH")"
     ( umask 077; cat > "$UNIT_PATH" <<UNIT
 [Unit]
-Description=Finetune Studio RAG pack ($NAME)
+Description=Finetune Studio Smart Brain package ($NAME)
 After=network-online.target
 
 [Service]
@@ -682,6 +751,33 @@ def _add_model_dir(sink: _Sink, src: Path, arc_dir: str) -> None:
         sink.add_file(f"{arc_dir}/{rel.as_posix()}", f)
 
 
+_IMAGE_SECTION = """
+### Image search
+
+The pictures of the documents in this package (photos, scans, charts, the pictures inside Word, PowerPoint, PDF and
+Excel files) are inside as image vectors and thumbnails (full-size pictures only when the package ships original
+files), with the CLIP image/text model in `corpus/image_model/` (public weights, not encrypted; runs on a CPU).
+
+```bash
+# text -> image (any language), image -> image, image -> document
+curl -s -X POST http://127.0.0.1:8899/search/image -H 'Content-Type: application/json' \\
+     -d '{"query": "photo of the snack fridge", "top_k": 4}'
+curl -s -X POST http://127.0.0.1:8899/search/image -H 'Content-Type: application/json' \\
+     -d "{\\"image_base64\\": \\"$(base64 -w0 photo.jpg)\\", \\"documents\\": true}"
+curl -s http://127.0.0.1:8899/images/<asset_id>/thumb -o thumb.jpg
+```
+
+Each hit has the picture's `asset_id`, its `document_id` (open it with `rag_get_document`, search its text with
+`rag_search`), where it sits (`locator`: page / slide / sheet), what was read in it (`description`), and its scores:
+`visual_score` (how much it looks like the query), `words_score` (its caption, page text or reading matched) and the
+fused `score`. `weak: true` = no picture really matches. MCP agents get the tool `rag_search_images` (thumbnails come
+back as image content). `/ask` shows the matching pictures, and a picture sent with the question (`image_base64`), to
+a vision-capable answer model (OpenAI `image_url` parts, Claude image blocks) and answers from their text when the
+model refuses them (`images_note` says so); `RAG_ANSWER_IMAGES=0` never sends pictures. The chat page has an
+*Attach a picture* button. `--no-images` / `RAG_IMAGES=0` turns the layer off.
+"""
+
+
 def _layers_section(cfg: BrainExportConfig, *, bundled_embedder: bool, bundled_reranker: bool) -> str:
     def state(on: bool, note: str = "") -> str:
         return ("**on**" + (f" ({note})" if note else "")) if on else "off"
@@ -700,6 +796,8 @@ def _layers_section(cfg: BrainExportConfig, *, bundled_embedder: bool, bundled_r
          else "off (no reranker model in this package)"),
         ("Answer generation", "the G in RAG: an LLM writes the answer from the passages", "--answer / --no-answer",
          "RAG_ANSWER", state(cfg.answer_enabled, f"model `{cfg.llm_model or 'set RAG_LLM_MODEL'}`")),
+        ("Image search", "pictures as image vectors + thumbnails: a description or a picture finds them",
+         "--no-images", "RAG_IMAGES", state(cfg.image_search, "image model bundled")),
     ]
     table = "\n".join(f"| {a} | {b} | `{c}` | `{d}` | {e} |" if c != "—" else f"| {a} | {b} | — | — | {e} |"
                       for a, b, c, d, e in rows)
@@ -716,7 +814,7 @@ can switch a shipped layer off, never on one that is not in the package.
 {table}
 
 `GET /health` (and the MCP tool `rag_info`) reports which layers are actually running.
-
+{_IMAGE_SECTION if cfg.image_search else ""}
 ### Answer generation
 
 Without it the server returns passages and your own model or agent writes the answer (the usual MCP setup). With it
@@ -837,8 +935,9 @@ def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool,
             models: bool, cfg: BrainExportConfig, bundled_embedder: bool = False,
             bundled_reranker: bool = False, originals: int = 0, scope: dict | None = None,
             package: dict | None = None) -> str:
-    mcp_snippet = _mcp_config_example(slug if encrypted else f"{slug}-brain",
-                                      NEUTRAL_ROOT if encrypted else f"{slug}-brain",
+    named = bool(package and package.get("slug"))
+    mcp_snippet = _mcp_config_example(slug if (encrypted or named) else f"{slug}-brain",
+                                      str(package["root"]) if named else NEUTRAL_ROOT if encrypted else f"{slug}-brain",
                                       encrypted).rstrip("\n")
     mcp_enc_note = ("\nThis pack is encrypted: the MCP client cannot type a "
                     "passphrase, so pass `--keyfile` (as above) or set "
@@ -847,8 +946,15 @@ def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool,
                     "`update.sh` use that file when no `--keyfile` is given.\n") if encrypted else ""
     embed_section = (_README_SECTION_OFFLINE if bundled_embedder else
                      _README_SECTION_API if cfg.semantic_search else "")
+    version_line = ""
+    if package and package.get("version"):
+        version_line = (f"**{package.get('name') or title} · version {package['version']} · built "
+                        f"{str(package.get('created') or '')[:10]}**" + (f" — installs as `{package['slug']}` "
+                        f"(service `fts-brain-{package['slug']}`, MCP server `{package['slug']}`)"
+                        if package.get("slug") else "") + ". `GET /version` on the running server reports the "
+                        "same (`package.json`).\n\n")
     return _README_TMPL.format(
-        title=title, slug=slug, date=time.strftime("%Y-%m-%d"),
+        title=title, slug=slug, date=time.strftime("%Y-%m-%d"), version_line=version_line,
         enc_note=" (**encrypted** in `corpus/corpus.enc`)" if encrypted else "",
         container_note=("; `brain_container.py` next to it opens the encrypted corpus"
                         if encrypted else ""),
@@ -888,6 +994,67 @@ def _mcp_config_example(slug: str, root: str, encrypted: bool) -> str:
                       indent=2) + "\n"
 
 
+@dataclass
+class _ImageShip:
+    records: list[dict]
+    vectors: Any
+    meta: dict
+    corpus_dir: Path
+    image_dir: Path
+    text_dir: Path | None
+
+    def corpus_files(self, *, full: bool):
+        """``(path in the corpus, bytes or a file)``: the records, vectors, thumbnails and (``full``) the pictures."""
+        import io
+
+        import numpy as np
+
+        buf = io.BytesIO()
+        np.save(buf, self.vectors)
+        yield "image_assets.json", json.dumps(self.records, ensure_ascii=False).encode("utf-8")
+        yield "image_vectors.npy", buf.getvalue()
+        for r in self.records:
+            yield str(r["thumbnail"]), self.corpus_dir / str(r["thumbnail"])
+            if full:
+                yield str(r["path"]), self.corpus_dir / str(r["path"])
+
+
+# Studio-only fields of an image record: never in a package (the library file id, the source text hash).
+_IMAGE_PRIVATE = ("file_id", "source_sha")
+
+
+def _image_layer_for(corpus: Path, cfg: BrainExportConfig, keep: set[str] | None, *,
+                     requested_models: bool) -> _ImageShip | None:
+    """The image layer a package ships (``cfg.image_search``), limited to the package's documents.
+
+    Raises FileNotFoundError (the index has no image layer, or its model is not on this machine) and ValueError
+    (Image search without Include models: the image model must be inside, no image-embeddings API exists)."""
+    if not cfg.image_search:
+        return None
+    from . import image_layer
+    from .image_embeddings import model_dirs, on_disk, spec_for
+
+    records, vectors, meta = image_layer.read_layer(corpus)
+    if vectors is None:
+        raise FileNotFoundError("Image search needs pictures in the index: turn on Image search in the Smart Brain's "
+                                "search settings and update the Smart Brain, then export again")
+    if not requested_models:
+        raise ValueError("Image search needs Include models: the image model must be inside the package (there is "
+                         "no standard image-embeddings API a host could serve instead)")
+    spec = spec_for(meta.get("model"))
+    if not on_disk(spec.id):
+        raise FileNotFoundError(f"the image model {spec.id} of this index is not on this machine: update the "
+                                "Smart Brain (the build downloads it), then export again")
+    if keep is not None:   # a public package never carries pictures of documents outside its scope
+        records, vectors = image_layer.subset(records, vectors, lambda d: d in keep)
+    records = [{k: v for k, v in r.items() if k not in _IMAGE_PRIVATE} for r in records]
+    image_dir, text_dir = model_dirs(spec)
+    shipped = {k: v for k, v in meta.items() if k not in ("failed", "failed_count", "embedded", "reused")}
+    shipped.update({"assets": len(records), "documents": len({r["document_id"] for r in records}),
+                    "full_pictures": bool(cfg.include_originals)})
+    return _ImageShip(records, vectors, shipped, corpus, image_dir, text_dir)
+
+
 def layer_corpus_files(cfg: BrainExportConfig) -> tuple[str, ...]:
     """Index files the turned-on search layers need (meaning search: vectors; word search: the BM25 index)."""
     return ((("vectors.npy", "vectors.idx.json") if cfg.semantic_search else ())
@@ -899,7 +1066,7 @@ def search_layers(cfg: BrainExportConfig) -> dict[str, bool]:
     when a reranker model was bundled; the server decides from the files it finds)."""
     return {"semantic": cfg.semantic_search, "keyword": cfg.keyword_search,
             "fusion": cfg.semantic_search and cfg.keyword_search,
-            "reranker": cfg.reranker_enabled, "answer": cfg.answer_enabled}
+            "reranker": cfg.reranker_enabled, "answer": cfg.answer_enabled, "image": cfg.image_search}
 
 
 def pipeline_text(cfg: BrainExportConfig, *, bundled_reranker: bool) -> str:
@@ -981,6 +1148,7 @@ def build_package(
             raise FileNotFoundError(f"corpus missing {req}: {corpus}")
     manifest = json.loads((corpus / "manifest.json").read_text(encoding="utf-8"))
     manifest["search_layers"] = search_layers(cfg)
+    manifest.setdefault("extra", {}).pop("image_search", None)   # set again below when the layer ships
     if identity:   # inside the manifest, so an encrypted package keeps it encrypted
         manifest["identity"] = dict(identity)
     keep = set(documents) if documents is not None else None
@@ -990,7 +1158,13 @@ def build_package(
         if cfg.include_originals else []
     manifest["original_files"] = len(ship_originals)
     title = name or manifest.get("name") or corpus.name
-    if encrypted:  # nothing derived from the project/document names in paths/README
+    if package and package.get("root") and package.get("slug"):
+        # Dated folder (<project>-<package>-v<version>-<date>) and the stable install name (<package>-<id8>: the
+        # service, the MCP server name). Package and project names are public metadata (package.json, /version);
+        # document names stay inside an encrypted corpus.
+        slug, root = str(package["slug"]), str(package["root"])
+        title = str(package.get("name") or title)
+    elif encrypted:  # no version record (direct API use): nothing derived from names in paths/README
         title, slug, root = "Smart Brain knowledge package", NEUTRAL_ROOT, NEUTRAL_ROOT
     else:
         slug = _slug(title)
@@ -1023,8 +1197,13 @@ def build_package(
         rs["rerank_enabled"] = True
     else:
         rs["rerank_enabled"] = False
-    models = bool(emb_src or rr_src)
+    images = _image_layer_for(corpus, cfg, keep, requested_models=bool(cfg.include_models if include_models is None
+                                                                        else include_models))
+    if images is not None:
+        manifest["extra"]["image_search"] = images.meta
+    models = bool(emb_src or rr_src or images is not None)
     manifest["search_layers"]["reranker"] = rr_src is not None   # only a bundled reranker can run
+    manifest["search_layers"]["image"] = images is not None
 
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -1066,6 +1245,9 @@ def build_package(
             for f in source_files:
                 with open(f, "rb") as fp:
                     cw.add(f"sources/{f.relative_to(corpus / 'sources').as_posix()}", fp)
+            if images is not None:
+                for arc, data in images.corpus_files(full=bool(cfg.include_originals)):
+                    cw.add(arc, data if isinstance(data, bytes) else data.read_bytes())
             if changes_md:
                 cw.add("CHANGES.md", changes_md.encode("utf-8"))
             if ship_originals:
@@ -1088,6 +1270,12 @@ def build_package(
             for f in source_files:
                 sink.add_file(
                     f"{root}/corpus/sources/{f.relative_to(corpus / 'sources').as_posix()}", f)
+            if images is not None:
+                for arc, data in images.corpus_files(full=bool(cfg.include_originals)):
+                    if isinstance(data, bytes):
+                        sink.add_bytes(f"{root}/corpus/{arc}", data)
+                    else:
+                        sink.add_file(f"{root}/corpus/{arc}", data)
             if ship_originals:
                 sink.add_bytes(f"{root}/corpus/{ORIGINALS_INDEX}", _originals_index(ship_originals))
                 for o in ship_originals:
@@ -1099,6 +1287,10 @@ def build_package(
             _add_model_dir(sink, emb_src, f"{root}/corpus/embedder")
         if rr_src:
             _add_model_dir(sink, rr_src, f"{root}/corpus/reranker")
+        if images is not None:
+            _add_model_dir(sink, images.image_dir, f"{root}/corpus/image_model/image")
+            if images.text_dir is not None:
+                _add_model_dir(sink, images.text_dir, f"{root}/corpus/image_model/text")
 
         # ---- runtime files ---------------------------------------------
         requirements = "numpy\n" + ("cryptography>=42\n" if encrypted else "")
@@ -1114,15 +1306,15 @@ def build_package(
         sink.add_bytes(f"{root}/{RUNTIME_CONFIG_NAME}", json.dumps(runtime, indent=2) + "\n")
         # The same settings again, never edited: update.sh keeps only the rag.config.json keys that differ from it.
         sink.add_bytes(f"{root}/rag.config.shipped.json", json.dumps(runtime, indent=2) + "\n")
-        sink.add_bytes(f"{root}/mcp-config.example.json",
-                       _mcp_config_example(f"{slug}" if encrypted else f"{slug}-brain",
-                                           root, encrypted))
+        mcp_name = slug if (encrypted or (package and package.get("slug"))) else f"{slug}-brain"
+        sink.add_bytes(f"{root}/mcp-config.example.json", _mcp_config_example(mcp_name, root, encrypted))
         for sh, body in (("install.sh", _INSTALL_SH), ("run-http.sh", _RUN_HTTP_SH),
                          ("run-mcp.sh", _RUN_MCP_SH), ("setup.sh", _SETUP_SH), ("update.sh", _UPDATE_SH)):
             sink.add_bytes(f"{root}/{sh}", body, 0o755)
         if package:
             from .package_meta import public_record
-            sink.add_bytes(f"{root}/package.json", json.dumps(public_record(package), indent=2) + "\n")
+            sink.add_bytes(f"{root}/package.json",
+                           json.dumps(public_record(package, manifest["search_layers"]), indent=2) + "\n")
             sink.add_bytes(f"{root}/CHANGES.md", (changes_md_public if encrypted else changes_md) or changes_md)
         sink.add_bytes(f"{root}/README.md", _readme(
             title=title, slug=slug, embed_model=embed_model,
@@ -1200,7 +1392,8 @@ def verify_package(archive: str | Path, passphrase: str | None, *, studio_models
             return out
         layer_status = info.get("layers", {})
         out["layers"] = {key: {"available": str(value).startswith("on"), "detail": value}
-                          for key, value in layer_status.items() if key in {"semantic", "keyword", "fusion", "reranker"}}
+                          for key, value in layer_status.items()
+                          if key in {"semantic", "keyword", "fusion", "reranker", "image"}}
         profile = _tool_json(first.get(3)) or {}
         query = _sample_query(root, env)
         second = _run_mcp(root, env, [requests[0], {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {
@@ -1228,6 +1421,10 @@ def verify_package(archive: str | Path, passphrase: str | None, *, studio_models
             original = _check_original_mcp(root, env, requests[0], expected_originals or {})
             out["original"] = original
         scope_check = _check_scope(root, env, requests[0], out_of_scope) if out_of_scope else None
+        images = None
+        if str(layer_status.get("image", "")) not in ("", "not in this package", "off"):
+            images = _check_images(root, env, requests[0], out_of_scope)
+            out["images"] = images
         if scope_check is not None:
             out["scope"] = scope_check
         http = _check_http(root, env, original if original and original.get("ok") else None)
@@ -1247,7 +1444,8 @@ def verify_package(archive: str | Path, passphrase: str | None, *, studio_models
                    exercised={layer: exercised.get(layer, False) for layer in sorted(active)},
                    ok=(count > 0 and bool(active) and not missing and http["ok"]
                        and (original is None or bool(original.get("ok")))
-                       and (scope_check is None or bool(scope_check.get("ok")))),
+                       and (scope_check is None or bool(scope_check.get("ok")))
+                       and (images is None or bool(images.get("ok")))),
                    detail=(f"opened it, exercised {', '.join(sorted(active))} search and found {count} passages"
                            if count and not missing else
                            f"search did not exercise available layer(s): {', '.join(missing)}"
@@ -1255,6 +1453,7 @@ def verify_package(archive: str | Path, passphrase: str | None, *, studio_models
                    + ("" if http["ok"] else f"; HTTP server: {http['detail']}")
                    + ("" if original is None else f"; original file: {original['detail']}")
                    + ("" if scope_check is None else f"; scope: {scope_check['detail']}")
+                   + ("" if images is None else f"; images: {images['detail']}")
                    + (f"; {out['runtime_search']}" if out.get("runtime_search") else ""))
     except (OSError, subprocess.SubprocessError, ValueError, tarfile.TarError, zipfile.BadZipFile) as e:
         out["detail"] = f"could not open the package: {type(e).__name__}: {str(e)[:200]}"
@@ -1310,6 +1509,43 @@ def _check_scope(root: Path, env: dict, init: dict, probes: dict[str, str]) -> d
     if leaked:
         return {"ok": False, "detail": f"{len(leaked)} document(s) outside the scope can be found"}
     return {"ok": True, "detail": f"{len(probes)} search(es) for left-out documents found nothing outside the scope"}
+
+
+def _check_images(root: Path, env: dict, init: dict, out_of_scope: dict[str, str] | None = None) -> dict:
+    """Image search, the way an agent uses it: find a picture by words, then send that picture back (image -> image);
+    both must find the same one. With ``out_of_scope``, no picture of a left-out document may come back."""
+    def call(i: int, args: dict) -> dict:
+        return {"jsonrpc": "2.0", "id": i, "method": "tools/call", "params": {"name": "rag_search_images",
+                                                                             "arguments": args}}
+
+    first = _run_mcp(root, env, [init, call(20, {"query": "photo", "top_k": 1})]).get(20) or {}
+    content = ((first.get("result") or {}).get("content") or [])
+    found = _tool_json(first) or {}
+    hits = found.get("hits") or []
+    thumb = next((c.get("data") for c in content if c.get("type") == "image"), None)
+    if not hits or not thumb:
+        return {"ok": False, "detail": "rag_search_images returned no picture"}
+    target = hits[0]
+    stem = re.sub(r"[_\-.]+", " ", str(target.get("filename") or "").rsplit("/", 1)[-1].rsplit(".", 1)[0])
+    words = " ".join(x for x in (stem, str(target.get("locator") or ""), str(target.get("description") or "")[:80]) if x)
+    calls = [init, call(21, {"query": words, "top_k": 5}), call(22, {"image_base64": thumb, "top_k": 3})]
+    probes = list((out_of_scope or {}).values())
+    calls += [call(30 + i, {"query": q, "top_k": 10}) for i, q in enumerate(probes)]
+    replies = _run_mcp(root, env, calls)
+    by_text = [h.get("asset_id") for h in (_tool_json(replies.get(21)) or {}).get("hits") or []]
+    by_image = (_tool_json(replies.get(22)) or {}).get("hits") or []
+    text_ok = target.get("asset_id") in by_text
+    image_ok = bool(by_image) and by_image[0].get("asset_id") == target.get("asset_id")
+    leaked = set()
+    for i in range(len(probes)):
+        leaked |= {_base_id(h.get("document_id") or "") for h in (_tool_json(replies.get(30 + i)) or {}).get("hits")
+                   or []} & set(out_of_scope or {})
+    ok = text_ok and image_ok and not leaked
+    detail = (f"text -> image {'found' if text_ok else 'missed'} a known picture, image -> image "
+              + (f"found it first (similarity {by_image[0].get('visual_score')})" if image_ok else "missed it")
+              + (f"; {len(leaked)} picture document(s) outside the scope came back" if leaked else
+                 f"; no picture outside the scope ({len(probes)} search(es))" if probes else ""))
+    return {"ok": ok, "detail": detail, "text_to_image": text_ok, "image_to_image": image_ok}
 
 
 def _check_original_mcp(root: Path, env: dict, init: dict, expected: dict[str, str]) -> dict:
@@ -1378,6 +1614,15 @@ def _check_http(root: Path, env: dict, original: dict | None = None) -> dict:
             found = json.loads(r.read())
         if "2026-07-28" not in (found.get("result") or {}).get("supportedVersions", []):
             return {"ok": False, "detail": "MCP over HTTP did not answer server/discover"}
+        shipped = json.loads((root / "package.json").read_text(encoding="utf-8")) \
+            if (root / "package.json").is_file() else {}
+        if shipped.get("version"):   # GET /version (public) reports the package.json the archive carries
+            with urllib.request.urlopen(base + "/version", timeout=10) as r:
+                hosted, header = json.loads(r.read()), r.headers.get("X-Package-Version")
+            wrong = [k for k in ("package_id", "version", "name", "slug", "manifest_sha256") if hosted.get(k) != shipped.get(k)]
+            if wrong or header != shipped["version"]:
+                return {"ok": False, "detail": "GET /version does not match package.json: "
+                        + ", ".join(wrong or ["X-Package-Version header"])}
         if original:
             import hashlib
             with urllib.request.urlopen(f"{base}/files/{original['document_id']}", timeout=30) as r:
@@ -1385,8 +1630,8 @@ def _check_http(root: Path, env: dict, original: dict | None = None) -> dict:
                 attached = "attachment" in (r.headers.get("Content-Disposition") or "")
             if got != original["sha256"] or not attached:
                 return {"ok": False, "detail": f"GET /files/{original['document_id']} did not return the original file"}
-            return {"ok": True, "detail": "chat page, MCP over HTTP and the original-file download answer"}
-        return {"ok": True, "detail": "chat page and MCP over HTTP answer"}
+            return {"ok": True, "detail": "chat page, MCP over HTTP, /version and the original-file download answer"}
+        return {"ok": True, "detail": "chat page, MCP over HTTP and /version answer"}
     except (urllib.error.URLError, OSError, ValueError) as e:
         return {"ok": False, "detail": f"{type(e).__name__}: {str(e)[:160]}"}
     finally:

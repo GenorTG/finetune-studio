@@ -5497,3 +5497,22 @@ html { scroll-padding-top: calc(var(--session-bar-h, 104px) + 8px); }
   /* A status pill in a stacked card head stays a pill (it stretched full width and read as a progress bar). */
   .card-head > .pill, .card-head > span > .pill { align-self: flex-start; width: auto; }
 }
+
+/* Smart Brain image search results (Find images, Test a search with pictures) */
+.brain-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 0.75rem;
+}
+.brain-image-card { padding: 0.5rem; min-width: 0; }
+.brain-image-thumb {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  background: var(--bg-panel-2);
+  border-radius: 6px;
+}
+.brain-image-weak { opacity: 0.65; }
+.brain-image-desc { max-height: 3.2em; overflow: hidden; }
+.brain-image-card b, .brain-image-card .cell-wrap { overflow-wrap: anywhere; word-break: break-word; }

@@ -17,6 +17,7 @@ import time
 import zipfile
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -197,6 +198,9 @@ class BrainIndex:
                              splitter: str | None = None,
                              extra: dict | None = None,
                              rag_settings: RetrievalSettings | None = None,
+                             image_plan: Any = None,
+                             image_settings: tuple[bool, str] | None = None,
+                             on_image_batch: Callable[[int, int], None] | None = None,
                              on_batch: Callable[[int, int], None] | None = None) -> dict:
         """Chunk, embed and BM25-index already parsed documents; write every corpus artifact.
 
@@ -253,6 +257,13 @@ class BrainIndex:
         texts = [c["text"] for c in all_chunks]
         vectors = encode_batched(encode, texts, on_batch)
 
+        # Pictures live in their own vector space (image_layer). Embedded before anything on disk changes, so a
+        # model or decode failure leaves the old index whole.
+        layer = None
+        if image_plan is not None:
+            from finetune_studio.smart_brain import image_layer
+            layer = image_layer.compute(image_plan, device=device, on_progress=on_image_batch)
+
         # Replace source artifacts to match the new corpus (no stale orphans).
         self._clear_source_artifacts()
         sources_dir = self.dir / "sources"
@@ -275,9 +286,18 @@ class BrainIndex:
         bm25 = BM25Index.build([c["text"] for c in all_chunks])
         write_json(self.bm25_path, bm25.to_dict())
 
+        from finetune_studio.smart_brain import image_layer as _image_layer
+        _image_layer.write(self.dir, layer)
+
         manifest.documents = len(all_documents)
         manifest.chunks = len(all_chunks)
         manifest.extra = {**(extra or {}), "documents_meta": all_documents}
+        if image_settings is not None:
+            manifest.rag_settings.image_search, manifest.rag_settings.image_model = image_settings
+        if layer is not None:
+            manifest.extra["image_search"] = layer.meta
+        else:
+            manifest.extra.pop("image_search", None)
         write_json(self.manifest_path, manifest.to_json())
 
         # Register embedder + reranker in the SHARED model store, store refs
@@ -294,6 +314,8 @@ class BrainIndex:
             "documents": manifest.documents,
             "chunks": manifest.chunks,
             "vector_dim": vectors.shape[1],
+            "image_assets": len(layer.records) if layer is not None else 0,
+            "image_failed": int(layer.meta.get("failed_count") or 0) if layer is not None else 0,
             "skipped": 0,
         }
 
@@ -649,7 +671,7 @@ fts brain rebuild-vectors --corpus /path/to/corpus [--embedder NEW_MODEL]
 
     # ── Load ──
 
-    def load(self):
+    def load(self, *, load_embedder: bool = True):
         if not self.exists():
             raise FileNotFoundError(f"No RAG corpus at {self.dir} — build first.")
         pd = try_import_pandas()
@@ -658,6 +680,11 @@ fts brain rebuild-vectors --corpus /path/to/corpus [--embedder NEW_MODEL]
         vectors = np.load(self.vectors_path).astype(np.float32)
         idx_map = read_json(self.idx_path)
         bm25 = BM25Index.from_dict(read_json(self.bm25_path))
+        if not load_embedder:
+            return BrainQuery(
+                corpus_dir=self.dir, manifest=manifest, chunks=chunks_df,
+                vectors=vectors, idx_map=idx_map, bm25=bm25, encode=None,
+            )
         # Pass an absolute local path to the embedder/reranker if the manifest
         # stores one with the magic prefix. This survives tar+untar as long as
         # the absolute path on the destination is what we want — otherwise
@@ -701,6 +728,8 @@ fts brain rebuild-vectors --corpus /path/to/corpus [--embedder NEW_MODEL]
         source remained live in search results.
         """
         removed = False
+        from finetune_studio.smart_brain import image_layer
+        removed = image_layer.remove_document(self.dir, source_id)
         sources_dir = self.dir / "sources"
         if sources_dir.exists():
             for f in sources_dir.glob(f"{source_id}*.txt"):
@@ -757,6 +786,8 @@ fts brain rebuild-vectors --corpus /path/to/corpus [--embedder NEW_MODEL]
         if sources_dir.exists():
             for f in sources_dir.glob("*.txt"):
                 f.unlink()
+        from finetune_studio.smart_brain import image_layer
+        image_layer.write(self.dir, None)
 
         pd = try_import_pandas()
         if self.chunks_path.exists():
@@ -773,6 +804,7 @@ fts brain rebuild-vectors --corpus /path/to/corpus [--embedder NEW_MODEL]
             extra = manifest.extra or {}
             extra["documents_meta"] = []
             extra["file_extensions"] = []
+            extra.pop("image_search", None)
             manifest.extra = extra
             manifest.documents = 0
             manifest.chunks = 0

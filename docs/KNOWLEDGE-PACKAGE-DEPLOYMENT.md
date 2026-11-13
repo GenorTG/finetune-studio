@@ -26,6 +26,16 @@ in that export. Documents left out are not in the package and cannot be searched
   private storage. Include original files only when users need to download them; anyone who can use the package server
   can fetch originals that were included.
 
+- **Image search:** tick **Image search** (search layers) together with **Include models** to ship the pictures of
+  the selected documents as image vectors and thumbnails (inside the encrypted corpus) plus the CLIP image model
+  (~1.1 GB, public weights, not encrypted). Turn on Image search in the Smart Brain's search settings and update the
+  Smart Brain first. A scoped package carries only its own documents' pictures; full-size pictures ship only with
+  **Include original files**. There is no image-embeddings API alternative: without the model inside, the layer
+  cannot run, so the export refuses Image search without Include models. Where it runs: `POST /search/image`
+  (`query` or `image_base64`), `GET /images/<id>/thumb`, MCP `rag_search_images`, and `/ask` shows matching pictures
+  to a vision-capable answer model (text-only fallback when it refuses them; `RAG_ANSWER_IMAGES=0` never sends any).
+  Thumbnails are content: a public package shows pictures of every document in its scope to whoever can search it.
+
 **Important limit:** hide-file-names applies to generated answers. It does not hide names or passage text from raw
 `/search` results or the MCP `rag_search` tool. Anyone with access to those routes can inspect the package's selected
 contents. Do not expose raw search, MCP, document-list or original-file routes to public visitors. The audience choice
@@ -163,6 +173,8 @@ and document counts; then ask a question whose answer changed. For stdio, restar
 | HTTPS works but MCP does not | Use the `/mcp` path, preserve the `Authorization` header, and verify the client supports Streamable HTTP. |
 | New package is refused | It must be a newer version of the same package; re-export with **New version of this**. |
 | Update refused: "opens up more than the installed" | The new version carries more than the running copy (documents, originals, file names). Check it is meant for this copy; then `--allow-widen`. |
+| `rag_search_images` missing / `/search/image` says no layer | The package was exported without Image search (or `RAG_IMAGES=0`); `/health` → `layers.image` says which. |
+| Answers ignore attached pictures | The answer model is text-only: the reply's `images_note` says the pictures were not accepted and it answered from their text. Use a vision-capable model. |
 | Search works but answers do not | Answer generation is optional; configure the package's answer connection or let the MCP client write answers from `rag_search` passages. |
 
 For the generated package's complete configuration and API reference, read its `README.md`; it describes the exact
