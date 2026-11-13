@@ -277,6 +277,79 @@ _BY_SUFFIX = {".docx": _docx, ".pptx": _pptx, ".pdf": _pdf,
               ".webp": _image, ".gif": _image}
 
 
+def xlsx_pictures(path: Path) -> list[Figure]:
+    """Pictures placed on the sheets of a workbook (``sheet <name>``, anchored at their top-left cell). Not part of
+    ``extract``: the xlsx parser reads cells, never pictures; only the Smart Brain's image layer indexes these."""
+    if path.suffix.lower() not in (".xlsx", ".xlsm"):
+        return []
+    try:
+        from openpyxl import load_workbook
+
+        wb = load_workbook(str(path), read_only=False, data_only=True)
+    except Exception as e:  # noqa: BLE001 - a broken or protected workbook has no pictures we can read
+        log.warning("pictures of %s unreadable: %s", path.name, e)
+        return []
+    out: list[Figure] = []
+    try:
+        for s, ws in enumerate(wb.worksheets, 1):
+            for img in getattr(ws, "_images", []):
+                try:
+                    data = img._data()
+                except Exception as e:  # noqa: BLE001 - an unreadable embedded picture is skipped
+                    log.warning("%s sheet %s: picture unreadable: %s", path.name, ws.title, e)
+                    continue
+                if data and _big_enough(data):
+                    cell = ""
+                    frm = getattr(getattr(img, "anchor", None), "_from", None)
+                    if frm is not None:
+                        from openpyxl.utils import get_column_letter
+                        cell = f" {get_column_letter(frm.col + 1)}{frm.row + 1}"
+                    out.append(Figure(len(out) + 1, f"sheet {ws.title}{cell}", s, _to_png(data)))
+    finally:
+        wb.close()
+    return out
+
+
+def contexts(path: Path, found: list[Figure], chars: int = 600) -> dict[int, str]:
+    """The text around each figure (``n -> text``): the paragraphs either side of a docx picture, a slide's text, a
+    PDF page's text layer, a sheet's name. What a picture can be found by when nothing reads it."""
+    out: dict[int, str] = {}
+    if not found:
+        return out
+    suffix = path.suffix.lower()
+    try:
+        if suffix == ".docx":
+            from docx import Document
+
+            body = list(Document(str(path)).element.body.iterchildren())
+            texts = ["".join(t.text or "" for t in child.iter() if t.tag.endswith("}t")).strip() for child in body]
+            for f in found:
+                near = [texts[i] for i in range(max(0, f.anchor - 2), min(len(texts), f.anchor + 3)) if texts[i]]
+                out[f.n] = " ".join(near)[:chars]
+        elif suffix == ".pptx":
+            from pptx import Presentation
+
+            slides = {}
+            for i, slide in enumerate(Presentation(str(path)).slides, 1):
+                slides[i] = " ".join(sh.text_frame.text for sh in slide.shapes
+                                     if getattr(sh, "has_text_frame", False) and sh.text_frame.text.strip())
+            for f in found:
+                out[f.n] = slides.get(f.anchor, "")[:chars]
+        elif suffix == ".pdf":
+            from pypdf import PdfReader
+
+            reader = PdfReader(str(path))
+            for f in found:
+                if 1 <= f.anchor <= len(reader.pages) and not f.whole_page:
+                    out[f.n] = (reader.pages[f.anchor - 1].extract_text() or "").strip()[:chars]
+        elif suffix in (".xlsx", ".xlsm"):
+            for f in found:
+                out[f.n] = f.where
+    except Exception as e:  # noqa: BLE001 - context is a search aid; a picture without it is still indexed
+        log.warning("figure context of %s unreadable: %s", path.name, e)
+    return out
+
+
 def extract(path: Path, page_texts: list[str] | None = None) -> list[Figure]:
     """The file's figures in document order; ``[]`` for a format without pictures (or a file we cannot open).
 

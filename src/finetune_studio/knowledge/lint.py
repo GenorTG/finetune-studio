@@ -376,6 +376,43 @@ def _check_pictures(pid: str, sources: list[Source]) -> list[Finding]:
                     action="read_pictures" if fixable and not job.get("running") else "")]
 
 
+def _check_images(pid: str, sources: list[Source]) -> list[Finding]:
+    """The image layer (Image search): pictures that could not be embedded, and pictures nothing describes (no OCR
+    text, no Vision-reader reading, no caption or page text): only their look can find them."""
+    from finetune_studio.data.fs.paths import brain_index_dir
+    from finetune_studio.smart_brain import image_layer
+
+    records, vectors, meta = image_layer.read_layer(brain_index_dir(pid))
+    if not meta:
+        return []
+    by_id = {s.id: s for s in sources}
+    out: list[Finding] = []
+    failed = list(meta.get("failed") or [])
+    if failed:
+        srcs = [by_id[i] for i in dict.fromkeys(str(f.get("document_id") or "") for f in failed) if i in by_id]
+        detail = [f"{f.get('filename') or f.get('document_id')}"
+                  f"{' · ' + str(f['locator']) if f.get('locator') else ''}: {str(f.get('error') or '')[:160]}"
+                  for f in failed[:8]]
+        out.append(_finding("image_failed", "warning",
+                            f"{int(meta.get('failed_count') or len(failed))} picture(s) could not be embedded for Image search",
+                            "Open the file: a damaged or unsupported picture (e.g. EMF/WMF, HEIC without pillow-heif) is "
+                            "left out of Image search. Save it as PNG or JPEG, replace the file and Update Smart Brain.",
+                            srcs, detail))
+    if vectors is not None:
+        bare = [r for r in records if not str(r.get("description") or "").strip()
+                and not str(r.get("context") or "").strip()]
+        if bare:
+            srcs = [by_id[i] for i in dict.fromkeys(str(r.get("document_id") or "") for r in bare) if i in by_id]
+            detail = [f"{r.get('filename')} · {r.get('locator')}" for r in bare[:8]]
+            out.append(_finding("image_undescribed", "info",
+                                f"{len(bare)} picture(s) have no description: only their look can find them",
+                                "No OCR text, Vision-reader reading or caption came with these pictures, so a question "
+                                "that names what is in them (a model, a person, a number) cannot match their words. Set "
+                                "a Vision reader and press Read pictures, or add a caption next to the picture.",
+                                srcs, detail))
+    return out
+
+
 def _check_index(pid: str, sources: list[Source]) -> list[Finding]:
     st = knowledge_index.state(pid)
     if not st.built or st.fresh:
@@ -502,7 +539,8 @@ def lint(pid: str) -> dict[str, Any]:
         text_findings = [*file_findings, *version_findings, *_check_conflicts(pid, sources, outdated, pairs)]
         with _CACHE_LOCK:
             _TEXT_CHECKS[pid] = (key, [copy.deepcopy(f) for f in text_findings])
-    findings = [*text_findings, *_check_pictures(pid, sources), *_check_index(pid, sources), *_check_unparsable(pid)]
+    findings = [*text_findings, *_check_pictures(pid, sources), *_check_images(pid, sources),
+                *_check_index(pid, sources), *_check_unparsable(pid)]
     for f in findings:
         f.ignored = f.key in ignored
     findings.sort(key=lambda f: (f.ignored, {"error": 0, "warning": 1}.get(f.severity, 2), f.rule))

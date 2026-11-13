@@ -69,11 +69,14 @@ class SearchRequest(BaseModel):
     rerank: bool | None = None
     rerank_top_n: int | None = None
     max_per_document: int | None = Field(default=None, ge=0, le=100)   # None = the index setting
+    images: bool = False        # also search the image layer (Image search): ``images`` beside the passages
+    image_top_k: int = Field(default=6, ge=1, le=50)
 
 
 class ImageSearchRequest(BaseModel):
     query: str = Field(min_length=1, max_length=1000)
     top_k: int = Field(default=10, ge=1, le=50)
+    documents: bool = False     # also group the hits by source document
 
 
 class ChatRequest(BaseModel):
@@ -95,6 +98,8 @@ class ChatRequest(BaseModel):
 class BuildRequest(BaseModel):
     embedder: str | None = None
     reset: bool = False
+    image_search: bool | None = None   # the image layer on/off for this and later builds (None = the settings)
+    image_model: str | None = None
     fact_cards: bool | None = None   # index approved pairs as fact cards; None keeps the last build's choice
 
 
@@ -110,6 +115,8 @@ class SettingsPatch(BaseModel):
     hybrid_enabled: bool | None = None
     rrf_k: int | None = None
     max_per_document: int | None = Field(default=None, ge=0, le=100)
+    image_search: bool | None = None   # applies at the next build (Update Smart Brain)
+    image_model: str | None = None
 
 
 # ── Routes ──────────────────────────────────────────────────────────────
@@ -160,6 +167,8 @@ async def brain_status(pid: str):
         "hybrid_enabled": m["rag_settings"]["hybrid_enabled"],
         "rrf_k": m["rag_settings"]["rrf_k"],
         "max_per_document": m["rag_settings"].get("max_per_document", 3),
+        "image_search": bool(m["rag_settings"].get("image_search")),
+        "image_assets": int(((m.get("extra") or {}).get("image_search") or {}).get("assets") or 0),
         "created_at": m["created_at"],
         "updated_at": m["updated_at"],
         "state": state,
@@ -262,6 +271,31 @@ def brain_readiness(pid: str):
     return readiness(pid)
 
 
+def _check_image_model(model_id: str) -> str:
+    from finetune_studio.smart_brain.image_embeddings import spec_for
+
+    try:
+        return spec_for(model_id).id
+    except ValueError as e:
+        raise ApiError(422, str(e), code="unknown_image_model") from None
+
+
+def _image_settings(m) -> dict:
+    """The image layer's settings, the selectable models and what the current index holds."""
+    from finetune_studio.smart_brain import image_embeddings as ie
+
+    meta = (m.extra or {}).get("image_search") or {} if m is not None else {}
+    chosen = ie.spec_for(m.rag_settings.image_model if m is not None else "").id
+    return {"image_search": bool(m.rag_settings.image_search) if m is not None else False,
+            "image_model": chosen,
+            "image_models": [{**s.public(), "on_disk": ie.on_disk(s.id), "default": s.id == ie.DEFAULT_IMAGE_MODEL}
+                             for s in ie.IMAGE_MODELS.values()],
+            "image_layer": {"assets": int(meta.get("assets") or 0), "documents": int(meta.get("documents") or 0),
+                            "model": meta.get("model") or "", "failed": int(meta.get("failed_count") or 0),
+                            "embedded": int(meta.get("embedded") or 0), "reused": int(meta.get("reused") or 0)}
+            if meta else None}
+
+
 @router.get("/{pid}/brain/settings")
 async def brain_get_settings(pid: str):
     from finetune_studio.smart_brain import BrainIndex
@@ -270,10 +304,12 @@ async def brain_get_settings(pid: str):
         # Not an error: the page asks before any index exists. The reranker a first build will get depends on the
         # machine (GPU: bge-reranker-v2-m3, CPU only: MiniLM), so the form shows that one.
         from finetune_studio.smart_brain.rerankers import default_reranker
-        return {"exists": False, "default_reranker": await asyncio.to_thread(default_reranker)}
+        return {"exists": False, "default_reranker": await asyncio.to_thread(default_reranker),
+                **await asyncio.to_thread(_image_settings, None)}
     m = await asyncio.to_thread(index.read_manifest)
     return {
         "exists": True,
+        **await asyncio.to_thread(_image_settings, m),
         "embedder": m.embedding_model.name,
         "reranker": m.rag_settings.reranker,
         "rerank_enabled": m.rag_settings.rerank_enabled,
@@ -317,13 +353,18 @@ async def brain_patch_settings(pid: str, req: SettingsPatch):
         m.rag_settings.rrf_k = req.rrf_k
     if req.max_per_document is not None:
         m.rag_settings.max_per_document = req.max_per_document
+    if req.image_model is not None:
+        m.rag_settings.image_model = _check_image_model(req.image_model)
+    if req.image_search is not None:
+        m.rag_settings.image_search = req.image_search
     m.updated_at = time.time()
     write_json(_corpus_dir(pid) / "manifest.json", m.to_json())
     return {"ok": True, "updated": req.model_dump(exclude_none=True)}
 
 
 async def _start_build(pid: str, *, mode: str, embedder: str | None = None, reset: bool = False,
-                       fact_cards: bool | None = None, file_ids: list[str] | None = None) -> JSONResponse:
+                       fact_cards: bool | None = None, file_ids: list[str] | None = None,
+                       image_search: bool | None = None, image_model: str | None = None) -> JSONResponse:
     """Start a build job in ``mode`` (``webui.brain_build_jobs``) and answer 202 with its ``build_id``.
 
     Raises ApiError: 409 a build of this project is running (``build_running``) or the GPU is busy
@@ -333,7 +374,8 @@ async def _start_build(pid: str, *, mode: str, embedder: str | None = None, rese
 
     try:
         plan = await asyncio.to_thread(brain_build_jobs.start, pid, embedder=embedder, reset=reset,
-                                       fact_cards=fact_cards, mode=mode, file_ids=file_ids)
+                                       fact_cards=fact_cards, mode=mode, file_ids=file_ids,
+                                       image_search=image_search, image_model=image_model)
     except brain_build_jobs.BuildBusy as e:
         raise ApiError(409, str(e), code="build_running", build_id=e.build_id) from e
     except launch.JobRejected as e:
@@ -367,8 +409,11 @@ async def brain_build(pid: str, req: BuildRequest):
     missing = _project_404(pid)
     if missing is not None:
         return missing
+    if req.image_model:
+        _check_image_model(req.image_model)
     return await _start_build(pid, mode="build", embedder=req.embedder, reset=req.reset,
-                              fact_cards=req.fact_cards)
+                              fact_cards=req.fact_cards, image_search=req.image_search,
+                              image_model=req.image_model)
 
 
 @router.get("/{pid}/brain/builds/{build_id}")
@@ -460,6 +505,9 @@ def _build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
             phase, files_done, total_files = "parsing", int(st["parsing"]["done"]), int(st["parsing"]["total"])
         elif st.get("embedding"):
             passages_done, passages_total = int(st["embedding"]["done"]), int(st["embedding"]["total"])
+        elif st.get("image_extract"):
+            phase = "image_extract"
+            images_done, images_total = int(st["image_extract"]["done"]), int(st["image_extract"]["total"])
         elif st.get("image_embedding"):
             phase = "image_embedding"
             images_done, images_total = int(st["image_embedding"]["done"]), int(st["image_embedding"]["total"])
@@ -594,12 +642,25 @@ async def brain_search(pid: str, req: SearchRequest):
                                    hybrid=req.hybrid, rerank=req.rerank,
                                    rerank_top_n=req.rerank_top_n, max_per_document=req.max_per_document)
     weak = weak_match(req.query, hits)
-    return {"hits": hits, "count": len(hits), "query": req.query, "weak": weak,
-            "note": "These passages share few words with your question; the corpus may not cover it." if weak else ""}
+    out = {"hits": hits, "count": len(hits), "query": req.query, "weak": weak,
+           "note": "These passages share few words with your question; the corpus may not cover it." if weak else ""}
+    if req.images:   # the Image search layer, scored on its own (visual / words scores), beside the passages
+        try:
+            found = await asyncio.to_thread(q.search_images, req.query, top_k=req.image_top_k)
+            out["images"], out["images_weak"] = found["hits"], found["weak"]
+        except (ValueError, OSError) as e:
+            out["images"], out["images_error"] = [], str(e)
+    return out
+
+
+def _image_search_error(e: Exception) -> JSONResponse:
+    if isinstance(e, FileNotFoundError):
+        return JSONResponse({"detail": str(e)}, status_code=409)
+    return JSONResponse({"detail": str(e)}, status_code=400)
 
 
 async def _search_images(pid: str, *, query: str = "", image_data: bytes | None = None,
-                         top_k: int = 10) -> dict | JSONResponse:
+                         top_k: int = 10, documents: bool = False) -> dict | JSONResponse:
     from finetune_studio.smart_brain import BrainIndex
 
     missing = _project_404(pid)
@@ -609,20 +670,28 @@ async def _search_images(pid: str, *, query: str = "", image_data: bytes | None 
     if not index.exists():
         return JSONResponse({"detail": "no corpus — build first"}, status_code=400)
     try:
-        q = await asyncio.to_thread(index.load, load_embedder=False)
-        hits = await asyncio.to_thread(q.search_images, query, image_data=image_data, top_k=top_k)
+        from finetune_studio.smart_brain import image_layer
+
+        rrf_k = int((await asyncio.to_thread(index.read_manifest)).rag_settings.rrf_k or 60)
+        found = await asyncio.to_thread(image_layer.search, _corpus_dir(pid), query, image_data=image_data,
+                                        top_k=top_k, group_documents=documents, rrf_k=rrf_k)
     except (ValueError, OSError) as e:
-        return JSONResponse({"detail": str(e)}, status_code=400)
+        return _image_search_error(e)
     except Exception as e:
         log.exception("image search failed for project %s", pid)
         return JSONResponse({"detail": f"image search failed: {e}"}, status_code=500)
-    return {"hits": hits, "count": len(hits), "query": query}
+    if not found.get("layer"):
+        found["note"] = ("This index has no image layer: turn on Image search in the search settings and update "
+                         "the Smart Brain.")
+    elif found["weak"]:
+        found["note"] = "No picture matches well; these are only the nearest ones."
+    return {**found, "count": len(found["hits"]), "query": query}
 
 
 @router.post("/{pid}/brain/images/search")
 async def brain_image_search(pid: str, req: ImageSearchRequest):
-    """Find pictures in indexed documents from a text description."""
-    return await _search_images(pid, query=req.query, top_k=req.top_k)
+    """Find pictures in indexed documents from a text description (text -> image)."""
+    return await _search_images(pid, query=req.query, top_k=req.top_k, documents=req.documents)
 
 
 @router.post("/{pid}/brain/images/search-by-image")
@@ -630,8 +699,10 @@ async def brain_image_search_by_image(
     pid: str,
     image: UploadFile = File(...),  # noqa: B008 - FastAPI declares multipart parameters this way
     top_k: int = Form(default=10, ge=1, le=50),
+    documents: bool = Form(default=True),
 ):
-    """Find visually similar indexed images; the uploaded query is transient and never saved."""
+    """Visually similar indexed pictures and their documents (image -> image, image -> document); the uploaded
+    query is transient and never saved."""
     if not (image.content_type or "").startswith("image/"):
         return JSONResponse({"detail": "upload a supported image file"}, status_code=415)
     data = await image.read(12 * 1024 * 1024 + 1)
@@ -639,12 +710,13 @@ async def brain_image_search_by_image(
         return JSONResponse({"detail": "image query must be 12 MB or smaller"}, status_code=413)
     if not data:
         return JSONResponse({"detail": "the uploaded image is empty"}, status_code=400)
-    return await _search_images(pid, image_data=data, top_k=top_k)
+    return await _search_images(pid, image_data=data, top_k=top_k, documents=documents)
 
 
 @router.get("/{pid}/brain/images/{asset_id}")
-def brain_image_asset(pid: str, asset_id: str):
-    """Serve one indexed image by opaque asset id; paths are read only from the index manifest."""
+def brain_image_asset(pid: str, asset_id: str, thumb: bool = False, download: bool = False):
+    """Serve one indexed image by opaque asset id (``thumb``: the small JPEG; ``download``: as an attachment); paths
+    are read only from the index manifest."""
     missing = _project_404(pid)
     if missing is not None:
         return missing
@@ -656,13 +728,19 @@ def brain_image_asset(pid: str, asset_id: str):
     record = next((a for a in assets if str(a.get("asset_id")) == asset_id), None)
     if record is None:
         return JSONResponse({"detail": "image asset not found"}, status_code=404)
-    relative = Path(str(record.get("path") or ""))
-    if relative.parent != Path("image_assets") or relative.name != f"{asset_id}{relative.suffix}":
+    relative = Path(str(record.get("thumbnail" if thumb else "path") or ""))
+    expected_parent = Path("image_assets/thumbs") if thumb else Path("image_assets")
+    if relative.parent != expected_parent or relative.name != f"{asset_id}{relative.suffix}":
         return JSONResponse({"detail": "image asset path is invalid"}, status_code=404)
     path = (corpus / relative).resolve()
-    if path.parent != (corpus / "image_assets").resolve() or not path.is_file():
+    if path.parent != (corpus / expected_parent).resolve() or not path.is_file():
         return JSONResponse({"detail": "image asset not found"}, status_code=404)
-    return FileResponse(path, media_type=str(record.get("mime_type") or "application/octet-stream"))
+    media = "image/jpeg" if thumb else str(record.get("mime_type") or "application/octet-stream")
+    if download:
+        stem = Path(str(record.get("filename") or "image")).stem or "image"
+        where = re.sub(r"[^A-Za-z0-9]+", "-", str(record.get("locator") or "")).strip("-")
+        return FileResponse(path, media_type=media, filename=f"{stem}{'-' + where if where else ''}{relative.suffix}")
+    return FileResponse(path, media_type=media, headers={"Cache-Control": "private, max-age=300"})
 
 
 def _active_n_ctx() -> int:
@@ -817,11 +895,18 @@ async def brain_chat(pid: str, req: ChatRequest):
         "score": h.get("ce_score", h.get("rrf_score", 0.0)),
         "rank": h["rank"], "chunk_text_preview": h["text"][:400]
     } for h in hits]
+    images: list[dict] = []
+    if (await asyncio.to_thread(q.image_layer))[1] is not None:   # Image search on: the pictures that match the question (not weak ones)
+        try:
+            found = await asyncio.to_thread(q.search_images, last_user, top_k=4)
+            images = [] if found["weak"] else [h for h in found["hits"] if h["match"] != "weak"]
+        except (ValueError, OSError) as e:
+            log.warning("chat image search failed for %s: %s", pid, e)
     return {"reply": clean, "sources": sources,
             "raw_reply_thinking": parts.get("thinking", ""),
             "follow_up_searches": result["follow_up_searches"],
             "followup": result.get("followup"),
-            "hits": hits}
+            "hits": hits, "images": images}
 
 
 @router.get("/{pid}/brain/coverage")

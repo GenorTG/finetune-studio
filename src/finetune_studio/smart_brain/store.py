@@ -17,6 +17,7 @@ import time
 import zipfile
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -197,7 +198,8 @@ class BrainIndex:
                              splitter: str | None = None,
                              extra: dict | None = None,
                              rag_settings: RetrievalSettings | None = None,
-                             image_assets: list | None = None,
+                             image_plan: Any = None,
+                             image_settings: tuple[bool, str] | None = None,
                              on_image_batch: Callable[[int, int], None] | None = None,
                              on_batch: Callable[[int, int], None] | None = None) -> dict:
         """Chunk, embed and BM25-index already parsed documents; write every corpus artifact.
@@ -255,28 +257,12 @@ class BrainIndex:
         texts = [c["text"] for c in all_chunks]
         vectors = encode_batched(encode, texts, on_batch)
 
-        # Images occupy a separate cross-modal vector space. Compute them before
-        # touching the existing index so a model/decode failure leaves it intact.
-        image_assets = list(image_assets or [])
-        image_vectors = None
-        image_search_meta = None
-        if image_assets:
-            if on_image_batch is not None:
-                on_image_batch(0, len(image_assets))
-            from finetune_studio.smart_brain.image_embeddings import (
-                cached_image_embedder,
-                image_from_bytes,
-            )
-
-            image_embedder = cached_image_embedder(device=device)
-            encoded = []
-            for start in range(0, len(image_assets), 16):
-                batch = [image_from_bytes(asset.data) for asset in image_assets[start:start + 16]]
-                encoded.append(image_embedder.encode_images(batch))
-                if on_image_batch is not None:
-                    on_image_batch(min(start + 16, len(image_assets)), len(image_assets))
-            image_vectors = np.concatenate(encoded, axis=0).astype(np.float32, copy=False)
-            image_search_meta = {**image_embedder.metadata(), "assets": len(image_assets)}
+        # Pictures live in their own vector space (image_layer). Embedded before anything on disk changes, so a
+        # model or decode failure leaves the old index whole.
+        layer = None
+        if image_plan is not None:
+            from finetune_studio.smart_brain import image_layer
+            layer = image_layer.compute(image_plan, device=device, on_progress=on_image_batch)
 
         # Replace source artifacts to match the new corpus (no stale orphans).
         self._clear_source_artifacts()
@@ -300,25 +286,16 @@ class BrainIndex:
         bm25 = BM25Index.build([c["text"] for c in all_chunks])
         write_json(self.bm25_path, bm25.to_dict())
 
-        # Persist the cross-modal layer independently of text chunks/vectors.
-        image_dir = self.dir / "image_assets"
-        if image_dir.exists():
-            shutil.rmtree(image_dir)
-        if image_assets and image_vectors is not None:
-            image_dir.mkdir(parents=True, exist_ok=True)
-            for asset in image_assets:
-                (self.dir / asset.metadata["path"]).write_bytes(asset.data)
-            np.save(self.dir / "image_vectors.npy", image_vectors)
-            write_json(self.dir / "image_assets.json", [asset.metadata for asset in image_assets])
-        else:
-            for stale in (self.dir / "image_vectors.npy", self.dir / "image_assets.json"):
-                stale.unlink(missing_ok=True)
+        from finetune_studio.smart_brain import image_layer as _image_layer
+        _image_layer.write(self.dir, layer)
 
         manifest.documents = len(all_documents)
         manifest.chunks = len(all_chunks)
         manifest.extra = {**(extra or {}), "documents_meta": all_documents}
-        if image_search_meta:
-            manifest.extra["image_search"] = image_search_meta
+        if image_settings is not None:
+            manifest.rag_settings.image_search, manifest.rag_settings.image_model = image_settings
+        if layer is not None:
+            manifest.extra["image_search"] = layer.meta
         else:
             manifest.extra.pop("image_search", None)
         write_json(self.manifest_path, manifest.to_json())
@@ -337,7 +314,8 @@ class BrainIndex:
             "documents": manifest.documents,
             "chunks": manifest.chunks,
             "vector_dim": vectors.shape[1],
-            "image_assets": len(image_assets),
+            "image_assets": len(layer.records) if layer is not None else 0,
+            "image_failed": int(layer.meta.get("failed_count") or 0) if layer is not None else 0,
             "skipped": 0,
         }
 
@@ -750,33 +728,8 @@ fts brain rebuild-vectors --corpus /path/to/corpus [--embedder NEW_MODEL]
         source remained live in search results.
         """
         removed = False
-        image_manifest = self.dir / "image_assets.json"
-        image_vectors_path = self.dir / "image_vectors.npy"
-        if image_manifest.is_file():
-            image_records = read_json(image_manifest)
-            keep = [i for i, row in enumerate(image_records)
-                    if str(row.get("document_id") or "") != source_id]
-            if len(keep) != len(image_records):
-                removed = True
-                for row in image_records:
-                    if str(row.get("document_id") or "") == source_id:
-                        relative = Path(str(row.get("path") or ""))
-                        if relative.parent == Path("image_assets") and relative.name.startswith(
-                            str(row.get("asset_id") or "") + "."
-                        ):
-                            (self.dir / relative).unlink(missing_ok=True)
-                kept_records = [image_records[i] for i in keep]
-                write_json(image_manifest, kept_records)
-                if image_vectors_path.is_file():
-                    image_vectors = np.load(image_vectors_path, allow_pickle=False)
-                    np.save(image_vectors_path, image_vectors[keep])
-                manifest_raw = read_json(self.manifest_path) if self.manifest_path.is_file() else {}
-                image_meta = (manifest_raw.get("extra") or {}).get("image_search")
-                if isinstance(image_meta, dict):
-                    image_meta["assets"] = len(kept_records)
-                    if not kept_records:
-                        manifest_raw["extra"].pop("image_search", None)
-                    write_json(self.manifest_path, manifest_raw)
+        from finetune_studio.smart_brain import image_layer
+        removed = image_layer.remove_document(self.dir, source_id)
         sources_dir = self.dir / "sources"
         if sources_dir.exists():
             for f in sources_dir.glob(f"{source_id}*.txt"):
@@ -833,11 +786,8 @@ fts brain rebuild-vectors --corpus /path/to/corpus [--embedder NEW_MODEL]
         if sources_dir.exists():
             for f in sources_dir.glob("*.txt"):
                 f.unlink()
-        image_dir = self.dir / "image_assets"
-        if image_dir.exists():
-            shutil.rmtree(image_dir)
-        for path in (self.dir / "image_vectors.npy", self.dir / "image_assets.json"):
-            path.unlink(missing_ok=True)
+        from finetune_studio.smart_brain import image_layer
+        image_layer.write(self.dir, None)
 
         pd = try_import_pandas()
         if self.chunks_path.exists():

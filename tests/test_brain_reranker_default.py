@@ -104,7 +104,9 @@ def test_settings_form_shows_the_default_before_any_index(client) -> None:
     with patch("finetune_studio.smart_brain.devices.resolve_device", return_value="cpu"):
         r = client.get(f"/api/projects/{pid}/brain/settings")
     assert r.status_code == 200
-    assert r.json() == {"exists": False, "default_reranker": CPU_RERANKER}
+    body = r.json()
+    assert body["exists"] is False and body["default_reranker"] == CPU_RERANKER
+    assert body["image_search"] is False and body["image_layer"] is None   # Image search can be chosen before a build
 
 
 def test_brain_page_offers_both_and_applies_the_default() -> None:
