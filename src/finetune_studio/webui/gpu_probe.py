@@ -196,7 +196,7 @@ def free_and_consumers(*, cli_only: bool = False, index: int | None = None,
     """``(free_mib, top compute consumers)`` of the active GPU, or ``(None, [])``. ``cli_only`` (with the GPU's
     ``name`` / torch ``index``): vendor tools only, no torch and no GPU context in this process. The vendor tool
     numbers cards its own way, so the name decides first."""
-    devs = vram_devices(cli_only=cli_only)
+    devs = vram_devices(cli_only=True) if cli_only else vram_devices()
     if not devs:
         return None, []
     pick = devs[0]
