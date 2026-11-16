@@ -210,7 +210,7 @@ def _reader_on(monkeypatch):
 def test_behind_a_build_the_upload_queues_instead_of_refusing_or_loading(monkeypatch, _reader_on) -> None:
     _accel(monkeypatch, DISCRETE)
     # The build's embedder fills the card: the memory check must NOT refuse now (the memory is ours and frees).
-    monkeypatch.setattr(pictures, "vram_problem", lambda: "not enough free GPU memory (build running)")
+    monkeypatch.setattr(pictures, "vram_problem", lambda *a: "not enough free GPU memory (build running)")
     launch.gpu_holder.holder = "brain_build job brain_build-x (Updating Smart Brain)"  # type: ignore[attr-defined]
     out = pictures.start("p", auto=True)
     spec = _reader_on[-1]
@@ -224,7 +224,7 @@ def test_behind_a_build_the_upload_queues_instead_of_refusing_or_loading(monkeyp
 
 
 def test_cpu_only_and_unified_hosts(monkeypatch, _reader_on) -> None:
-    monkeypatch.setattr(pictures, "vram_problem", lambda: "")
+    monkeypatch.setattr(pictures, "vram_problem", lambda *a: "")
     _accel(monkeypatch, CPU)
     pictures.start("p")
     assert _reader_on[-1].gpu is False and _reader_on[-1].queue_gpu is False      # no lease on a CPU-only host
@@ -503,3 +503,41 @@ def test_accelerator_dict_reports_unified_memory() -> None:
     d = UNIFIED.to_dict()
     assert d["unified_memory"] is True and d["is_gpu"] is True
     assert dataclasses.replace(UNIFIED, kind="cpu").is_gpu is False
+
+
+def test_the_job_process_checks_memory_without_opening_a_gpu_context(monkeypatch) -> None:
+    """Live 2026-11-16: the job's own check probed torch and held a 256 MB CUDA context on the card the reader was
+    loading on. In the job the device comes from the web process and the vendor tool answers."""
+    from finetune_studio.accel import ops
+    from finetune_studio.webui import gpu_probe
+
+    monkeypatch.setattr(pictures, "local_reader_cost", lambda: COST)
+
+    def no_torch(*_a, **_k):
+        raise AssertionError("the job must not ask torch")
+    monkeypatch.setattr(ops, "mem_info_gb", no_torch)
+    monkeypatch.setattr(pictures, "reader_accelerator", no_torch)
+    asked = {}
+
+    def cli(**kw):
+        asked.update(kw)
+        return 20 * 1024, []
+    monkeypatch.setattr(gpu_probe, "free_and_consumers", cli)
+    assert pictures.vram_problem(DISCRETE.to_dict()) == ""
+    assert asked == {"cli_only": True, "index": 0, "name": "RTX 3090"}
+    _ram(monkeypatch, 3.0)
+    assert "free shared memory" in pictures.vram_problem(UNIFIED.to_dict())     # psutil only, no torch
+    monkeypatch.setattr(gpu_probe, "_torch_devices", no_torch)
+    monkeypatch.setattr(gpu_probe, "_nvidia_smi", lambda: [{"index": 0, "name": "RTX 3090", "used_gb": 1.0,
+                                                            "total_gb": 24.0, "pct": 4.0, "source": "nvidia-smi"}])
+    monkeypatch.setattr(gpu_probe, "_consumers", lambda index=None: [])
+    assert gpu_probe.vram_devices(cli_only=True)[0]["source"] == "nvidia-smi"
+
+
+def test_the_start_hands_the_device_to_the_job(monkeypatch, _reader_on) -> None:
+    monkeypatch.setattr(pictures, "vram_problem", lambda *a: "")
+    _accel(monkeypatch, DISCRETE)
+    pictures.start("p")
+    assert _reader_on[-1].params["reader_device"]["name"] == "RTX 3090"
+    src = (ROOT / "src/finetune_studio/jobs/kinds/pictures.py").read_text()
+    assert 'reader_device=ctx.params.get("reader_device")' in src

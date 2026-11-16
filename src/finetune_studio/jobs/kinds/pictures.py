@@ -15,5 +15,6 @@ def run(ctx: JobContext) -> dict[str, Any]:
     from finetune_studio.knowledge import pictures
 
     result = pictures.run_in_job(str(ctx.params["project_id"]), list(ctx.params.get("file_ids") or []) or None,
-                                 stop=ctx.stop, progress=lambda s: ctx.publish(s), holds_gpu=ctx.spec.gpu)
+                                 stop=ctx.stop, progress=lambda s: ctx.publish(s), holds_gpu=ctx.spec.gpu,
+                                 reader_device=ctx.params.get("reader_device") or None)
     return {"status": "done", **result}

@@ -138,6 +138,11 @@ def reader_accelerator() -> Any:
     return dataclasses.replace(acc, kind="cpu", unified_memory=False)
 
 
+def _reader_device_dict() -> dict[str, Any] | None:
+    acc = reader_accelerator()
+    return acc.to_dict() if acc is not None else None
+
+
 def reader_takes_gpu() -> bool:
     """The pictures job takes the GPU lease when its reader loads on a GPU — a discrete card or a unified-memory
     one (an APU shares its RAM with a build's embedder just as much). Not for an API reader, and not on a CPU-only
@@ -147,7 +152,15 @@ def reader_takes_gpu() -> bool:
     return bool(acc is not None and acc.is_gpu)
 
 
-def vram_problem() -> str:
+def _acc_from_dict(d: dict[str, Any]) -> Any:
+    from finetune_studio.accel import Accelerator
+    known = Accelerator.__dataclass_fields__
+    raw = {k: v for k, v in d.items() if k in known}
+    raw["compute_capability"] = tuple(raw.get("compute_capability") or (0, 0))
+    return Accelerator(**raw)
+
+
+def vram_problem(acc_dict: dict[str, Any] | None = None) -> str:
     """Why a local Vision reader must not load now ("" when it may): not enough free memory where it loads. That is
     the card's own memory on a discrete GPU, the shared RAM on a unified-memory GPU (its "VRAM" figure is a small
     carve-out or 0), the RAM on a CPU-only host (``accel.memory_budget``). Other programs' memory is never freed
@@ -155,19 +168,24 @@ def vram_problem() -> str:
     cost = local_reader_cost()
     if not cost:
         return ""
-    acc = reader_accelerator()
+    # ``acc_dict`` (the job process): the device the web process chose, so this process opens no GPU context of
+    # its own (torch would hold ~256 MB on the card the reader is about to load on) and asks the vendor tool.
+    acc = _acc_from_dict(acc_dict) if acc_dict else reader_accelerator()
     if acc is None:
         return ""
     from finetune_studio.accel import memory_budget
 
-    budget = memory_budget(acc)
+    discrete = acc.is_gpu and not acc.unified_memory
+    budget = None if (discrete and acc_dict) else memory_budget(acc)
+    pool = "device" if discrete else ("shared" if acc.is_gpu else "system")
     users: list[dict[str, Any]] = []
-    free: float | None = budget.free_gb if budget.known else None
-    if budget.pool == "device":
+    free: float | None = budget.free_gb if budget is not None and budget.known else None
+    if discrete:
         try:
             from finetune_studio.webui.gpu_probe import free_and_consumers
 
-            free_mib, users = free_and_consumers()     # names the programs using the card
+            free_mib, users = (free_and_consumers(cli_only=True, index=acc.index, name=acc.name) if acc_dict
+                               else free_and_consumers())     # names the programs using the card
             if free_mib is not None:
                 free = free_mib / 1024
         except Exception as e:  # noqa: BLE001 - no probe: the accelerator's own figure (or the loader) decides
@@ -178,7 +196,7 @@ def vram_problem() -> str:
     if free >= need:
         return ""
     where = {"device": "free GPU memory", "shared": "free shared memory (the GPU uses the system RAM)",
-             "system": "free RAM"}[budget.pool]
+             "system": "free RAM"}[pool]
     by = ", ".join(f"{u.get('name') or u.get('pid')}" for u in users[:3])
     return (f"not enough {where} to load the Vision reader {cost['name']} (about {need:.1f} GB needed, "
             f"{free:.1f} GB free{'; in use by ' + by if by else ''}). Pictures keep their OCR text for now: start "
@@ -315,7 +333,8 @@ def start(pid: str, *, file_ids: list[str] | None = None, auto: bool = False) ->
     spec = store.JobSpec(id=store.new_id(KIND), kind=KIND, project_id=pid, stop_grace_s=30.0,
                          gpu=on_gpu, queue_gpu=on_gpu,
                          title="Reading pictures in documents" + (" (after upload)" if auto else ""),
-                         params={"project_id": pid, "file_ids": list(file_ids or []), "auto": auto})
+                         params={"project_id": pid, "file_ids": list(file_ids or []), "auto": auto,
+                                 "reader_device": _reader_device_dict() if on_gpu else None})
     try:
         job = launch.start(spec)
     except launch.JobRejected as e:
@@ -344,12 +363,13 @@ def after_parse(pid: str, source: Any) -> None:
 
 
 def wait_for_memory(stop: threading.Event, progress: Callable[[dict[str, Any]], None],
-                    settle_s: float = MEMORY_SETTLE_S, poll_s: float = 3.0) -> None:
+                    settle_s: float = MEMORY_SETTLE_S, poll_s: float = 3.0,
+                    acc_dict: dict[str, Any] | None = None) -> None:
     """The job holds the GPU lease: the reader loads only when it fits. The previous holder's process can still be
     exiting with its memory, so a short shortfall is waited out; a lasting one fails the job with the reason."""
     deadline = time.monotonic() + settle_s
     while True:
-        problem = vram_problem()
+        problem = vram_problem(acc_dict) if acc_dict else vram_problem()
         if not problem:
             return
         if stop.is_set() or time.monotonic() >= deadline:
@@ -360,7 +380,7 @@ def wait_for_memory(stop: threading.Event, progress: Callable[[dict[str, Any]], 
 
 def run_in_job(pid: str, file_ids: list[str] | None, *, stop: threading.Event,
                progress: Callable[[dict[str, Any]], None] = lambda _s: None,
-               holds_gpu: bool = False) -> dict[str, Any]:
+               holds_gpu: bool = False, reader_device: dict[str, Any] | None = None) -> dict[str, Any]:
     """The job process side: read every pending file's figures with the seated reader; files parsed while it runs
     are picked up before it ends. A mined file (or one a mining job holds) is skipped with the reason.
 
@@ -371,7 +391,7 @@ def run_in_job(pid: str, file_ids: list[str] | None, *, stop: threading.Event,
     from finetune_studio.models.vision import Reader, VisionError
 
     if holds_gpu:
-        wait_for_memory(stop, progress)
+        wait_for_memory(stop, progress, acc_dict=reader_device)
     try:
         reader = Reader()
     except VisionError as e:
