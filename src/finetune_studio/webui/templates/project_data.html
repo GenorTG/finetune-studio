@@ -491,7 +491,7 @@
         : 'The Vision reader is reading these pictures now.';
       return '<div class="flex gap-1 wrap">' + parsed + prep + brain + '<span class="pill solid-amber text-xs" title="' +
         esc(why) + '" data-pictures-job="' + (waiting ? 'waiting' : 'reading') + '">' + ocr +
-        (waiting ? ' pictures · waiting for GPU' : ' pictures · reading…') + '</span></div>';
+        (ocr === 1 ? ' picture' : ' pictures') + (waiting ? ' · waiting for GPU' : ' · reading…') + '</span></div>';
     }
     const pics = ocr ? '<a class="pill solid-amber text-xs" href="/projects/' + PID + '/brain#brain-lint" data-link title="' +
       esc(ocr + ' picture(s) (charts, table images, scanned pages) read by OCR only: figures in charts may be wrong. Set a vision reader in Settings → AI assistant, or press Read pictures in the Knowledge check.') +

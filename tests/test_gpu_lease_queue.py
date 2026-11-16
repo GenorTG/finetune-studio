@@ -383,8 +383,9 @@ def test_the_pages_show_the_waiting_state() -> None:
     assert "' · waiting for the GPU: ' + (job.waiting_for_label" in brain
     assert "r.waiting_for_gpu ? 'Reading pictures in '" in brain
     assert "p.message ? p.message.charAt(0).toUpperCase()" in brain            # the build's "Waiting for the GPU: …"
+    assert "pill: 'Waiting', tone: 'solid-amber', title: 'Waiting for the GPU…'" in brain   # the top card too
     data = (ROOT / "src/finetune_studio/webui/templates/project_data.html").read_text()
-    assert "' pictures · waiting for GPU'" in data and "p.pictures_job" in data
+    assert "' · waiting for GPU'" in data and "p.pictures_job" in data
 
 
 def test_pipeline_flags_name_the_waiting_pictures_job(monkeypatch) -> None:
