@@ -126,7 +126,9 @@ def _start_locked(pid: str, *, embedder: str | None, reset: bool, fact_cards: bo
     bid = plan["build_id"]
     gpu = _embedder_on_gpu()
     spec = store.JobSpec(
-        id=job_id(bid), kind=KIND, gpu=gpu, stop_grace_s=STOP_GRACE_S, project_id=pid,
+        # On the GPU it takes the lease, and waits in the queue behind another GPU job (the pictures job an upload
+        # started, training, an export) instead of being refused: the row stays "queued" and says behind what.
+        id=job_id(bid), kind=KIND, gpu=gpu, queue_gpu=gpu, stop_grace_s=STOP_GRACE_S, project_id=pid,
         title=_title(mode, reset),
         params={"build_id": bid, "project_id": pid, "embedder": embedder or "", "reset": bool(reset),
                 "fact_cards": bool(plan["fact_cards"]), "mode": mode, "file_ids": list(file_ids or []),
@@ -157,7 +159,12 @@ def _settle(row: dict[str, Any], job: dict[str, Any] | None) -> dict[str, Any]:
         return row
     ex = job.get("exit") or {}
     reason = str(ex.get("error") or ex.get("detail") or "the build process ended without a result")
-    if builds_db.fail_if_active(row["id"], f"index build job ended: {reason}"):
+    if ex.get("status") == "stopped" and not job.get("pid"):
+        # Stopped while it waited for the GPU: it never ran, the old index is intact (the page says "Stopped").
+        msg = "stopped on request (it was still waiting for the GPU)"
+    else:
+        msg = f"index build job ended: {reason}"
+    if builds_db.fail_if_active(row["id"], msg):
         log.warning("brain build %s: job ended without finishing the row (%s)", row["id"], reason)
     return db.get_brain_build(row["id"]) or row
 
@@ -190,6 +197,9 @@ def status(pid: str, build_id: str) -> dict[str, Any] | None:
         out["mode"] = str(store.read_spec(job_id(build_id)).params.get("mode") or MODE_BUILD)
     except (FileNotFoundError, ValueError):
         out["mode"] = MODE_BUILD
+    if running and (job or {}).get("queued"):
+        out["waiting_for_gpu"] = True
+        out["waiting_for"] = launch.holder_label(str(job.get("waiting_for") or ""))
     state = (job or {}).get("state") or {}
     if running and state.get("phase") in ("parsing", "embedding", "image_extract", "image_embedding"):
         out[str(state["phase"])] = {"done": int(state.get("done") or 0), "total": int(state.get("total") or 0)}

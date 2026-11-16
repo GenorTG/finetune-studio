@@ -9,6 +9,13 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Reading pictures with a local Vision reader on the GPU now takes the GPU like a Smart Brain build does, so the two
+  never load at once (a smaller card ran out of memory). A picture upload during a build waits for it, and a build
+  started while pictures are read waits for them: the Knowledge check, the Files page and the build progress say
+  *waiting for the GPU* and what is using it, and each starts by itself when the GPU is free. On a CPU-only machine
+  nothing waits; memory checks on an integrated GPU (APU, shared RAM) use the shared RAM. An exported package that
+  finds no room on the GPU for its models now loads them on the CPU instead of falling back to keyword search.
+
 ## [0.6.1] - 2026-11-13
 
 - Smart Brain → Search settings: Save is now the last control, after Image search and the image model it also

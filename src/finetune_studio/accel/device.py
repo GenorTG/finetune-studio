@@ -41,6 +41,10 @@ class Accelerator:
     runtime: str                    # "CUDA 13.0", "ROCm 7.0", "XPU", "Metal", "CPU"
     device_count: int = 1
     degraded_reason: str = ""       # set only when GPU hardware exists but is unusable
+    # The GPU has no memory of its own: it shares system RAM with the CPU (Apple MPS, an integrated GPU / APU
+    # such as AMD Strix Halo, NVIDIA Jetson). Its "VRAM" numbers then mean little (a small carve-out, or 0): size
+    # checks use the shared RAM budget instead (``accel.memory.memory_budget``).
+    unified_memory: bool = False
 
     @property
     def is_gpu(self) -> bool:
@@ -132,6 +136,20 @@ def _gb(n: float) -> float:
     return round(float(n) / (1024 ** 3), 2)
 
 
+def _unified(props: Any | None, default: bool = False) -> bool:
+    """Whether the device shares system RAM: ``FTS_UNIFIED_MEMORY=1/0`` decides when set (a driver that does not
+    flag its iGPU), else the driver's own ``is_integrated`` property (CUDA ``integrated`` / HIP ``integrated``)."""
+    forced = os.environ.get("FTS_UNIFIED_MEMORY", "").strip().lower()
+    if forced in ("1", "true", "yes", "on"):
+        return True
+    if forced in ("0", "false", "no", "off"):
+        return False
+    try:
+        return bool(getattr(props, "is_integrated", default)) if props is not None else default
+    except Exception:  # noqa: BLE001 - an odd backend property: not provably unified
+        return default
+
+
 def _best_index(torch: Any, ns: Any, count: int) -> int:
     """Highest total VRAM (then compute capability) wins; reads props only (no context)."""
     def key(i: int) -> tuple[int, int, int, int]:
@@ -179,6 +197,7 @@ def _cuda_like(torch: Any, forced_index: int | None) -> Accelerator | None:
         supports_4bit=True,
         runtime=f"ROCm {hip}" if hip else f"CUDA {torch.version.cuda}",
         device_count=count,
+        unified_memory=_unified(props),
     )
 
 
@@ -205,6 +224,7 @@ def _xpu(torch: Any, forced_index: int | None) -> Accelerator | None:
         kind="xpu", index=idx, name=props.name, total_gb=_gb(total), free_gb=_gb(free),
         compute_capability=(0, 0), supports_bf16=bf16, supports_flash_attention=False,
         supports_4bit=True, runtime="XPU (oneAPI)", device_count=count,
+        unified_memory=_unified(props),
     )
 
 
@@ -223,6 +243,7 @@ def _mps(torch: Any) -> Accelerator | None:
         total_gb=_gb(total), free_gb=_gb(free), compute_capability=(0, 0),
         supports_bf16=False,  # fp16 is the safe default across M1..M4 / macOS versions
         supports_flash_attention=False, supports_4bit=False, runtime="Metal (MPS)",
+        unified_memory=_unified(None, default=True),
     )
 
 

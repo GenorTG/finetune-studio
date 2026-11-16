@@ -36,6 +36,9 @@ class JobSpec:
     kind: str
     params: dict[str, Any] = field(default_factory=dict)
     gpu: bool = False                 # takes the GPU lease (one GPU job at a time; inference model unloaded)
+    # With ``gpu``: when another GPU job holds the lease, wait in the supervisor's queue for it instead of being
+    # refused (409). Used by work nobody is there to retry (the pictures job an upload starts).
+    queue_gpu: bool = False
     stop_grace_s: float = 60.0        # SIGTERM -> SIGKILL (training needs time to save)
     title: str = ""
     project_id: str | None = None
@@ -72,7 +75,8 @@ def read_spec(job_id: str) -> JobSpec:
     raw = _read_json(job_dir(job_id) / "spec.json")
     if raw is None:
         raise FileNotFoundError(f"no job {job_id!r}")
-    return JobSpec(**raw)
+    known = JobSpec.__dataclass_fields__
+    return JobSpec(**{k: v for k, v in raw.items() if k in known})
 
 
 def publish_state(job_id: str, state: dict[str, Any]) -> None:
@@ -137,6 +141,26 @@ def gpu_released(job_id: str) -> bool:
         return (job_dir(job_id) / "gpu_released").exists()
     except ValueError:
         return False
+
+
+def write_queued(job_id: str, record: dict[str, Any]) -> None:
+    """The job waits for the GPU lease (``JobSpec.queue_gpu``): ``waiting_for`` says behind what, ``owner_pid``
+    is the process that holds the queue (the supervisor, or the web app without one)."""
+    _write_json(job_dir(job_id) / "queued.json", {**record, "since": record.get("since", time.time())})
+
+
+def read_queued(job_id: str) -> dict[str, Any] | None:
+    try:
+        return _read_json(job_dir(job_id) / "queued.json")
+    except ValueError:
+        return None
+
+
+def clear_queued(job_id: str) -> None:
+    try:
+        (job_dir(job_id) / "queued.json").unlink(missing_ok=True)
+    except ValueError:
+        pass
 
 
 def list_ids() -> list[str]:

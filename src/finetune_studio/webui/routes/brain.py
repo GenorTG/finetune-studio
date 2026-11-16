@@ -501,7 +501,9 @@ def _build_snapshot(pid: str, *, elapsed_s: int = 0) -> dict:
         phase = "queued" if active.get("status") == "queued" else "embedding"
         files_done = chunks_count = 0
         st = brain_build_jobs.status(pid, active["id"]) or {}
-        if st.get("parsing"):
+        if st.get("waiting_for_gpu"):
+            phase, message = "queued", f"waiting for the GPU: {st.get('waiting_for') or 'another job is using it'}"
+        elif st.get("parsing"):
             phase, files_done, total_files = "parsing", int(st["parsing"]["done"]), int(st["parsing"]["total"])
         elif st.get("embedding"):
             passages_done, passages_total = int(st["embedding"]["done"]), int(st["embedding"]["total"])

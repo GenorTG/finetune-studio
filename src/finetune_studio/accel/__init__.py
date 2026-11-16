@@ -18,6 +18,7 @@ from finetune_studio.accel.device import (
 from finetune_studio.accel.env import apply_device_policy, isolated_env
 from finetune_studio.accel.kernels import linear_attention_status
 from finetune_studio.accel.llama import LlamaSupport, llama_gpu_kwargs, llama_support
+from finetune_studio.accel.memory import MemoryBudget, memory_budget
 from finetune_studio.accel.ops import (
     activate,
     auto_device_map,
@@ -63,10 +64,10 @@ def describe() -> dict[str, Any]:
 
 
 __all__ = [
-    "Accelerator", "LlamaSupport", "activate", "apply_device_policy", "auto_device_map", "describe",
+    "Accelerator", "LlamaSupport", "MemoryBudget", "activate", "apply_device_policy", "auto_device_map", "describe",
     "device_map", "empty_cache", "enable_fast_matmul", "get_accelerator", "hardware_vendors",
     "is_oom_error", "is_oom_message", "isolated_env",
-    "llama_gpu_kwargs", "llama_support", "mem_info_gb", "oom_errors", "peak_memory_gb",
+    "llama_gpu_kwargs", "llama_support", "mem_info_gb", "memory_budget", "oom_errors", "peak_memory_gb",
     "pin_trainer_args",
     "reset_cache", "reset_peak_memory", "synchronize", "torch_dtype",
 ]
