@@ -175,9 +175,11 @@ def _apple() -> list[dict[str, Any]]:
 
 
 # ── public API ─────────────────────────────────────────────────────────────
-def vram_devices() -> list[dict[str, Any]]:
-    """Per-GPU memory for every vendor; ``[]`` only when no GPU is reachable at all."""
-    probes = (_torch_devices, _nvidia_smi, _rocm_smi, _xpu_smi, _sycl_ls, _apple)
+def vram_devices(*, cli_only: bool = False) -> list[dict[str, Any]]:
+    """Per-GPU memory for every vendor; ``[]`` only when no GPU is reachable at all. ``cli_only`` skips torch: a
+    process that must not open a GPU context of its own (a job about to load a model through another process)."""
+    probes = (_nvidia_smi, _rocm_smi, _xpu_smi, _sycl_ls, _apple) if cli_only else (
+        _torch_devices, _nvidia_smi, _rocm_smi, _xpu_smi, _sycl_ls, _apple)
     for probe in probes:
         try:
             found = probe()
@@ -189,12 +191,19 @@ def vram_devices() -> list[dict[str, Any]]:
     return []
 
 
-def free_and_consumers() -> tuple[int | None, list[dict[str, Any]]]:
-    """``(free_mib, top compute consumers)`` of the active GPU, or ``(None, [])``."""
-    devs = vram_devices()
+def free_and_consumers(*, cli_only: bool = False, index: int | None = None,
+                       name: str = "") -> tuple[int | None, list[dict[str, Any]]]:
+    """``(free_mib, top compute consumers)`` of the active GPU, or ``(None, [])``. ``cli_only`` (with the GPU's
+    ``name`` / torch ``index``): vendor tools only, no torch and no GPU context in this process. The vendor tool
+    numbers cards its own way, so the name decides first."""
+    devs = vram_devices(cli_only=True) if cli_only else vram_devices()
     if not devs:
         return None, []
     pick = devs[0]
+    if cli_only:
+        pick = (next((d for d in devs if name and d["name"] == name), None)
+                or next((d for d in devs if d["index"] == index), devs[0]))
+        return int((pick["total_gb"] - pick["used_gb"]) * 1024), _consumers(pick["index"])[:5]
     try:
         from finetune_studio.accel import get_accelerator
         acc = get_accelerator()

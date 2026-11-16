@@ -647,6 +647,7 @@
 
   // ── What the page says first: one state, one next action ─────────
   let buildRunning = false;
+  let buildWaiting = '';   // "waiting for the GPU: …" while the build is queued behind another GPU job
   let lastBrainState = null;
 
   function changesText(st) {
@@ -665,6 +666,11 @@
     const files = d.files || { total: 0, ready: 0 };
     const built = !!d.exists && d.chunks > 0;
     const count = function (n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); };
+    if (buildRunning && buildWaiting) {
+      return { key: 'building', pill: 'Waiting', tone: 'solid-amber', title: 'Waiting for the GPU…',
+               sub: (function (w) { w = w.replace(/^waiting for the GPU: /, ''); return w.charAt(0).toUpperCase() + w.slice(1); })(buildWaiting)
+                 + '. The build starts by itself when the GPU is free.', action: '' };
+    }
     if (buildRunning) {
       return { key: 'building', pill: 'Building', tone: 'solid-blue', title: 'Building your Smart Brain…',
                sub: 'It runs on its own: you can leave this page.', action: '' };
@@ -1038,7 +1044,8 @@
       const job = p.job || {};
       box.textContent = all ? 'Pictures: ' + all + ' (' + p.read + ' read by a vision model, '
         + (p.pictures_ocr + p.scanned_ocr) + ' by OCR only) · vision reader: ' + p.reader.label
-        + (job.running ? ' · reading now' + (job.state && job.state.file ? ' (' + job.state.file + ')' : '') + '…' : '') : '';
+        + (job.waiting_for_gpu ? ' · waiting for the GPU: ' + (job.waiting_for_label || 'another job is using it') + ' (it starts by itself)'
+          : job.running ? ' · reading now' + (job.state && job.state.file ? ' (' + job.state.file + ')' : '') + '…' : '') : '';
       if (job.running) setTimeout(showPictures, 5000);
     } catch (e) { box.textContent = ''; }
   }
@@ -1049,7 +1056,9 @@
     a.disabled = true;
     try {
       const r = await api().post('/api/projects/' + PID + '/brain/pictures/read', {});
-      notify(r.already_running ? 'Pictures are already being read.' : 'Reading pictures in ' + (r.files || 0) + ' file(s) with the vision reader. Update Smart Brain when it is done.', 'success');
+      notify(r.already_running ? 'Pictures are already being read.'
+        : r.waiting_for_gpu ? 'Reading pictures in ' + (r.files || 0) + ' file(s) waits for the GPU: ' + (r.waiting_for_label || 'another job is using it') + '. It starts by itself when that ends.'
+        : 'Reading pictures in ' + (r.files || 0) + ' file(s) with the vision reader. Update Smart Brain when it is done.', 'success');
       setTimeout(runLint, 2000);
     } catch (e) {
       a.disabled = false;
@@ -1567,6 +1576,7 @@
       const finish = async function () {
         if (ended) return;
         ended = true;
+        buildWaiting = '';
         stop();
         try {
           const b = await api().get(rowUrl);
@@ -1585,6 +1595,8 @@
       const applyProgress = function (p) {
         if (!p || typeof p !== 'object' || ended) return;
         if (p.phase === 'queued' || p.phase === 'parsing' || p.phase === 'embedding' || p.phase === 'image_extract' || p.phase === 'image_embedding') {
+          const waiting = p.phase === 'queued' && /^waiting for the GPU/.test(p.message || '') ? p.message : '';
+          if (waiting !== buildWaiting) { buildWaiting = waiting; if (lastBrainState) renderHero(lastBrainState); }
           stopBtn.hidden = false;
           progText.textContent = buildProgressText(p);
           fill.style.width = buildProgressPct(p) + '%';
@@ -1620,7 +1632,7 @@
   let buildRate = {};
   function buildProgressText(p) {
     const took = p.elapsed_s ? ' · ' + fmtSecs(p.elapsed_s) : '';
-    if (p.phase === 'queued') return 'Queued…' + took;
+    if (p.phase === 'queued') return (p.message ? p.message.charAt(0).toUpperCase() + p.message.slice(1) + '…' : 'Queued…') + took;
     if (p.phase === 'parsing') return 'Reading files ' + (p.files_done || 0) + ' of ' + (p.files_total || 0) + took;
     if (p.phase === 'image_extract') return 'Finding pictures in files ' + (p.images_done || 0) + ' of ' + (p.images_total || 0) + took;
     if (p.phase === 'image_embedding') {

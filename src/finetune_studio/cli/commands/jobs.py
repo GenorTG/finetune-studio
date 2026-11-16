@@ -23,8 +23,12 @@ def cmd_jobs(args) -> None:
             return
         print(f"{'JOB':<38}{'KIND':<11}{'STATE':<10}{'AGE':<9}TITLE")
         for j in jobs:
-            state = "running" if j["running"] else (j.get("exit") or {}).get("status", "?")
-            print(f"{j['id']:<38}{j['kind']:<11}{state:<10}{_age(j.get('created_at')):<9}{j.get('title') or ''}")
+            state = ("waiting" if j.get("queued") else "running") if j["running"] \
+                else (j.get("exit") or {}).get("status", "?")
+            title = j.get("title") or ""
+            if j.get("queued"):
+                title += f"  [waiting for the GPU: {j.get('waiting_for') or 'busy'}]"
+            print(f"{j['id']:<38}{j['kind']:<11}{state:<10}{_age(j.get('created_at')):<9}{title}")
         return
     try:
         if action == "stop":

@@ -83,8 +83,13 @@ def parse_warning(text: str) -> str:
     if st["mode"] == "off":
         return OCR_ONLY_NOTE.format(n=n)
     cost = local_reader_cost()
-    where = (f" (it loads {cost['name']} on the GPU, about {cost['gb']:.1f} GB, then unloads it)" if cost
-             else f" ({st['label']})")
+    if cost and reader_takes_gpu():
+        where = (f" (it loads {cost['name']} on the GPU, about {cost['gb']:.1f} GB, then unloads it; while a build "
+                 "or training uses the GPU it waits for it)")
+    elif cost:
+        where = f" (it loads {cost['name']} in RAM on the CPU, about {cost['gb']:.1f} GB, then unloads it)"
+    else:
+        where = f" ({st['label']})"
     return (f"{n} picture(s) read by OCR for now; the Vision reader reads them next{where}: Reading pictures job "
             "in Activity. The Smart Brain then needs an update to use the readings.")
 
@@ -113,30 +118,89 @@ def local_reader_cost() -> dict[str, Any] | None:
 #: Context, compute buffers and the mmproj's own activations on top of the weights (Gemma 4 12B QAT: 10.6 GB
 #: resident for 7.5 GB of files).
 VRAM_OVERHEAD = 1.35
+#: After the lease is granted the previous holder's process may still be exiting with its GPU memory: the job
+#: re-checks the headroom this long before it gives up.
+MEMORY_SETTLE_S = 45.0
 
 
-def vram_problem() -> str:
-    """Why a local Vision reader must not load now ("" when it may): not enough free GPU memory. Other programs'
-    memory is never freed for it (a game, ComfyUI, another service); the job waits for a later start instead."""
+def reader_accelerator() -> Any:
+    """The device a local Vision reader runs on: the accelerator ``finetune_studio.accel`` chose when llama.cpp can
+    offload to it, else the CPU (system RAM). None for an API reader (nothing loads here)."""
+    import dataclasses
+
+    from finetune_studio.accel import get_accelerator, llama_support
+
+    if not local_reader_cost():
+        return None
+    acc = get_accelerator()
+    if acc.is_gpu and llama_support().gpu_offload:
+        return acc
+    return dataclasses.replace(acc, kind="cpu", unified_memory=False)
+
+
+def _reader_device_dict() -> dict[str, Any] | None:
+    acc = reader_accelerator()
+    return acc.to_dict() if acc is not None else None
+
+
+def reader_takes_gpu() -> bool:
+    """The pictures job takes the GPU lease when its reader loads on a GPU — a discrete card or a unified-memory
+    one (an APU shares its RAM with a build's embedder just as much). Not for an API reader, and not on a CPU-only
+    host: builds and training there take no lease either, so a CPU reader would only queue behind hours of CPU
+    work with nothing to protect; the RAM check (``vram_problem``) still refuses a load that does not fit."""
+    acc = reader_accelerator()
+    return bool(acc is not None and acc.is_gpu)
+
+
+def _acc_from_dict(d: dict[str, Any]) -> Any:
+    from finetune_studio.accel import Accelerator
+    known = Accelerator.__dataclass_fields__
+    raw = {k: v for k, v in d.items() if k in known}
+    raw["compute_capability"] = tuple(raw.get("compute_capability") or (0, 0))
+    return Accelerator(**raw)
+
+
+def vram_problem(acc_dict: dict[str, Any] | None = None) -> str:
+    """Why a local Vision reader must not load now ("" when it may): not enough free memory where it loads. That is
+    the card's own memory on a discrete GPU, the shared RAM on a unified-memory GPU (its "VRAM" figure is a small
+    carve-out or 0), the RAM on a CPU-only host (``accel.memory_budget``). Other programs' memory is never freed
+    for it (a game, ComfyUI, another service); the job waits for a later start instead."""
     cost = local_reader_cost()
     if not cost:
         return ""
-    try:
-        from finetune_studio.webui.gpu_probe import free_and_consumers
-
-        free_mib, users = free_and_consumers()
-    except Exception:  # noqa: BLE001 - no probe: the loader's own fit logic decides
+    # ``acc_dict`` (the job process): the device the web process chose, so this process opens no GPU context of
+    # its own (torch would hold ~256 MB on the card the reader is about to load on) and asks the vendor tool.
+    acc = _acc_from_dict(acc_dict) if acc_dict else reader_accelerator()
+    if acc is None:
         return ""
-    if free_mib is None:
+    from finetune_studio.accel import memory_budget
+
+    discrete = acc.is_gpu and not acc.unified_memory
+    budget = None if (discrete and acc_dict) else memory_budget(acc)
+    pool = "device" if discrete else ("shared" if acc.is_gpu else "system")
+    users: list[dict[str, Any]] = []
+    free: float | None = budget.free_gb if budget is not None and budget.known else None
+    if discrete:
+        try:
+            from finetune_studio.webui.gpu_probe import free_and_consumers
+
+            free_mib, users = (free_and_consumers(cli_only=True, index=acc.index, name=acc.name) if acc_dict
+                               else free_and_consumers())     # names the programs using the card
+            if free_mib is not None:
+                free = free_mib / 1024
+        except Exception as e:  # noqa: BLE001 - no probe: the accelerator's own figure (or the loader) decides
+            log.debug("pictures: GPU probe failed (%s)", e)
+    if free is None:
         return ""
     need = cost["gb"] * VRAM_OVERHEAD
-    free = free_mib / 1024
     if free >= need:
         return ""
+    where = {"device": "free GPU memory", "shared": "free shared memory (the GPU uses the system RAM)",
+             "system": "free RAM"}[pool]
     by = ", ".join(f"{u.get('name') or u.get('pid')}" for u in users[:3])
-    return (f"not enough free GPU memory to load the Vision reader {cost['name']} (about {need:.1f} GB needed, "
+    return (f"not enough {where} to load the Vision reader {cost['name']} (about {need:.1f} GB needed, "
             f"{free:.1f} GB free{'; in use by ' + by if by else ''}). Pictures keep their OCR text for now: start "
-            "Reading pictures from the Knowledge check when the GPU is free, or use an API vision model.")
+            "Reading pictures from the Knowledge check when the memory is free, or use an API vision model.")
 
 
 def _worker_holds_other_model() -> str:
@@ -219,10 +283,18 @@ def project_status(pid: str) -> dict[str, Any]:
             "job": _job_view(job) if job else None}
 
 
+def _holder_label(holder: str) -> str:
+    from finetune_studio.jobs.launch import holder_label
+    return holder_label(holder)
+
+
 def _job_view(job: dict[str, Any]) -> dict[str, Any]:
     ex = job.get("exit") or {}
+    waiting = bool(job.get("queued"))
+    status = "waiting_for_gpu" if waiting else ("running" if job.get("running") else str(ex.get("status") or ""))
     return {"id": job["id"], "running": bool(job.get("running")), "state": job.get("state") or {},
-            "status": "running" if job.get("running") else str(ex.get("status") or ""),
+            "status": status, "waiting_for_gpu": waiting, "waiting_for": str(job.get("waiting_for") or ""),
+            "waiting_for_label": _holder_label(str(job.get("waiting_for") or "")) if waiting else "",
             "result": ex.get("result") or {}, "error": ex.get("error") or ex.get("detail") or ""}
 
 
@@ -234,9 +306,16 @@ def start(pid: str, *, file_ids: list[str] | None = None, auto: bool = False) ->
     if reader_state()["mode"] == "off":
         raise PicturesError("no Vision reader is set: pictures keep their OCR text. Set one in Settings → AI "
                             "assistant → Reading pictures (a local model with an mmproj, or an API vision model).")
-    problem = vram_problem()
-    if problem:
-        raise PicturesError(problem, 409)
+    from finetune_studio.jobs import launch as _launch
+
+    on_gpu = reader_takes_gpu()
+    holder = _launch.gpu_holder() if on_gpu else None
+    if not holder:
+        # The GPU is free (or not used): refuse a load that cannot fit now. Behind a build the memory is the
+        # build's: the job checks again once it holds the lease (``run_in_job``).
+        problem = vram_problem()
+        if problem:
+            raise PicturesError(problem, 409)
     if auto:
         held = _worker_holds_other_model()
         if held:
@@ -249,15 +328,23 @@ def start(pid: str, *, file_ids: list[str] | None = None, auto: bool = False) ->
     todo = pending_files(pid, file_ids)
     if not todo:
         raise PicturesError("no picture is left to read: every figure was read by a vision model", 409)
+    # A reader on the GPU takes the lease like a build (one GPU user at a time: a smaller card cannot hold a build's
+    # embedder and a 12 B vision model at once) and, behind one, waits for it in the queue instead of failing.
     spec = store.JobSpec(id=store.new_id(KIND), kind=KIND, project_id=pid, stop_grace_s=30.0,
+                         gpu=on_gpu, queue_gpu=on_gpu,
                          title="Reading pictures in documents" + (" (after upload)" if auto else ""),
-                         params={"project_id": pid, "file_ids": list(file_ids or []), "auto": auto})
+                         params={"project_id": pid, "file_ids": list(file_ids or []), "auto": auto,
+                                 "reader_device": _reader_device_dict() if on_gpu else None})
     try:
-        launch.start(spec)
+        job = launch.start(spec)
     except launch.JobRejected as e:
         raise PicturesError(f"could not start reading pictures: {e}", e.status if e.status >= 400 else 503) from e
-    log.info("pictures: started %s for %s (%d file(s))", spec.id, pid, len(todo))
-    return {"id": spec.id, "running": True, "files": len(todo), "already_running": False}
+    waiting = bool(job.get("queued"))
+    log.info("pictures: %s %s for %s (%d file(s))", "queued (GPU busy)" if waiting else "started", spec.id, pid,
+             len(todo))
+    return {"id": spec.id, "running": True, "files": len(todo), "already_running": False, "gpu": on_gpu,
+            "waiting_for_gpu": waiting, "waiting_for": str(job.get("waiting_for") or ""),
+            "waiting_for_label": _holder_label(str(job.get("waiting_for") or "")) if waiting else ""}
 
 
 def after_parse(pid: str, source: Any) -> None:
@@ -275,14 +362,36 @@ def after_parse(pid: str, source: Any) -> None:
         log.exception("pictures after parse failed for %s", getattr(source, "filename", "?"))
 
 
+def wait_for_memory(stop: threading.Event, progress: Callable[[dict[str, Any]], None],
+                    settle_s: float = MEMORY_SETTLE_S, poll_s: float = 3.0,
+                    acc_dict: dict[str, Any] | None = None) -> None:
+    """The job holds the GPU lease: the reader loads only when it fits. The previous holder's process can still be
+    exiting with its memory, so a short shortfall is waited out; a lasting one fails the job with the reason."""
+    deadline = time.monotonic() + settle_s
+    while True:
+        problem = vram_problem(acc_dict) if acc_dict else vram_problem()
+        if not problem:
+            return
+        if stop.is_set() or time.monotonic() >= deadline:
+            raise RuntimeError(problem)
+        progress({"phase": "waiting_for_memory", "message": problem})
+        stop.wait(poll_s)
+
+
 def run_in_job(pid: str, file_ids: list[str] | None, *, stop: threading.Event,
-               progress: Callable[[dict[str, Any]], None] = lambda _s: None) -> dict[str, Any]:
+               progress: Callable[[dict[str, Any]], None] = lambda _s: None,
+               holds_gpu: bool = False, reader_device: dict[str, Any] | None = None) -> dict[str, Any]:
     """The job process side: read every pending file's figures with the seated reader; files parsed while it runs
-    are picked up before it ends. A mined file (or one a mining job holds) is skipped with the reason."""
+    are picked up before it ends. A mined file (or one a mining job holds) is skipped with the reason.
+
+    ``holds_gpu``: the job took the GPU lease (it may have waited behind a build for it): the memory is checked
+    now, at the start of its own GPU work, not when the upload queued it."""
     from finetune_studio.data.mining.figures import read_file_figures
     from finetune_studio.knowledge import sources as sources_mod
     from finetune_studio.models.vision import Reader, VisionError
 
+    if holds_gpu:
+        wait_for_memory(stop, progress, acc_dict=reader_device)
     try:
         reader = Reader()
     except VisionError as e:

@@ -136,13 +136,23 @@ def test_the_job_kind_is_registered() -> None:
 def test_the_upload_note_names_the_local_reader_and_its_cost(monkeypatch) -> None:
     monkeypatch.setattr(pictures, "reader_state", lambda: {"mode": "local", "label": "Local · g.gguf"})
     monkeypatch.setattr(pictures, "local_reader_cost", lambda: {"name": "gemma-4-12b.gguf", "gb": 7.8, "path": "/m/g"})
+    monkeypatch.setattr(pictures, "reader_takes_gpu", lambda: True)
     note = pictures.parse_warning(DOC)
     assert "loads gemma-4-12b.gguf on the GPU, about 7.8 GB" in note and "needs an update" in note
+    assert "while a build or training uses the GPU it waits for it" in note
+    monkeypatch.setattr(pictures, "reader_takes_gpu", lambda: False)        # a CPU-only host
+    assert "loads gemma-4-12b.gguf in RAM on the CPU" in pictures.parse_warning(DOC)
 
 
 def test_no_headroom_means_no_load(monkeypatch) -> None:
+    from finetune_studio.accel.device import Accelerator
     from finetune_studio.webui import gpu_probe
 
+    card = Accelerator(kind="cuda", index=0, name="card", total_gb=24.0, free_gb=4.0, compute_capability=(8, 6),
+                       supports_bf16=True, supports_flash_attention=True, supports_4bit=True, runtime="CUDA")
+    monkeypatch.setattr(pictures, "reader_accelerator", lambda: card)     # a discrete card, whatever the host has
+    monkeypatch.setattr(pictures, "reader_takes_gpu", lambda: True)
+    monkeypatch.setattr("finetune_studio.jobs.launch.gpu_holder", lambda **k: None)
     monkeypatch.setattr(pictures, "local_reader_cost", lambda: {"name": "g.gguf", "gb": 8.0, "path": "/m/g"})
     monkeypatch.setattr(gpu_probe, "free_and_consumers", lambda: (4 * 1024, [{"name": "ComfyUI", "pid": 7}]))
     problem = pictures.vram_problem()

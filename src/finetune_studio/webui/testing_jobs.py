@@ -119,7 +119,7 @@ def _foreign_gpu_user() -> str:
     """What outside the Testing page holds the GPU right now ('' = nothing): a test run or a local judge would
     unload the model that feature is using. Training and exports are job processes (``launch.list_jobs``)."""
     for j in launch.list_jobs(running_only=True):
-        if j["kind"] in _KINDS or not j.get("gpu") or store.gpu_released(j["id"]):
+        if j["kind"] in _KINDS or not j.get("gpu") or j.get("queued") or store.gpu_released(j["id"]):
             continue
         if j["kind"] == "training":
             return "a training run is using it"

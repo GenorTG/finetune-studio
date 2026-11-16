@@ -233,6 +233,38 @@ def _resolve_device(requested: str) -> str:
     return req
 
 
+_OOM_MARKERS = ("out of memory", "failed to allocate", "insufficient memory", "outofdevicememory",
+                "out_of_device_memory", "cannot allocate")
+
+
+def _is_oom(e: BaseException) -> bool:
+    """A device out-of-memory error (CUDA, ROCm/HIP, XPU, Metal) by type or message."""
+    if type(e).__name__ in ("OutOfMemoryError", "OutOfMemory"):
+        return True
+    msg = str(e).lower()
+    return any(m in msg for m in _OOM_MARKERS)
+
+
+def _load_with_cpu_fallback(what: str, device: str, load):
+    """``load(device)``; when a GPU has no room for it (a small integrated GPU, a card another program fills),
+    load it on the CPU instead and say so: search works on any machine, a GPU only makes it faster. Any other
+    failure is raised as it is. Returns ``(model, device_used)``."""
+    try:
+        return load(device), device
+    except Exception as e:  # only an out-of-memory is retried
+        if device == "cpu" or not _is_oom(e):
+            raise
+        print(f"[warn] {what}: not enough memory on {device} ({str(e)[:160]}); loading it on the CPU instead",
+              file=sys.stderr)
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        except Exception as ce:  # noqa: BLE001 - freeing the cache is a courtesy
+            print(f"[warn] could not free the GPU cache ({ce})", file=sys.stderr)
+        return load("cpu"), "cpu"
+
+
 DEFAULT_MAX_PER_DOCUMENT = 3
 CANDIDATES_PER_RESULT = 4
 
@@ -311,10 +343,13 @@ class ImageEncoder:
     def __init__(self, image_dir: Path, text_dir: Path | None, device: str):
         from sentence_transformers import SentenceTransformer
 
-        self.device = device
         self._lock = threading.RLock()
-        self._image = SentenceTransformer(str(image_dir), device=device)
-        self._text = SentenceTransformer(str(text_dir), device=device) if text_dir else self._image
+        self._image, device = _load_with_cpu_fallback(
+            "image model", device, lambda d: SentenceTransformer(str(image_dir), device=d))
+        self._text = (_load_with_cpu_fallback("image text model", device,
+                                              lambda d: SentenceTransformer(str(text_dir), device=d))[0]
+                      if text_dir else self._image)
+        self.device = device
         probe = self.encode_texts(["a photo"])
         self.dim = int(probe.shape[1])
         if self._text is not self._image and int(self.encode_images([_blank_image()]).shape[1]) != self.dim:
@@ -907,9 +942,9 @@ class Corpus:
             return None
         try:
             from sentence_transformers import SentenceTransformer
-            self._local_embedder = SentenceTransformer(
-                str(d), device=self.device)
-            print(f"[rag-server] local embedder loaded from {d}", file=sys.stderr)
+            self._local_embedder, used = _load_with_cpu_fallback(
+                "bundled embedder", self.device, lambda dev: SentenceTransformer(str(d), device=dev))
+            print(f"[rag-server] local embedder loaded from {d} on {used}", file=sys.stderr)
         except Exception as e:  # noqa: BLE001 — degrade, never crash the server
             self._local_embedder_failed = True
             print(f"[warn] bundled embedder failed ({e}); "
@@ -933,12 +968,14 @@ class Corpus:
             return None
         try:
             from sentence_transformers import CrossEncoder
-            kwargs: dict = {"max_length": 512}   # the studio's own reranker reads passages the same length
-            if self.device.startswith("cuda"):   # fp16 on a GPU: ~4x faster, same ranking (scores are not stored)
-                import torch
-                kwargs["model_kwargs"] = {"torch_dtype": torch.float16}
-            self._reranker = CrossEncoder(str(d), device=self.device, **kwargs)
-            print(f"[rag-server] local reranker loaded from {d}", file=sys.stderr)
+            def load(dev: str):
+                kwargs: dict = {"max_length": 512}   # the studio's own reranker reads passages the same length
+                if dev.startswith("cuda"):   # fp16 on a GPU: ~4x faster, same ranking (scores are not stored)
+                    import torch
+                    kwargs["model_kwargs"] = {"torch_dtype": torch.float16}
+                return CrossEncoder(str(d), device=dev, **kwargs)
+            self._reranker, used = _load_with_cpu_fallback("bundled reranker", self.device, load)
+            print(f"[rag-server] local reranker loaded from {d} on {used}", file=sys.stderr)
         except Exception as e:  # noqa: BLE001
             self._reranker_failed = True
             print(f"[warn] bundled reranker failed ({e}); skipping rerank", file=sys.stderr)
