@@ -280,7 +280,7 @@ def test_config_precedence_flag_env_file_default() -> None:
     assert (cfg["top_k"], origin["top_k"]) == (12, "env")
     assert (cfg["device"], origin["device"]) == ("cuda", "file")
     assert (cfg["host"], origin["host"]) == ("127.0.0.1", "default")
-    assert cfg["reranker"] is True
+    assert cfg["reranker"] == "auto"     # on with a GPU, off on the CPU (test_package_reranker_cpu_default.py)
     # legacy env names keep working; empty env does not mask the file
     cfg, origin = srv.resolve_config(
         {}, {"RAG_EMBED_MODEL": "m", "RAG_EMBED_BASE_URL": "http://x/v1",

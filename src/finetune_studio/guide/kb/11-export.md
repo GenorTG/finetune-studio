@@ -34,7 +34,9 @@ Step 4 of a project: build the **knowledge package** your models use. One encryp
 - `#mcp-layers` — the search layers, one switch each.
 - `#mcp-sem` — export meaning search (vectors).
 - `#mcp-kw` — export word search (BM25).
-- `#mcp-rerank` — export the reranker (needs Include models).
+- `#mcp-rerank` — export the reranker (needs Include models). Where the package runs it is on with a GPU and off
+  on a CPU-only machine (the cross-encoder scores ~1 passage per second there); `--reranker` / `RAG_RERANKER=on` turns it
+  on anyway (it then scores the best 12 candidates), `--no-reranker` turns it off. `/health` says which and why.
 - `#mcp-answer` — answer generation (the "G" in RAG) with an LLM endpoint.
 - `#mcp-llm-preset` — fills the answer endpoint and API kind for OpenAI, Claude, OpenRouter or a local server.
 - `#mcp-pipeline` — how a question travels through the package.

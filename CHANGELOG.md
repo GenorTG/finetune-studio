@@ -15,6 +15,10 @@ turns that section into the release's notes.
   *waiting for the GPU* and what is using it, and each starts by itself when the GPU is free. On a CPU-only machine
   nothing waits; memory checks on an integrated GPU (APU, shared RAM) use the shared RAM. An exported package that
   finds no room on the GPU for its models now loads them on the CPU instead of falling back to keyword search.
+- An exported package on a machine without a usable GPU no longer spends close to a minute per search in its
+  reranker: the reranker is now on by default only on a GPU. `--reranker` (or `RAG_RERANKER=on`) turns it on on the
+  CPU, where it then scores the best 12 candidates (~7-9 s per search instead of ~30-55 s); `--no-reranker` turns it
+  off anywhere. The server's startup line, `/health` and `rag_info` say whether it is on and why.
 
 ## [0.6.1] - 2026-11-13
 

@@ -158,7 +158,7 @@ Precedence (highest first): **command-line flags > environment (`RAG_*`) >
 | config file | `--config PATH` | `RAG_CONFIG` | `./rag.config.json` |
 
 `install.sh`, `run-http.sh`, `run-mcp.sh` and `setup.sh` all accept these
-flags (`--config`, `--device`, `--host`, `--port`, `--top-k`, `--no-reranker`,
+flags (`--config`, `--device`, `--host`, `--port`, `--top-k`, `--reranker`, `--no-reranker`,
 `--no-semantic`, `--no-keyword`, `--answer`, `--no-answer`, `--keyfile`); `install.sh` saves the ones you give it into `rag.config.json`.
 Inspect the merged result any time (secrets are redacted):
 
@@ -279,8 +279,13 @@ _README_SECTION_OFFLINE = """## Full semantic search is already inside
 This package bundles the embedding model the index was built with
 (**{embed_model}**) in `corpus/embedder/` — meaning-based search works
 completely offline: no API keys, no provider, no internet. If a reranker
-was bundled too (`corpus/reranker/`), results get a second scoring pass
-automatically (`--no-reranker` turns it off).
+was bundled too (`corpus/reranker/`), results get a second scoring pass when
+the server runs on a GPU (`--no-reranker` turns it off). On a CPU-only host it
+is off by default: the cross-encoder scores ~1 passage per second there, so
+it added close to a minute to every search. `--reranker` (or
+`RAG_RERANKER=on`) turns it on anyway; on the CPU it then scores only the
+best 12 candidates (~10-15 s per search). `/health` and `rag_info` say which
+it is and why (`layers.reranker`).
 
 `install.sh` sets up the venv for this (numpy + sentence-transformers; the
 torch wheel is the big download, a few minutes once). The first search
@@ -294,7 +299,7 @@ _INSTALL_SH = r"""#!/usr/bin/env bash
 # Creates a private venv and installs the dependencies (see requirements.txt).
 # Optional runtime flags are saved into rag.config.json:
 #   bash install.sh [--config PATH] [--device D] [--host H] [--port N]
-#                   [--top-k N] [--no-reranker]
+#                   [--top-k N] [--reranker|--no-reranker]
 set -euo pipefail
 cd "$(dirname "$0")"
 PY="${PYTHON:-python3}"
@@ -336,7 +341,7 @@ echo "Installed. Next:  bash run-http.sh   or   bash run-mcp.sh   (flags pass th
 _RUN_HTTP_SH = r"""#!/usr/bin/env bash
 # Starts the REST API. Flags pass through to server.py:
 #   bash run-http.sh [--config PATH] [--host H] [--port N] [--top-k N]
-#                    [--device D] [--no-reranker] [--keyfile PATH]
+#                    [--device D] [--reranker|--no-reranker] [--keyfile PATH]
 # Non-loopback --host needs RAG_AUTH_TOKEN (or --auth-token).
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -347,7 +352,7 @@ exec .venv/bin/python server.py --http "$@"
 
 _RUN_MCP_SH = r"""#!/usr/bin/env bash
 # Starts the MCP server on stdio. Flags pass through to server.py:
-#   bash run-mcp.sh [--config PATH] [--top-k N] [--device D] [--no-reranker]
+#   bash run-mcp.sh [--config PATH] [--top-k N] [--device D] [--reranker|--no-reranker]
 #                   [--keyfile PATH]
 # Encrypted packs: stdio has no terminal prompt, so give the passphrase via
 # --keyfile PATH, RAG_KEYFILE or RAG_PASSPHRASE.
@@ -414,7 +419,7 @@ _SETUP_SH = r"""#!/usr/bin/env bash
 #                              name (e.g. rag-pack) to this package's stable name
 #
 # Pass-through flags (forwarded to server.py): --config PATH --device D
-#   --host H --port N --top-k N --no-reranker --keyfile PATH
+#   --host H --port N --top-k N --reranker|--no-reranker --keyfile PATH
 #
 # Always writes MCP-ENTRY.txt with a copy-pasteable MCP config that has
 # this machine's absolute paths already filled in.
@@ -453,7 +458,7 @@ while [ $# -gt 0 ]; do
                    EXTRA+=("$1" "${2:?$1 needs a value}"); shift ;;
     --llm-base-url|--llm-model)
                    EXTRA+=("$1" "${2:?$1 needs a value}"); shift ;;
-    --config=*|--device=*|--host=*|--top-k=*|--no-reranker|--no-semantic|--no-keyword|--answer|--no-answer|--llm-base-url=*|--llm-model=*) EXTRA+=("$1") ;;
+    --config=*|--device=*|--host=*|--top-k=*|--reranker|--rerank|--no-reranker|--no-rerank|--reranker-auto|--no-semantic|--no-keyword|--answer|--no-answer|--llm-base-url=*|--llm-model=*) EXTRA+=("$1") ;;
     --keyfile)     shift; KEYFILE="$(cd "$(dirname "${1:?--keyfile needs a path}")" && pwd)/$(basename "$1")" ;;
     --start)       DO_START=1 ;;
     --service)     DO_SERVICE=1 ;;
@@ -792,7 +797,8 @@ def _layers_section(cfg: BrainExportConfig, *, bundled_embedder: bool, bundled_r
          state(cfg.semantic_search and cfg.keyword_search, "automatic when both searches are on")),
         ("Reranker", "a cross-encoder rescores the best candidates", "--reranker / --no-reranker", "RAG_RERANKER",
          state(cfg.reranker_enabled and bundled_reranker,
-               "reranker bundled") if bundled_reranker or not cfg.reranker_enabled
+               "reranker bundled; on with a GPU, off on a CPU-only host unless `--reranker`")
+         if bundled_reranker or not cfg.reranker_enabled
          else "off (no reranker model in this package)"),
         ("Answer generation", "the G in RAG: an LLM writes the answer from the passages", "--answer / --no-answer",
          "RAG_ANSWER", state(cfg.answer_enabled, f"model `{cfg.llm_model or 'set RAG_LLM_MODEL'}`")),
@@ -965,7 +971,7 @@ def _readme(*, title: str, slug: str, embed_model: str, encrypted: bool,
         curl_hint='curl "http://127.0.0.1:8899/search?q=your+question&top_k=5"'
                   + ('   # add -H "Authorization: Bearer $TOKEN" if a token is set'),
         host=cfg.host, port=cfg.port, top_k=cfg.top_k, device=cfg.device,
-        reranker="on" if cfg.reranker_enabled and bundled_reranker else "off",
+        reranker="auto (on with a GPU, off on the CPU)" if cfg.reranker_enabled and bundled_reranker else "off",
         semantic="on" if cfg.semantic_search else "off", keyword="on" if cfg.keyword_search else "off",
         answer="on" if cfg.answer_enabled else "off", llm_base_url=cfg.llm_base_url or "none",
         llm_model=cfg.llm_model or "none",
@@ -1301,8 +1307,9 @@ def build_package(
             sink.add_bytes(f"{root}/brain_container.py",
                            _CONTAINER_SRC.read_text(encoding="utf-8"))
         sink.add_bytes(f"{root}/requirements.txt", requirements)
-        # The reranker is on only when its model is inside (it said true in packages that shipped none).
-        runtime = {**cfg.runtime_config(), "reranker": bool(rr_src) and cfg.reranker_enabled}
+        # The reranker is on only when its model is inside (it said true in packages that shipped none), and then
+        # "auto": on with a GPU, off on a CPU-only host, where it cost ~55 s per search (RESULTS 2026-11-17).
+        runtime = {**cfg.runtime_config(), "reranker": "auto" if rr_src and cfg.reranker_enabled else False}
         sink.add_bytes(f"{root}/{RUNTIME_CONFIG_NAME}", json.dumps(runtime, indent=2) + "\n")
         # The same settings again, never edited: update.sh keeps only the rag.config.json keys that differ from it.
         sink.add_bytes(f"{root}/rag.config.shipped.json", json.dumps(runtime, indent=2) + "\n")
@@ -1376,6 +1383,11 @@ def verify_package(archive: str | Path, passphrase: str | None, *, studio_models
             embedder_dir.symlink_to(Path(studio_embedder).resolve(), target_is_directory=True)
             lent = "embedder"
         env = {k: v for k, v in os.environ.items() if not k.startswith("RAG_")}
+        # A bundled reranker is checked whatever the device (its default is off on a CPU-only host).
+        with contextlib.suppress(OSError, ValueError):
+            if json.loads((root / RUNTIME_CONFIG_NAME).read_text(encoding="utf-8")).get("reranker") not in (False,
+                                                                                                         None):
+                env["RAG_RERANKER"] = "on"
         if passphrase:
             env["RAG_PASSPHRASE"] = passphrase
         if embed_base_url:
