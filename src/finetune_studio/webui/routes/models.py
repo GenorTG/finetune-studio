@@ -254,6 +254,12 @@ async def load_model_endpoint(request: Request):
             _load_failure, 400, f"no model in this folder (no config.json, adapter or weight files): {model_path}",
             model_path,
         )
+    # A GPU job (training, export, a build, picture reading) holds the lease: refuse now and say which and for how
+    # long, instead of loading beside it (OOM) or queueing a chat behind a 20-minute job (webui/chat_load_guard.py).
+    from finetune_studio.webui.chat_load_guard import gpu_busy_refusal
+    busy = await asyncio.to_thread(gpu_busy_refusal)
+    if busy is not None:
+        return JSONResponse(busy, status_code=409)
     try:
         # Run the blocking load off the event loop. Loading a multi-GB model
         # can take seconds-to-minutes; doing it inline froze the entire WebUI

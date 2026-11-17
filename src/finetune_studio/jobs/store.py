@@ -37,7 +37,7 @@ class JobSpec:
     params: dict[str, Any] = field(default_factory=dict)
     gpu: bool = False                 # takes the GPU lease (one GPU job at a time; inference model unloaded)
     # With ``gpu``: when another GPU job holds the lease, wait in the supervisor's queue for it instead of being
-    # refused (409). Used by work nobody is there to retry (the pictures job an upload starts).
+    # refused (409): picture reading, Smart Brain builds, training and exports (long work that should start by itself).
     queue_gpu: bool = False
     stop_grace_s: float = 60.0        # SIGTERM -> SIGKILL (training needs time to save)
     title: str = ""

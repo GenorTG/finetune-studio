@@ -128,6 +128,10 @@ async def load_model(request: Request):
     model_path = body.get("model_path") or body.get("path") or ""
     if not model_path:
         return JSONResponse({"detail": "No model_path"}, status_code=400)
+    from finetune_studio.webui.chat_load_guard import gpu_busy_refusal
+    busy = await asyncio.to_thread(gpu_busy_refusal)      # a GPU job holds the lease: say which, never load beside it
+    if busy is not None:
+        return JSONResponse(busy, status_code=409)
     try:
         from finetune_studio.models.llama_loader import resolve_loader_overrides
         kwargs = resolve_loader_overrides(body, caller="chat-v2/load", model_path=model_path)

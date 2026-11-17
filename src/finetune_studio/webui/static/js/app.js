@@ -254,6 +254,14 @@
     return unsubscribe;
   }
 
+  // Training start: queued behind another GPU job it waits and starts by itself (the live status says "waiting").
+  function trainingStartedText(d) {
+    return d.waiting_for_gpu
+      ? "Training waits for the GPU: " + (d.waiting_for || "another job is using it")
+        + ". It starts by itself when the GPU is free · run " + d.run_id.slice(0, 8)
+      : "Training started · run " + d.run_id.slice(0, 8);
+  }
+
   // ── Delegation: form data-api / button data-action / data-confirm ──
   // Document-level click listeners must register exactly once; SPA calls
   // fts.init() (= delegate) on every navigation.
@@ -313,7 +321,7 @@
         } else {
           const data = Object.fromEntries(new FormData(form));
           api.request(url, form.dataset.method || "POST", data).then((d) => {
-            if (d && d.run_id) { notify("Training started · run " + d.run_id.slice(0, 8), "success"); surfaceRun(); }
+            if (d && d.run_id) { notify(trainingStartedText(d), d.waiting_for_gpu ? "info" : "success"); surfaceRun(); }
             else notify("Done", "success");
             if (!openCreated(form, d) && form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
           })

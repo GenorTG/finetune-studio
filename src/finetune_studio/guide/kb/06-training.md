@@ -2,7 +2,7 @@
 id: training
 title: Training page (step 2)
 page: training
-keywords: train training start base model dataset preset smoke balanced precision overkill advisor lora rank learning rate batch accumulation sequence merge unsloth checkpoints live status runs production stop
+keywords: train training start base model dataset preset smoke balanced precision overkill advisor lora rank learning rate batch accumulation sequence merge unsloth checkpoints live status runs production stop waiting queue gpu busy
 ---
 ## Purpose
 Step 2 of the project flow (alongside Smart Brain): teach a base model your dataset. Hours, not minutes for large bases; the page keeps live progress and survives reloads.
@@ -14,6 +14,7 @@ Step 2 of the project flow (alongside Smart Brain): teach a base model your data
 3. Pick data: **From this project** (the dataset exported on Pairs) or **Upload my own** (JSONL/JSON/CSV). Picking one runs the dataset check; Start stays disabled until a dataset is chosen.
 4. Pick a **preset** by effort (Smoke, Baseline, Precision, Overkill). The page asks the preset advisor and fills epochs, rank, alpha, learning rate, batch, accumulation and warmup, with the optimizer-step arithmetic and warnings shown. Values stay editable.
 5. Check the advisory for a too-few-steps warning, then **Start training**. A local assistant model is unloaded automatically before training.
+   If another GPU job is running (a Smart Brain build, picture reading, an export), the run waits for it: the live status says **waiting** and what holds the GPU, and the run starts by itself when the GPU is free. **Stop** while it waits ends it as *stopped*; it never started.
 6. Watch **Live status** (step, loss, ETA). Afterwards: Testing, then Export; set a run as production from Past runs.
 
 ## Key controls

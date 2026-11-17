@@ -129,9 +129,11 @@ def _queue(
             "ok": False, "status": "busy", "detail": str(busy),
             "active_export_id": busy.active.get("id"), "active_project_id": busy.active.get("project_id"),
         })
+    waiting = row.get("phase") == export_jobs.WAITING_PHASE
     return ExportServiceResult(202, {
         "ok": True, "export_id": row["id"], "status": "queued",
         "format": fmt, "quant": quant, "quants": quants or [], **(extra or {}),
+        **({"waiting_for_gpu": True, "waiting_for": row.get("phase_detail") or ""} if waiting else {}),
     })
 
 
@@ -141,7 +143,13 @@ def row_view(row: dict[str, Any]) -> dict[str, Any]:
         quants = json.loads(row.get("quants_json") or "[]")
     except (TypeError, ValueError):
         quants = []
-    return {**row, "quants": quants, "server_now": time.time(), "active": export_jobs.is_active(row["id"])}
+    out = {**row, "quants": quants, "server_now": time.time(), "active": export_jobs.is_active(row["id"])}
+    if row.get("status") == "queued":
+        job = export_jobs.waiting_job(row["id"])
+        if job is not None:            # what it waits behind can change while it waits: read it live
+            out.update(phase=export_jobs.WAITING_PHASE, phase_detail=export_jobs.waiting_detail(job),
+                       waiting_for_gpu=True)
+    return out
 
 
 def get_export(project_id: str, export_id: str) -> ExportServiceResult:

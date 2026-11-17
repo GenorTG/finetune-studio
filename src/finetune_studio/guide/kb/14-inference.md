@@ -2,7 +2,7 @@
 id: inference
 title: Inference page (load a model)
 page: inference
-keywords: inference load model context length n_ctx gpu layers offload vram unload kv cache memory estimate idle unload loaded
+keywords: inference load model context length n_ctx gpu layers offload vram unload kv cache memory estimate idle unload loaded gpu_busy busy refused
 ---
 ## Purpose
 Load any model into memory, set how much context and how many layers go on the GPU, and chat with it. Only one model is resident at a time; loading another unloads the first.
@@ -11,6 +11,7 @@ Load any model into memory, set how much context and how many layers go on the G
 1. Pick a model in the picker; the sliders show its layer count.
 2. Set **Context length** (KV cache; larger uses more VRAM) and **GPU offload layers** (all layers on the GPU is fastest; the loader steps layers down automatically if memory is short, never shrinking context).
 3. **Load model**; the memory bar estimates VRAM. **Unload** frees it.
+   While a GPU job runs (training, an export, a Smart Brain build, picture reading) a load is refused at once (`gpu_busy`) with what holds the GPU and how long it has been running: load when it ends, or stop that job (`fts jobs stop <id>`). Training, exports, builds and picture reading wait for each other instead.
 4. Idle models auto-unload after 5 minutes by default (`FTS_IDLE_TIMEOUT`, 0 disables).
 
 ## Key controls

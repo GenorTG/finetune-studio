@@ -27,7 +27,7 @@ from typing import Any
 
 from finetune_studio.webui.live_sse import sse_comment, sse_data
 
-ACTIVE_STATUSES = ("loading", "training", "saving", "running")
+ACTIVE_STATUSES = ("waiting", "loading", "training", "saving", "running")   # waiting: queued for the GPU
 
 
 def _idle_snapshot(project_id: str | None) -> dict[str, Any]:

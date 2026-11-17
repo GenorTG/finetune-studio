@@ -3,9 +3,11 @@
 A job outlives web restarts and crashes because the supervisor, not the web app, is its parent. GPU lease: at most
 one ``gpu`` job runs at a time, and the inference worker's model is unloaded before one starts.
 
-A ``gpu`` job whose spec sets ``queue_gpu`` (the pictures job an upload starts) is not refused while the lease is
-held: it waits in this table's queue (``queued.json`` says behind what, for the pages) and starts, in order, once
-the holder ends or releases the lease. Every other GPU job is still refused with ``JobBusy`` (409).
+A ``gpu`` job whose spec sets ``queue_gpu`` (picture reading, Smart Brain builds, training, exports) is not refused
+while the lease is held: it waits in this table's queue (``queued.json`` says behind what, for the pages) and starts,
+in order, once the holder ends or releases the lease. A GPU job without it is still refused with ``JobBusy`` (409).
+An interactive chat model load is no job: it is refused at once while the lease is held
+(``webui.chat_load_guard``).
 """
 from __future__ import annotations
 

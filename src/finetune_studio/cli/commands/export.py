@@ -39,6 +39,8 @@ def _emit(payload: dict[str, Any], as_json: bool) -> None:
         print(f"Export {payload['status']}: {payload['export_id']} · {payload.get('format')} · {payload.get('quant')}")
         if payload.get("output_path"):
             print(f"Output: {payload['output_path']}")
+        if payload.get("waiting_for_gpu"):
+            print(f"Waiting for the GPU: {payload.get('waiting_for') or 'another job is using it'}")
 
 
 def _start(args: argparse.Namespace) -> None:

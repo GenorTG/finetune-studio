@@ -12,7 +12,9 @@ JSON-safe keyword arguments; the job process builds the callable.
 
 Concurrency policy: **single flight, 409 on conflict.** Every export shares the one GPU and one llama.cpp
 toolchain; a second export while one is queued or running is refused with :class:`ExportBusy` (HTTP 409 naming the
-active job), and so is an export while another GPU job (training) holds the card.
+active job). While another GPU job (training, a Smart Brain build, picture reading) holds the card, the export waits
+in the GPU lease queue (``JobSpec.queue_gpu``): its row stays ``queued`` with phase ``waiting_gpu`` and says behind
+what, and it starts by itself when the GPU is free. Cancelled while it waits, the row reads ``cancelled``.
 
 Cancel stops a job at its next checkpoint: immediately while a llama.cpp child runs (its whole process group is
 killed), but only between phases while the in-process adapter merge is running (a torch merge cannot be
@@ -96,16 +98,37 @@ def start_job(*, project_id: str, run_id: str, fmt: str, quant: str, quants: lis
     row = db.create_export(project_id=project_id, run_id=run_id, format=fmt, quant=quant, quants=quants)
     eid = row["id"]
     spec = store.JobSpec(
-        id=job_id(eid), kind=KIND, gpu=True, stop_grace_s=STOP_GRACE_S, project_id=project_id or None,
+        id=job_id(eid), kind=KIND, gpu=True, queue_gpu=True, stop_grace_s=STOP_GRACE_S, project_id=project_id or None,
         title=f"export {fmt} {quant}".strip(),
         params={"export_id": eid, "factory": factory, "kwargs": kwargs},
     )
     try:
-        launch.start(spec)
+        job = launch.start(spec)
     except launch.JobRejected as e:
         db.mark_export_failed(eid, f"not started: {e}")
         raise ExportBusy({"id": None, "status": "running", "kind": "gpu"}, str(e)) from e
+    if job.get("queued"):
+        db.set_export_phase_if_active(eid, WAITING_PHASE, waiting_detail(job))
+        row = db.get_export(eid) or row
     return row
+
+
+WAITING_PHASE = "waiting_gpu"
+STOPPED_WAITING = "cancelled while it was waiting for the GPU (it never started)"
+
+
+def waiting_detail(job: dict) -> str:
+    """"a Smart Brain build is running; it starts by itself when the GPU is free"."""
+    return f"{launch.holder_label(str(job.get('waiting_for') or ''))}; it starts by itself when the GPU is free"
+
+
+def waiting_job(export_id: str) -> dict | None:
+    """The export's job while it waits in the GPU lease queue, else None."""
+    try:
+        job = launch.describe(job_id(export_id))
+    except (FileNotFoundError, ValueError):
+        return None
+    return job if job.get("running") and job.get("queued") else None
 
 
 def cancel_job(export_id: str) -> bool:
@@ -115,9 +138,12 @@ def cancel_job(export_id: str) -> bool:
     so a cancel can never report success for, or write over, a finished export."""
     if not is_active(export_id):
         return False
+    queued = waiting_job(export_id) is not None
     if not db.set_export_phase_if_active(export_id, "cancelling", "stopping…"):
         return False
     launch.stop(job_id(export_id))     # SIGTERM -> the job sets its cancel flag; children are killed there
+    if queued:
+        db.mark_export_cancelled(export_id, STOPPED_WAITING)   # it never ran: nothing else finishes its row
     return True
 
 

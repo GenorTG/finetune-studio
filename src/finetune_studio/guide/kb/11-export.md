@@ -2,7 +2,7 @@
 id: export
 title: Package & export page (step 4)
 page: export
-keywords: package export gguf build public bot internal assistant scope originals version mcp quant q4_k_m merged abliterated heretic llama.cpp ollama imatrix
+keywords: package export gguf build public bot internal assistant scope originals version mcp quant q4_k_m merged abliterated heretic llama.cpp ollama imatrix waiting queue gpu busy
 ---
 ## Purpose
 Step 4 of a project: build the **knowledge package** your models use. One encrypted archive holds the Smart Brain index of your documents, the identity (who it speaks for, how to answer), a small Python server that speaks HTTP and MCP, an installer and run/update scripts. The page first says what is left to do (the readiness checklist), then holds the package form, then the package versions. Training exports (GGUF, merged, abliterated, Heretic) are further down, under *Trained models*, for the optional training path.
@@ -52,7 +52,9 @@ Step 4 of a project: build the **knowledge package** your models use. One encryp
 - `#export-runs` — training runs to choose from.
 - `#gguf-quants` — quantization check boxes.
 - `#gguf-imatrix` — quantize with an importance matrix measured on the training data.
-- `#export-btn` — start the export (disabled until a run is selected).
+- `#export-btn` — start the export (disabled until a run is selected). If another GPU job is running (training, a Smart
+  Brain build, picture reading), the export waits for it (`waiting`, and what holds the GPU) and starts by itself when
+  the GPU is free; **Cancel** while it waits ends it as *cancelled*.
 - `#export-force` — overwrite existing exports.
 - `#trained-exports-table` — finished exports.
 

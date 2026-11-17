@@ -367,7 +367,9 @@ async def status_text():
     """The dashboard card's value: what the GPU is doing NOW. A finished run is history (the runs list, the
     activity feed), not a status: the card says Idle once the run ended."""
     s = training_engine.state
-    if s.status == "training":
+    if s.status == "waiting":
+        text = "Waiting for the GPU"
+    elif s.status == "training":
         text = f"Training ({s.current_step}/{s.total_steps})"
     elif s.status == "loading":
         text = "Loading model…"
@@ -396,6 +398,8 @@ async def progress_text():
       "last run: error · <project>"            — nothing running; the last run failed
     """
     s = training_engine.state
+    if s.status == "waiting":
+        return PlainTextResponse("Waiting for the GPU…")
     if s.status == "training":
         loss = f" · loss {s.loss:.2f}" if s.loss else ""
         return PlainTextResponse(f"step {s.current_step}/{s.total_steps}{loss}")
@@ -648,7 +652,7 @@ async def start_training(request: Request):
     if not system_prompt and system_prompt_mode != "none" and project_id:
         system_prompt = (db.get_project(project_id) or {}).get("system_prompt", "") or ""
 
-    if training_engine.state.status in ("training", "loading", "saving"):
+    if training_engine.state.status in ("waiting", "training", "loading", "saving"):
         return JSONResponse({"detail": "another training run is in progress"}, status_code=409)
     # Test runs use the inference worker's model without a GPU lease: training would unload it mid-run.
     from finetune_studio.webui.testing_jobs import active_jobs as testing_active
@@ -742,7 +746,10 @@ async def start_training(request: Request):
                 f"measured on ~50-step runs. Long preference runs usually need 5e-6 to 2e-5; watch the "
                 "held-out accuracy and the quiz for forgotten facts."
             )
-    return {"status": "started", "steps": training_engine.state.total_steps, "run_id": run_id,
+    # Behind another GPU job the run waits in the lease queue: say so (the live status shows "waiting").
+    waiting = getattr(training_engine, "waiting_for", lambda: "")()
+    return {"status": "waiting" if waiting else "started", "steps": training_engine.state.total_steps,
+            "run_id": run_id, **({"waiting_for_gpu": True, "waiting_for": waiting} if waiting else {}),
             **({"warnings": warnings} if warnings else {})}
 
 @router.get("/start-points/{pid}")

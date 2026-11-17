@@ -945,7 +945,7 @@
 
   function statusPillClass(status) {
     const map = {
-      running: "solid-amber", loading: "solid-amber", training: "solid-amber",
+      running: "solid-amber", waiting: "solid-amber", loading: "solid-amber", training: "solid-amber",
       saving: "solid-amber", done: "solid-green", failed: "solid-rose",
       error: "solid-rose", stopped: "outline",
     };
@@ -1155,7 +1155,7 @@
     const statusEl = document.getElementById("train-status");
     const bar = document.getElementById("train-progress-bar");
     const logEl = document.getElementById("train-log");
-    const ACTIVE = { loading: 1, training: 1, saving: 1 };
+    const ACTIVE = { waiting: 1, loading: 1, training: 1, saving: 1 };   // waiting: queued for the GPU, starts by itself
     let wasActive = false;
     let unsub = null;
     const failEl = document.getElementById("train-failure");
