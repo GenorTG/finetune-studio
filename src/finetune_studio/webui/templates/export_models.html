@@ -1170,7 +1170,7 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
   const PLAN_KEY = 'fts-export-plan-' + PID;
   const TERMINAL = ['done', 'failed', 'error', 'cancelled'];
   const PHASE_LABEL = {
-    queued: 'Queued', preparing: 'Freeing GPU memory', merging: 'Merging adapter into the base model',
+    queued: 'Queued', waiting_gpu: 'Waiting for the GPU', preparing: 'Freeing GPU memory', merging: 'Merging adapter into the base model',
     converting: 'Converting to GGUF', quantizing: 'Quantizing', abliterating: 'Removing refusal behaviour',
     finalizing: 'Registering files', cancelling: 'Cancelling…', done: 'Done', failed: 'Failed',
     cancelled: 'Cancelled',
@@ -1241,9 +1241,10 @@ document.querySelectorAll('.export-run-pick').forEach(box => {
     const terminal = TERMINAL.includes(row.status);
     const failed = row.status === 'failed' || row.status === 'error';
     const state = $('export-job-state');
-    state.textContent = row.status === 'running' ? 'running' : row.status;
+    const waiting = row.status === 'queued' && row.phase === 'waiting_gpu';   // behind another GPU job
+    state.textContent = waiting ? 'waiting' : row.status === 'running' ? 'running' : row.status;
     state.className = 'pill ' + (failed ? 'solid-rose' : row.status === 'done' ? 'solid-green'
-      : row.status === 'cancelled' ? 'outline' : 'solid-cyan');
+      : row.status === 'cancelled' ? 'outline' : waiting ? 'solid-amber' : 'solid-cyan');
     $('export-job-title').textContent = (row.format || 'export') + (quantsText(row) ? ' · ' + quantsText(row) : '');
     const phase = row.phase || row.status;
     const detail = row.phase_detail ? ' — ' + row.phase_detail : '';

@@ -313,7 +313,13 @@
         } else {
           const data = Object.fromEntries(new FormData(form));
           api.request(url, form.dataset.method || "POST", data).then((d) => {
-            if (d && d.run_id) { notify("Training started · run " + d.run_id.slice(0, 8), "success"); surfaceRun(); }
+            if (d && d.run_id && d.waiting_for_gpu) {
+              // Queued behind another GPU job: it starts by itself (the live status says "waiting").
+              notify("Training waits for the GPU: " + (d.waiting_for || "another job is using it")
+                + ". It starts by itself when the GPU is free · run " + d.run_id.slice(0, 8), "info");
+              surfaceRun();
+            }
+            else if (d && d.run_id) { notify("Training started · run " + d.run_id.slice(0, 8), "success"); surfaceRun(); }
             else notify("Done", "success");
             if (!openCreated(form, d) && form.dataset.reload === "true") setTimeout(() => location.reload(), 600);
           })

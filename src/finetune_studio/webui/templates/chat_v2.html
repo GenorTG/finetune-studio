@@ -625,7 +625,9 @@ async function chatInlineLoad() {
     await api.post('/api/chat-v2/load', { model_path: sel.value, n_ctx: nCtx });
     location.reload();
   } catch (e) {
-    fts.notify('Failed to load model: ' + ((e && e.message) || e), 'error');
+    // gpu_busy: a training run / export / build holds the GPU; the message names it and how long it has run.
+    fts.notify(e && e.code === 'gpu_busy' ? e.message : 'Failed to load model: ' + ((e && e.message) || e),
+      e && e.code === 'gpu_busy' ? 'warn' : 'error');
   } finally {
     btn.disabled = false;
     btn.textContent = 'Load';

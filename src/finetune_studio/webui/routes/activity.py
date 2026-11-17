@@ -337,7 +337,7 @@ def collect_activity() -> dict[str, Any]:
         s = training_engine.state
         # TrainingState is a dataclass, not a dict. Only a RUNNING job is live news here: a finished run's final
         # state stays readable on the engine (last job), and its row below carries the real start/finish times.
-        is_active = s.status in ("loading", "training", "saving", "running")
+        is_active = s.status in ("waiting", "loading", "training", "saving", "running")
         if is_active:
             run_id = getattr(training_engine, "current_run_id", "") or ""
             # current_run_id is the composite ``{pid}-{db_run_id}``. Split it so
@@ -353,9 +353,10 @@ def collect_activity() -> dict[str, Any]:
                     "kind": "training",
                     "project_id": pid,
                     "project_name": proj["name"] if proj else "(running)",
-                    "status": s.status or "running",
+                    "status": "queued" if s.status == "waiting" else (s.status or "running"),
                     "progress": (s.current_step / max(1, s.total_steps)),
-                    "message": f"step {s.current_step}/{s.total_steps} · loss {s.loss:.4f} · {s.message or ''}",
+                    "message": s.message if s.status == "waiting" else
+                    f"step {s.current_step}/{s.total_steps} · loss {s.loss:.4f} · {s.message or ''}",
                     "started_at": _now() - int(s.elapsed or 0),
                     "url": f"/projects/{pid}/training" if pid else "/projects",
                     "run_id": bare_run_id or None,

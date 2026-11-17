@@ -366,7 +366,21 @@ async function loadModel() {
     placementWarnings.forEach((w) => fts.notify(w, 'warn'));
     setTimeout(() => location.reload(), placementWarnings.length ? 4500 : 600);
   } catch (e) {
-    fts.notify('Load failed: ' + e.message, 'error');
+    if (e && e.code === 'gpu_busy') {
+      // A training run / export / build holds the GPU: the message names it and how long it has run.
+      fts.notify(e.message, 'warn');
+      let note = $('load-gpu-busy');
+      if (!note) {
+        note = document.createElement('p');
+        note.id = 'load-gpu-busy';
+        note.className = 'text-xs mt-2';
+        note.setAttribute('role', 'status');
+        btn.parentElement.appendChild(note);
+      }
+      note.textContent = e.message;
+    } else {
+      fts.notify('Load failed: ' + e.message, 'error');
+    }
     btn.disabled = false;
     btn.textContent = 'Load model';
     wt.remove();

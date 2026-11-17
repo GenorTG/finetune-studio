@@ -66,6 +66,41 @@ _HOLDER_LABELS = {"brain_build": "a Smart Brain build is running", "training": "
                   "export": "an export is running", "pictures": "pictures are being read by the Vision reader"}
 
 
+def gpu_busy_info() -> dict[str, Any] | None:
+    """What holds the GPU lease, for a refusal the user reads (None = free): the job, its plain-words label and how
+    long it has been running (from its process start; a job that waited in the queue counts from when it got the
+    lease)."""
+    job = gpu_holder()
+    if job is None:
+        return None
+    started = None
+    try:
+        pid_file = store.job_dir(job["id"]) / "pid"
+        started = pid_file.stat().st_mtime if pid_file.exists() else None
+    except (OSError, ValueError):
+        started = None
+    started = started or float(job.get("created_at") or time.time())
+    return {"job_id": job["id"], "kind": job["kind"], "title": job.get("title") or "",
+            "label": holder_label(holder_text(job)), "running_s": max(0, int(time.time() - started))}
+
+
+def duration_text(seconds: float) -> str:
+    """``45 s`` / ``12 min`` / ``1 h 05 min``."""
+    s = int(seconds)
+    if s < 60:
+        return f"{s} s"
+    if s < 3600:
+        return f"{s // 60} min"
+    return f"{s // 3600} h {s % 3600 // 60:02d} min"
+
+
+def gpu_busy_message(info: dict[str, Any], what: str = "A chat model cannot load") -> str:
+    """The refusal text: what holds the GPU, for how long, and how to free it."""
+    return (f"{what}: the GPU is busy — {info['label']} (for {duration_text(info['running_s'])}, job "
+            f"{info['job_id']}). Load it when that ends, or stop that job on its page (or `fts jobs stop "
+            f"{info['job_id']}`).")
+
+
 def holder_label(holder: str) -> str:
     """Plain words for what holds the GPU, from ``holder_text`` / a queue record ("a Smart Brain build is
     running"); the record's own words when it is no job ("the GPU to be freed ...")."""
