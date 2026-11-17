@@ -75,7 +75,7 @@ def test_the_training_page_shows_waiting() -> None:
     assert "const ACTIVE = { waiting: 1, loading: 1, training: 1, saving: 1 };" in page
     assert 'waiting: "solid-amber"' in page
     js = (ROOT / "src/finetune_studio/webui/static/js/app.js").read_text()
-    assert '"Training waits for the GPU: " + (d.waiting_for' in js
+    assert '"Training waits for the GPU: " + (d.waiting_for' in js and 'd.waiting_for_gpu ? "info" : "success"' in js
     route = (ROOT / "src/finetune_studio/webui/routes/training.py").read_text()
     assert '"waiting_for_gpu": True, "waiting_for": waiting' in route
     from finetune_studio.training.monitor import ACTIVE_STATUSES
