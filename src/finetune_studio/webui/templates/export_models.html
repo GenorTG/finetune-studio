@@ -197,7 +197,7 @@
           <span class="brain-layer-mark" aria-hidden="true">⇄</span>
           <span><b>Rank fusion</b> (RRF) <span class="dim" id="mcp-fusion-state">on: merges the two rankings</span></span>
         </div>
-        <label class="brain-layer" title="A cross-encoder reads the question and each of the best candidates together and scores them again: slower, more precise ordering. Its model must be inside the package, so it needs Include models.">
+        <label class="brain-layer" title="A cross-encoder reads the question and each of the best candidates together and scores them again: slower, more precise ordering. Its model must be inside the package, so it needs Include models. Where the package runs it is on with a GPU and off on a CPU-only machine (there it cost close to a minute per search); --reranker turns it on there anyway.">
           <input id="mcp-rerank" type="checkbox" checked>
           <span><b>Reranker</b> (cross-encoder) <span class="dim" id="mcp-rerank-note">needs Include models</span></span>
         </label>
