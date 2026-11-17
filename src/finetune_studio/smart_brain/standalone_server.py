@@ -31,7 +31,8 @@ Modes
 
 Configuration precedence:  CLI flags > env (RAG_*) > rag.config.json > defaults.
     host/RAG_HOST  port/RAG_PORT  top_k/RAG_TOP_K  device/RAG_DEVICE
-    reranker/RAG_RERANKER  auth_token/RAG_AUTH_TOKEN  embed_model/RAG_EMBED_MODEL
+    reranker/RAG_RERANKER (auto | on | off; auto = on with a GPU, off on the CPU, where the bundled cross-encoder
+        costs ~1 s per scored passage)  auth_token/RAG_AUTH_TOKEN  embed_model/RAG_EMBED_MODEL
     embed_base_url/RAG_EMBED_BASE_URL  embed_api_key/RAG_EMBED_API_KEY
     query_prefix/RAG_QUERY_PREFIX (prepended to the embedded query; Qwen3: "Instruct: ...\\nQuery:")
     dense_extra/RAG_DENSE_EXTRA (also return the N best passages by meaning alone)
@@ -102,7 +103,7 @@ MAX_TOP_K = 100
 
 DEFAULT_CONFIG: dict = {
     "host": "127.0.0.1", "port": 8899, "top_k": 10, "device": "auto",
-    "reranker": True, "auth_token": "", "embed_model": "",
+    "reranker": "auto", "auth_token": "", "embed_model": "",
     "embed_base_url": "", "embed_api_key": "", "query_prefix": "", "dense_extra": 0,
     "semantic": True, "keyword": True, "answer": False,
     "llm_base_url": "", "llm_model": "", "llm_api_key": "", "answer_max_tokens": 512,
@@ -127,7 +128,7 @@ ENV_KEYS = {
     "images": "RAG_IMAGES", "answer_images": "RAG_ANSWER_IMAGES",
 }
 SECRET_KEYS = frozenset({"auth_token", "embed_api_key", "llm_api_key"})
-BOOL_KEYS = frozenset({"reranker", "semantic", "keyword", "answer", "retry_missing", "hide_file_names", "images",
+BOOL_KEYS = frozenset({"semantic", "keyword", "answer", "retry_missing", "hide_file_names", "images",
                        "answer_images"})
 JSON_KEYS = frozenset({"llm_headers", "llm_body"})
 USER_AGENT = "fts-brain-server/2.0"   # some API gateways (Cloudflare) refuse Python's default urllib agent
@@ -266,6 +267,11 @@ def _load_with_cpu_fallback(what: str, device: str, load):
 
 
 DEFAULT_MAX_PER_DOCUMENT = 3
+# The bundled cross-encoder (bge-reranker-v2-m3, 568M parameters) costs ~1 s per scored passage on a 6-core CPU at 512
+# tokens: the index's 50 candidates made a CPU search take ~55 s (tests/corpus/tarrowfield/RESULTS.md, 2026-11-17).
+# On the CPU it is off unless asked for, and when asked for it scores only this many of the best fused candidates.
+CPU_RERANK_TOP_N = 12
+RERANK_CPU_HINT = "pass --reranker (or RAG_RERANKER=on) to turn it on"
 CANDIDATES_PER_RESULT = 4
 
 
@@ -600,6 +606,10 @@ def _coerce(key: str, value: object) -> object:
             if not isinstance(obj, dict):
                 raise ValueError(value)
             return obj
+        if key == "reranker":     # tri-state: "auto" (GPU on, CPU off), or an explicit on / off
+            if isinstance(value, str) and value.strip().lower() in ("auto", "default"):
+                return "auto"
+            return _coerce("semantic", value)
         if key in BOOL_KEYS:
             if isinstance(value, str):
                 low = value.strip().lower()
@@ -841,8 +851,20 @@ class Corpus:
         # an illegal memory access" (4 clients, 165 searches, 2026-10-29). Concurrent first requests also loaded a
         # model twice. The studio's own search serialises each model the same way (model_cache).
         self._model_lock = threading.RLock()
-        self.rerank_enabled = bool(self.cfg["reranker"]) and bool(rs.get("rerank_enabled", False))
+        self.rerank_shipped = bool(rs.get("rerank_enabled", False))
+        mode = self.cfg["reranker"]
+        self.rerank_mode = mode if mode == "auto" else bool(mode)
+        if self.rerank_mode == "auto":
+            self.rerank_enabled = self.rerank_shipped and self.device != "cpu"
+            self.rerank_reason = (f"on: running on {self.device}" if self.device != "cpu"
+                                  else f"off: running on the CPU; {RERANK_CPU_HINT}")
+        else:
+            self.rerank_enabled = self.rerank_shipped and self.rerank_mode
+            self.rerank_reason = "on: turned on" if self.rerank_mode else "off: turned off"
+        if not self.rerank_shipped:
+            self.rerank_reason = "off: no reranker model in this package"
         self.rerank_top_n = int(rs.get("rerank_top_n", 50))
+        self._rerank_device = ""
         # -1 = the index's own setting (the studio's Smart Brain settings; 3 when it has none)
         cap = int(self.cfg.get("max_per_document", -1))
         self.max_per_document = int(rs.get("max_per_document", DEFAULT_MAX_PER_DOCUMENT)) if cap < 0 else cap
@@ -975,12 +997,20 @@ class Corpus:
                     kwargs["model_kwargs"] = {"torch_dtype": torch.float16}
                 return CrossEncoder(str(d), device=dev, **kwargs)
             self._reranker, used = _load_with_cpu_fallback("bundled reranker", self.device, load)
-            print(f"[rag-server] local reranker loaded from {d} on {used}", file=sys.stderr)
+            self._rerank_device = used
+            cap = (f"; scoring the best {self.rerank_pool_size()} candidates (CPU)" if used == "cpu" else "")
+            print(f"[rag-server] local reranker loaded from {d} on {used}{cap}", file=sys.stderr)
         except Exception as e:  # noqa: BLE001
             self._reranker_failed = True
             print(f"[warn] bundled reranker failed ({e}); skipping rerank", file=sys.stderr)
             return None
         return self._reranker
+
+    def rerank_pool_size(self) -> int:
+        """How many fused candidates the reranker scores: the index's ``rerank_top_n``, at most
+        ``CPU_RERANK_TOP_N`` when the model runs on the CPU (an explicit ``--reranker`` on a CPU host)."""
+        on_cpu = (self._rerank_device or self.device) == "cpu"
+        return min(self.rerank_top_n, CPU_RERANK_TOP_N) if on_cpu else self.rerank_top_n
 
     # ── Image search ──
     def image_encoder(self):
@@ -1147,7 +1177,8 @@ class Corpus:
             for rank, cid in enumerate(ranking, start=1):
                 rrf[cid] = rrf.get(cid, 0.0) + 1.0 / (self.rrf_k + rank)
         reranker = self.local_reranker()
-        n_candidates = max(top_k, self.rerank_top_n) if reranker is not None else top_k
+        pool_n = self.rerank_pool_size()
+        n_candidates = max(top_k, pool_n) if reranker is not None else top_k
         if self.max_per_document > 0:     # room to pass over a document's extra passages
             n_candidates = max(n_candidates, top_k * CANDIDATES_PER_RESULT)
         ordered = sorted(rrf.items(), key=lambda kv: -kv[1])[: max(1, n_candidates)]
@@ -1177,7 +1208,7 @@ class Corpus:
             hits.append(hit)
 
         if reranker is not None and len(hits) > 1:
-            pool = hits[: self.rerank_top_n]
+            pool = hits[: pool_n]
             try:
                 with self._model_lock:
                     ce = reranker.predict([(query, h["text"]) for h in pool])
@@ -1223,8 +1254,19 @@ class Corpus:
             sem = "unavailable: no bundled embedder and no RAG_EMBED_BASE_URL"
         kw = "on" if self.keyword else ("off" if self.shipped["keyword"] else "not in this package")
         sem_on = sem.startswith("on")
-        rerank = ("on (bundled cross-encoder)" if self.local_reranker() is not None else
-                  "off" if not self.rerank_enabled else "unavailable: no reranker model in this package")
+        if self.local_reranker() is not None:
+            on = self._rerank_device or self.device
+            rerank = (f"on (bundled cross-encoder, {on}" + (f", best {self.rerank_pool_size()} candidates)"
+                                                             if on == "cpu" else ")"))
+        elif self.rerank_enabled:
+            rerank = "unavailable: the bundled reranker failed to load" if self._reranker_failed \
+                else "unavailable: no reranker model in this package"
+        elif not self.rerank_shipped:
+            rerank = "not in this package"
+        elif self.rerank_mode == "auto":
+            rerank = f"off (running on the CPU; {RERANK_CPU_HINT})"
+        else:
+            rerank = "off (turned off)"
         if self.image_vectors is None:
             img = "not in this package"
         elif not self.images_on:
@@ -1966,6 +2008,7 @@ def serve_http(corpus: Corpus, cfg: Mapping) -> None:
     auth = "bearer-token auth ON" if cfg["auth_token"] else "no auth (loopback only)"
     print(f"[rag-server] {version_label() or 'package'} {corpus.info()} — listening on http://{host}:{port}/search?q=... "
           f"({auth})", file=sys.stderr)
+    print(f"[rag-server] reranker {getattr(corpus, 'rerank_reason', '')}", file=sys.stderr)
     srv.serve_forever()
 
 
@@ -2140,6 +2183,7 @@ class LoadingCorpus:
             os._exit(code)          # waiters are never released: nothing answers from a corpus that did not open
         self._done.set()
         print(f"[rag-mcp] {self._corpus.info()} — corpus ready", file=sys.stderr, flush=True)
+        print(f"[rag-mcp] reranker {getattr(self._corpus, 'rerank_reason', '')}", file=sys.stderr, flush=True)
 
     def get(self, timeout: float | None = None) -> Corpus | None:
         """The corpus, waiting up to ``timeout`` seconds (None: until it is open)."""
@@ -2495,10 +2539,12 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--max-per-document", dest="max_per_document", type=int,
                     help="passages of one document in the top results before others get a turn (0 = no cap)")
     ap.add_argument("--device", help="auto (GPU first, default) | cpu | cuda | cuda:N | xpu | mps for bundled models")
-    ap.add_argument("--reranker", dest="reranker", action="store_true", default=None,
-                    help="enable the bundled reranker")
-    ap.add_argument("--no-reranker", dest="reranker", action="store_false",
-                    help="disable the reranker")
+    ap.add_argument("--reranker", "--rerank", dest="reranker", action="store_true", default=None,
+                    help="turn the bundled reranker on (default: on with a GPU, off on the CPU)")
+    ap.add_argument("--no-reranker", "--no-rerank", dest="reranker", action="store_false",
+                    help="turn the bundled reranker off")
+    ap.add_argument("--reranker-auto", dest="reranker", action="store_const", const="auto",
+                    help="the default: the reranker on with a GPU, off on the CPU")
     ap.add_argument("--no-images", dest="images", action="store_false", default=None,
                     help="turn Image search off (the pictures stay in the package)")
     ap.add_argument("--semantic", dest="semantic", action="store_true", default=None,
