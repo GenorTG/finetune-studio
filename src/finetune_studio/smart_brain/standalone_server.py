@@ -998,7 +998,7 @@ class Corpus:
                 return CrossEncoder(str(d), device=dev, **kwargs)
             self._reranker, used = _load_with_cpu_fallback("bundled reranker", self.device, load)
             self._rerank_device = used
-            cap = (f"; scoring the best {self.rerank_pool_size()} candidates (CPU)" if used == "cpu" else "")
+            cap = (f"; scoring at most the best {CPU_RERANK_TOP_N} candidates (CPU)" if used == "cpu" else "")
             print(f"[rag-server] local reranker loaded from {d} on {used}{cap}", file=sys.stderr)
         except Exception as e:  # noqa: BLE001
             self._reranker_failed = True
