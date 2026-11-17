@@ -9,6 +9,11 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Training and exports (merge, GGUF, Abliterated, Heretic) no longer refuse to start while a Smart Brain build or
+  picture reading uses the GPU: they wait for it and start by themselves. The training page, the export card, the
+  activity feed and `fts jobs` say *waiting* and what is using the GPU; Stop or Cancel while it waits ends it as
+  stopped / cancelled. Loading a model for Chat or Inference during such a job is still refused at once, and now
+  says which job holds the GPU and for how long.
 - Reading pictures with a local Vision reader on the GPU now takes the GPU like a Smart Brain build does, so the two
   never load at once (a smaller card ran out of memory). A picture upload during a build waits for it, and a build
   started while pictures are read waits for them: the Knowledge check, the Files page and the build progress say
