@@ -15,15 +15,16 @@ CLIENTS = ("claude-code", "claude-desktop", "cursor", "vscode", "windsurf", "gem
 
 
 def recipe(client="cursor", folder="/ABSOLUTE/PATH/TO/package",
-           keyfile="/ABSOLUTE/PATH/TO/passphrase.txt", address="http://127.0.0.1:8899"):
+           keyfile="/ABSOLUTE/PATH/TO/passphrase.txt", address="http://127.0.0.1:8899", listener_port=""):
     node = shutil.which("node")
     if not node:
         pytest.skip("Node is required to execute the browser recipe builder")
     result = subprocess.run(
-        [node, "-e", ("const {connectRecipes} = require(process.argv[1]);"
-         "try { console.log(JSON.stringify(connectRecipes(...JSON.parse(process.argv[2])))); }"
+        [node, "-e", ("const source = require('node:fs').readFileSync(process.argv[1], 'utf8');"
+         "try { console.log(JSON.stringify(require('node:vm').runInNewContext("
+         "source + '\\nconnectRecipes(...input)', {URL, input: JSON.parse(process.argv[2])}))); }"
          "catch(e) { console.log(JSON.stringify({error:e.message})); }"),
-         str(SCRIPT), json.dumps([client, folder, keyfile, address])],
+         str(SCRIPT), json.dumps([client, folder, keyfile, address, listener_port])],
         capture_output=True, text=True, check=True, timeout=10,
     )
     return json.loads(result.stdout)
@@ -35,7 +36,8 @@ def test_connect_is_reachable_and_package_navigation_preserves_exports(client):
     response = client.get("/connect")
     assert response.status_code == 200
     assert "Connect your Smart Brain" in response.text
-    assert 'src="/static/js/connect.js?v=2"' in response.text
+    assert 'src="/static/js/connect.js?v=3"' in response.text
+    assert 'id="connect-port"' in response.text
     assert "Client connection not checked" in response.text
     assert "/v1/chat/completions" in response.text
     assert "not shipped" in response.text
@@ -81,7 +83,37 @@ def test_shell_quoting_preserves_paths_and_no_shell_expansion():
         "claude", "mcp", "add", "smart-brain", "--", "bash",
         folder + "/run-mcp.sh", "--keyfile", keyfile,
     ]
-    assert shlex.split(result["start"]) == ["bash", folder + "/run-http.sh", "--keyfile", keyfile]
+    assert shlex.split(result["start"]) == ["bash", folder + "/run-http.sh", "--keyfile", keyfile, "--port", "8899"]
+
+
+@pytest.mark.parametrize("address,port", [
+    ("http://127.0.0.1:9010", "9010"), ("http://localhost:9010/mcp/", "9010"),
+    ("http://[::1]:9010", "9010"), ("http://127.0.0.1", "80"),
+])
+def test_direct_local_http_start_matches_selected_url(address, port):
+    result = recipe("openwebui", address=address)
+    assert shlex.split(result["start"])[-2:] == ["--port", port]
+    assert result["config"].endswith("/mcp")
+    assert address.removesuffix("/").removesuffix("/mcp") + "/health" in result["test"]
+
+
+@pytest.mark.parametrize("address", [
+    "https://brain.example:9443/team/mcp/", "http://127.0.0.1:8080/team",
+    "https://localhost", "http://brain.example:9010",
+])
+def test_proxy_and_public_urls_do_not_determine_listener_port(address):
+    result = recipe("openwebui", address=address)
+    assert "listener port" in result["start"]
+    assert not result["start"].startswith("bash ")
+    explicit = recipe("openwebui", address=address, listener_port="9010")
+    assert shlex.split(explicit["start"])[-2:] == ["--port", "9010"]
+    assert explicit["config"] == result["config"]
+    assert explicit["test"] == result["test"]
+
+
+@pytest.mark.parametrize("port", ["0", "65536", "9010; id", "9.5", "-1", "1e3", "9010\n"])
+def test_invalid_listener_ports_are_rejected(port):
+    assert "error" in recipe(listener_port=port)
 
 
 def test_http_checks_keep_proxy_prefix_and_initialize_contract():
@@ -100,6 +132,7 @@ def test_http_checks_keep_proxy_prefix_and_initialize_contract():
 
 
 @pytest.mark.parametrize("overrides", [
+    {"address": "http://127.0.0.1:0"},
     {"folder": "relative/package"}, {"keyfile": ""}, {"folder": "/tmp/bad\ncommand"},
     {"address": "file:///etc/passwd"}, {"address": "https://user:secret@example.com"},
     {"address": "https://example.com/?token=secret"}, {"address": "https://example.com/#token"},
@@ -116,6 +149,6 @@ def test_guide_can_navigate_highlight_and_explain_connect():
     assert registry.resolve_page_url("connect", None) == ("/connect", None)
     assert registry.CONTROLS["connect.copy"].selector == "#connect-copy"
     assert load_kb()["connect"].page == "connect"
-    for name in ("connect_client", "connect_path", "connect_keyfile", "connect_url"):
+    for name in ("connect_client", "connect_path", "connect_keyfile", "connect_url", "connect_port"):
         assert ("connect", name) in registry.FIELDS
         assert explain_setting(name)

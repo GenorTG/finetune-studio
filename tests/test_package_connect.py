@@ -4,6 +4,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import shlex
 import shutil
 import socket
 import subprocess
@@ -20,6 +21,7 @@ import pytest
 from finetune_studio.smart_brain.connect_bundle import build_mcpb
 from finetune_studio.smart_brain.server_package import build_package
 from tests import test_brain_server_package as package_tests
+from tests import test_connect as connect_tests
 
 
 @pytest.fixture()
@@ -60,6 +62,45 @@ def hosted_package(exported_package: Path) -> Iterator[str]:
             else:
                 pytest.fail("exported HTTP server did not become ready")
             yield base
+        finally:
+            proc.terminate()
+            proc.wait(timeout=10)
+
+
+def test_exported_recipe_starts_http_on_its_nondefault_port(exported_package: Path, tmp_path: Path,
+                                                           monkeypatch: pytest.MonkeyPatch) -> None:
+    """Execute the copied command through run-http.sh, overriding the server's default/env port."""
+    assert (exported_package / "connect.js").read_bytes() == connect_tests.SCRIPT.read_bytes()
+    assert 'id="connect-port"' in (exported_package / "connect.html").read_text()
+    monkeypatch.setattr(connect_tests, "SCRIPT", exported_package / "connect.js")
+    (exported_package / ".venv").symlink_to(sys.prefix, target_is_directory=True)
+    keyfile = tmp_path / "key ' quoted.txt"
+    keyfile.write_text("test-passphrase\n")
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    base = f"http://127.0.0.1:{port}"
+    result = connect_tests.recipe("openwebui", str(exported_package), str(keyfile), base)
+    assert "error" not in result, result
+    assert result["config"] == base + "/mcp"
+    assert shlex.split(result["start"])[-2:] == ["--port", str(port)]
+    with (exported_package / "recipe-http.log").open("w+") as log:
+        proc = subprocess.Popen(shlex.split(result["start"]), stdout=log, stderr=log,
+                                env={**os.environ, "RAG_PORT": "8899", "RAG_HOST": "127.0.0.1",
+                                     "RAG_AUTH_TOKEN": "", "RAG_DEVICE": "cpu"})
+        try:
+            for _ in range(100):
+                try:
+                    with urllib.request.urlopen(base + "/health", timeout=2) as response:
+                        assert json.loads(response.read())["ok"] is True
+                    break
+                except OSError:
+                    if proc.poll() is not None:
+                        log.seek(0)
+                        pytest.fail(log.read())
+                    time.sleep(0.1)
+            else:
+                pytest.fail("copied startup command did not listen on the recipe port")
         finally:
             proc.terminate()
             proc.wait(timeout=10)

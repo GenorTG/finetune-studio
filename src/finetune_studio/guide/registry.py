@@ -290,6 +290,7 @@ def _fields() -> dict[tuple[str, str], Field]:
         Field("connect", "connect_path", "#connect-path", "text", "Extracted package folder"),
         Field("connect", "connect_keyfile", "#connect-keyfile", "text", "Passphrase file path (never the passphrase)"),
         Field("connect", "connect_url", "#connect-url", "text", "Package HTTP address"),
+        Field("connect", "connect_port", "#connect-port", "text", "Package listener port (blank for direct local HTTP)"),
         Field("training", "training_mode", '[name="training_mode"]', "choice", "Training route",
               choices=("sft", "dpo", "tool_sft", "continued_pretraining", "reasoning_distillation"),
               scope=_TRAIN_FORM, note="Selecting DPO also sets conservative DPO defaults on the page."),
