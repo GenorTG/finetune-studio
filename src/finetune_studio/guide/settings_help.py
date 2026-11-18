@@ -10,6 +10,12 @@ from typing import Any
 from finetune_studio.guide.registry import FIELDS, Field
 
 SETTING_HELP: dict[str, dict[str, str]] = {
+    "package_qc_suite": {
+        "meaning": "Reviewed questions and exact expected source IDs shipped inside the package corpus.",
+        "guidance": "Paste an existing Testing JSON case list or cases object. Include source_id or expected_sources; optional answer runs require correct_answer. Run /qc locally after installation.",
+        "pitfall": "Blank ships no tests, even on a new version. Retrieval hits are not semantic verdicts. Optional transcripts are plaintext private local history; answer runs must be judged separately.",
+        "kb": "package-qc",
+    },
     "connect_client": {
         "meaning": "The AI application using the package's MCP tools, or its knowledge + operator LLM OpenAI-compatible API.",
         "guidance": "Choose your client on Connect; the knowledge-api choice shows /v1 setup, operator configuration and models/retrieve/chat checks. Only the operator configures the upstream LLM; missing configuration returns 503.",

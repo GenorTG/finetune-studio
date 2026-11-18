@@ -61,7 +61,7 @@ ChatGPT is not a ready-made Actions/OAuth/tunnel integration here.
 The unsigned smart-brain.mcpb bridge selects an already installed Linux package and private keyfile; it contains no knowledge or keys.
 It requires Node >=18 and an MCPB-capable Linux host; it does not install Python dependencies.
 Claude Desktop's official MCPB hosts are macOS/Windows, outside the current Linux-only scope: one-click Claude Desktop installation remains unverified and unsupported.
-Installed Claude Code 2.1.325 passed an isolated real MCP health check on 2026-11-18 with a synthetic package, not model-driven tool use.
+Installed Claude Code 2.1.325 (claude-sonnet-5-5) passed three actual model-driven synthetic MCP sessions on 2026-11-18: plaintext direct stdio, encrypted direct stdio/keyfile, and encrypted exported MCPB Node bridge/keyfile. Each called rag_info and rag_search and answered the Highmere price with its returned source. This certifies those three text paths on one Linux host, not HTTP/images, clean-machine installation, Claude Desktop or all vendor clients.
 Gemini CLI 0.65.0 accepted isolated settings but requires client authentication to check the connection.
 Cursor, VS Code Copilot, Windsurf, LM Studio and Open WebUI have no actual-client certification yet.
 Windsurf's current version-specific setup is explicitly unverified; consult its installed-version documentation.

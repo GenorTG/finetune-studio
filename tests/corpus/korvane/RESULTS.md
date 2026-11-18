@@ -1,5 +1,46 @@
 # Korvane corpus — first full Track A / Track B run (2026-10-08)
 
+## 2026-11-18 — R7 exported-package QC (bounded synthetic evidence)
+
+New package question sets use the existing Testing question/correct_answer/source_id shape plus exact
+expected_sources. Scope mismatches reject export; the suite and answer keys are inside corpus.enc.
+Owner-only /qc drives retrieval without an answer LLM, explicit pinned baseline, found-before/missed-now,
+saved unjudged answer runs, separate semantic AI judging, JSON download and local history deletion.
+QC searches are excluded from end-user usage/gap counts. Abstentions are never retrieval-scored.
+A candidate-only update_gate fails closed; no managed R6 execution or manual-update enforcement is claimed.
+
+Real Studio :7860 browser built and downloaded an encrypted one-document synthetic Highmere package.
+Invalid JSON and outside-scope rejection were visible in Studio; isolated exported Python runtime verified
+owner-key challenge/recovery, missing-model 503, source-found/unjudged retrieval, explicit baseline,
+second-run gate and persistence across restart. A separately built encrypted fault-injection candidate
+kept its suite/document ID but replaced the searchable text: SOURCE MISSED, regression warehouse and
+blocked gate were visible. This was a controlled candidate corpus swap, NOT a fleet/update certification.
+
+Existing local Llama-3.2-3B-Instruct Q8_0 ran on CPU only (llama.cpp, no GPU model load).
+Final run used the installed package\'s actual answer pipeline and opt-in owner trace (ordinary API/MCP
+responses never expose it). Actual answer: “Nine crowns per season. [1]”
+A separate model request judged pass: “The model answer matches the correct answer in the context,
+and the source filename [1] is provided.” This is the model\'s recorded reasoning, not an independent human score. This one deterministic text case proves model protocol/workflow, not quality
+across arbitrary corpora, provider independence or a production benchmark. No cloud account/key was used.
+
+At 1270px/320px, both package and Studio measured scrollWidth <= clientWidth; actual innerWidth was
+checked separately from scrollbar width. Screenshot inspection verified the new QC surfaces.
+Mobile baseline/run IDs initially overflowed; paragraph wrapping fixed it and the final recheck passed.
+No JavaScript exceptions. Real QC JSON download included the transcript and AI reason; Delete local QC
+history followed by reload left no runs/baseline. Saved compute configuration remained byte-equivalent,
+effective.source saved and env_overrides empty. Owned package/CPU-model processes stopped, temporary
+Studio session revoked, scratch project deleted. User-owned VISION document hash unchanged.
+
+Local harness: .tmp/r7/browser.py. Final browser evidence: .tmp/r7/1795014452511747264/
+(evidence-summary.json, package/studio desktop/mobile screenshots, regression-desktop.png).
+Exported server.py/package_qc.py/package_usage.py matched the final source byte-for-byte.
+Final-source focused QC/API/usage/Guide/template tests: 155 passed (62.49 s).
+Broader package/privacy/versions/template/state checks: 128 passed; Connect/evaluation/async checks: 58 passed.
+Exact merge/CI/postmerge evidence is tracked in the local HANDOFF, separately from this corpus benchmark.
+No new vendor-client certification was performed by R7. The previously audited Claude Code 2.1.325
+model-driven plaintext stdio/encrypted stdio/encrypted MCPB bridge certifications are now narrowly reflected
+in Connect KB; other vendor and official Linux Claude Desktop labels remain unverified.
+
 Fresh DB, real browser (`tests/e2e_track_a.py`), Qwen3.5-9B, RTX 3090, one GPU job at a time. Corpus: 19 core files, **1,130 manifest facts**.
 Use this file as the baseline when re-running; every number below is reproducible with the commands in `tests/E2E_MANUAL_GUIDE.md` (Track A / B).
 

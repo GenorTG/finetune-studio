@@ -133,6 +133,19 @@ One-shot from the shell, no server:
 .venv/bin/python server.py --query "your question" --top-k 5
 ```
 
+## Quality checks
+
+Open `/qc` from package chat on this host. The reviewed question set (if selected in Studio) is inside
+the corpus, encrypted with the knowledge. Enter the package server token if configured and the separate
+owner token from `.usage/owner-token` (Load checks creates the private file if absent).
+Run retrieval without an answer LLM, inspect exact expected-source hits/misses, and explicitly accept a
+successful baseline. Later runs show found-before/missed-now regressions; changed suites require review.
+Optional Run answers uses the operator's configured LLM and saves unjudged transcripts. Judge answers is
+a separate semantic AI judgment; missing configuration/errors never become a pass. QC does not inflate usage counts.
+The private `.qc/qc.sqlite3` history is plaintext outside corpus encryption (20 runs plus a pinned baseline);
+Delete local QC history erases it. QC JSON includes transcripts: review before sharing.
+The candidate update gate is an interface for future managed updates, not fleet execution or a manual update blocker.
+
 ## Local usage, feedback and missing knowledge
 
 Open `/usage` from the package chat page on this host. Enter the package server token if configured,
@@ -1167,6 +1180,7 @@ def build_package(
     package: dict | None = None,
     changes_md: str = "",
     changes_md_public: str = "",
+    qc_cases: list[dict] | None = None,
 ) -> PackageResult:
     """Assemble the hostable package for a built corpus and archive it.
 
@@ -1285,6 +1299,10 @@ def build_package(
         layer_data: dict[str, bytes | Path] = {f: corpus / f for f in layer_files}
         if keep is not None:
             chunks_df, layer_data = _subset(corpus, chunks_df, layer_files, keep, manifest)
+        from .package_qc import validate_suite
+
+        qc_suite = validate_suite(qc_cases or [], {_base_id(str(d)) for d in chunks_df["document_id"]})
+        qc_json = json.dumps(qc_suite, ensure_ascii=False).encode("utf-8")
         total_docs = len({_base_id(d) for d in pd.read_parquet(corpus / "chunks.parquet",
                                                                columns=["document_id"])["document_id"]})
         manifest["scope"] = dict(scope or {"label": "all documents", "documents": total_docs, "of": total_docs})
@@ -1300,6 +1318,7 @@ def build_package(
             cw = ContainerWriter(spool, passphrase, log_n=cfg.kdf_log_n)
             cw.add("manifest.json", manifest_json.encode("utf-8"))
             cw.add("chunks.jsonl", chunks_jsonl.encode("utf-8"))
+            cw.add("qc-suite.json", qc_json)
             for fname, data in layer_data.items():
                 if isinstance(data, bytes):
                     cw.add(fname, data)
@@ -1326,6 +1345,7 @@ def build_package(
         else:
             sink.add_bytes(f"{root}/corpus/manifest.json", manifest_json)
             sink.add_bytes(f"{root}/corpus/chunks.jsonl", chunks_jsonl)
+            sink.add_bytes(f"{root}/corpus/qc-suite.json", qc_json)
             for fname, data in layer_data.items():
                 if isinstance(data, bytes):
                     sink.add_bytes(f"{root}/corpus/{fname}", data)
@@ -1362,10 +1382,12 @@ def build_package(
             requirements += "sentence-transformers>=3.0\n"
         sink.add_bytes(f"{root}/server.py", _SERVER_SRC.read_text(encoding="utf-8"))
         sink.add_bytes(f"{root}/package_usage.py", (_HERE / "package_usage.py").read_bytes())
+        sink.add_bytes(f"{root}/package_qc.py", (_HERE / "package_qc.py").read_bytes())
         # Public, generic connection assets: no corpus identity, paths or keys.
         for source, target in (("package_connect.html", "connect.html"),
                                ("package_connect.js", "connect-page.js"),
-                               ("package_usage.html", "usage.html"), ("package_usage.js", "usage.js")):
+                               ("package_usage.html", "usage.html"), ("package_usage.js", "usage.js"),
+                               ("package_qc.html", "qc.html"), ("package_qc.js", "qc.js")):
             sink.add_bytes(f"{root}/{target}", (_HERE / source).read_bytes())
         sink.add_bytes(f"{root}/connect.js", (_HERE.parent / "webui/static/js/connect.js").read_bytes())
         sink.add_bytes(f"{root}/smart-brain.mcpb", build_mcpb())

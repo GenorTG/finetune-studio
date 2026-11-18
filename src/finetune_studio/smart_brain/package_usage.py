@@ -13,6 +13,7 @@ import sqlite3
 import threading
 import time
 import uuid
+from collections.abc import Iterator
 from pathlib import Path
 
 MAX_EVENTS = 10000
@@ -67,6 +68,16 @@ class Usage:
         conn.execute("DELETE FROM events WHERE at < ?", (time.time() - days * 86400,))
         conn.execute("DELETE FROM events WHERE id IN (SELECT id FROM events ORDER BY at DESC, id DESC "
                      "LIMIT -1 OFFSET ?)", (MAX_EVENTS,))
+
+    @contextlib.contextmanager
+    def suspend(self) -> Iterator[None]:
+        """Keep owner-initiated QC searches out of end-user usage/gap diagnostics."""
+        previous = getattr(self.local, "suspended", False)
+        self.local.suspended = True
+        try:
+            yield
+        finally:
+            self.local.suspended = previous
 
     @contextlib.contextmanager
     def measure(self, operation: str, query: str = ""):
@@ -168,7 +179,7 @@ def tracked(operation):
         @functools.wraps(function)
         def call(self, *args, **kwargs):
             usage = getattr(self, "usage", None)
-            if usage is None:  # lightweight test/custom corpus without a sidecar
+            if usage is None or getattr(usage.local, "suspended", False):  # QC is not end-user activity
                 return function(self, *args, **kwargs)
             query = args[0] if args else kwargs.get("query", kwargs.get("question", ""))
             with usage.measure(operation, query) as event:

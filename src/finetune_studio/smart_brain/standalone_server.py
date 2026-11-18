@@ -90,6 +90,9 @@ _usage_spec = importlib.util.spec_from_file_location("_smart_brain_package_usage
 _usage_module = importlib.util.module_from_spec(_usage_spec)
 _usage_spec.loader.exec_module(_usage_module)
 Usage, tracked = _usage_module.Usage, _usage_module.tracked
+_qc_spec = importlib.util.spec_from_file_location("_smart_brain_package_qc", Path(__file__).with_name("package_qc.py"))
+_qc_module = importlib.util.module_from_spec(_qc_spec)
+_qc_spec.loader.exec_module(_qc_module)
 
 HERE = Path(__file__).resolve().parent
 CORPUS_DIR = HERE / "corpus"
@@ -865,6 +868,8 @@ class Corpus:
             for line in read("chunks.jsonl").decode("utf-8").splitlines()
             if line.strip()
         ]
+        self.qc = _qc_module.QualityChecks(self.dir.parent, json.loads(read("qc-suite.json"))
+                                           if has("qc-suite.json") else [])
         self.identity = dict(self.manifest.get("identity") or {})   # who it speaks for and how it answers (studio)
         # Original files ("Include original files" at export): originals.json lists them, originals/<id> holds each.
         self.originals: dict[str, dict] = {}
@@ -1434,7 +1439,8 @@ class Corpus:
     @tracked("answer")
     def answer(self, question: str, top_k: int | None = None, provider: Mapping | None = None,
                history: list[dict] | None = None, include_sources: bool | None = None,
-               image_bytes: bytes | None = None, client_instructions: str = "") -> dict:
+               image_bytes: bytes | None = None, client_instructions: str = "",
+               trace: list[dict] | None = None) -> dict:
         """The generation half of RAG: retrieve, then ask the configured chat model to answer from the passages.
 
         ``hide_file_names`` (a public bot): the model sees passages without file names and is told to name none,
@@ -1457,7 +1463,15 @@ class Corpus:
         if not hits:
             return {"question": question, "answer": "Nothing in this corpus matches the question.",
                     "sources": [], "weak": True, "model": None}
-        base_chat = self._chat if provider is None else lambda messages: self._chat(messages, provider)
+        def base_chat(messages: list[dict]) -> str:
+            reply = self._chat(messages) if provider is None else self._chat(messages, provider)
+            if trace is not None:
+                # QC-only opt-in: never return transcripts to ordinary API/MCP clients. Image bytes stay out.
+                trace.extend({"role": m.get("role"), "content": m.get("content") if isinstance(m.get("content"), str)
+                              else [p for p in m.get("content", []) if p.get("type") == "text"]} for m in messages)
+                trace.append({"role": "assistant", "content": reply})
+            return reply
+
         api = str({**self.cfg, **(provider or {})}.get("provider") or "openai").lower()
         sent = {"n": 0, "fallback": "" if self.cfg.get("answer_images", True) else "answer_images is off"}
 
@@ -1835,7 +1849,7 @@ def make_handler(corpus: Corpus, token: str = ""):
             if token:
                 if self.command == "GET" and urlparse(self.path).path in (
                         "/", "/app.js", "/version", "/connect", "/connect.js", "/connect-page.js", "/smart-brain.mcpb",
-                        "/usage", "/usage.js"):
+                        "/usage", "/usage.js", "/qc", "/qc.js"):
                     # the static client and the package's name/version hold no corpus data; API calls stay authenticated
                     return True
                 auth = self.headers.get("Authorization") or ""
@@ -1867,9 +1881,9 @@ def make_handler(corpus: Corpus, token: str = ""):
                 try:
                     function()
                 except (OSError, sqlite3.Error):
-                    if not path.startswith("/usage/"):
+                    if not path.startswith(("/usage/", "/qc/")):
                         raise
-                    self._json({"error": "Local usage storage unavailable; retrieval remains available."}, 503)
+                    self._json({"error": "Local diagnostics storage unavailable; retrieval remains available."}, 503)
                 return
             query = (parse_qs(urlparse(self.path).query).get("q") or [""])[0]
             with usage.measure(path, query) as event:
@@ -1902,8 +1916,11 @@ def make_handler(corpus: Corpus, token: str = ""):
                 self._static(_CHAT_PAGE, "text/html; charset=utf-8")
             elif u.path == "/app.js":
                 self._static(_CHAT_JS, "text/javascript; charset=utf-8")
-            elif u.path in ("/connect", "/connect.js", "/connect-page.js", "/smart-brain.mcpb", "/usage", "/usage.js"):
+            elif u.path in ("/connect", "/connect.js", "/connect-page.js", "/smart-brain.mcpb", "/usage", "/usage.js", "/qc", "/qc.js"):
                 self._connect_asset(u.path)
+            elif u.path == "/qc/report":
+                if self._usage_owner():
+                    self._json(corpus.qc.overview())
             elif u.path in ("/usage/report", "/usage/export", "/usage/gaps"):
                 if self._usage_owner():
                     report = corpus.usage.report()
@@ -2023,6 +2040,8 @@ def make_handler(corpus: Corpus, token: str = ""):
                 "/smart-brain.mcpb": ("smart-brain.mcpb", "application/octet-stream"),
                 "/usage": ("usage.html", "text/html; charset=utf-8"),
                 "/usage.js": ("usage.js", "text/javascript; charset=utf-8"),
+                "/qc": ("qc.html", "text/html; charset=utf-8"),
+                "/qc.js": ("qc.js", "text/javascript; charset=utf-8"),
             }[path]
             try:
                 data = Path(__file__).with_name(filename).read_bytes()
@@ -2234,6 +2253,27 @@ def make_handler(corpus: Corpus, token: str = ""):
                         query = next((m.get("content") for m in reversed(body["messages"])
                                       if isinstance(m, dict) and m.get("role") == "user"), "")
                     event["query"] = query if isinstance(query, str) else ""
+                if path.startswith("/qc/"):
+                    if not isinstance(body, dict):
+                        raise ValueError("send a JSON object")
+                    if not self._usage_owner():
+                        return
+                    try:
+                        if path == "/qc/run" and set(body) <= {"answers"} and type(body.get("answers", False)) is bool:
+                            result = corpus.qc.run(corpus, answers=body.get("answers", False))
+                        elif path in ("/qc/judge", "/qc/baseline") and set(body) == {"id"} and isinstance(body["id"], str):
+                            result = (corpus.qc.judge(corpus, body["id"]) if path == "/qc/judge"
+                                      else corpus.qc.accept_baseline(body["id"]))
+                        elif path == "/qc/clear" and not body:
+                            result = corpus.qc.clear()
+                        else:
+                            raise ValueError("Unknown QC action or invalid request fields")
+                        self._json(result)
+                    except _qc_module.BusyError:
+                        self._json({"error": "Another QC operation is running"}, 409)
+                    except _qc_module.MissingModelError as error:
+                        self._json({"error": str(error)}, 503)
+                    return
                 if path.startswith("/usage/"):
                     if not isinstance(body, dict):
                         raise ValueError("send a JSON object")
@@ -3020,7 +3060,7 @@ button:disabled{opacity:.6;cursor:wait}#chat{display:grid;gap:12px;margin:14px 0
 #attach-row[hidden]{display:none}#picture{max-width:100%;min-width:0}
 </style><main>
 <h1 id="title">Smart Brain</h1><p class="muted" id="about">Ask the documents in this package. Every answer lists the files it came from.</p>
-<p><a href="connect">Connect to your AI tools →</a> · <a href="usage">Usage &amp; missing knowledge (local owner) →</a></p>
+<p><a href="connect">Connect to your AI tools →</a> · <a href="usage">Usage &amp; missing knowledge (local owner) →</a> · <a href="qc">Quality checks (local owner) →</a></p>
 <p class="small muted" id="stats"></p>
 <details class="card" id="conn"><summary id="conn-summary">Answer with…</summary>
 <label for="kind">Provider</label><select id="kind"></select>

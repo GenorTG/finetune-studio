@@ -1,0 +1,33 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quality checks · Smart Brain</title>
+<style>
+:root{font:16px system-ui,sans-serif;color:#edf3f7;background:#10151b;--line:#354653;--accent:#8bd5ca}*{box-sizing:border-box}
+body{margin:0}main{max-width:1040px;margin:auto;padding:clamp(16px,4vw,40px)}h1{font-size:clamp(26px,5vw,38px)}
+a{color:var(--accent)}p{line-height:1.6;color:#bac9d3;overflow-wrap:anywhere}section,article{background:#19212b;border:1px solid var(--line);padding:20px;border-radius:14px;margin:20px 0}
+label{display:block;margin:12px 0 6px}input,button{font:inherit;border-radius:8px;padding:10px;max-width:100%}
+input{width:100%;background:#10151b;color:inherit;border:1px solid var(--line)}
+button{background:var(--accent);color:#10201e;border:0;cursor:pointer;font-weight:600}button:disabled{opacity:.6}
+.bar{display:flex;gap:12px;flex-wrap:wrap;margin:16px 0}pre{white-space:pre-wrap;overflow-wrap:anywhere}li,#status{overflow-wrap:anywhere;line-height:1.6}
+</style><main>
+<a href="./">← Package chat</a> · <a href="usage">Usage</a>
+<h1>Quality checks</h1>
+<p>Test the shipped question set against this installed package. Retrieval checks compare exact source IDs and need no LLM.
+Answer runs save transcripts with no verdict; Judge answers asks the operator's model separately. A retrieval hit is not proof of a correct answer.</p>
+<section aria-label="Access"><label for="token">Package server access token (if configured)</label>
+<input id="token" type="password" autocomplete="off">
+<label for="owner-token">Local owner token</label><input id="owner-token" type="password" autocomplete="off" placeholder="Read .usage/owner-token">
+<p>Load checks once to create the private owner-token file if needed. Keys are used only on this page and never saved.</p>
+<div class="bar"><button id="load">Load checks</button></div></section>
+<p id="status" role="status" aria-live="polite">Load checks to see the shipped suite and saved runs.</p>
+<section><h2>Question set</h2><ul id="cases"></ul>
+<div class="bar"><button id="retrieval" disabled>Run retrieval checks</button><button id="answers" disabled>Run answers (operator LLM)</button></div>
+<p>Optional answer/judge calls send the test questions and retrieved context to your configured provider.
+Saved runs (including transcripts) are <b>plaintext outside corpus encryption</b>, private to this host in .qc/qc.sqlite3.
+At most 20 runs plus one explicitly pinned baseline are kept. Delete local QC history to erase them.</p></section>
+<section><h2>Baseline &amp; candidate update gate</h2><p id="baseline">No baseline loaded.</p><p id="gate"></p>
+<p>The first run does not silently become a baseline. Accept a successful run explicitly; later runs report found-before/missed-now.
+Changed suites need a new reviewed baseline. This candidate-only gate is an interface for future managed updates;
+it does not perform or block manual updates, contact Studio, or manage a fleet.</p>
+<div class="bar"><button id="download" disabled>Export QC JSON</button><button id="clear" disabled>Delete local QC history</button></div></section>
+<section><h2>Saved runs</h2><div id="runs"></div></section>
+<script src="qc.js?v=1"></script></main></html>
