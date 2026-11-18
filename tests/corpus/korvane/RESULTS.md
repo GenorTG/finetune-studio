@@ -1195,3 +1195,30 @@ Local reproducible harness/evidence: `.tmp/agent/r2-live.py`, `.tmp/agent/r2-sdk
 Owned package/llama.cpp processes terminated and temporary Studio browser sessions revoked. No external accounts
 used; OpenAI/Claude/Gemini cloud credentials and actual Open WebUI/LibreChat/AnythingLLM/vendor-UI certification
 remain untested. R1 vendor certification and the Linux Claude Desktop limitation are unchanged.
+
+## 2026-11-18 — bounded R8 local package usage and missing-knowledge intake
+
+Real final-source encrypted, one-document Highmere fixture; fresh scratch Studio project `agent-test-r8-usage`
+(`a0df8350`), no GPU/model load, cloud account or paid service. The exported runtime ran as an isolated Python
+subprocess, not the installed Studio module. Real browser interactions verified retrieval of the nine-crowns
+passage, Helpful/Not helpful feedback, separate local owner-key challenge/recovery, query opt-in, saved one-day
+retention, a no-hit question, usage/gap downloads, Studio import and visible document-review suggestions.
+
+The two synthetic operations produced exactly 2 questions, 1 retrieved source, 1 not-found and 1 thumbs-down;
+mean 7.194 ms / p95 13.821 ms are this tiny fixture only, not a production performance claim. Counts-only export
+removed all question text. Studio report deletion and package activity deletion both completed through the UI.
+No JS exceptions. Actual viewport widths 1270 and 320; scroll width never exceeded document client width.
+Screenshot inspection found a narrow-screen file-input overflow; existing `w-full` containment fixed it and the
+final browser recheck measured the input inside its card. Screenshots were inspected, not only DOM assertions.
+
+Browser tool download saveAs failed at its temporary-artifact handoff; native Playwright on the same existing
+CDP browser performed the real click, download and upload, with no API bypass of the report workflow.
+Final harness: `.tmp/r8/final_browser.py`; screenshots `.tmp/r8/final-{package,studio}-{desktop,mobile}.png`.
+
+Final focused regression: 122 passed (69.69 s), including actual plaintext/encrypted exports, exact scoped source
+counts, hidden-source follow-up union, immediate feedback durability, owner/client separation, retention/text
+erasure, concurrent writers, disk-failure behavior, inert project-scoped intake and existing R2/Guide contracts.
+Earlier broader compatibility run: 410 passed; final route/template checks: 125 passed before owner-key hardening.
+Required full-suite CI is the merge gate, not replaced by these selections. No vendor client/account certification
+was performed. R6 fleet transfer, R7 self-tests, R13 signed identity/audit and non-query protocol/auth error audit
+remain separate. The package is retrieval, not an LLM; existing encrypted-corpus/scope boundaries are unchanged.

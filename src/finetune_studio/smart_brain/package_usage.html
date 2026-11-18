@@ -1,0 +1,44 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Package usage · Smart Brain</title>
+<style>
+:root{font:16px system-ui,sans-serif;color:#edf3f7;background:#10151b;--line:#354653;--accent:#8bd5ca}*{box-sizing:border-box}
+body{margin:0}main{max-width:1040px;margin:auto;padding:clamp(16px,4vw,40px)}h1{font-size:clamp(26px,5vw,38px);margin-bottom:8px}
+a{color:var(--accent)}p{line-height:1.6;color:#bac9d3}section{background:#19212b;border:1px solid var(--line);padding:20px;border-radius:14px;margin:20px 0}
+label{display:block;margin:12px 0 6px}input,select,button{font:inherit;border-radius:8px;padding:10px;max-width:100%}
+input,select{background:#10151b;color:inherit;border:1px solid var(--line)}input[type=password]{width:100%}
+button{background:var(--accent);color:#10201e;border:0;cursor:pointer;font-weight:600}button:disabled{opacity:.6}button.secondary{background:#263542;color:#edf3f7}
+.bar{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:16px}.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px}
+.metric{padding:16px;border:1px solid var(--line);border-radius:10px}.metric strong{display:block;font-size:26px}.metric span{color:#bac9d3;font-size:14px}
+li{padding:10px 0;overflow-wrap:anywhere;line-height:1.6}#status{overflow-wrap:anywhere;min-height:26px}.danger{color:#ffb0b0}small{color:#bac9d3}
+</style><main>
+<a href="./">← Package chat</a> · <a href="connect">Connect</a>
+<h1>Usage &amp; missing knowledge</h1>
+<p>Local owner diagnostics for this installed package. Counts only by default. No telemetry is sent to Studio or any vendor.
+Open this page on the package host; history and settings are not available to remote clients.</p>
+<section aria-label="Access"><label for="token">Package server access token (if configured)</label>
+<input id="token" type="password" autocomplete="off" placeholder="Used in this page only; never saved">
+<label for="owner-token">Usage owner token</label>
+<input id="owner-token" type="password" autocomplete="off" placeholder="Read .usage/owner-token in the installed package folder">
+<p><small>The first Load usage creates this private file on the package host. Read its contents locally and enter them here.
+This separate key protects history even when the package server token is shared with AI clients. Neither key is saved by this page.</small></p>
+<div class="bar"><button id="refresh" type="button">Load usage</button></div></section>
+<p id="status" role="status" aria-live="polite">Load usage to see retained activity.</p>
+<div id="metrics" class="stats" aria-label="Usage statistics"></div>
+<section><h2>Privacy &amp; retention</h2>
+<p>Diagnostics are a private local SQLite sidecar, <b>not encrypted by the corpus passphrase</b>.
+Opting into query text stores up to 2,000 characters per question in plaintext. Never records answers, passages,
+provider keys, attached images or exception messages. Retains at most 10,000 operations, including failures.</p>
+<label for="queries">Question text</label><select id="queries"><option value="false">Counts only (recommended)</option><option value="true">Store question text locally</option></select>
+<label for="retention">Retention (days, 1–365)</label><input id="retention" type="number" min="1" max="365" value="30">
+<p><small>Switching to counts only erases retained question text immediately. Retention is applied on every write and read;
+when the package is stopped, no expiry worker runs. Shortening retention deletes older events. Totals cover only retained events.</small></p>
+<div class="bar"><button id="save" type="button" disabled>Save privacy settings</button><button id="clear" class="secondary" type="button" disabled>Delete retained activity</button></div></section>
+<section><h2>Export &amp; document suggestions</h2>
+<p>Not-found, low-confidence and thumbs-down events are candidates for review, not proof that knowledge is missing.
+Export the missing-knowledge report, then import it on Studio’s Package page. Counts-only reports cannot name the missing question;
+collect an example from the user before choosing a document. Nothing is added to package scope automatically.</p>
+<div class="bar"><button id="export" type="button" disabled>Export usage JSON</button><button id="gaps" type="button" disabled>Export missing knowledge</button></div>
+<ul id="gap-list"></ul></section>
+<section><h2>Recent operations</h2><p>Source counts are distinct retrieved documents per operation, not citations or quality judgments.
+Latency includes retrieval/generation but not token usage or provider cost. Feedback is one current rating per operation.</p><ul id="events"></ul></section>
+<script src="usage.js?v=2"></script></main></html>

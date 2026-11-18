@@ -209,6 +209,10 @@ def _controls() -> dict[str, Control]:
         ("benchmarks.compare", "benchmarks", "#cmp-run-btn", "Run comparison"),
         # export
         ("export.package_versions", "export", "#package-versions", "Package versions and their changes"),
+        ("export.package_usage", "export", "#package-usage", "Package usage and missing-knowledge document suggestions"),
+        ("export.usage_gap_file", "export", "#usage-gap-file", "Choose a package missing-knowledge JSON report"),
+        ("export.usage_gap_import", "export", "#usage-gap-import", "Import package diagnostic suggestions without changing knowledge"),
+        ("export.usage_gap_delete", "export", "#usage-gap-delete", "Delete imported diagnostic report and question text"),
         ("export.package_form", "export", "#package-form", "Build the package: who it is for, documents, files, answers, version"),
         ("export.package_name", "export", "#mcp-name", "Package: its name (tells packages apart)"),
         ("export.package_audience", "export", "#mcp-audience", "Package: used by your team or by customers"),

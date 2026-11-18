@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Packages now include local usage, feedback, error and latency diagnostics with counts-only privacy, retention, JSON exports and missing-knowledge reports you can review on Studio's Package page.
+
 - New Smart Brain exports offer an OpenAI-compatible “knowledge + your LLM” text-chat endpoint, raw retrieval with sources/scores/pictures, and Connect setup/API checks; missing operator providers return an honest error.
 
 - Connect's HTTP startup command now matches nondefault local ports; a separate listener-port field keeps internal server ports distinct from public/proxy addresses.

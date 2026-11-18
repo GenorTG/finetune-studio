@@ -93,7 +93,7 @@ Desktop, OpenClaw, Cursor and friends speak).
 | Path | What it is |
 |---|---|
 | `corpus/` | the documents + search index{enc_note} |
-| `server.py` | the search server — one file{container_note} |
+| `server.py` | the search server{container_note}, with stdlib `package_usage.py` diagnostics |
 | `rag.config.json` | runtime defaults baked in at export (see "Configuration") |
 | `install.sh` | creates a private Python venv and installs the dependencies |
 | `run-http.sh` | starts the search API (default `http://127.0.0.1:8899`) |
@@ -132,6 +132,34 @@ One-shot from the shell, no server:
 ```bash
 .venv/bin/python server.py --query "your question" --top-k 5
 ```
+
+## Local usage, feedback and missing knowledge
+
+Open `/usage` from the package chat page on this host. Enter the package server token if configured,
+and the separate usage owner token from `.usage/owner-token` (created by the first Load usage attempt),
+then Load usage: question/operation counts, distinct retrieved source counts, not-found/not-stated,
+low-confidence, thumbs-down, sanitized errors and mean/p95 latency. Answer follow-up searches are not
+counted as additional questions. This is not token billing or an answer-quality verdict.
+
+Counts only is the default. Privacy settings can opt into up to 2,000 question characters locally;
+**query diagnostics are plaintext outside the encrypted corpus**, never protected by its passphrase.
+No answers, passages, provider credentials, image attachments or raw exception messages are saved.
+The private `.usage/usage.sqlite3` sidecar persists updates/restarts and is never exported with knowledge.
+Retention: 30 days by default, configurable 1–365 days, hard cap 10,000 events. Expiry runs on reads/writes,
+not while stopped. Totals cover retained events only. Switching to counts only removes stored query text;
+Delete retained activity clears events and feedback. Unwritable diagnostics storage does not stop retrieval.
+
+Helpful / Not helpful under chat replies saves one current rating. HTTP question responses have `X-Usage-ID`;
+authenticated clients may POST `/usage/feedback` with `{{"id":"<usage-id>","rating":"down"}}` (or `up`).
+MCP search/answer results expose `smart-brain/usage-id` in `_meta`. History, settings, deletion and export
+are local-owner only: the separate `X-Usage-Owner` key, direct loopback connection, loopback Host and no forwarding headers. Remote
+clients cannot inspect other users' history. Fleet pairing is separate, not implemented here.
+
+Export usage JSON or the missing-knowledge report from `/usage`. Import `missing-knowledge.json` on
+Studio's Package page for grouped document-review suggestions. Reports are self-reported, not signed;
+not-found/weak/thumbs-down are candidates for human review. Counts-only reports need a user example
+before a document can be chosen. Import never fetches URLs, adds sources, rebuilds or widens scope.
+The Studio copy stays until deleted/replaced, independently of the package's retention settings.
 
 ## Configuration
 
@@ -1333,9 +1361,11 @@ def build_package(
         if models:
             requirements += "sentence-transformers>=3.0\n"
         sink.add_bytes(f"{root}/server.py", _SERVER_SRC.read_text(encoding="utf-8"))
+        sink.add_bytes(f"{root}/package_usage.py", (_HERE / "package_usage.py").read_bytes())
         # Public, generic connection assets: no corpus identity, paths or keys.
         for source, target in (("package_connect.html", "connect.html"),
-                               ("package_connect.js", "connect-page.js")):
+                               ("package_connect.js", "connect-page.js"),
+                               ("package_usage.html", "usage.html"), ("package_usage.js", "usage.js")):
             sink.add_bytes(f"{root}/{target}", (_HERE / source).read_bytes())
         sink.add_bytes(f"{root}/connect.js", (_HERE.parent / "webui/static/js/connect.js").read_bytes())
         sink.add_bytes(f"{root}/smart-brain.mcpb", build_mcpb())
@@ -1651,7 +1681,7 @@ def _check_http(root: Path, env: dict, original: dict | None = None) -> dict:
                 return {"ok": False, "detail": f"the chat page answered HTTP {e.code}"}
             except (urllib.error.URLError, OSError):
                 time.sleep(0.5)
-        if 'src="/app.js"' not in page:
+        if not re.search(r'src="/app\.js(?:\?v=[0-9]+)?"', page):
             return {"ok": False, "detail": "the chat page did not load"}
         body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {"_meta": {
             "io.modelcontextprotocol/protocolVersion": "2026-07-28"}}}).encode()

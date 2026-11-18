@@ -13,6 +13,7 @@ Mounted under ``/api/projects``:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 import shutil
@@ -50,6 +51,40 @@ def _project_404(pid: str) -> JSONResponse | None:
     if not db.get_project(pid):
         return JSONResponse({"detail": "project not found"}, status_code=404)
     return None
+
+
+@router.get("/{pid}/brain/usage-gaps")
+def brain_usage_gaps(pid: str):
+    if error := _project_404(pid):
+        return error
+    path = project_dir(pid) / "package-usage-gaps.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {"suggestions": [], "package": {}}
+
+
+@router.post("/{pid}/brain/usage-gaps")
+async def brain_usage_gaps_import(pid: str, file: UploadFile):
+    if error := _project_404(pid):
+        return error
+    from finetune_studio.smart_brain.usage_report import (
+        MAX_REPORT_BYTES,
+        save_report,
+        suggestions,
+    )
+    try:
+        raw = await file.read(MAX_REPORT_BYTES + 1)
+        report = await asyncio.to_thread(suggestions, raw)
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
+    await asyncio.to_thread(save_report, project_dir(pid) / "package-usage-gaps.json", report)
+    return report
+
+
+@router.delete("/{pid}/brain/usage-gaps")
+def brain_usage_gaps_delete(pid: str):
+    if error := _project_404(pid):
+        return error
+    (project_dir(pid) / "package-usage-gaps.json").unlink(missing_ok=True)
+    return {"ok": True}
 
 
 class BundleRequest(BaseModel):

@@ -29,6 +29,23 @@
   </div>
 </div>
 
+<section class="card mb-4" id="package-usage" aria-labelledby="package-usage-title">
+  <h2 id="package-usage-title" class="card-title">Usage &amp; missing knowledge</h2>
+  <p class="card-sub">New packages have a local-owner <b>/usage</b> dashboard: questions, sources, not-found,
+    low-confidence, feedback, errors and latency. It stores counts only unless the operator opts into plaintext
+    question text, with retention limits. There is no automatic telemetry or remote fleet connection.</p>
+  <p>Export <b>missing-knowledge.json</b> there, then import it here to review document suggestions.
+    Import replaces the last report for this project. It never adds files, rebuilds knowledge or widens package scope.
+    Imported question text stays here until you delete or replace the report, independently of package retention.</p>
+  <label for="usage-gap-file">Missing-knowledge report (JSON, up to 32 MiB)</label>
+  <input id="usage-gap-file" class="w-full" type="file" accept="application/json,.json">
+  <div class="flex gap-2 wrap mt-2"><button class="btn" id="usage-gap-import" type="button">Import report</button>
+    <button class="btn ghost" id="usage-gap-delete" type="button">Delete imported report</button>
+    <a class="btn ghost" href="/projects/{{ pid }}/files" data-link>Review or add documents →</a></div>
+  <p id="usage-gap-status" class="text-sm" role="status" aria-live="polite">Loading document suggestions…</p>
+  <ul id="usage-gap-list"></ul>
+</section>
+
 <section class="card mb-4" id="package-form" aria-labelledby="package-form-title">
   <div class="card-head">
     <div>
@@ -589,6 +606,46 @@
   {% endif %}
 </div>
 
+<script>
+// Package usage intake v1: inert, operator-reviewed suggestions, never source ingestion.
+(() => {
+  const root = document.getElementById('package-usage');
+  const status = root.querySelector('#usage-gap-status');
+  const endpoint = '/api/projects/{{ pid }}/brain/usage-gaps';
+  function render(report) {
+    const list = root.querySelector('#usage-gap-list'); list.replaceChildren();
+    for (const item of report.suggestions || []) {
+      const row = document.createElement('li');
+      row.textContent = (item.question || 'Question text not retained') + ' · ' + item.occurrences +
+        ' event(s) · ' + item.reasons.join(', ') + ' — ' + item.suggestion;
+      row.style.overflowWrap = 'anywhere'; list.append(row);
+    }
+    status.textContent = (report.suggestions || []).length + ' document suggestion(s). Report identity is self-reported, not verified. No knowledge changed.';
+  }
+  async function request(options) {
+    const response = await fetch(endpoint, options); const report = await response.json();
+    if (!response.ok) throw new Error(report.detail || 'Report request failed (' + response.status + ')');
+    return report;
+  }
+  request().then(render).catch(error => { status.textContent = error.message; });
+  root.querySelector('#usage-gap-import').addEventListener('click', async (event) => {
+    const file = root.querySelector('#usage-gap-file').files[0];
+    if (!file) { status.textContent = 'Choose the missing-knowledge JSON report first.'; return; }
+    if (file.size > 32 * 1024 * 1024) { status.textContent = 'Report exceeds 32 MiB.'; return; }
+    const form = new FormData(); form.append('file', file); event.target.disabled = true;
+    status.textContent = 'Validating report…';
+    try { render(await request({method: 'POST', body: form})); }
+    catch (error) { status.textContent = 'Import failed: ' + error.message; }
+    finally { event.target.disabled = false; }
+  });
+  root.querySelector('#usage-gap-delete').addEventListener('click', async (event) => {
+    event.target.disabled = true;
+    try { await request({method: 'DELETE'}); render({suggestions: []}); status.textContent = 'Imported report deleted. Package diagnostics were not changed.'; }
+    catch (error) { status.textContent = error.message; }
+    finally { event.target.disabled = false; }
+  });
+})();
+</script>
 <script>
 // Readiness checklist: loaded after the page shows (it runs the knowledge check; GET /brain/readiness).
 (function () {

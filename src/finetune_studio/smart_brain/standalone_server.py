@@ -63,12 +63,14 @@ from __future__ import annotations
 import argparse
 import contextlib
 import hmac
+import importlib.util
 import io
 import ipaddress
 import json
 import math
 import os
 import re
+import sqlite3
 import sys
 import threading
 import time
@@ -82,6 +84,12 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import numpy as np
+
+# Explicit sibling loading also works with python -I (no script directory on sys.path).
+_usage_spec = importlib.util.spec_from_file_location("_smart_brain_package_usage", Path(__file__).with_name("package_usage.py"))
+_usage_module = importlib.util.module_from_spec(_usage_spec)
+_usage_spec.loader.exec_module(_usage_module)
+Usage, tracked = _usage_module.Usage, _usage_module.tracked
 
 HERE = Path(__file__).resolve().parent
 CORPUS_DIR = HERE / "corpus"
@@ -832,6 +840,9 @@ class Corpus:
     def __init__(self, corpus_dir: Path = CORPUS_DIR, cfg: Mapping | None = None,
                  passphrase: str | None = None):
         self.dir = Path(corpus_dir)
+        self.usage = Usage(self.dir.parent)
+        self.usage.weak_match = weak_match
+        self.usage.not_stated = says_not_stated
         self.cfg = dict(cfg) if cfg is not None else resolve_config({}, os.environ, {})[0]
         enc = self.dir / ENC_NAME
         self.encrypted = enc.is_file()
@@ -1108,6 +1119,7 @@ class Corpus:
             raise KeyError(asset_id)
         return self._read(rel), ("image/jpeg" if thumb else str(rec.get("mime_type") or "application/octet-stream"))
 
+    @tracked("image_search")
     def search_images(self, query: str = "", image_bytes: bytes | None = None, top_k: int = 6,
                       documents: bool = False, thumbnails: bool = False) -> dict:
         """Pictures for a text description or a picture: ``{hits, weak, mode, note[, documents]}``.
@@ -1201,6 +1213,7 @@ class Corpus:
         norm = float(np.linalg.norm(vec))
         return vec / norm if norm else None
 
+    @tracked("search")
     def search(self, query: str, top_k: int | None = None, source_prefix: str = "",
                dense_extra: int | None = None) -> list[dict]:
         """Hybrid search; ``source_prefix`` keeps only passages whose file name starts with it
@@ -1418,6 +1431,7 @@ class Corpus:
             words = image_words(rec)[:300]
         return pictures, hits, words
 
+    @tracked("answer")
     def answer(self, question: str, top_k: int | None = None, provider: Mapping | None = None,
                history: list[dict] | None = None, include_sources: bool | None = None,
                image_bytes: bytes | None = None, client_instructions: str = "") -> dict:
@@ -1787,7 +1801,18 @@ def make_handler(corpus: Corpus, token: str = ""):
     """Request handler class. ``token`` non-empty => Bearer auth required."""
 
     class Handler(BaseHTTPRequestHandler):
+        def send_response(self, code, message=None):
+            event = getattr(self, "_usage_event", None)
+            if event is not None and code >= 400:
+                event["error"] = f"http_{code}"
+            super().send_response(code, message)
+
         def end_headers(self):
+            event = getattr(self, "_usage_event", None)
+            if event is not None:
+                corpus.usage.flush(event)
+                if event.get("stored"):
+                    self.send_header("X-Usage-ID", event["id"])
             ver = hosted_meta().get("version")
             if ver:   # every response says which package version answered (proxies, logs, update checks)
                 self.send_header("X-Package-Version", str(ver))
@@ -1809,7 +1834,8 @@ def make_handler(corpus: Corpus, token: str = ""):
             loopback-only; reject foreign Host headers (DNS rebinding)."""
             if token:
                 if self.command == "GET" and urlparse(self.path).path in (
-                        "/", "/app.js", "/version", "/connect", "/connect.js", "/connect-page.js", "/smart-brain.mcpb"):
+                        "/", "/app.js", "/version", "/connect", "/connect.js", "/connect-page.js", "/smart-brain.mcpb",
+                        "/usage", "/usage.js"):
                     # the static client and the package's name/version hold no corpus data; API calls stay authenticated
                     return True
                 auth = self.headers.get("Authorization") or ""
@@ -1832,13 +1858,61 @@ def make_handler(corpus: Corpus, token: str = ""):
         def do_GET(self):
             if not self._authorized():
                 return
+            self._run_request(self._get)
+
+        def _run_request(self, function):
+            path = urlparse(self.path).path
+            usage = getattr(corpus, "usage", None)
+            if usage is None or path not in ("/search", "/ask", "/search/image", "/v1/retrieve", "/v1/chat/completions"):
+                try:
+                    function()
+                except (OSError, sqlite3.Error):
+                    if not path.startswith("/usage/"):
+                        raise
+                    self._json({"error": "Local usage storage unavailable; retrieval remains available."}, 503)
+                return
+            query = (parse_qs(urlparse(self.path).query).get("q") or [""])[0]
+            with usage.measure(path, query) as event:
+                self._usage_event = event
+                try:
+                    function()
+                except (OSError, RuntimeError, TypeError, KeyError, IndexError, AttributeError):
+                    self._api_error("Package operation failed; check the operator configuration.", 502, "operation_failed")
+                finally:
+                    self._usage_event = None
+
+        def _usage_owner(self):
+            # A package client token is not permission to inspect other users' query history.
+            origin = self.headers.get("Origin")
+            own_host = urlparse("//" + (self.headers.get("Host") or "")).hostname or ""
+            if (not is_loopback(self.client_address[0]) or not is_loopback(own_host) or
+                    any(self.headers.get(h) for h in ("Forwarded", "X-Forwarded-For", "X-Real-IP")) or
+                    (origin and urlparse(origin).netloc != self.headers.get("Host"))):
+                self._json({"error": "usage administration requires a local same-origin connection"}, 403)
+                return False
+            owner = corpus.usage.owner_token()
+            if not owner or not tokens_equal(self.headers.get("X-Usage-Owner") or "", owner):
+                self._json({"error": "enter the local usage owner token from .usage/owner-token"}, 403)
+                return False
+            return True
+
+        def _get(self):
             u = urlparse(self.path)
             if u.path == "/":
                 self._static(_CHAT_PAGE, "text/html; charset=utf-8")
             elif u.path == "/app.js":
                 self._static(_CHAT_JS, "text/javascript; charset=utf-8")
-            elif u.path in ("/connect", "/connect.js", "/connect-page.js", "/smart-brain.mcpb"):
+            elif u.path in ("/connect", "/connect.js", "/connect-page.js", "/smart-brain.mcpb", "/usage", "/usage.js"):
                 self._connect_asset(u.path)
+            elif u.path in ("/usage/report", "/usage/export", "/usage/gaps"):
+                if self._usage_owner():
+                    report = corpus.usage.report()
+                    report["package"] = version_info()
+                    if u.path == "/usage/gaps":
+                        report.pop("events")
+                    self._json(report, extra={"Content-Disposition": 'attachment; filename="missing-knowledge.json"'}
+                               if u.path == "/usage/gaps" else {"Content-Disposition": 'attachment; filename="package-usage.json"'}
+                               if u.path == "/usage/export" else None)
             elif u.path == "/mcp":
                 self._json({"error": "the MCP endpoint takes POST"}, 405, {"Allow": "POST"})
             elif u.path == "/health":
@@ -1947,6 +2021,8 @@ def make_handler(corpus: Corpus, token: str = ""):
                 "/connect.js": ("connect.js", "text/javascript; charset=utf-8"),
                 "/connect-page.js": ("connect-page.js", "text/javascript; charset=utf-8"),
                 "/smart-brain.mcpb": ("smart-brain.mcpb", "application/octet-stream"),
+                "/usage": ("usage.html", "text/html; charset=utf-8"),
+                "/usage.js": ("usage.js", "text/javascript; charset=utf-8"),
             }[path]
             try:
                 data = Path(__file__).with_name(filename).read_bytes()
@@ -2136,6 +2212,9 @@ def make_handler(corpus: Corpus, token: str = ""):
         def do_POST(self):
             if not self._authorized():
                 return
+            self._run_request(self._post)
+
+        def _post(self):
             path = urlparse(self.path).path
             is_api = path.startswith("/v1/")
             try:
@@ -2148,6 +2227,31 @@ def make_handler(corpus: Corpus, token: str = ""):
                         self._json({"error": "request body too large"}, 413)
                     return
                 body = json.loads(self.rfile.read(length) or b"{}")
+                event = getattr(self, "_usage_event", None)
+                if event is not None and isinstance(body, dict):
+                    query = body.get("question") or body.get("query")
+                    if path == "/v1/chat/completions" and isinstance(body.get("messages"), list):
+                        query = next((m.get("content") for m in reversed(body["messages"])
+                                      if isinstance(m, dict) and m.get("role") == "user"), "")
+                    event["query"] = query if isinstance(query, str) else ""
+                if path.startswith("/usage/"):
+                    if not isinstance(body, dict):
+                        raise ValueError("send a JSON object")
+                    origin = self.headers.get("Origin")
+                    if origin and urlparse(origin).netloc != self.headers.get("Host"):
+                        self._json({"error": "forbidden origin"}, 403)
+                    elif path == "/usage/feedback":
+                        corpus.usage.feedback(body)
+                        self._json({"ok": True})
+                    elif self._usage_owner():
+                        if path == "/usage/settings":
+                            self._json(corpus.usage.settings(body))
+                        elif path == "/usage/clear" and not body:
+                            corpus.usage.clear()
+                            self._json({"ok": True})
+                        else:
+                            self._json({"error": "not found"}, 404)
+                    return
                 if is_api:
                     origin = self.headers.get("Origin")
                     if origin and urlparse(origin).netloc != self.headers.get("Host"):
@@ -2469,7 +2573,7 @@ def mcp_responder(corpus: Corpus | LoadingCorpus, base_url: str = ""):
         def ok(result: dict) -> dict:
             if modern:
                 result = {"resultType": "complete", **result,
-                          "_meta": {"io.modelcontextprotocol/serverInfo": server_info}}
+                          "_meta": {**result.get("_meta", {}), "io.modelcontextprotocol/serverInfo": server_info}}
             return {"jsonrpc": "2.0", "id": mid, "result": result}
 
         if method and method.startswith("notifications/"):
@@ -2524,7 +2628,10 @@ def mcp_responder(corpus: Corpus | LoadingCorpus, base_url: str = ""):
                                             include_sources=bool(args.get("include_sources")))
                 else:
                     return error(-32602, f"unknown tool {name!r}")
-                return ok({"content": [{"type": "text", "text": json.dumps(out, ensure_ascii=False)}], "isError": False})
+                usage = getattr(corpus_now, "usage", None)
+                usage_id = getattr(usage.local, "last_id", None) if usage and name in ("rag_search", "rag_answer") else None
+                return ok({"content": [{"type": "text", "text": json.dumps(out, ensure_ascii=False)}], "isError": False,
+                           **({"_meta": {"smart-brain/usage-id": usage_id}} if usage_id else {})})
             except Exception as e:  # noqa: BLE001 — MCP must not die on one call
                 return ok({"content": [{"type": "text", "text": f"error: {e}"}], "isError": True})
         if mid is not None:
@@ -2552,7 +2659,7 @@ def serve_mcp(corpus: Corpus | LoadingCorpus) -> None:
 
 
 #: Never replaced by an update: local settings, the venv and what setup.sh wrote.
-UPDATE_KEEP = frozenset({CONFIG_NAME, ".venv", "MCP-ENTRY.txt", "rag-server.log", "rag-server.pid", "passphrase.txt"})
+UPDATE_KEEP = frozenset({CONFIG_NAME, ".venv", "MCP-ENTRY.txt", "rag-server.log", "rag-server.pid", "passphrase.txt", ".usage"})
 #: The rag.config.json the package was shipped with: an update keeps only the keys the user changed since.
 SHIPPED_CONFIG_NAME = "rag.config.shipped.json"
 #: Packages from before SHIPPED_CONFIG_NAME: only these local keys survive an update (where and how it runs).
@@ -2913,7 +3020,7 @@ button:disabled{opacity:.6;cursor:wait}#chat{display:grid;gap:12px;margin:14px 0
 #attach-row[hidden]{display:none}#picture{max-width:100%;min-width:0}
 </style><main>
 <h1 id="title">Smart Brain</h1><p class="muted" id="about">Ask the documents in this package. Every answer lists the files it came from.</p>
-<p><a href="connect">Connect to your AI tools →</a></p>
+<p><a href="connect">Connect to your AI tools →</a> · <a href="usage">Usage &amp; missing knowledge (local owner) →</a></p>
 <p class="small muted" id="stats"></p>
 <details class="card" id="conn"><summary id="conn-summary">Answer with…</summary>
 <label for="kind">Provider</label><select id="kind"></select>
@@ -2929,7 +3036,7 @@ button:disabled{opacity:.6;cursor:wait}#chat{display:grid;gap:12px;margin:14px 0
 <div class="bar" id="attach-row" style="margin-top:8px" hidden><label for="picture" style="margin:0">Attach a picture (optional)</label><input id="picture" type="file" accept="image/*" style="width:auto;margin:0"><span id="attach-preview"></span></div>
 <div class="bar" style="margin-top:10px"><button id="send">Ask</button><button type="button" class="ghost" id="reset">New conversation</button><span class="small muted" id="status"></span></div></form>
 <p class="small muted" id="pkg-version"></p>
-<script src="/app.js"></script></main></html>"""
+<script src="/app.js?v=2"></script></main></html>"""
 
 _CHAT_JS = r"""'use strict';
 const $ = (id) => document.getElementById(id);
@@ -3022,6 +3129,27 @@ function bubble(cls, text) {
   $('chat').append(d); d.scrollIntoView({ block: 'nearest' });
   return d;
 }
+function feedback(box, id) {
+  if (!id) return;
+  const bar = document.createElement('div'); bar.className = 'bar src';
+  const status = document.createElement('span'); status.setAttribute('role', 'status');
+  for (const [rating, label] of [['up', 'Helpful'], ['down', 'Not helpful']]) {
+    const button = document.createElement('button'); button.type = 'button'; button.className = 'ghost';
+    button.textContent = label;
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      try {
+        const response = await fetch('/usage/feedback', {method: 'POST', headers: headers(), body: JSON.stringify({id, rating})});
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Feedback failed');
+        status.textContent = 'Feedback saved: ' + label.toLowerCase() + '.';
+      } catch (error) { status.textContent = error.message; }
+      finally { button.disabled = false; }
+    });
+    bar.append(button);
+  }
+  bar.append(status); box.append(bar);
+}
 function sources(box, list, answer) {
   if (!list || !list.length) return;
   // The files the answer names (it cites them as [file]); all retrieved files only when it names none.
@@ -3108,6 +3236,7 @@ $('ask').addEventListener('submit', async (e) => {
       const text = hits.length ? hits.map((h, i) => (hideNames ? `Passage ${i + 1}` : `${i + 1}. ${h.filename || 'document'}`)
         + '\n' + String(h.text || h.preview || '').trim()).join('\n\n') : 'Nothing in the documents matches that.';
       const b = bubble('bot', text);
+      feedback(b, r.headers.get('X-Usage-ID'));
       if (ir && !ir.weak) pics(b, ir.hits);
       $('status').textContent = 'No answer model is set: these are the passages that match. Pick a provider under "Answer with" for written answers.';
     } catch (err) { bubble('err', err.message); $('question').value = q; $('status').textContent = ''; }
@@ -3125,6 +3254,7 @@ $('ask').addEventListener('submit', async (e) => {
     const d = await r.json();
     if (!r.ok) throw new Error(d.error || `request failed (${r.status})`);
     const a = bubble('bot', d.answer); sources(a, d.sources, d.answer); pics(a, d.images);
+    feedback(a, r.headers.get('X-Usage-ID'));
     if (d.images_note) { const n = document.createElement('div'); n.className = 'src'; n.textContent = d.images_note; a.append(n); }
     history.push({ role: 'user', content: q }, { role: 'assistant', content: d.answer }); history = history.slice(-12);
     $('status').textContent = d.weak ? 'The passages found may not cover the whole question.' : '';
