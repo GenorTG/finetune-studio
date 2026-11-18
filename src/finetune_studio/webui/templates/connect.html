@@ -43,7 +43,7 @@
     <div class="card-head"><div class="card-title">3 · Add the connection</div></div>
     <p id="connect-instructions"></p>
     <a id="connect-docs" target="_blank" rel="noopener noreferrer">Client documentation ↗</a>
-    <pre id="connect-config" tabindex="0" style="white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%;margin-top:1rem"></pre>
+    <pre id="connect-config" class="service-detail mt-3" tabindex="0"></pre>
     <button type="button" class="btn primary" id="connect-copy">Copy setup</button>
     <p id="connect-feedback" role="status" aria-live="polite" class="text-xs mt-2">Edit the paths, then copy the setup. Client connection not checked.</p>
   </section>
@@ -53,9 +53,9 @@
   <p>For HTTP clients, first start the package with the command below. For a remote bind, set <code>RAG_AUTH_TOKEN</code>
     on the server and add <code>--host 0.0.0.0</code> only behind HTTPS.
     This token is separate from the encryption passphrase and from studio access tokens.</p>
-  <pre id="connect-start" tabindex="0" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+  <pre id="connect-start" class="service-detail" tabindex="0"></pre>
   <p>Set <code>RAG_AUTH_TOKEN</code> in your terminal if the package requires a bearer token. Then run:</p>
-  <pre id="connect-test" tabindex="0" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre>
+  <pre id="connect-test" class="service-detail" tabindex="0"></pre>
   <button type="button" class="btn" id="connect-copy-test">Copy terminal checks</button>
   <p class="text-xs dim mt-2">Health must return <code>"ok": true</code>; initialize must return a JSON-RPC <code>result</code>
     with <code>serverInfo</code>. 401 means the server token is missing or wrong; connection refused means it is not listening.
@@ -72,4 +72,4 @@
     <code>.mcpb</code> installation and automatic tunnels are not shipped by this page. No LLM is included or impersonated.</p>
 </section>
 {% endblock %}
-{% block scripts %}<script src="/static/js/connect.js"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/connect.js?v=1"></script>{% endblock %}
