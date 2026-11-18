@@ -36,7 +36,7 @@ def test_connect_is_reachable_and_package_navigation_preserves_exports(client):
     response = client.get("/connect")
     assert response.status_code == 200
     assert "Connect your Smart Brain" in response.text
-    assert 'src="/static/js/connect.js?v=3"' in response.text
+    assert 'src="/static/js/connect.js?v=4"' in response.text
     assert 'id="connect-port"' in response.text
     assert "Client connection not checked" in response.text
     assert "/v1/chat/completions" in response.text

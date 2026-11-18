@@ -42,6 +42,13 @@ function connectRecipes(client, folder, keyfile, address, listenerPort = '') {
       'https://lmstudio.ai/docs/app/mcp', standard],
     openwebui: ['Open WebUI 0.6.31+: as admin, open Settings → Integrations → External Tool Servers → Add Connection. Choose MCP (Streamable HTTP), not OpenAPI. Use this URL and bearer auth if enabled. Start the package HTTP server first; its address must be reachable from Open WebUI, not just your browser.',
       'https://docs.openwebui.com/features/extensibility/mcp/', base + '/mcp'],
+    'knowledge-api': ['Knowledge + your LLM: configure the package operator’s provider, then add the base URL below as an OpenAI-compatible connection in your client. Select smart-brain, not the upstream model. The client key is the package’s RAG_AUTH_TOKEN, never the upstream API key. Text chat only; SSE is buffered until retrieval and generation finish. Raw retrieval needs no LLM. Generic SDK support is tested separately from vendor UI certification.',
+      'https://platform.openai.com/docs/api-reference/chat/create',
+      'Base URL: ' + base + '/v1\nModel: smart-brain\nAPI key: package server access token (RAG_AUTH_TOKEN)\n\n' +
+      '# On the package host, configure YOUR provider before starting:\n' +
+      'export RAG_LLM_PROVIDER=openai\nexport RAG_LLM_BASE_URL=http://127.0.0.1:11434/v1\n' +
+      'export RAG_LLM_MODEL=YOUR_INSTALLED_MODEL\n# Set RAG_LLM_API_KEY privately if your provider needs it.\n' +
+      '# For Claude use RAG_LLM_PROVIDER=anthropic and its /v1 base URL.'],
     chatgpt: ['Not an automated connection: this package has no OAuth discovery, public tunnel or GPT Actions adapter. Do not paste a localhost URL into a cloud client. A compatible remote MCP client must support your bearer authentication and reach an HTTPS server. Check account and connector requirements first.',
       'https://platform.openai.com/docs/guides/tools-connectors-mcp', 'No ready-to-install ChatGPT configuration is shipped.'],
     ollama: ['Ollama is a model runtime, not the MCP host in this setup. Use Open WebUI or another MCP host with an Ollama tool-capable model, then connect the package there.',
@@ -52,11 +59,16 @@ function connectRecipes(client, folder, keyfile, address, listenerPort = '') {
   const health = 'curl --fail-with-body --connect-timeout 3 --max-time 15 -H "Authorization: Bearer ${RAG_AUTH_TOKEN:-}" ';
   const handshake = JSON.stringify({jsonrpc:'2.0', id:1, method:'initialize', params:{
     protocolVersion:'2024-11-05', capabilities:{}, clientInfo:{name:'connect-check',version:'1.0'}}});
+  const apiChecks = health + quote(base + '/v1/models') + '\n\n' + health +
+    "-H 'Content-Type: application/json' --data " + quote(JSON.stringify({query:'What is in this package?', top_k:3, images:true})) +
+    ' ' + quote(base + '/v1/retrieve') + '\n\n' + health.replace('--max-time 15', '--max-time 330') +
+    "-H 'Content-Type: application/json' --data " + quote(JSON.stringify({model:'smart-brain',
+      messages:[{role:'user',content:'What is in this package?'}], stream:false})) + ' ' + quote(base + '/v1/chat/completions');
   return {instructions, docs, config, availableSetup: !['chatgpt', 'ollama'].includes(client),
     start: port ? 'bash ' + quote(folder.replace(/\/$/, '') + '/run-http.sh') +
-      ' --keyfile ' + quote(keyfile) + ' --port ' + Number(port) :
+      ' --keyfile ' + quote(keyfile) + ' --port ' + Number(port) + (client === 'knowledge-api' ? ' --answer' : '') :
       'Enter the package listener port above to generate a startup command. A public or proxy URL does not reveal it.',
-    test: health + quote(base + '/health') + '\n\n' + health +
+    test: client === 'knowledge-api' ? apiChecks : health + quote(base + '/health') + '\n\n' + health +
       '-H \'Content-Type: application/json\' -H \'Accept: application/json, text/event-stream\' --data ' +
       quote(handshake) + ' ' + quote(base + '/mcp')};
 }

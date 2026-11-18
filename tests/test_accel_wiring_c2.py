@@ -131,10 +131,12 @@ def test_brain_entrypoints_default_to_auto() -> None:
 
 
 # ── shipped standalone package: self-contained resolver ────────────────────
-def _load_server() -> types.ModuleType:
+def _load_server(monkeypatch: pytest.MonkeyPatch) -> types.ModuleType:
     import importlib.util
     spec = importlib.util.spec_from_file_location("standalone_server_under_test", SERVER)
     mod = importlib.util.module_from_spec(spec)  # type: ignore[arg-type]
+    # Match normal import semantics: dataclasses resolve postponed annotations via sys.modules.
+    monkeypatch.setitem(sys.modules, spec.name, mod)
     spec.loader.exec_module(mod)  # type: ignore[union-attr]
     return mod
 
@@ -151,7 +153,7 @@ def _fake_torch(cuda: bool = False, xpu: bool = False, mps: bool = False) -> typ
     ({"cuda": True, "xpu": True}, "cuda"), ({}, "cpu"),
 ])
 def test_standalone_auto_resolver(monkeypatch: pytest.MonkeyPatch, torch_kw: dict, want: str) -> None:
-    srv = _load_server()
+    srv = _load_server(monkeypatch)
     monkeypatch.setitem(sys.modules, "torch", _fake_torch(**torch_kw))
     assert srv.DEFAULT_CONFIG["device"] == "auto"
     assert srv._resolve_device("auto") == want
@@ -161,7 +163,7 @@ def test_standalone_auto_resolver(monkeypatch: pytest.MonkeyPatch, torch_kw: dic
 
 def test_standalone_explicit_unavailable_falls_back(monkeypatch: pytest.MonkeyPatch,
                                                     capsys: pytest.CaptureFixture) -> None:
-    srv = _load_server()
+    srv = _load_server(monkeypatch)
     monkeypatch.setitem(sys.modules, "torch", _fake_torch())
     assert srv._resolve_device("cuda:1") == "cpu"
     assert "unavailable" in capsys.readouterr().err
@@ -180,7 +182,7 @@ def test_standalone_resolver_does_not_need_finetune_studio() -> None:
         "sys.modules['torch'] = types.SimpleNamespace(\n"
         "    cuda=types.SimpleNamespace(is_available=lambda: True), backends=None)\n"
         f"spec = importlib.util.spec_from_file_location('srv', {str(SERVER)!r})\n"
-        "m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)\n"
+        "m = importlib.util.module_from_spec(spec); sys.modules[spec.name] = m; spec.loader.exec_module(m)\n"
         "assert m._resolve_device('auto') == 'cuda'\n"
         "assert not any(k.split('.')[0] == 'finetune_studio' for k in sys.modules)\n"
         "print('ok')\n"

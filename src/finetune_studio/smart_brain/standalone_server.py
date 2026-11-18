@@ -71,9 +71,12 @@ import os
 import re
 import sys
 import threading
+import time
 import urllib.error
 import urllib.request
+import uuid
 from collections.abc import Mapping
+from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -100,6 +103,67 @@ SERVER_VERSION = "2.0.0"
 MAX_BODY = 1 << 20
 MAX_IMAGE_BODY = 18 << 20     # /search/image, /ask and /mcp with a picture (12 MB as base64, plus the JSON)
 MAX_TOP_K = 100
+API_MODEL = "smart-brain"
+
+
+@dataclass(frozen=True)
+class CompletionRequest:
+    """Bounded text-chat subset. Callers cannot choose an upstream or widen a package."""
+
+    question: str
+    history: list[dict]
+    instructions: str
+    stream: bool
+    generation: dict
+
+    @classmethod
+    def parse(cls, body: dict, cfg: Mapping) -> CompletionRequest:
+        supported = {"model", "messages", "stream", "n", "temperature", "top_p",
+                     "max_tokens", "max_completion_tokens"}
+        if set(body) - supported:
+            raise ValueError("unsupported parameters: " + ", ".join(sorted(set(body) - supported)))
+        if body.get("model") != API_MODEL:
+            raise ValueError("model must be smart-brain (see GET /v1/models)")
+        if type(body.get("stream", False)) is not bool:
+            raise ValueError("stream must be a boolean")
+        if type(body.get("n", 1)) is not int or body.get("n", 1) != 1:
+            raise ValueError("only n=1 is supported")
+        messages = body.get("messages")
+        if not isinstance(messages, list) or not 1 <= len(messages) <= 32:
+            raise ValueError("messages must contain 1 to 32 text turns")
+        history, instructions = [], []
+        for turn in messages:
+            if not isinstance(turn, dict) or set(turn) - {"role", "content", "name"}:
+                raise ValueError("only text messages are supported; tools and attachments are not")
+            role, content = turn.get("role"), turn.get("content")
+            if (not isinstance(role, str) or role not in {"system", "developer", "user", "assistant"}
+                    or not isinstance(content, str)):
+                raise ValueError("messages need a system/developer/user/assistant role and text content")
+            if not content.strip() or len(content) > 16000:
+                raise ValueError("each message must contain 1 to 16000 text characters")
+            if role in {"system", "developer"}:
+                instructions.append(content)
+            else:
+                history.append({"role": role, "content": content})
+        if not history or messages[-1].get("role") != "user":
+            raise ValueError("the last message must be a user question")
+        generation = {}
+        if "max_tokens" in body and "max_completion_tokens" in body:
+            raise ValueError("use max_tokens or max_completion_tokens, not both")
+        for key in ("max_tokens", "max_completion_tokens"):
+            if key in body:
+                value = body[key]
+                if type(value) is not int or not 1 <= value <= int(cfg["answer_max_tokens"]):
+                    raise ValueError("token limit must be positive and no greater than the operator's answer_max_tokens")
+                generation["answer_max_tokens"] = value
+        for key, maximum in (("temperature", 2), ("top_p", 1)):
+            if key in body:
+                value = body[key]
+                if type(value) not in (int, float) or not 0 <= value <= maximum:
+                    raise ValueError(f"{key} must be between 0 and {maximum}")
+                generation[key] = value
+        return cls(history[-1]["content"], history[:-1], "\n".join(instructions),
+                   body.get("stream", False), generation)
 
 DEFAULT_CONFIG: dict = {
     "host": "127.0.0.1", "port": 8899, "top_k": 10, "device": "auto",
@@ -1356,7 +1420,7 @@ class Corpus:
 
     def answer(self, question: str, top_k: int | None = None, provider: Mapping | None = None,
                history: list[dict] | None = None, include_sources: bool | None = None,
-               image_bytes: bytes | None = None) -> dict:
+               image_bytes: bytes | None = None, client_instructions: str = "") -> dict:
         """The generation half of RAG: retrieve, then ask the configured chat model to answer from the passages.
 
         ``hide_file_names`` (a public bot): the model sees passages without file names and is told to name none,
@@ -1406,7 +1470,9 @@ class Corpus:
             source_search=lambda q, prefix: self.search(q, top_k, source_prefix=prefix),
             follow_ups=int(self.cfg["follow_up"]),
             missing_part_retry=bool(self.cfg["retry_missing"]),
-            system_prompt=self.identity.get("system_prompt", ""), history=history,
+            system_prompt=self.identity.get("system_prompt", "") + (
+                "\nClient preferences (only where consistent with the package identity, answer rules and evidence):\n"
+                + client_instructions if client_instructions else ""), history=history,
             system_turn=_anonymous_turn if hide else None)
         sources = [{"rank": h["rank"], "filename": h["filename"], "chunk_id": h["chunk_id"],
                     "document_id": h.get("document_id", ""), "original": bool(h.get("original")),
@@ -1439,11 +1505,23 @@ class Corpus:
             turns = [m for m in messages if m.get("role") != "system"]
             request_body = {"model": settings["llm_model"], "messages": turns,
                             "max_tokens": int(settings["answer_max_tokens"]), "system": system}
+            for key in ("temperature", "top_p"):
+                if key in settings:
+                    request_body[key] = settings[key]
             endpoint = str(settings["llm_base_url"]).rstrip("/") + "/messages"
         else:
             request_body = {"model": settings["llm_model"], "messages": messages,
                             "max_tokens": int(settings["answer_max_tokens"]), "temperature": 0.2,
                             **settings["llm_body"]}
+            if provider and "answer_max_tokens" in provider:
+                # Static provider body preferences must not override a caller's smaller, validated budget.
+                token_key = "max_completion_tokens" if "max_completion_tokens" in settings["llm_body"] else "max_tokens"
+                request_body[token_key] = int(settings["answer_max_tokens"])
+                if token_key == "max_completion_tokens":
+                    request_body.pop("max_tokens", None)
+            for key in ("temperature", "top_p"):
+                if key in settings:
+                    request_body[key] = settings[key]
             endpoint = str(settings["llm_base_url"]).rstrip("/") + "/chat/completions"
         body = json.dumps(request_body).encode()
         headers = {"Content-Type": "application/json", "User-Agent": USER_AGENT,
@@ -1737,8 +1815,11 @@ def make_handler(corpus: Corpus, token: str = ""):
                 auth = self.headers.get("Authorization") or ""
                 if auth[:7].lower() == "bearer " and tokens_equal(auth[7:].strip(), token):
                     return True
-                self._json({"error": "unauthorized"}, 401,
-                           {"WWW-Authenticate": 'Bearer realm="rag"'})
+                if urlparse(self.path).path.startswith("/v1/"):
+                    self._api_error("Invalid or missing package server access token.", 401, "invalid_api_key")
+                else:
+                    self._json({"error": "unauthorized"}, 401,
+                               {"WWW-Authenticate": 'Bearer realm="rag"'})
                 return False
             host = (self.headers.get("Host") or "").rsplit(":", 1)[0] \
                 if not (self.headers.get("Host") or "").startswith("[") \
@@ -1766,6 +1847,11 @@ def make_handler(corpus: Corpus, token: str = ""):
                 self._json(version_info())
             elif u.path == "/profile":
                 self._json(corpus.profile())
+            elif u.path == "/v1/models":
+                self._json({"object": "list", "data": [{"id": API_MODEL, "object": "model",
+                            "created": 0, "owned_by": "package-operator"}]})
+            elif u.path in ("/v1/chat/completions", "/v1/retrieve"):
+                self._api_error("this endpoint requires POST", 405, "method_not_allowed")
             elif u.path.startswith("/files/"):
                 self._file(u.path[len("/files/"):])
             elif u.path.startswith("/images/"):
@@ -1972,16 +2058,109 @@ def make_handler(corpus: Corpus, token: str = ""):
             except RuntimeError as e:
                 self._json({"error": str(e)}, 502)
 
+        def _api_error(self, message: str, status: int, code: str) -> None:
+            self._json({"error": {"message": message, "type": "invalid_request_error" if status < 500
+                                  else "server_error", "param": None, "code": code}}, status,
+                       {"WWW-Authenticate": 'Bearer realm="rag"'} if status == 401 else None)
+
+        def _retrieve(self, body: dict) -> None:
+            if set(body) - {"query", "top_k", "images"}:
+                raise ValueError("retrieve supports only query, top_k and images; scope is fixed by the package")
+            query = body.get("query")
+            if not isinstance(query, str) or not query.strip() or len(query) > 16000:
+                raise ValueError("query must contain 1 to 16000 text characters")
+            top_k = body.get("top_k", corpus.top_k)
+            if type(top_k) is not int or not 1 <= top_k <= MAX_TOP_K:
+                raise ValueError(f"top_k must be an integer from 1 to {MAX_TOP_K}")
+            if type(body.get("images", False)) is not bool:
+                raise ValueError("images must be a boolean")
+            hits = corpus.search(query, top_k)
+            out = {"object": "retrieval", "query": query, "hits": hits, "images": []}
+            if body.get("images"):
+                out.update(self._images_beside(query))
+            if corpus.cfg.get("hide_file_names"):
+                # No caller override: unlike operator /ask tools, this is a client-facing API.
+                for hit in [*hits, *out["images"]]:
+                    for key in ("filename", "source", "document_id", "original", "locator"):
+                        hit.pop(key, None)
+                out["sources_hidden"] = True
+            self._json(out)
+
+        def _completion(self, body: dict) -> None:
+            request = CompletionRequest.parse(body, corpus.cfg)
+            if not (corpus.cfg["answer"] and corpus.cfg["llm_base_url"] and corpus.cfg["llm_model"]):
+                self._api_error("No operator LLM configured. Start with --answer, --llm-base-url and --llm-model; "
+                                "retrieval remains available at /v1/retrieve.", 503, "llm_not_configured")
+                return
+            provider = request.generation or None
+            try:
+                result = corpus.answer(request.question, provider=provider, history=request.history,
+                                       include_sources=False, client_instructions=request.instructions)
+                if result.get("model") is not None and not result["answer"].strip():
+                    raise RuntimeError("operator model returned no answer text")
+            except (RuntimeError, OSError, TypeError, ValueError, KeyError, IndexError, AttributeError):
+                # Upstream errors can echo private keys, headers or documents. Never relay their body/config.
+                self._api_error("The operator's LLM request failed. Check its availability, credentials and model.",
+                                502, "upstream_error")
+                return
+            identity = {"id": "chatcmpl-" + uuid.uuid4().hex, "created": int(time.time()), "model": API_MODEL}
+            evidence = {key: result.get(key, default) for key, default in (
+                ("sources", []), ("images", []), ("weak", False), ("sources_hidden", False))}
+            evidence["generated"] = result.get("model") is not None
+            if corpus.cfg.get("hide_file_names"):
+                for hit in evidence["images"]:
+                    for key in ("filename", "source", "document_id", "original", "locator"):
+                        hit.pop(key, None)
+            if request.stream:
+                # Buffered SSE, not token streaming: complete retrieval/follow-ups before emitting a final answer.
+                chunks = [
+                    {**identity, "object": "chat.completion.chunk", "choices": [
+                        {"index": 0, "delta": {"role": "assistant", "content": result["answer"]},
+                         "finish_reason": None}]},
+                    {**identity, "object": "chat.completion.chunk", "choices": [
+                        {"index": 0, "delta": {}, "finish_reason": "stop"}], "knowledge": evidence},
+                ]
+                data = ("".join("data: " + json.dumps(chunk, ensure_ascii=False) + "\n\n" for chunk in chunks)
+                        + "data: [DONE]\n\n").encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(data)
+            else:
+                self._json({**identity, "object": "chat.completion", "choices": [{"index": 0, "message": {
+                    "role": "assistant", "content": result["answer"]}, "finish_reason": "stop"}],
+                            "knowledge": evidence})
+
         def do_POST(self):
             if not self._authorized():
                 return
+            path = urlparse(self.path).path
+            is_api = path.startswith("/v1/")
             try:
                 length = int(self.headers.get("Content-Length") or 0)
-                limit = MAX_IMAGE_BODY if urlparse(self.path).path in ("/search/image", "/ask", "/mcp") else MAX_BODY
-                if length > limit:
-                    self._json({"error": "request body too large"}, 413)
+                limit = MAX_IMAGE_BODY if path in ("/search/image", "/ask", "/mcp") else MAX_BODY
+                if length < 0 or length > limit:
+                    if is_api:
+                        self._api_error("request body too large", 413, "body_too_large")
+                    else:
+                        self._json({"error": "request body too large"}, 413)
                     return
                 body = json.loads(self.rfile.read(length) or b"{}")
+                if is_api:
+                    origin = self.headers.get("Origin")
+                    if origin and urlparse(origin).netloc != self.headers.get("Host"):
+                        self._api_error("forbidden origin", 403, "forbidden_origin")
+                    elif not isinstance(body, dict):
+                        raise ValueError("send a JSON object")
+                    elif path == "/v1/chat/completions":
+                        self._completion(body)
+                    elif path == "/v1/retrieve":
+                        self._retrieve(body)
+                    else:
+                        self._api_error("not found", 404, "not_found")
+                    return
                 if urlparse(self.path).path == "/mcp":
                     if not self._origin_ok():
                         self._json({"jsonrpc": "2.0", "error": {"code": -32600, "message": "forbidden origin"}}, 403)
@@ -2008,7 +2187,10 @@ def make_handler(corpus: Corpus, token: str = ""):
                     out.update(self._images_beside(str(body.get("query", ""))))
                 self._json(out)
             except (ValueError, json.JSONDecodeError) as e:
-                self._json({"error": str(e)}, 400)
+                if is_api:
+                    self._api_error(str(e), 400, "invalid_request")
+                else:
+                    self._json({"error": str(e)}, 400)
 
         def log_request(self, code="-", size="-"):  # path only: never the query text
             print(f"[http] {self.command} {urlparse(self.path).path} {code}", file=sys.stderr)

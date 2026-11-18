@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- New Smart Brain exports offer an OpenAI-compatible “knowledge + your LLM” text-chat endpoint, raw retrieval with sources/scores/pictures, and Connect setup/API checks; missing operator providers return an honest error.
+
 - Connect's HTTP startup command now matches nondefault local ports; a separate listener-port field keeps internal server ports distinct from public/proxy addresses.
 
 - Exported Smart Brains now host their own Connect page with client setups, a same-server MCP check and an unsigned Linux MCPB bridge for already installed packages; Claude Desktop one-click support is not certified.

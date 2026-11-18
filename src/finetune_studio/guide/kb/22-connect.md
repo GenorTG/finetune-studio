@@ -2,7 +2,7 @@
 id: connect
 title: Connect an exported Smart Brain
 page: connect
-keywords: connect mcp stdio http claude cursor copilot windsurf gemini lm studio open webui ollama chatgpt keyfile passphrase bearer health
+keywords: connect mcp stdio http claude cursor copilot windsurf gemini lm studio open webui ollama chatgpt keyfile passphrase bearer health openai compatible retrieve completions
 ---
 ## Purpose
 Connect the exported knowledge package to an MCP host. The package retrieves from documents; it is not an LLM.
@@ -38,7 +38,25 @@ There is no arbitrary server-side URL proxy or test against an address entered i
 rag_get_document requires packaged originals; rag_answer requires answer generation and an operator-configured LLM.
 
 ## Common mistakes
-There is no package /v1/chat/completions endpoint. Ollama needs an MCP host such as Open WebUI.
+New exports expose an OpenAI-compatible text-chat subset: choose knowledge-api in the client list.
+GET /v1/models advertises smart-brain; POST /v1/retrieve accepts query, top_k (1–100), images (boolean).
+It returns scoped passages with scores and optional pictures without an LLM. No caller may widen the package scope.
+POST /v1/chat/completions accepts model smart-brain, text messages, stream (boolean), n=1,
+temperature (0–2), top_p (0–1), and max_tokens OR max_completion_tokens (bounded by operator answer_max_tokens).
+The last turn must be a user question; at most 32 messages, each 1–16000 characters. System/developer text is
+client guidance subordinate to package identity, answer rules and evidence. Tools, attachments, usage accounting,
+stream_options and unsupported parameters fail with 400; this is not the entire OpenAI API.
+JSON responses attach knowledge.sources, images, weak, sources_hidden and generated. generated=false means a
+retrieval miss, not an LLM answer. Stream=true uses buffered SSE: answer chunk, final chunk with knowledge, [DONE].
+There is no token-by-token upstream stream and no invented token usage. File-name hiding cannot be overridden by clients.
+The operator sets RAG_LLM_PROVIDER (openai or anthropic), RAG_LLM_BASE_URL, RAG_LLM_MODEL, optionally
+RAG_LLM_API_KEY, then starts run-http.sh --answer. Existing OpenAI-compatible/Claude adapters are reused;
+the incoming client never chooses a provider URL, model, key, body or headers. No provider returns 503;
+upstream failure returns a sanitized 502. Keys stay on the package host, never in the exported recipe or client setup.
+Clients use the package address with /v1 and its RAG_AUTH_TOKEN, not the provider API key or passphrase.
+The package Connect page has Test retrieval API and Test answer API with immediate status and displayed JSON.
+Only these same-server buttons make requests; the studio recipe builder still makes no network probes.
+Ollama can be the operator's upstream via its OpenAI-compatible /v1 API, or use an MCP host such as Open WebUI.
 ChatGPT is not a ready-made Actions/OAuth/tunnel integration here.
 The unsigned smart-brain.mcpb bridge selects an already installed Linux package and private keyfile; it contains no knowledge or keys.
 It requires Node >=18 and an MCPB-capable Linux host; it does not install Python dependencies.

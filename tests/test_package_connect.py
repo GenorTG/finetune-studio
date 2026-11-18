@@ -220,7 +220,8 @@ def test_browser_check_never_probes_the_recipe_address_or_stores_tokens(failure:
     harness = r"""
 const vm = require('node:vm'), fs = require('node:fs');
 const failure = process.argv[2], nodes = {}, calls = [];
-for (const id of ['connect-url', 'package-token', 'package-check', 'package-check-status']) {
+for (const id of ['connect-url', 'package-token', 'package-check', 'package-check-status',
+                 'package-retrieve', 'package-answer', 'package-api-status', 'package-api-result', 'package-query']) {
   nodes[id] = {value: '', textContent: '', disabled: false, addEventListener: (_, fn) => {nodes[id].click = fn;}};
 }
 nodes['package-token'].value = 'synthetic-token';

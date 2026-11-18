@@ -193,6 +193,41 @@ def test_http_search_image_and_thumbnail_routes(corpus_dir: Path, tmp_path: Path
         server.shutdown()
 
 
+@pytest.mark.parametrize("hidden", [False, True])
+def test_v1_retrieve_keeps_picture_scope_and_name_policy(corpus_dir: Path, tmp_path: Path, hidden: bool) -> None:  # noqa: F811
+    from tests.test_package_knowledge_api import request
+
+    res = build_package(_with_images(corpus_dir), tmp_path / "api.tar.gz", encrypt=False, documents={"c1", "c2"},
+                        config=BrainExportConfig(semantic_search=False, include_models=True, include_reranker=False,
+                                                 image_search=True, hide_file_names=hidden))
+    with tarfile.open(res.path) as tf:
+        tf.extractall(tmp_path / "api", filter="data")
+    (root,) = [p for p in (tmp_path / "api").iterdir() if p.is_dir()]
+    cfg = srv.resolve_config({}, {}, json.loads((root / "rag.config.json").read_text()))[0]
+    server = srv._Server(("127.0.0.1", 0), srv.make_handler(srv.Corpus(root / "corpus", cfg), "api-test-token"))
+    worker = threading.Thread(target=server.serve_forever, daemon=True)
+    worker.start()
+    base = f"http://127.0.0.1:{server.server_port}"
+    try:
+        status, text, _ = request(base, "/v1/retrieve", {"query": "SnackGrid photo", "images": True})
+        assert status == 200
+        pictures = json.loads(text)["images"]
+        assert len(pictures) == 1 and "score" in pictures[0]
+        assert "emberfall.txt" not in text
+        if hidden:
+            assert "filename" not in text and "document_id" not in text and "locator" not in text
+        else:
+            assert pictures[0]["document_id"] == "c1"
+        req = urllib.request.Request(base + pictures[0]["thumbnail_url"],
+                                     headers={"Authorization": "Bearer api-test-token"})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            assert response.read()[:3] == b"\xff\xd8\xff"
+    finally:
+        server.shutdown()
+        server.server_close()
+        worker.join(timeout=5)
+
+
 def test_picture_parts_per_provider() -> None:
     pics = [(_png(COLOURS["red"]), "image/png", "x")]
     oa = srv.with_picture_parts("q", pics, "openai")

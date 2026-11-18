@@ -1165,3 +1165,33 @@ Time: ~14.8 h of training + ~2.5 h merge/GGUF/quiz (~17 h of the ~24 h budget). 
 Cleanup: 8 projects `agent-test-docft-*` deleted through `DELETE /api/projects/{pid}`; orphan output of one interrupted run and all merged models, GGUFs and checkpoints removed; inference unloaded; API token `docft-agent` revoked. Kept in `.tmp/docft/` (35 MB): generator and verifier scripts, `docs_clean.jsonl` (clean documents), `facts.json`, `ideas.json`, per-question transcripts + judge verdicts in `runs/<tag>/res-*.jsonl`, leak and spot-check outputs. No app code, branch or git state changed; `NO_WEB_RESTART` was only held during merges and quiz/judge runs.
 
 Parent check of this entry (2026-11-10): every count and McNemar figure above recomputed from `runs/*/res-*.jsonl` by a separate script, all equal. Answer-key cross-check for the judge: of D4 unquantized's 72 passes, 68 contain every expected value of `paraphrase_core.jsonl` (the other 4 reworded a value; R5: 41 of 43), and no answer holding every value was failed.
+
+## 40. Knowledge + operator LLM API, real local client (2026-11-18)
+
+**Scope:** transport/retrieval/generation integration, not a Korvane accuracy benchmark or vendor-app certification.
+Synthetic exported package, encrypted with a synthetic passphrase, limited to one Highmere document; no user project,
+private provider credential, account creation or release. The package is retrieval, not an LLM.
+
+The existing local llama.cpp binary served the already-downloaded Llama-3.2-3B-Instruct Q8_0 on an owned loopback port,
+CPU only (four threads, 4096 context; no GPU load or foreign process changed). Package operator configuration pointed
+at its OpenAI-compatible `/v1` endpoint. Official OpenAI Python SDK **3.55.0** in a temporary uv environment exercised
+`models.list()` and `chat.completions.create()` with JSON and buffered SSE; the app venv/dependencies were unchanged.
+
+Question: “How much does warehousing at Highmere Stair cost per season?”
+Source: `highmere.txt`, chunk/document `c2`: “Warehousing at the Highmere Stair costs nine crowns per season.”
+Browser, SDK JSON and SDK SSE each returned: “According to the context, warehousing at Highmere Stair costs nine crowns
+per season. [1]” Evidence attached the matching rank-1 source and preview; read against the source, not auto-graded.
+SSE contained the answer chunk, final evidence chunk and `[DONE]`; it is buffered, **not** token-by-token streaming.
+
+Real browser checks: live Studio Connect's API recipe, proxy-prefix URLs, startup, both copy buttons, and package
+401/retry, scoped retrieval, honest **503** with no provider, and model-generated answer. Immediate progress/failure
+feedback, no JS errors and no horizontal overflow at 320px. API tests separately exercise scoped plaintext/encrypted
+exports, provider isolation, filename hiding, sanitized upstream failures and both existing adapters; Claude's adapter
+uses a deterministic test server, not a real cloud account. Image encoder tests use the existing fake encoder and
+prove routing/scope/metadata/thumbnail contracts, **not** real image-model quality.
+
+Local reproducible harness/evidence: `.tmp/agent/r2-live.py`, `.tmp/agent/r2-sdk.py`,
+`.tmp/agent/r2-live/sdk-result.json`; screenshots `.tmp/qa-shots/r2-*.png`.
+Owned package/llama.cpp processes terminated and temporary Studio browser sessions revoked. No external accounts
+used; OpenAI/Claude/Gemini cloud credentials and actual Open WebUI/LibreChat/AnythingLLM/vendor-UI certification
+remain untested. R1 vendor certification and the Linux Claude Desktop limitation are unchanged.
