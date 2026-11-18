@@ -60,6 +60,7 @@ def _pages() -> dict[str, Page]:
         ("my_models", "My models", "/models", "models_index.html", False, "Models already on disk: downloaded bases and trained exports."),
         ("inference", "Inference", "/inference", "inference.html", False, "Load any model, set context and GPU layers, chat."),
         ("settings", "Settings", "/settings", "settings.html", False, "Updates, access (password, tokens, network address), AI assistant (connections, jobs, test judge), compute device."),
+        ("connect", "Connect", "/connect", "connect.html", False, "Connect an exported Smart Brain to MCP clients: local stdio recipes, HTTP address and terminal health checks; no package chat/completions endpoint."),
         ("overview", "Project overview", "/projects/{pid}", "project.html", True, "Project home: recent runs, models, files, activity."),
         ("wizard", "Quick work", "/projects/{pid}/wizard", "project_wizard.html", True, "One page: build the Smart Brain, then optionally chain pairs, dataset, training, test."),
         ("files", "Files", "/projects/{pid}/data", "project_data.html", True, "Upload and organise documents; check each one parsed."),
@@ -85,6 +86,10 @@ PAGE_ALIASES = {"package": "export", "brain_package": "export", "knowledge_packa
 def _controls() -> dict[str, Control]:
     rows = [
         # projects
+        ("connect.builder", "connect", "#connect-builder", "Client connection setup builder"),
+        ("connect.copy", "connect", "#connect-copy", "Copy the client setup"),
+        ("connect.checks", "connect", "#connect-checks", "Terminal health and MCP handshake checks"),
+        ("connect.copy_test", "connect", "#connect-copy-test", "Copy terminal connection checks"),
         ("dashboard.actions", "dashboard", "#dash-actions", "Quick actions: new project, open the last one, package it"),
         ("dashboard.open_last", "dashboard", "#dash-open-last", "Open the last project"),
         ("dashboard.package", "dashboard", "#dash-package", "Package the last project"),
@@ -280,6 +285,11 @@ _TRAIN_FORM = "#train-form"
 
 def _fields() -> dict[tuple[str, str], Field]:
     f: list[Field] = [
+        Field("connect", "connect_client", "#connect-client", "choice", "MCP client",
+              choices=("claude-code", "claude-desktop", "cursor", "vscode", "windsurf", "gemini", "lmstudio", "openwebui", "chatgpt", "ollama")),
+        Field("connect", "connect_path", "#connect-path", "text", "Extracted package folder"),
+        Field("connect", "connect_keyfile", "#connect-keyfile", "text", "Passphrase file path (never the passphrase)"),
+        Field("connect", "connect_url", "#connect-url", "text", "Package HTTP address"),
         Field("training", "training_mode", '[name="training_mode"]', "choice", "Training route",
               choices=("sft", "dpo", "tool_sft", "continued_pretraining", "reasoning_distillation"),
               scope=_TRAIN_FORM, note="Selecting DPO also sets conservative DPO defaults on the page."),

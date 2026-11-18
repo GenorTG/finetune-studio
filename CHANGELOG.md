@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Connect: copy client-specific Smart Brain MCP setups, edit local paths and HTTP addresses, and run explicit health/handshake checks with clear client limitations.
+
 - Training and exports (merge, GGUF, Abliterated, Heretic) no longer refuse to start while a Smart Brain build or
   picture reading uses the GPU: they wait for it and start by themselves. The training page, the export card, the
   activity feed and `fts jobs` say *waiting* and what is using the GPU; Stop or Cancel while it waits ends it as

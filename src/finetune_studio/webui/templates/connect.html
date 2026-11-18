@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Connect · Finetune Studio{% endblock %}
+{% block nav_connect %}active{% endblock %}
+{% block sb_path %}~ / connect{% endblock %}
+{% block content %}
+<div class="page-head">
+  <h1>Connect your Smart Brain</h1>
+  <div class="sub">Your knowledge, in the AI tools you already use. The package retrieves evidence; your model writes the answer.</div>
+</div>
+<div class="card mb-4">
+  <div class="card-head"><div>
+    <div class="card-title">1 · Export once, connect where you work</div>
+    <div class="card-sub">These settings are for an extracted knowledge package, not the studio at port 7860.</div>
+  </div></div>
+  <p>Build and download a package from a project's <b>Package</b> page. Extract it and run <code>bash install.sh</code> there.
+    Keep the passphrase in a private file readable only by you (<code>chmod 600 /path/to/passphrase.txt</code>).
+    The client needs that file to unlock an encrypted package without an interactive prompt.</p>
+  <a class="btn" href="/projects" data-link>Choose a project → Package</a>
+  <p class="text-xs dim mt-2">Already exported? Its README and <code>mcp-config.example.json</code> contain the exact package settings.
+    No files, passwords or tokens entered here are saved or sent to the studio.</p>
+</div>
+<div class="grid grid-2" id="connect-builder">
+  <section class="card mb-4">
+    <div class="card-head"><div class="card-title">2 · Choose your client</div></div>
+    <label for="connect-client">AI tool</label>
+    <select id="connect-client" class="select mb-3">
+      <option value="claude-code">Claude Code</option><option value="claude-desktop">Claude Desktop</option>
+      <option value="cursor">Cursor</option><option value="vscode">VS Code Copilot</option>
+      <option value="windsurf">Windsurf</option><option value="gemini">Gemini CLI</option>
+      <option value="lmstudio">LM Studio</option><option value="openwebui">Open WebUI</option>
+      <option value="chatgpt">ChatGPT</option><option value="ollama">Ollama</option>
+    </select>
+    <label for="connect-path">Extracted package folder (absolute path on the client's machine)</label>
+    <input id="connect-path" value="/ABSOLUTE/PATH/TO/package" class="input mb-3" spellcheck="false">
+    <label for="connect-keyfile">Passphrase file (absolute path, not the passphrase)</label>
+    <input id="connect-keyfile" value="/ABSOLUTE/PATH/TO/passphrase.txt" class="input mb-3" spellcheck="false">
+    <label for="connect-url">Package HTTP address (not the studio URL)</label>
+    <input id="connect-url" value="http://127.0.0.1:8899" type="url" class="input mb-3" spellcheck="false">
+    <p class="text-xs dim">Used for HTTP recipes and terminal checks. For remote use: HTTPS + a server access token.
+      Loopback refers to the machine running the client; in a container it is the container itself.</p>
+  </section>
+  <section class="card mb-4">
+    <div class="card-head"><div class="card-title">3 · Add the connection</div></div>
+    <p id="connect-instructions"></p>
+    <a id="connect-docs" target="_blank" rel="noopener noreferrer">Client documentation ↗</a>
+    <pre id="connect-config" class="service-detail mt-3" tabindex="0"></pre>
+    <button type="button" class="btn primary" id="connect-copy">Copy setup</button>
+    <p id="connect-feedback" role="status" aria-live="polite" class="text-xs mt-2">Edit the paths, then copy the setup. Client connection not checked.</p>
+  </section>
+</div>
+<section class="card mb-4" id="connect-checks">
+  <div class="card-head"><div class="card-title">4 · Test from the client's machine</div></div>
+  <p>For HTTP clients, first start the package with the command below. For a remote bind, set <code>RAG_AUTH_TOKEN</code>
+    on the server and add <code>--host 0.0.0.0</code> only behind HTTPS.
+    This token is separate from the encryption passphrase and from studio access tokens.</p>
+  <pre id="connect-start" class="service-detail" tabindex="0"></pre>
+  <p>Set <code>RAG_AUTH_TOKEN</code> in your terminal if the package requires a bearer token. Then run:</p>
+  <pre id="connect-test" class="service-detail" tabindex="0"></pre>
+  <button type="button" class="btn" id="connect-copy-test">Copy terminal checks</button>
+  <p class="text-xs dim mt-2">Health must return <code>"ok": true</code>; initialize must return a JSON-RPC <code>result</code>
+    with <code>serverInfo</code>. 401 means the server token is missing or wrong; connection refused means it is not listening.
+    This page makes no network probes: a studio-side check cannot prove your client's reachability, and the package blocks foreign browser Origins.</p>
+  <p>Finally open your client's MCP tools list, find <code>rag_info</code>, and call it. Check the package name and document count,
+    then try <code>rag_search</code> with a fact from your files. A copied setup or healthy server alone does not prove client tool access.</p>
+</section>
+<section class="card">
+  <div class="card-head"><div class="card-title">What connects today</div></div>
+  <p>Local MCP (stdio) and Streamable HTTP at <code>POST /mcp</code> are shipped. Core tools:
+    <code>rag_search</code>, <code>rag_info</code>, <code>rag_profile</code>, <code>rag_list_documents</code>.
+    <code>rag_get_document</code> depends on included originals; <code>rag_answer</code> depends on answer generation and your LLM connection.</p>
+  <p>There is no package <code>/v1/chat/completions</code> endpoint today. ChatGPT Actions, one-click
+    <code>.mcpb</code> installation and automatic tunnels are not shipped by this page. No LLM is included or impersonated.</p>
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/js/connect.js?v=1"></script>{% endblock %}

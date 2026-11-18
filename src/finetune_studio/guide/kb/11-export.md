@@ -23,7 +23,7 @@ Step 4 of a project: build the **knowledge package** your models use. One encryp
 5. **Answers**: off returns passages with sources (your own model writes the answer); on, the package also answers with an AI connection (the key is never inside).
 6. **Version**: a new package (1.0.0, new id) or *New version of …* an earlier one (same id, lists what changed).
 7. **Build & download the package** (`#mcp-pkg-btn`). Copy the passphrase when it is shown: it is not stored. The package opens and searches itself before the download starts (*Self-test passed*).
-8. Run it: `bash install.sh`, then `bash run-http.sh` (chat page + `/mcp`) or `server.py --mcp` for local MCP clients; update a running copy with `bash update.sh NEW.tar.gz`.
+8. Open **Connect an exported package** for client-specific MCP setups, editable paths and terminal health/handshake checks. Run it: `bash install.sh`, then `bash run-http.sh` (chat page + `/mcp`) or `server.py --mcp` for local MCP clients; update a running copy with `bash update.sh NEW.tar.gz`.
 
 ## Key controls
 - `#package-readiness` — what is left before packaging, each step with its state (Done / Review / Fix this / To do).

@@ -703,6 +703,12 @@ async def styleguide_page(request: Request):
 
 # ── Settings & Debug Info ───────────────────────────────────────────
 
+@router.get("/connect", response_class=HTMLResponse)
+async def connect_page(request: Request):
+    """Local-only recipe builder for the exported package, never a network proxy."""
+    return templates.TemplateResponse(request, "connect.html", {"request": request})
+
+
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
     """Settings, debug info, replay tutorial, system status."""

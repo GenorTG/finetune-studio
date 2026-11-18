@@ -11,7 +11,7 @@ Finetune Studio prepares, checks and tests what your models should know, then ex
 The main path: 1 Files (`/projects/{pid}/data`: upload, read and edit the parsed text) → 2 Smart Brain (`/brain`: build the index, ask your documents with sources; no training, model weights never change) → 3 Test (`/testing`: score it on your own questions) → 4 Package (`/export`: what is left to do, then the package; trained-model export is below it).
 Optional, the Train a model group: Pairs (`/data-prep`: Q&A pairs mined from the files, reviewed, exported as a dataset) → Train (`/training`: LoRA adapter or merged model), plus Compare and Benchmarks. Training is for how a model answers (tone, format, a narrow task); facts in documents belong in the Smart Brain.
 One-page shortcut: Quick work (`/wizard`) builds the Smart Brain in one click, then optionally chains pairs → dataset → training → test.
-System pages outside any project: Projects (`/projects`), Model library (`/models/explore`), My models (`/models`), Inference (`/inference`), Settings (`/settings`).
+System pages outside any project: Projects (`/projects`), Model library (`/models/explore`), My models (`/models`), Inference (`/inference`), Connect (`/connect`: exported package MCP setups and terminal checks), Settings (`/settings`).
 
 ## Key controls
 - `#workspace-subnav` — the project flow bar: home, 1 files, 2 Smart Brain, 3 test, 4 package, chat, settings, then the Train a model group (quick work, pairs, train, compare, benchmarks).
