@@ -1,5 +1,5 @@
 /* All recipe editing stays in this page. No credentials, storage or network probes. */
-function connectRecipes(client, folder, keyfile, address) {
+function connectRecipes(client, folder, keyfile, address, listenerPort = '') {
   const quote = value => "'" + value.replace(/'/g, "'\\''") + "'";
   if (!folder.startsWith('/') || !keyfile.startsWith('/') || /[\r\n\0]/.test(folder + keyfile)) {
     throw new Error('Use absolute package and passphrase-file paths without line breaks.');
@@ -10,6 +10,16 @@ function connectRecipes(client, folder, keyfile, address) {
   }
   // Allow reverse-proxy path prefixes; accept an already pasted /mcp endpoint.
   const base = url.href.replace(/\/$/, '').replace(/\/mcp$/, '');
+  // Only a direct local HTTP URL supplies a listener port. Public/HTTPS/prefixed
+  // addresses may terminate at a proxy: never turn its port into server config.
+  const directLocal = url.protocol === 'http:' &&
+    ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname) &&
+    ['', '/', '/mcp', '/mcp/'].includes(url.pathname);
+  const port = listenerPort || (directLocal ? url.port || '80' : '');
+  if ((listenerPort !== '' && /[^0-9]/.test(listenerPort)) ||
+      (port !== '' && (Number(port) < 1 || Number(port) > 65535))) {
+    throw new Error('Use a package listener port from 1 to 65535.');
+  }
   const args = [folder.replace(/\/$/, '') + '/run-mcp.sh', '--keyfile', keyfile];
   const stdio = {command: 'bash', args};
   const json = value => JSON.stringify(value, null, 2);
@@ -43,7 +53,9 @@ function connectRecipes(client, folder, keyfile, address) {
   const handshake = JSON.stringify({jsonrpc:'2.0', id:1, method:'initialize', params:{
     protocolVersion:'2024-11-05', capabilities:{}, clientInfo:{name:'connect-check',version:'1.0'}}});
   return {instructions, docs, config, availableSetup: !['chatgpt', 'ollama'].includes(client),
-    start: 'bash ' + quote(folder.replace(/\/$/, '') + '/run-http.sh') + ' --keyfile ' + quote(keyfile),
+    start: port ? 'bash ' + quote(folder.replace(/\/$/, '') + '/run-http.sh') +
+      ' --keyfile ' + quote(keyfile) + ' --port ' + Number(port) :
+      'Enter the package listener port above to generate a startup command. A public or proxy URL does not reveal it.',
     test: health + quote(base + '/health') + '\n\n' + health +
       '-H \'Content-Type: application/json\' -H \'Accept: application/json, text/event-stream\' --data ' +
       quote(handshake) + ' ' + quote(base + '/mcp')};
@@ -56,7 +68,8 @@ if (typeof document !== 'undefined') (() => {
   let recipe;
   const render = () => {
     try {
-      recipe = connectRecipes(byId('client').value, byId('path').value, byId('keyfile').value, byId('url').value);
+      recipe = connectRecipes(byId('client').value, byId('path').value, byId('keyfile').value,
+        byId('url').value, byId('port').value);
       for (const key of ['instructions', 'config', 'start', 'test']) byId(key).textContent = recipe[key];
       byId('docs').href = recipe.docs;
       byId('copy').disabled = !recipe.availableSetup;
@@ -70,7 +83,7 @@ if (typeof document !== 'undefined') (() => {
       byId('feedback').textContent = error.message;
     }
   };
-  for (const field of ['client', 'path', 'keyfile', 'url']) byId(field).addEventListener('input', render);
+  for (const field of ['client', 'path', 'keyfile', 'url', 'port']) byId(field).addEventListener('input', render);
   const copy = async key => {
     if (!recipe) return;
     try {

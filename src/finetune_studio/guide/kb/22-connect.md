@@ -16,7 +16,7 @@ It checks browser-to-package transport, not the selected vendor client. HTTP acc
 1. Build and download a package on a project's Package page; extract it and run bash install.sh.
 2. Open Connect from the navigation or Package page. Choose the AI tool and edit the absolute package and passphrase-file paths.
 3. Copy setup, merge it into the client's configuration and enable the server. VS Code uses servers; the other supplied stdio JSON recipes use mcpServers.
-4. HTTP clients use run-http.sh and POST /mcp. Remote binding requires RAG_AUTH_TOKEN and HTTPS; the token is separate from the passphrase.
+4. HTTP clients use run-http.sh and POST /mcp. The startup command passes --port explicitly: blank listener port follows a direct localhost HTTP URL (including a nondefault port). For HTTPS, public URLs or proxy paths, enter the package's internal listener port (usually 8899); it cannot be inferred from a public proxy URL. If localhost is itself a proxy, enter the internal port explicitly. This changes startup only, never client URLs/checks. Remote binding requires RAG_AUTH_TOKEN and HTTPS; the token is separate from the passphrase.
 5. Copy terminal checks and run them from the client machine. GET /health must have ok true; MCP initialize must have result.serverInfo.
 6. In the client, call rag_info to confirm the package, then rag_search with a known fact. Only this proves that client's tool access.
 
@@ -26,6 +26,7 @@ It checks browser-to-package transport, not the selected vendor client. HTTP acc
 - `#connect-path` — extracted package folder on the client machine.
 - `#connect-keyfile` — passphrase file path, never the passphrase.
 - `#connect-url` — package HTTP address, not studio port 7860.
+- `#connect-port` — internal listener port; blank follows direct local HTTP, not public/proxy URLs.
 - `#connect-copy` — copies setup; reports clipboard success or manual-copy fallback.
 - `#connect-checks` — startup and terminal connection checks.
 - `#connect-copy-test` — copies terminal checks, without executing them.

@@ -35,6 +35,12 @@ A server access token is different from the encryption passphrase.</p></section>
 <label for="connect-keyfile">Passphrase file (path, never the passphrase)</label>
 <input id="connect-keyfile" value="/ABSOLUTE/PATH/TO/passphrase.txt" spellcheck="false">
 <label for="connect-url">Package HTTP address</label><input id="connect-url" type="url" spellcheck="false">
+<label for="connect-port">Package listener port (optional for direct local HTTP)</label>
+<input id="connect-port" type="text" inputmode="numeric" placeholder="Auto from direct local HTTP address" spellcheck="false">
+<p class="muted">Blank matches the port of a direct localhost HTTP address. For HTTPS, public addresses or proxy paths,
+enter the package's internal listener port (usually 8899), not the proxy's public port.
+If localhost is itself a proxy, enter the internal port explicitly. Only the startup command changes;
+client URLs and checks still use the HTTP address above.</p>
 <p class="muted">For remote clients use HTTPS and bearer authentication. Loopback inside a container means that container.</p>
 </section><section class="card"><h2>3 · Add the connection</h2>
 <p id="connect-instructions"></p><a id="connect-docs" target="_blank" rel="noopener noreferrer">Client documentation ↗</a>

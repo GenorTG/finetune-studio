@@ -39,6 +39,12 @@
     <input id="connect-keyfile" value="/ABSOLUTE/PATH/TO/passphrase.txt" class="input mb-3" spellcheck="false">
     <label for="connect-url">Package HTTP address (not the studio URL)</label>
     <input id="connect-url" value="http://127.0.0.1:8899" type="url" class="input mb-3" spellcheck="false">
+    <label for="connect-port">Package listener port (optional for direct local HTTP)</label>
+    <input id="connect-port" type="text" inputmode="numeric" placeholder="Auto from direct local HTTP address" class="input mb-3" spellcheck="false">
+    <p class="text-xs dim">Leave blank to match a direct localhost HTTP address, such as port 9010.
+      For HTTPS, public addresses or proxy paths, enter the package's internal listener port (usually 8899),
+      not the proxy's public port. If localhost is itself a proxy, enter the internal port explicitly.
+      This changes only the startup command; the HTTP address above still controls client URLs and checks.</p>
     <p class="text-xs dim">Used for HTTP recipes and terminal checks. For remote use: HTTPS + a server access token.
       Loopback refers to the machine running the client; in a container it is the container itself.</p>
   </section>
@@ -77,4 +83,4 @@
     No LLM is included or impersonated.</p>
 </section>
 {% endblock %}
-{% block scripts %}<script src="/static/js/connect.js?v=2"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/connect.js?v=3"></script>{% endblock %}

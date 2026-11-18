@@ -34,6 +34,12 @@ SETTING_HELP: dict[str, dict[str, str]] = {
         "pitfall": "Loopback inside a container or cloud client is not your host. Browser Origin protection prevents reliable cross-origin probes here.",
         "kb": "connect",
     },
+    "connect_port": {
+        "meaning": "Internal HTTP port passed to the package's run-http.sh, separate from a proxy's public port.",
+        "guidance": "Blank follows a direct localhost HTTP address. For HTTPS, public URLs or proxy paths, enter the internal listener port (usually 8899).",
+        "pitfall": "A public URL does not reveal the listener port. An explicit value changes only startup, not client URLs or checks; if localhost is itself a proxy, enter the internal port explicitly.",
+        "kb": "connect",
+    },
     "training_mode": {
         "meaning": "Which training route to use: sft, dpo, tool_sft, continued_pretraining or reasoning_distillation.",
         "guidance": "Pick from the data shape. Q&A pairs from documents → sft. Reviewed chosen/rejected answers → dpo. Tool traces with schemas → tool_sft. Raw domain text → continued_pretraining. Reviewed teacher traces → reasoning_distillation.",
