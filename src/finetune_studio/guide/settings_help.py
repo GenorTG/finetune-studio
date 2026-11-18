@@ -13,7 +13,7 @@ SETTING_HELP: dict[str, dict[str, str]] = {
     "connect_client": {
         "meaning": "The AI application that will use the exported package's MCP tools.",
         "guidance": "Choose your client on Connect; it shows the configuration shape and manual steps.",
-        "pitfall": "A copied setup is not a successful connection. Call rag_info from the client. ChatGPT and Ollama have explicit limitations.",
+        "pitfall": "A copied setup or package browser check is not client certification. Call rag_info from the client. The MCPB bridge needs an installed Linux package; Claude Desktop is not certified. ChatGPT and Ollama have explicit limitations.",
         "kb": "connect",
     },
     "connect_path": {

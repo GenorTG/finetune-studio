@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Connect · Smart Brain</title><style>
+:root{color-scheme:dark light;font:16px/1.6 system-ui,sans-serif;--bg:#10151b;--panel:#19212b;--line:#364554;--accent:#8bd5ca;--text:#edf3f7;--muted:#b6c3ce}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text)}main{max-width:1100px;margin:auto;padding:clamp(16px,4vw,40px)}
+h1{font-size:clamp(28px,5vw,44px);line-height:1.15;margin:28px 0 12px}h2{font-size:20px;line-height:1.3;margin-top:0}a{color:var(--accent)}
+.muted{color:var(--muted)}.card{padding:clamp(16px,3vw,24px);background:var(--panel);border:1px solid var(--line);border-radius:16px;margin:18px 0;min-width:0}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}.grid>.card{margin:0}label{display:block;font-size:14px;margin-top:16px}
+input,select,button{font:inherit}input,select{display:block;width:100%;padding:10px;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:8px;margin-top:5px}
+button,.button{display:inline-block;background:var(--accent);color:var(--bg);font-weight:650;border:0;border-radius:8px;padding:10px 16px;cursor:pointer;text-decoration:none}
+button:disabled{opacity:.6;cursor:not-allowed}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:420px;overflow:auto;padding:14px;background:var(--bg);border:1px solid var(--line);border-radius:8px;font:13px/1.6 ui-monospace,monospace}
+code{overflow-wrap:anywhere}p[role=status]{min-height:1.6em}nav{display:flex;gap:20px;flex-wrap:wrap}
+@media(max-width:700px){.grid{grid-template-columns:1fr}}
+@media(prefers-color-scheme:light){:root{--bg:#f5f8fa;--panel:#fff;--line:#cbd5de;--accent:#17675d;--text:#1b2c3c;--muted:#506474}}
+</style></head><body><main>
+<nav><a href="./">← Ask this package</a><a href="#package-checks">Test package MCP</a><a href="#bundle">MCPB bridge</a></nav>
+<h1>Connect your Smart Brain</h1>
+<p class="muted">Your package retrieves evidence. Your AI client and its model write the answer. No LLM is included.</p>
+<section class="card"><h2>1 · Prepare the client's machine</h2>
+<p>Extract this package on the Linux machine running your MCP client, then run <code>bash install.sh</code>.
+Keep the encryption passphrase in a private file (<code>chmod 600 /path/to/passphrase.txt</code>).
+For a remote HTTP connection, start <code>bash run-http.sh --keyfile /path/to/passphrase.txt</code> on the package host.</p>
+<p>Paths below refer to the client's machine, not necessarily this web server. Nothing entered on this page is saved.
+A server access token is different from the encryption passphrase.</p></section>
+<div class="grid" id="connect-builder">
+<section class="card"><h2>2 · Choose your client</h2>
+<label for="connect-client">AI tool</label><select id="connect-client">
+<option value="claude-code">Claude Code</option><option value="claude-desktop">Claude Desktop</option>
+<option value="cursor">Cursor</option><option value="vscode">VS Code Copilot</option>
+<option value="windsurf">Windsurf</option><option value="gemini">Gemini CLI</option>
+<option value="lmstudio">LM Studio</option><option value="openwebui">Open WebUI</option>
+<option value="chatgpt">ChatGPT</option><option value="ollama">Ollama</option></select>
+<label for="connect-path">Installed package folder (absolute path)</label>
+<input id="connect-path" value="/ABSOLUTE/PATH/TO/package" spellcheck="false">
+<label for="connect-keyfile">Passphrase file (path, never the passphrase)</label>
+<input id="connect-keyfile" value="/ABSOLUTE/PATH/TO/passphrase.txt" spellcheck="false">
+<label for="connect-url">Package HTTP address</label><input id="connect-url" type="url" spellcheck="false">
+<p class="muted">For remote clients use HTTPS and bearer authentication. Loopback inside a container means that container.</p>
+</section><section class="card"><h2>3 · Add the connection</h2>
+<p id="connect-instructions"></p><a id="connect-docs" target="_blank" rel="noopener noreferrer">Client documentation ↗</a>
+<pre id="connect-config" tabindex="0"></pre><button id="connect-copy" type="button">Copy setup</button>
+<p id="connect-feedback" role="status" aria-live="polite">Client connection not checked.</p>
+</section></div>
+<section class="card" id="package-checks"><h2>4 · Test this package</h2>
+<p>This button checks this server from this browser: health, MCP initialization, tool discovery and a real <code>rag_info</code> call.
+It does not run your selected client or check a different address entered above. No search or model is loaded.</p>
+<label for="package-token">Server access token (only if required)</label>
+<input id="package-token" type="password" autocomplete="off" spellcheck="false">
+<p><button id="package-check" type="button">Test package MCP</button></p>
+<p id="package-check-status" role="status" aria-live="polite">Not checked.</p>
+<h2>Then test from your client's machine</h2><p>For HTTP connections, start the package first:</p>
+<pre id="connect-start" tabindex="0"></pre><p>Set <code>RAG_AUTH_TOKEN</code> in the terminal if required, then run:</p>
+<pre id="connect-test" tabindex="0"></pre><button id="connect-copy-test" type="button">Copy terminal checks</button>
+<p>Finally call <code>rag_info</code> and <code>rag_search</code> in the selected client with a known fact from your documents.
+Only that verifies the client's access. A successful browser check is not vendor certification.</p></section>
+<section class="card" id="bundle"><h2>Optional · Install the MCPB bridge</h2>
+<p><a class="button" href="smart-brain.mcpb" download>Download Linux MCPB bridge</a></p>
+<p>For MCPB-capable hosts: import this unsigned bundle, then select the already installed package folder and private keyfile.
+The small bridge connects to those local files; it contains no knowledge, passphrase or model and does not install Python dependencies.</p>
+<p><strong>Claude Desktop is not certified here.</strong> Its official MCPB hosts are macOS and Windows; this product currently supports Linux only.
+The bundle declares Linux compatibility only. Do not treat it as a working one-click Claude Desktop installer.</p></section>
+<section class="card"><h2>Client verification status</h2>
+<p>Local stdio and HTTP MCP transports are tested. Recipes are not vendor certification.
+Claude Code's installed CLI has passed a real MCP health check with a synthetic package; model-driven tool use is not certified.
+Gemini CLI configuration was accepted, but its connection check requires client authentication.</p>
+<p>Cursor, VS Code Copilot, Windsurf, LM Studio and Open WebUI have not been certified through their actual user interfaces.
+ChatGPT Actions/OAuth and a direct Ollama MCP host are not shipped. Choose an MCP host such as Open WebUI for Ollama.</p>
+<p>For setup details and limitations, use each client's documentation link above. No <code>/v1/chat/completions</code> endpoint is provided.</p>
+</section>
+<script src="connect-page.js"></script><script src="connect.js"></script></main></body></html>

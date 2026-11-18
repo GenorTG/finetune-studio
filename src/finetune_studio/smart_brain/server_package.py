@@ -50,6 +50,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, BinaryIO
 
+from .connect_bundle import build_mcpb
 from .export_config import RUNTIME_CONFIG_NAME, BrainExportConfig
 
 log = logging.getLogger(__name__)
@@ -174,6 +175,12 @@ send `Authorization: Bearer <token>`.
 {embed_section}
 
 ## Use it as an MCP server (agents)
+
+Start HTTP mode and open `/connect` on this package's address for client recipes, copy buttons,
+a same-server MCP check and the optional `smart-brain.mcpb` bridge. The page preserves reverse-proxy path prefixes.
+The unsigned MCPB bridge connects an **already installed Linux package** to an MCPB-capable host; it does not
+install the package or contain knowledge or keys. Claude Desktop's official MCPB hosts are macOS/Windows,
+outside this Linux-only product's scope: no one-click Claude Desktop support or vendor certification is claimed.
 
 - **Claude Desktop** — put this in `claude_desktop_config.json` (edit the path):
 
@@ -1303,6 +1310,12 @@ def build_package(
         if models:
             requirements += "sentence-transformers>=3.0\n"
         sink.add_bytes(f"{root}/server.py", _SERVER_SRC.read_text(encoding="utf-8"))
+        # Public, generic connection assets: no corpus identity, paths or keys.
+        for source, target in (("package_connect.html", "connect.html"),
+                               ("package_connect.js", "connect-page.js")):
+            sink.add_bytes(f"{root}/{target}", (_HERE / source).read_bytes())
+        sink.add_bytes(f"{root}/connect.js", (_HERE.parent / "webui/static/js/connect.js").read_bytes())
+        sink.add_bytes(f"{root}/smart-brain.mcpb", build_mcpb())
         if encrypted:
             sink.add_bytes(f"{root}/brain_container.py",
                            _CONTAINER_SRC.read_text(encoding="utf-8"))

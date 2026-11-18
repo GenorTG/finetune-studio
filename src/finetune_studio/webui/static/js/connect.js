@@ -17,7 +17,7 @@ function connectRecipes(client, folder, keyfile, address) {
   const rows = {
     'claude-code': ['Run this command, then use /mcp to inspect the server tools.',
       'https://code.claude.com/docs/en/mcp', 'claude mcp add smart-brain -- bash ' + args.map(quote).join(' ')],
-    'claude-desktop': ['Manual stdio configuration: merge this entry into claude_desktop_config.json and restart the client. Desktop availability depends on your platform; no Linux Desktop or .mcpb installer is shipped here.',
+    'claude-desktop': ['Manual stdio configuration: merge this entry into claude_desktop_config.json and restart the client. Claude Desktop is not certified on Linux. Exported packages offer a Linux-only MCPB bridge for compatible hosts, not a working one-click Claude Desktop installer.',
       'https://modelcontextprotocol.io/quickstart/user', standard],
     cursor: ['Merge into .cursor/mcp.json (project) or ~/.cursor/mcp.json (user), then enable the server in MCP settings.',
       'https://cursor.com/docs/mcp', standard],

@@ -60,7 +60,7 @@ def _pages() -> dict[str, Page]:
         ("my_models", "My models", "/models", "models_index.html", False, "Models already on disk: downloaded bases and trained exports."),
         ("inference", "Inference", "/inference", "inference.html", False, "Load any model, set context and GPU layers, chat."),
         ("settings", "Settings", "/settings", "settings.html", False, "Updates, access (password, tokens, network address), AI assistant (connections, jobs, test judge), compute device."),
-        ("connect", "Connect", "/connect", "connect.html", False, "Connect an exported Smart Brain to MCP clients: local stdio recipes, HTTP address and terminal health checks; no package chat/completions endpoint."),
+        ("connect", "Connect", "/connect", "connect.html", False, "Connect an exported Smart Brain to MCP clients: studio and package recipes, package-hosted MCP checks and a Linux MCPB bridge; no package chat/completions endpoint or Claude Desktop certification."),
         ("overview", "Project overview", "/projects/{pid}", "project.html", True, "Project home: recent runs, models, files, activity."),
         ("wizard", "Quick work", "/projects/{pid}/wizard", "project_wizard.html", True, "One page: build the Smart Brain, then optionally chain pairs, dataset, training, test."),
         ("files", "Files", "/projects/{pid}/data", "project_data.html", True, "Upload and organise documents; check each one parsed."),

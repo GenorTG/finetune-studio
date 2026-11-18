@@ -7,6 +7,10 @@ keywords: connect mcp stdio http claude cursor copilot windsurf gemini lm studio
 ## Purpose
 Connect the exported knowledge package to an MCP host. The package retrieves from documents; it is not an LLM.
 Connect is a local recipe builder, not a deployment or a client-connection status dashboard.
+New exported packages also host their own /connect page, linked from the package chat page.
+It includes the same recipes, a same-server health/MCP/tools/rag_info check and a Linux MCPB bridge download.
+The check's bearer token stays in memory and is sent only to this package, never to the editable recipe address.
+It checks browser-to-package transport, not the selected vendor client. HTTP access tokens require HTTPS off-loopback.
 
 ## Workflow
 1. Build and download a package on a project's Package page; extract it and run bash install.sh.
@@ -28,11 +32,18 @@ Connect is a local recipe builder, not a deployment or a client-connection statu
 
 ## What to check
 Edits update recipes immediately and stay in the browser; no keys or addresses are sent to the studio.
-The package rejects foreign browser Origins, so there is deliberately no misleading browser reachability test or arbitrary server-side URL proxy.
+The studio makes no probes. The package rejects foreign browser Origins; its own Connect page can test the same server.
+There is no arbitrary server-side URL proxy or test against an address entered into the recipe builder.
 rag_get_document requires packaged originals; rag_answer requires answer generation and an operator-configured LLM.
 
 ## Common mistakes
 There is no package /v1/chat/completions endpoint. Ollama needs an MCP host such as Open WebUI.
-ChatGPT is not a ready-made Actions/OAuth/tunnel integration here. One-click .mcpb installation is not shipped.
+ChatGPT is not a ready-made Actions/OAuth/tunnel integration here.
+The unsigned smart-brain.mcpb bridge selects an already installed Linux package and private keyfile; it contains no knowledge or keys.
+It requires Node >=18 and an MCPB-capable Linux host; it does not install Python dependencies.
+Claude Desktop's official MCPB hosts are macOS/Windows, outside the current Linux-only scope: one-click Claude Desktop installation remains unverified and unsupported.
+Installed Claude Code 2.1.325 passed an isolated real MCP health check on 2026-11-18 with a synthetic package, not model-driven tool use.
+Gemini CLI 0.65.0 accepted isolated settings but requires client authentication to check the connection.
+Cursor, VS Code Copilot, Windsurf, LM Studio and Open WebUI have no actual-client certification yet.
 Windsurf's current version-specific setup is explicitly unverified; consult its installed-version documentation.
 127.0.0.1 in Open WebUI's container means that container, not the host. 401 on /health means missing or wrong package bearer token.

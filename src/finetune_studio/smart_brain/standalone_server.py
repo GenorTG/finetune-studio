@@ -1730,7 +1730,8 @@ def make_handler(corpus: Corpus, token: str = ""):
             """Bearer check (constant time). Without a token the server is
             loopback-only; reject foreign Host headers (DNS rebinding)."""
             if token:
-                if self.command == "GET" and urlparse(self.path).path in ("/", "/app.js", "/version"):
+                if self.command == "GET" and urlparse(self.path).path in (
+                        "/", "/app.js", "/version", "/connect", "/connect.js", "/connect-page.js", "/smart-brain.mcpb"):
                     # the static client and the package's name/version hold no corpus data; API calls stay authenticated
                     return True
                 auth = self.headers.get("Authorization") or ""
@@ -1755,6 +1756,8 @@ def make_handler(corpus: Corpus, token: str = ""):
                 self._static(_CHAT_PAGE, "text/html; charset=utf-8")
             elif u.path == "/app.js":
                 self._static(_CHAT_JS, "text/javascript; charset=utf-8")
+            elif u.path in ("/connect", "/connect.js", "/connect-page.js", "/smart-brain.mcpb"):
+                self._connect_asset(u.path)
             elif u.path == "/mcp":
                 self._json({"error": "the MCP endpoint takes POST"}, 405, {"Allow": "POST"})
             elif u.path == "/health":
@@ -1850,6 +1853,31 @@ def make_handler(corpus: Corpus, token: str = ""):
             self.send_header("X-Content-Type-Options", "nosniff")
             self.end_headers()
             self.wfile.write(data)
+
+        def _connect_asset(self, path: str) -> None:
+            """Only allowlisted generic files, never a filesystem path supplied by the caller."""
+            filename, kind = {
+                "/connect": ("connect.html", "text/html; charset=utf-8"),
+                "/connect.js": ("connect.js", "text/javascript; charset=utf-8"),
+                "/connect-page.js": ("connect-page.js", "text/javascript; charset=utf-8"),
+                "/smart-brain.mcpb": ("smart-brain.mcpb", "application/octet-stream"),
+            }[path]
+            try:
+                data = Path(__file__).with_name(filename).read_bytes()
+            except OSError:
+                self._json({"error": "connection assets unavailable; export a new package"}, 404)
+                return
+            if filename.endswith(".mcpb"):
+                self.send_response(200)
+                self.send_header("Content-Type", kind)
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Content-Disposition", 'attachment; filename="smart-brain.mcpb"')
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+                self.wfile.write(data)
+            else:
+                self._static(data.decode("utf-8"), kind)
 
         def _static(self, text: str, kind: str):
             data = text.encode()
@@ -2703,6 +2731,7 @@ button:disabled{opacity:.6;cursor:wait}#chat{display:grid;gap:12px;margin:14px 0
 #attach-row[hidden]{display:none}#picture{max-width:100%;min-width:0}
 </style><main>
 <h1 id="title">Smart Brain</h1><p class="muted" id="about">Ask the documents in this package. Every answer lists the files it came from.</p>
+<p><a href="connect">Connect to your AI tools →</a></p>
 <p class="small muted" id="stats"></p>
 <details class="card" id="conn"><summary id="conn-summary">Answer with…</summary>
 <label for="kind">Provider</label><select id="kind"></select>
