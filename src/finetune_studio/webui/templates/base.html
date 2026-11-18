@@ -76,6 +76,9 @@
                class="sb-tab {% block nav_inference %}{% endblock %}" data-link data-tab="inference">
               <span class="sb-tab-label">{% if pid is defined and pid %}chat{% else %}inference{% endif %}</span>
             </a>
+            <a href="/connect" class="sb-tab {% block nav_connect %}{% endblock %}" data-link data-tab="connect">
+              <span class="sb-tab-label">connect</span>
+            </a>
             <a href="/settings" class="sb-tab {% block nav_settings %}{% endblock %}" data-link data-tab="settings">
               <span class="sb-tab-label">settings</span>
             </a>
@@ -113,6 +116,7 @@
               <a href="/models" class="sb-nav-more-link" data-link data-tab="my-models" role="menuitem" title="Models already on this machine">my models</a>
               <a href="{% if pid is defined and pid %}/projects/{{ pid }}/chat{% else %}/inference{% endif %}"
                  class="sb-nav-more-link" data-link data-tab="inference" role="menuitem">{% if pid is defined and pid %}chat{% else %}inference{% endif %}</a>
+              <a href="/connect" class="sb-nav-more-link" data-link data-tab="connect" role="menuitem">connect</a>
               <a href="/settings" class="sb-nav-more-link" data-link data-tab="settings" role="menuitem">settings</a>
             </div>
           </div>

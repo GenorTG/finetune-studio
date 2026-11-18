@@ -10,6 +10,30 @@ from typing import Any
 from finetune_studio.guide.registry import FIELDS, Field
 
 SETTING_HELP: dict[str, dict[str, str]] = {
+    "connect_client": {
+        "meaning": "The AI application that will use the exported package's MCP tools.",
+        "guidance": "Choose your client on Connect; it shows the configuration shape and manual steps.",
+        "pitfall": "A copied setup is not a successful connection. Call rag_info from the client. ChatGPT and Ollama have explicit limitations.",
+        "kb": "connect",
+    },
+    "connect_path": {
+        "meaning": "Absolute folder containing the extracted package's run-mcp.sh and run-http.sh.",
+        "guidance": "Run bash install.sh inside the extracted package first; use paths on the client's machine.",
+        "pitfall": "The studio checkout is not the exported package. These edits are not saved.",
+        "kb": "connect",
+    },
+    "connect_keyfile": {
+        "meaning": "Absolute path to a private file containing the package encryption passphrase.",
+        "guidance": "Use chmod 600 on the file. Enter only its path here, never the passphrase.",
+        "pitfall": "The passphrase unlocks corpus.enc; RAG_AUTH_TOKEN authenticates HTTP and is a different secret.",
+        "kb": "connect",
+    },
+    "connect_url": {
+        "meaning": "The running package's HTTP address, usually http://127.0.0.1:8899, not studio port 7860.",
+        "guidance": "Start run-http.sh; remote bindings require RAG_AUTH_TOKEN and HTTPS. Test from the actual client's machine.",
+        "pitfall": "Loopback inside a container or cloud client is not your host. Browser Origin protection prevents reliable cross-origin probes here.",
+        "kb": "connect",
+    },
     "training_mode": {
         "meaning": "Which training route to use: sft, dpo, tool_sft, continued_pretraining or reasoning_distillation.",
         "guidance": "Pick from the data shape. Q&A pairs from documents → sft. Reviewed chosen/rejected answers → dpo. Tool traces with schemas → tool_sft. Raw domain text → continued_pretraining. Reviewed teacher traces → reasoning_distillation.",
