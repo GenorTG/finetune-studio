@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Exported Smart Brains now host their own Connect page with client setups, a same-server MCP check and an unsigned Linux MCPB bridge for already installed packages; Claude Desktop one-click support is not certified.
+
 - Connect: copy client-specific Smart Brain MCP setups, edit local paths and HTTP addresses, and run explicit health/handshake checks with clear client limitations.
 
 - Training and exports (merge, GGUF, Abliterated, Heretic) no longer refuse to start while a Smart Brain build or

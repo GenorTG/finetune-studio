@@ -18,6 +18,9 @@
   <a class="btn" href="/projects" data-link>Choose a project → Package</a>
   <p class="text-xs dim mt-2">Already exported? Its README and <code>mcp-config.example.json</code> contain the exact package settings.
     No files, passwords or tokens entered here are saved or sent to the studio.</p>
+  <p>New exports also host their own <code>/connect</code> page beside the package's chat page: client recipes,
+    a same-server MCP test and an unsigned Linux <code>.mcpb</code> bridge download for compatible hosts.
+    Open the package address (not this studio), then choose <b>Connect to your AI tools</b>.</p>
 </div>
 <div class="grid grid-2" id="connect-builder">
   <section class="card mb-4">
@@ -68,8 +71,10 @@
   <p>Local MCP (stdio) and Streamable HTTP at <code>POST /mcp</code> are shipped. Core tools:
     <code>rag_search</code>, <code>rag_info</code>, <code>rag_profile</code>, <code>rag_list_documents</code>.
     <code>rag_get_document</code> depends on included originals; <code>rag_answer</code> depends on answer generation and your LLM connection.</p>
-  <p>There is no package <code>/v1/chat/completions</code> endpoint today. ChatGPT Actions, one-click
-    <code>.mcpb</code> installation and automatic tunnels are not shipped by this page. No LLM is included or impersonated.</p>
+  <p>There is no package <code>/v1/chat/completions</code> endpoint today. ChatGPT Actions and automatic tunnels
+    are not shipped. The Linux MCPB bridge needs an already installed package and a compatible host;
+    Claude Desktop's official macOS/Windows MCPB installation is outside this Linux-only product's scope and is not certified.
+    No LLM is included or impersonated.</p>
 </section>
 {% endblock %}
-{% block scripts %}<script src="/static/js/connect.js?v=1"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/connect.js?v=2"></script>{% endblock %}
