@@ -27,12 +27,13 @@ CHAT = {"model": "smart-brain", "messages": [{"role": "user", "content": "Highme
 
 
 def request(base: str, path: str, body: object = None, token: str = "api-test-token",
-            origin: str = "") -> tuple[int, str, dict]:
+            origin: str = "", extra_headers: dict | None = None) -> tuple[int, str, dict]:
     headers = {"Content-Type": "application/json"}
     if token:
         headers["Authorization"] = "Bearer " + token
     if origin:
         headers["Origin"] = origin
+    headers.update(extra_headers or {})
     req = urllib.request.Request(base + path, data=json.dumps(body).encode() if body is not None else None,
                                  headers=headers)
     try:

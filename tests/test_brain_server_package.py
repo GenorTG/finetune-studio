@@ -248,7 +248,7 @@ def test_the_shipped_server_serves_its_chat_page_and_mcp(corpus_dir: Path, tmp_p
                 raise
             except OSError:
                 time.sleep(0.25)
-        assert 'src="/app.js"' in page
+        assert 'src="/app.js?v=2"' in page
         with urllib.request.urlopen(base + "/app.js", timeout=5) as r:
             assert b"fetch(" in r.read()
         body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "server/discover", "params": {"_meta": MODERN_META}}).encode()
@@ -550,7 +550,7 @@ def test_hosted_browser_chat_is_public_but_corpus_api_requires_token(corpus_dir:
         with urllib.request.urlopen(base + "/app.js", timeout=5) as response:
             script = response.read().decode()
             assert "script-src 'self'" in response.headers["Content-Security-Policy"]
-        assert "Smart Brain" in page and 'src="/app.js"' in page and "never stored" in page
+        assert "Smart Brain" in page and 'src="/app.js?v=2"' in page and "never stored" in page
         assert "Anthropic Claude" in script and "OpenRouter" in script
         with pytest.raises(urllib.error.HTTPError) as denied:
             urllib.request.urlopen(base + "/profile", timeout=5)
