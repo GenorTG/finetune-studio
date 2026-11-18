@@ -29,7 +29,8 @@ A server access token is different from the encryption passphrase.</p></section>
 <option value="cursor">Cursor</option><option value="vscode">VS Code Copilot</option>
 <option value="windsurf">Windsurf</option><option value="gemini">Gemini CLI</option>
 <option value="lmstudio">LM Studio</option><option value="openwebui">Open WebUI</option>
-<option value="chatgpt">ChatGPT</option><option value="ollama">Ollama</option></select>
+<option value="chatgpt">ChatGPT</option><option value="ollama">Ollama</option>
+<option value="knowledge-api">OpenAI-compatible API · knowledge + your LLM</option></select>
 <label for="connect-path">Installed package folder (absolute path)</label>
 <input id="connect-path" value="/ABSOLUTE/PATH/TO/package" spellcheck="false">
 <label for="connect-keyfile">Passphrase file (path, never the passphrase)</label>
@@ -54,6 +55,16 @@ It does not run your selected client or check a different address entered above.
 <input id="package-token" type="password" autocomplete="off" spellcheck="false">
 <p><button id="package-check" type="button">Test package MCP</button></p>
 <p id="package-check-status" role="status" aria-live="polite">Not checked.</p>
+<h2>Knowledge + your LLM · API check</h2>
+<p>Retrieval needs no model. Answering uses only this package operator's configured LLM, never a provider chosen by the caller.
+Missing configuration returns 503. Choose the OpenAI-compatible API recipe above to configure the operator's connection.
+This test sends the question to this package only; the answer test forwards retrieved evidence to the configured provider.</p>
+<label for="package-query">Question about this package</label>
+<input id="package-query" value="What is in this package?" maxlength="16000">
+<p><button id="package-retrieve" type="button">Test retrieval API</button>
+<button id="package-answer" type="button">Test answer API</button></p>
+<p id="package-api-status" role="status" aria-live="polite">API not checked.</p>
+<pre id="package-api-result" tabindex="0"></pre>
 <h2>Then test from your client's machine</h2><p>For HTTP connections, start the package first:</p>
 <pre id="connect-start" tabindex="0"></pre><p>Set <code>RAG_AUTH_TOKEN</code> in the terminal if required, then run:</p>
 <pre id="connect-test" tabindex="0"></pre><button id="connect-copy-test" type="button">Copy terminal checks</button>
@@ -71,6 +82,12 @@ Claude Code's installed CLI has passed a real MCP health check with a synthetic 
 Gemini CLI configuration was accepted, but its connection check requires client authentication.</p>
 <p>Cursor, VS Code Copilot, Windsurf, LM Studio and Open WebUI have not been certified through their actual user interfaces.
 ChatGPT Actions/OAuth and a direct Ollama MCP host are not shipped. Choose an MCP host such as Open WebUI for Ollama.</p>
-<p>For setup details and limitations, use each client's documentation link above. No <code>/v1/chat/completions</code> endpoint is provided.</p>
+<p>For setup details and limitations, use each client's documentation link above.
+<code>GET /v1/models</code> advertises <code>smart-brain</code>; <code>POST /v1/retrieve</code> returns passages,
+scores and optional pictures; <code>POST /v1/chat/completions</code> provides text chat through the operator's LLM.
+JSON replies attach <code>knowledge.sources</code>; buffered SSE attaches <code>knowledge</code> to the final chunk.
+This is not token-by-token upstream streaming. Tools, attachments, usage accounting and arbitrary generation parameters
+are not supported and unsupported requests fail explicitly. Client requests cannot widen package scope or change its upstream.
+Hidden file names stay hidden in these client-facing APIs.</p>
 </section>
 <script src="connect-page.js"></script><script src="connect.js"></script></main></body></html>

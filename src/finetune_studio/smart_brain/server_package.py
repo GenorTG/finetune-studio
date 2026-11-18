@@ -174,6 +174,29 @@ send `Authorization: Bearer <token>`.
 
 {embed_section}
 
+## Knowledge + your LLM (OpenAI-compatible API)
+
+Open `/connect` and choose **OpenAI-compatible API** for configuration and tests. Use this package's base URL
+with `/v1`, model **smart-brain**, and its server access token (`RAG_AUTH_TOKEN`) as the client API key.
+This is retrieval plus the **operator's** LLM, not an included model. The upstream key stays on the package host.
+
+- `GET /v1/models` advertises `smart-brain`.
+- `POST /v1/retrieve`: JSON `query`, optional `top_k` (1–100) and `images` (boolean); scoped passages, scores and
+  optional pictures, no LLM needed. Exported scope and file-name hiding remain in force.
+- `POST /v1/chat/completions`: `model: smart-brain`, text `messages` ending in a user question, optional `stream`,
+  `n: 1`, `temperature`, `top_p`, `max_tokens` OR `max_completion_tokens` (no greater than operator's limit).
+  At most 32 messages of 16000 characters each. System/developer messages are subordinate client preferences.
+  Tools, attachments, usage accounting and other parameters are unsupported and rejected, not silently ignored.
+
+Set `RAG_LLM_PROVIDER=openai` (OpenAI-compatible) or `anthropic` (Claude), `RAG_LLM_BASE_URL`, `RAG_LLM_MODEL`,
+and privately `RAG_LLM_API_KEY` if needed, then run `bash run-http.sh --answer` (plus `--keyfile` if encrypted).
+No operator LLM returns **503**; unavailable upstream returns sanitized **502**. Clients cannot override the upstream.
+JSON completions attach evidence in `knowledge.sources` and `knowledge.images`; answers cite their evidence unless
+file names are hidden. `knowledge.generated=false` marks a retrieval miss, not a model-generated answer.
+`stream=true` emits buffered SSE (answer chunk, final chunk with `knowledge`, `[DONE]`), **not token-by-token streaming**.
+No token usage is fabricated. The package Connect page can exercise retrieval and answering from this browser;
+this proves the API, not certification of a third-party application. Use HTTPS and bearer auth for remote clients.
+
 ## Use it as an MCP server (agents)
 
 Start HTTP mode and open `/connect` on this package's address for client recipes, copy buttons,

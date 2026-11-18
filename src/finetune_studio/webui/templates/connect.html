@@ -32,6 +32,7 @@
       <option value="windsurf">Windsurf</option><option value="gemini">Gemini CLI</option>
       <option value="lmstudio">LM Studio</option><option value="openwebui">Open WebUI</option>
       <option value="chatgpt">ChatGPT</option><option value="ollama">Ollama</option>
+      <option value="knowledge-api">OpenAI-compatible API · knowledge + your LLM</option>
     </select>
     <label for="connect-path">Extracted package folder (absolute path on the client's machine)</label>
     <input id="connect-path" value="/ABSOLUTE/PATH/TO/package" class="input mb-3" spellcheck="false">
@@ -77,10 +78,15 @@
   <p>Local MCP (stdio) and Streamable HTTP at <code>POST /mcp</code> are shipped. Core tools:
     <code>rag_search</code>, <code>rag_info</code>, <code>rag_profile</code>, <code>rag_list_documents</code>.
     <code>rag_get_document</code> depends on included originals; <code>rag_answer</code> depends on answer generation and your LLM connection.</p>
-  <p>There is no package <code>/v1/chat/completions</code> endpoint today. ChatGPT Actions and automatic tunnels
+  <p>New exports provide <code>GET /v1/models</code>, <code>POST /v1/retrieve</code> (passages, scores and optional pictures),
+    and <code>POST /v1/chat/completions</code> (knowledge + your operator-configured LLM).
+    Choose <b>OpenAI-compatible API</b> above for setup and checks. Text chat supports JSON or buffered SSE;
+    no provider gives an honest 503, never a fake answer. Sources are attached in <code>knowledge.sources</code>
+    and the answer cites the evidence unless file names are hidden. Client requests cannot change the upstream or package scope.</p>
+  <p>ChatGPT Actions and automatic tunnels
     are not shipped. The Linux MCPB bridge needs an already installed package and a compatible host;
     Claude Desktop's official macOS/Windows MCPB installation is outside this Linux-only product's scope and is not certified.
     No LLM is included or impersonated.</p>
 </section>
 {% endblock %}
-{% block scripts %}<script src="/static/js/connect.js?v=3"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/connect.js?v=4"></script>{% endblock %}

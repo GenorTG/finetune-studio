@@ -11,8 +11,8 @@ from finetune_studio.guide.registry import FIELDS, Field
 
 SETTING_HELP: dict[str, dict[str, str]] = {
     "connect_client": {
-        "meaning": "The AI application that will use the exported package's MCP tools.",
-        "guidance": "Choose your client on Connect; it shows the configuration shape and manual steps.",
+        "meaning": "The AI application using the package's MCP tools, or its knowledge + operator LLM OpenAI-compatible API.",
+        "guidance": "Choose your client on Connect; the knowledge-api choice shows /v1 setup, operator configuration and models/retrieve/chat checks. Only the operator configures the upstream LLM; missing configuration returns 503.",
         "pitfall": "A copied setup or package browser check is not client certification. Call rag_info from the client. The MCPB bridge needs an installed Linux package; Claude Desktop is not certified. ChatGPT and Ollama have explicit limitations.",
         "kb": "connect",
     },
