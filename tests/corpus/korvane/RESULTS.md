@@ -20,7 +20,8 @@ Existing local Llama-3.2-3B-Instruct Q8_0 ran on CPU only (llama.cpp, no GPU mod
 Final run used the installed package\'s actual answer pipeline and opt-in owner trace (ordinary API/MCP
 responses never expose it). Actual answer: “Nine crowns per season. [1]”
 A separate model request judged pass: “The model answer matches the correct answer in the context,
-and the source filename [1] is provided.” This is the model\'s recorded reasoning, not an independent human score. This one deterministic text case proves model protocol/workflow, not quality
+and the source filename [1] is provided to support the answer.” This is the model\'s recorded reasoning,
+not an independent human score. This one deterministic text case proves model protocol/workflow, not quality
 across arbitrary corpora, provider independence or a production benchmark. No cloud account/key was used.
 
 At 1270px/320px, both package and Studio measured scrollWidth <= clientWidth; actual innerWidth was
@@ -31,7 +32,7 @@ history followed by reload left no runs/baseline. Saved compute configuration re
 effective.source saved and env_overrides empty. Owned package/CPU-model processes stopped, temporary
 Studio session revoked, scratch project deleted. User-owned VISION document hash unchanged.
 
-Local harness: .tmp/r7/browser.py. Final browser evidence: .tmp/r7/1795014452511747264/
+Local harness: .tmp/r7/browser.py. Final browser evidence: .tmp/r7/1795014560766114010/
 (evidence-summary.json, package/studio desktop/mobile screenshots, regression-desktop.png).
 Exported server.py/package_qc.py/package_usage.py matched the final source byte-for-byte.
 Final-source focused QC/API/usage/Guide/template tests: 155 passed (62.49 s).
