@@ -1923,13 +1923,16 @@ def make_handler(corpus: Corpus, token: str = ""):
                 self._connect_asset(u.path)
             elif u.path == "/connect/actions-plan":
                 try:
-                    params = parse_qs(u.query)
+                    params = parse_qs(u.query, keep_blank_values=True)
                     if set(params) - {"public_url", "package_url", "relay_port", "tunnel"}:
                         raise ValueError("Unsupported Actions setup parameter.")
+                    relay_port = (params.get("relay_port") or ["8900"])[0]
+                    if not relay_port.isascii() or not relay_port.isdecimal() or len(relay_port) > 5:
+                        raise ValueError("Choose a relay port from 1024 to 65535, not a blank or non-numeric value.")
                     self._json(_actions_module.setup_plan(
                         (params.get("public_url") or [""])[0],
                         (params.get("package_url") or ["http://127.0.0.1:8899"])[0],
-                        int((params.get("relay_port") or ["8900"])[0]),
+                        int(relay_port),
                         (params.get("tunnel") or ["cloudflare"])[0]))
                 except ValueError as error:
                     self._json({"error": str(error)}, 400)

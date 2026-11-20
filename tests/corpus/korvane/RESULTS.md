@@ -16,7 +16,7 @@ loopback relay enforces independent bearer auth, fixed local package origin, str
 allowlists, hidden-source policy, bounded text and resource limits. It forwards no owner/caller headers,
 follows no redirects/proxy environment and cannot expose QC/admin/originals/MCP/chat/images.
 
-Fresh real Studio browser project agent-test-r3-actions44d5ffef exported/downloaded an encrypted
+Fresh real Studio browser project agent-test-r3-actionsc5e5f056 exported/downloaded an encrypted
 one-document Highmere package. Its native install.sh created a separate venv; the browser-generated
 relay command ran using that actual installed venv, on loopback only. Both Connect surfaces showed
 invalid-public-URL errors, successful copy, actual OpenAPI/Gemini downloads, stale-output invalidation,
@@ -27,9 +27,12 @@ Actual browser widths1270/320 checked on Studio and package; no JS errors. Reada
 inspection found a Studio nowrap Gemini button extending to382.5px despite root scroll/client both310.
 A concise label fixed it: right261.64<=310, final screenshot width310. Explicit button bounding-rect
 assertions now supplement root overflow metrics; all package controls fit too.
-Final evidence:.tmp/r3/1795169893614139043; six exported runtime/UI assets byte-match source.
-Final focused R3/export/Connect/Guide/template tests:435 passed in122.15s. R7/R8/R2/scope/async
-compatibility:68 passed in66.58s. Ruff/JS/diff/codemap pass; native Studio installer reports no issues;
+Final evidence:.tmp/r3/1795170323305443451; six exported runtime/UI assets byte-match source.
+Both generators also reject a blank relay port with visible errors, rather than silently defaulting.
+Final targeted Actions/Connect/R2/QC tests:110 passed in78.44s. Broader R3/export/Guide/template
+checks before the last port-error guard:435 passed in122.15s; R7/R8/R2/scope/async compatibility:
+68 passed in66.58s. The first full CI caught a synthetic LAN literal in the rejection fixture;
+it was replaced by a reserved documentation address, without weakening public-tree hygiene. Ruff/JS/diff/codemap pass; native Studio installer reports no issues;
 140 installed packages compatible. Scratch project/session deleted, owned package/relay stopped;
 compute settings and user-owned VISION document unchanged.
 

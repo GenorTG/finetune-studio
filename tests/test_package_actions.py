@@ -83,7 +83,7 @@ def test_schema_contract_and_plan_never_runs_or_contains_secrets(monkeypatch: py
 
 @pytest.mark.parametrize("url", [
     "http://example.com", "https://localhost", "https://127.0.0.1", "https://[::1]",
-    "https://10.0.0.1", "https://user:secret@example.com", "https://example.com:8443",
+    "https://192.0.2.1", "https://user:secret@example.com", "https://example.com:8443",
     "https://example.com/?token=secret", "https://example.com/#token",
     "https://example.com/a/../qc", "https://example.com/%2fqc", "https://home.local",
     "https://machine", "https://example.com/\n", "https://example.com/';touch",
@@ -132,6 +132,10 @@ def test_real_export_schema_and_narrow_relay(corpus_dir: Path, tmp_path: Path,
         status, body, _ = request(base, "/connect/actions-plan?" + query, token="")
         assert status == 200 and json.loads(body)["schema"] == actions.openapi_schema(PUBLIC)
         assert request(base, "/connect/actions-plan?public_url=http://localhost", token="")[0] == 400
+        for invalid_port in ("", "not-a-number", "0", "65536"):
+            bad = urllib.parse.urlencode({"public_url": PUBLIC, "package_url": base, "relay_port": invalid_port})
+            code, message, _ = request(base, "/connect/actions-plan?" + bad, token="")
+            assert code == 400 and "port" in message.lower()
         with relay(root, base) as address:
             assert request(address, "/openapi.json", token="")[0] == 200
             assert request(address, "/brain/openapi.json", token="")[0] == 200
