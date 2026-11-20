@@ -721,6 +721,17 @@ async def connect_page(request: Request):
     return templates.TemplateResponse(request, "connect.html", {"request": request})
 
 
+@router.get("/connect/bots-plan")
+def connect_bots_plan(vendor: str, package_url: str = "http://127.0.0.1:8899", port: int = 8901) -> dict:
+    """Generate bot templates only, never publish/register/contact a vendor."""
+    from finetune_studio.smart_brain.package_bots import setup_plan
+
+    try:
+        return setup_plan(vendor, package_url, port)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from None
+
+
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request):
     """Settings, debug info, replay tutorial, system status."""

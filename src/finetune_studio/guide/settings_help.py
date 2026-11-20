@@ -10,6 +10,24 @@ from typing import Any
 from finetune_studio.guide.registry import FIELDS, Field
 
 SETTING_HELP: dict[str, dict[str, str]] = {
+    "bots_vendor": {
+        "meaning": "Slack slash command, Teams outgoing webhook or Discord HTTP interaction.",
+        "guidance": "Generate templates, replace fixed audience IDs and configure vendor verification privately.",
+        "pitfall": "Teams replies are public to its channel. No vendor registration or certification is performed.",
+        "kb": "package-bots",
+    },
+    "bots_package_url": {
+        "meaning": "The direct loopback HTTP origin of the scoped package, not Studio.",
+        "guidance": "Set RAG_AUTH_TOKEN privately and configure the package operator LLM separately.",
+        "pitfall": "Use one scoped package per audience; callers cannot override scope or provider.",
+        "kb": "package-bots",
+    },
+    "bots_port": {
+        "meaning": "A separate loopback bot bridge listener, default 8901.",
+        "guidance": "Choose a free port distinct from the package listener; publish only the bridge after review.",
+        "pitfall": "Generation starts no ingress. Keep replay storage private across restarts; pending replies are not durable.",
+        "kb": "package-bots",
+    },
     "actions_public_url": {
         "meaning": "The planned public HTTPS address of the retrieval-only relay, not Studio.",
         "guidance": "Use a DNS hostname on port 443. Generate and download the Actions schema; configure Bearer auth in the vendor editor.",
