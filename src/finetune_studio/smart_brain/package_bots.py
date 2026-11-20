@@ -92,7 +92,7 @@ def validate_config(config: dict[str, Any]) -> dict[str, Any]:
 class ReplayStore:
     """Persist only SHA256 digests and expiration, bounded and fail-closed across restarts."""
 
-    def __init__(self, path: str):
+    def __init__(self, path: str) -> None:
         target = Path(path)
         if target.is_symlink():
             raise ValueError("Replay file must not be a symlink.")
