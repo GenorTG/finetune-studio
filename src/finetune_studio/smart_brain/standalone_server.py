@@ -96,6 +96,9 @@ _qc_spec.loader.exec_module(_qc_module)
 _actions_spec = importlib.util.spec_from_file_location("_smart_brain_package_actions", Path(__file__).with_name("package_actions.py"))
 _actions_module = importlib.util.module_from_spec(_actions_spec)
 _actions_spec.loader.exec_module(_actions_module)
+_bots_spec = importlib.util.spec_from_file_location("_smart_brain_package_bots", Path(__file__).with_name("package_bots.py"))
+_bots_module = importlib.util.module_from_spec(_bots_spec)
+_bots_spec.loader.exec_module(_bots_module)
 
 HERE = Path(__file__).resolve().parent
 CORPUS_DIR = HERE / "corpus"
@@ -1852,7 +1855,7 @@ def make_handler(corpus: Corpus, token: str = ""):
             if token:
                 if self.command == "GET" and urlparse(self.path).path in (
                         "/", "/app.js", "/version", "/connect", "/connect.js", "/connect-page.js", "/smart-brain.mcpb",
-                        "/usage", "/usage.js", "/qc", "/qc.js", "/actions.js", "/connect/actions-plan"):
+                        "/usage", "/usage.js", "/qc", "/qc.js", "/actions.js", "/connect/actions-plan", "/bots.js", "/connect/bots-plan"):
                     # the static client and the package's name/version hold no corpus data; API calls stay authenticated
                     return True
                 auth = self.headers.get("Authorization") or ""
@@ -1919,8 +1922,20 @@ def make_handler(corpus: Corpus, token: str = ""):
                 self._static(_CHAT_PAGE, "text/html; charset=utf-8")
             elif u.path == "/app.js":
                 self._static(_CHAT_JS, "text/javascript; charset=utf-8")
-            elif u.path in ("/connect", "/connect.js", "/connect-page.js", "/smart-brain.mcpb", "/usage", "/usage.js", "/qc", "/qc.js", "/actions.js"):
+            elif u.path in ("/connect", "/connect.js", "/connect-page.js", "/smart-brain.mcpb", "/usage", "/usage.js", "/qc", "/qc.js", "/actions.js", "/bots.js"):
                 self._connect_asset(u.path)
+            elif u.path == "/connect/bots-plan":
+                try:
+                    params = parse_qs(u.query, keep_blank_values=True)
+                    if set(params) - {"vendor", "package_url", "port"} or any(len(v) != 1 for v in params.values()):
+                        raise ValueError("Unsupported or duplicate bot setup parameter.")
+                    port = params.get("port", ["8901"])[0]
+                    if not port.isascii() or not port.isdecimal() or len(port) > 5:
+                        raise ValueError("Choose a bridge port from 1024 to 65535.")
+                    self._json(_bots_module.setup_plan(params.get("vendor", [""])[0],
+                        params.get("package_url", ["http://127.0.0.1:8899"])[0], int(port)))
+                except ValueError as error:
+                    self._json({"error": str(error)}, 400)
             elif u.path == "/connect/actions-plan":
                 try:
                     params = parse_qs(u.query, keep_blank_values=True)
@@ -2056,6 +2071,7 @@ def make_handler(corpus: Corpus, token: str = ""):
                 "/connect.js": ("connect.js", "text/javascript; charset=utf-8"),
                 "/connect-page.js": ("connect-page.js", "text/javascript; charset=utf-8"),
                 "/actions.js": ("actions.js", "text/javascript; charset=utf-8"),
+                "/bots.js": ("bots.js", "text/javascript; charset=utf-8"),
                 "/smart-brain.mcpb": ("smart-brain.mcpb", "application/octet-stream"),
                 "/usage": ("usage.html", "text/html; charset=utf-8"),
                 "/usage.js": ("usage.js", "text/javascript; charset=utf-8"),

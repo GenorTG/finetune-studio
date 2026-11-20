@@ -244,6 +244,7 @@ Open Connect's optional Actions section to generate a credential-free OpenAPI sc
 developer function declaration, and manual commands for the separate text-only retrieval relay.
 Nothing is published automatically. On the package host, set the existing RAG_AUTH_TOKEN and a
 different RAG_ACTIONS_TOKEN privately, then run the generated .venv/bin/python package_actions.py command.
+
 It binds only 127.0.0.1; only GET /openapi.json and authenticated POST /v1/retrieve are allowed.
 Queries are limited to 4000 characters, top_k to 5 and excerpts to 3000 characters each; no pictures,
 original files, chat, MCP or local-owner administration are exposed. Hidden filenames remain hidden.
@@ -253,6 +254,16 @@ ChatGPT requires public HTTPS on 443 and account/workspace setup; supply only th
 API Key/Bearer authentication. Gemini's downloaded declaration needs a caller application to execute
 the tool and return its result; it is not a consumer Gems Actions import. No OAuth or vendor-account
 certification is supplied. Local transport success is not public deployment or vendor certification.
+
+## Optional Slack, Teams and Discord bot bridges
+
+Open Connect → Slack, Teams and Discord bots. Download templates, save config as bot-config.json,
+replace every audience ID and set the indicated vendor verifier plus RAG_AUTH_TOKEN privately.
+Run .venv/bin/python package_bots.py --config bot-config.json inside this installed package folder.
+One scoped package per audience; loopback only, no account/registration/ingress is created. Teams outgoing
+webhook replies are public to its channel and require a fast/warm LLM. Slack/Discord replies are ephemeral.
+Keep private replay storage across restarts; pending async delivery is not durable or automatically retried.
+Actual vendor registration, HTTPS deployment and certification require separate operator verification.
 
 ## Use it as an MCP server (agents)
 
@@ -1393,13 +1404,14 @@ def build_package(
                 _add_model_dir(sink, images.text_dir, f"{root}/corpus/image_model/text")
 
         # ---- runtime files ---------------------------------------------
-        requirements = "numpy\n" + ("cryptography>=42\n" if encrypted else "")
+        requirements = "numpy\ncryptography>=42\n"  # encryption and Discord Ed25519 verification
         if models:
             requirements += "sentence-transformers>=3.0\n"
         sink.add_bytes(f"{root}/server.py", _SERVER_SRC.read_text(encoding="utf-8"))
         sink.add_bytes(f"{root}/package_usage.py", (_HERE / "package_usage.py").read_bytes())
         sink.add_bytes(f"{root}/package_qc.py", (_HERE / "package_qc.py").read_bytes())
         sink.add_bytes(f"{root}/package_actions.py", (_HERE / "package_actions.py").read_bytes())
+        sink.add_bytes(f"{root}/package_bots.py", (_HERE / "package_bots.py").read_bytes())
         # Public, generic connection assets: no corpus identity, paths or keys.
         for source, target in (("package_connect.html", "connect.html"),
                                ("package_connect.js", "connect-page.js"),
@@ -1408,6 +1420,7 @@ def build_package(
             sink.add_bytes(f"{root}/{target}", (_HERE / source).read_bytes())
         sink.add_bytes(f"{root}/connect.js", (_HERE.parent / "webui/static/js/connect.js").read_bytes())
         sink.add_bytes(f"{root}/actions.js", (_HERE.parent / "webui/static/js/actions.js").read_bytes())
+        sink.add_bytes(f"{root}/bots.js", (_HERE.parent / "webui/static/js/bots.js").read_bytes())
         sink.add_bytes(f"{root}/smart-brain.mcpb", build_mcpb())
         if encrypted:
             sink.add_bytes(f"{root}/brain_container.py",

@@ -109,6 +109,46 @@ Only that verifies the client's access. A successful browser check is not vendor
     · <a href="https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/" target="_blank" rel="noopener noreferrer">Quick Tunnels</a>
     · <a href="https://tailscale.com/docs/features/tailscale-funnel" target="_blank" rel="noopener noreferrer">Funnel</a></p>
 </section>
+<section class="card mb-4" id="bots-builder" data-endpoint="connect/bots-plan">
+<h2>Optional · Slack, Teams and Discord bots</h2>
+<p>Generate local bridge templates for one package audience. Answers use the package operator's configured LLM
+and append its sources. No account, key, registration, message or public endpoint is created here.</p>
+<label for="bots-vendor">Bot interface</label>
+<select id="bots-vendor" class="select"><option value="slack">Slack · /brain slash command</option>
+<option value="teams">Teams · outgoing webhook (@mention, public channel)</option>
+<option value="discord">Discord · /brain HTTP interaction</option></select>
+<label for="bots-package-url">Package's direct loopback HTTP address (not Studio)</label>
+<input id="bots-package-url" class="input" value="http://127.0.0.1:8899" spellcheck="false">
+<label for="bots-port">Separate local bridge port</label>
+<input id="bots-port" class="input" type="number" min="1024" max="65535" value="8901">
+<p><button id="bots-generate" class="btn primary" type="button">Generate bot setup</button>
+<button id="bots-copy" class="btn" type="button" disabled>Copy bridge setup</button>
+<button id="bots-download" class="btn" type="button" disabled>Download bot templates</button></p>
+<p id="bots-status" role="status" aria-live="polite">Not generated. Vendor connection not checked.</p>
+<pre id="bots-plan" class="service-detail" tabindex="0"></pre>
+<p>Download contains config and registration templates. Split them into <code>bot-config.json</code> and the vendor
+registration file. Replace all audience IDs: workspace/team (guild for Discord), channel, allowed users and
+application ID (tenant ID for Teams). Export a separate scoped package for each audience; there is no automatic
+role mapping or per-user OAuth. Keep config/replay storage private. Never put credentials in this page or JSON.</p>
+<p>On the package host set <code>RAG_AUTH_TOKEN</code> and the indicated vendor verification secret privately;
+Discord uses its public Ed25519 key, not a bot token. Configure the package LLM separately. Run the generated
+command in the installed package folder; it binds only loopback. Public HTTPS ingress and vendor registration
+must be reviewed and configured separately. Publish ONLY this bridge, never Studio or the full package server.</p>
+<p>Slack and Discord acknowledge promptly and deliver private ephemeral replies asynchronously. A restart may
+lose pending replies; no automatic retry is attempted, and persistent replay protection blocks duplicates.
+Ask a new question after an error. Teams outgoing webhooks reply to the whole configured public channel and
+have a short response deadline: a slow/cold LLM yields an honest unavailable reply, not deferred bot delivery.</p>
+<p>Questions and scoped passages reach the operator's LLM; answers/sources reach the selected chat vendor.
+The package's R8 privacy/retention settings still apply. Bridges do not store question text or vendor tokens;
+their replay database stores bounded expiring hashes. Protect it and keep it across restarts. This is not R13
+signed identity/audit, a full Azure Bot, a background service manager, or vendor certification.</p>
+<p>Account gates: Slack app install and commands permission; Teams team/tenant outgoing-webhook permission;
+Discord application command registration/install and interaction URL validation. Test known/no-hit questions,
+wrong audience, invalid signatures and shutdown in the vendor account before use.</p>
+<p><a href="https://docs.slack.dev/authentication/verifying-requests-from-slack/" target="_blank" rel="noopener noreferrer">Slack signatures</a>
+· <a href="https://learn.microsoft.com/en-us/microsoftteams/platform/webhooks-and-connectors/how-to/add-outgoing-webhook" target="_blank" rel="noopener noreferrer">Teams outgoing webhooks</a>
+· <a href="https://docs.discord.com/developers/interactions/receiving-and-responding" target="_blank" rel="noopener noreferrer">Discord interactions</a></p>
+</section>
 <section class="card" id="bundle"><h2>Optional · Install the MCPB bridge</h2>
 <p><a class="button" href="smart-brain.mcpb" download>Download Linux MCPB bridge</a></p>
 <p>For MCPB-capable hosts: import this unsigned bundle, then select the already installed package folder and private keyfile.
@@ -129,4 +169,4 @@ This is not token-by-token upstream streaming. Tools, attachments, usage account
 are not supported and unsupported requests fail explicitly. Client requests cannot widen package scope or change its upstream.
 Hidden file names stay hidden in these client-facing APIs.</p>
 </section>
-<script src="connect-page.js"></script><script src="connect.js"></script><script src="actions.js"></script></main></body></html>
+<script src="connect-page.js"></script><script src="connect.js"></script><script src="actions.js"></script><script src="bots.js"></script></main></body></html>

@@ -110,7 +110,7 @@ def test_build_package_contents(corpus_dir: Path, tmp_path: Path) -> None:
               "requirements.txt", "README.md", "mcp-config.example.json"):
         assert (root / f).is_file(), f"missing {f}"
     assert (root / "install.sh").stat().st_mode & 0o111, "install.sh must be executable"
-    assert (root / "requirements.txt").read_text().strip() == "numpy"
+    assert (root / "requirements.txt").read_text().strip() == "numpy\ncryptography>=42"
 
     # parquet must be gone from the shipped corpus; jsonl must be readable
     assert not (root / "corpus" / "chunks.parquet").exists()
