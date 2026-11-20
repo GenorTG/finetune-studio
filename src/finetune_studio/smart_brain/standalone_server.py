@@ -93,6 +93,9 @@ Usage, tracked = _usage_module.Usage, _usage_module.tracked
 _qc_spec = importlib.util.spec_from_file_location("_smart_brain_package_qc", Path(__file__).with_name("package_qc.py"))
 _qc_module = importlib.util.module_from_spec(_qc_spec)
 _qc_spec.loader.exec_module(_qc_module)
+_actions_spec = importlib.util.spec_from_file_location("_smart_brain_package_actions", Path(__file__).with_name("package_actions.py"))
+_actions_module = importlib.util.module_from_spec(_actions_spec)
+_actions_spec.loader.exec_module(_actions_module)
 
 HERE = Path(__file__).resolve().parent
 CORPUS_DIR = HERE / "corpus"
@@ -1849,7 +1852,7 @@ def make_handler(corpus: Corpus, token: str = ""):
             if token:
                 if self.command == "GET" and urlparse(self.path).path in (
                         "/", "/app.js", "/version", "/connect", "/connect.js", "/connect-page.js", "/smart-brain.mcpb",
-                        "/usage", "/usage.js", "/qc", "/qc.js"):
+                        "/usage", "/usage.js", "/qc", "/qc.js", "/actions.js", "/connect/actions-plan"):
                     # the static client and the package's name/version hold no corpus data; API calls stay authenticated
                     return True
                 auth = self.headers.get("Authorization") or ""
@@ -1916,8 +1919,20 @@ def make_handler(corpus: Corpus, token: str = ""):
                 self._static(_CHAT_PAGE, "text/html; charset=utf-8")
             elif u.path == "/app.js":
                 self._static(_CHAT_JS, "text/javascript; charset=utf-8")
-            elif u.path in ("/connect", "/connect.js", "/connect-page.js", "/smart-brain.mcpb", "/usage", "/usage.js", "/qc", "/qc.js"):
+            elif u.path in ("/connect", "/connect.js", "/connect-page.js", "/smart-brain.mcpb", "/usage", "/usage.js", "/qc", "/qc.js", "/actions.js"):
                 self._connect_asset(u.path)
+            elif u.path == "/connect/actions-plan":
+                try:
+                    params = parse_qs(u.query)
+                    if set(params) - {"public_url", "package_url", "relay_port", "tunnel"}:
+                        raise ValueError("Unsupported Actions setup parameter.")
+                    self._json(_actions_module.setup_plan(
+                        (params.get("public_url") or [""])[0],
+                        (params.get("package_url") or ["http://127.0.0.1:8899"])[0],
+                        int((params.get("relay_port") or ["8900"])[0]),
+                        (params.get("tunnel") or ["cloudflare"])[0]))
+                except ValueError as error:
+                    self._json({"error": str(error)}, 400)
             elif u.path == "/qc/report":
                 if self._usage_owner():
                     self._json(corpus.qc.overview())
@@ -2037,6 +2052,7 @@ def make_handler(corpus: Corpus, token: str = ""):
                 "/connect": ("connect.html", "text/html; charset=utf-8"),
                 "/connect.js": ("connect.js", "text/javascript; charset=utf-8"),
                 "/connect-page.js": ("connect-page.js", "text/javascript; charset=utf-8"),
+                "/actions.js": ("actions.js", "text/javascript; charset=utf-8"),
                 "/smart-brain.mcpb": ("smart-brain.mcpb", "application/octet-stream"),
                 "/usage": ("usage.html", "text/html; charset=utf-8"),
                 "/usage.js": ("usage.js", "text/javascript; charset=utf-8"),

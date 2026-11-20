@@ -703,6 +703,18 @@ async def styleguide_page(request: Request):
 
 # ── Settings & Debug Info ───────────────────────────────────────────
 
+@router.get("/connect/actions-plan")
+def connect_actions_plan(public_url: str, package_url: str = "http://127.0.0.1:8899",
+                         relay_port: int = 8900, tunnel: str = "cloudflare") -> dict:
+    """Pure configuration generation, no DNS/network checks, writes, accounts or tunnels."""
+    from finetune_studio.smart_brain.package_actions import setup_plan
+
+    try:
+        return setup_plan(public_url, package_url, relay_port, tunnel)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from None
+
+
 @router.get("/connect", response_class=HTMLResponse)
 async def connect_page(request: Request):
     """Local-only recipe builder for the exported package, never a network proxy."""

@@ -238,6 +238,22 @@ file names are hidden. `knowledge.generated=false` marks a retrieval miss, not a
 No token usage is fabricated. The package Connect page can exercise retrieval and answering from this browser;
 this proves the API, not certification of a third-party application. Use HTTPS and bearer auth for remote clients.
 
+## Optional ChatGPT Actions / Gemini developer tools
+
+Open Connect's optional Actions section to generate a credential-free OpenAPI schema, a Gemini
+developer function declaration, and manual commands for the separate text-only retrieval relay.
+Nothing is published automatically. On the package host, set the existing RAG_AUTH_TOKEN and a
+different RAG_ACTIONS_TOKEN privately, then run the generated .venv/bin/python package_actions.py command.
+It binds only 127.0.0.1; only GET /openapi.json and authenticated POST /v1/retrieve are allowed.
+Queries are limited to 4000 characters, top_k to 5 and excerpts to 3000 characters each; no pictures,
+original files, chat, MCP or local-owner administration are exposed. Hidden filenames remain hidden.
+Only if you choose public exposure, run the separately displayed foreground tunnel command against
+the RELAY port, never Studio or the full package server. Stop the tunnel and relay with Ctrl+C.
+ChatGPT requires public HTTPS on 443 and account/workspace setup; supply only the relay token in
+API Key/Bearer authentication. Gemini's downloaded declaration needs a caller application to execute
+the tool and return its result; it is not a consumer Gems Actions import. No OAuth or vendor-account
+certification is supplied. Local transport success is not public deployment or vendor certification.
+
 ## Use it as an MCP server (agents)
 
 Start HTTP mode and open `/connect` on this package's address for client recipes, copy buttons,
@@ -1383,6 +1399,7 @@ def build_package(
         sink.add_bytes(f"{root}/server.py", _SERVER_SRC.read_text(encoding="utf-8"))
         sink.add_bytes(f"{root}/package_usage.py", (_HERE / "package_usage.py").read_bytes())
         sink.add_bytes(f"{root}/package_qc.py", (_HERE / "package_qc.py").read_bytes())
+        sink.add_bytes(f"{root}/package_actions.py", (_HERE / "package_actions.py").read_bytes())
         # Public, generic connection assets: no corpus identity, paths or keys.
         for source, target in (("package_connect.html", "connect.html"),
                                ("package_connect.js", "connect-page.js"),
@@ -1390,6 +1407,7 @@ def build_package(
                                ("package_qc.html", "qc.html"), ("package_qc.js", "qc.js")):
             sink.add_bytes(f"{root}/{target}", (_HERE / source).read_bytes())
         sink.add_bytes(f"{root}/connect.js", (_HERE.parent / "webui/static/js/connect.js").read_bytes())
+        sink.add_bytes(f"{root}/actions.js", (_HERE.parent / "webui/static/js/actions.js").read_bytes())
         sink.add_bytes(f"{root}/smart-brain.mcpb", build_mcpb())
         if encrypted:
             sink.add_bytes(f"{root}/brain_container.py",

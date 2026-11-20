@@ -10,6 +10,30 @@ from typing import Any
 from finetune_studio.guide.registry import FIELDS, Field
 
 SETTING_HELP: dict[str, dict[str, str]] = {
+    "actions_public_url": {
+        "meaning": "The planned public HTTPS address of the retrieval-only relay, not Studio.",
+        "guidance": "Use a DNS hostname on port 443. Generate and download the Actions schema; configure Bearer auth in the vendor editor.",
+        "pitfall": "Generation does not publish or probe the URL. Temporary tunnel hostnames change; regenerate afterwards. Vendor account certification is separate.",
+        "kb": "package-actions",
+    },
+    "actions_package_url": {
+        "meaning": "The package's existing direct loopback HTTP origin on the relay host.",
+        "guidance": "Use http://127.0.0.1:8899 or its actual listener port; set the package's existing RAG_AUTH_TOKEN privately.",
+        "pitfall": "Never target Studio or publish the full package. The relay strips caller headers and permits only text retrieval.",
+        "kb": "package-actions",
+    },
+    "actions_port": {
+        "meaning": "A separate unprivileged loopback listener for the retrieval-only relay.",
+        "guidance": "Choose a free port, default 8900, different from the package port. Tunnel only this relay if you choose to publish.",
+        "pitfall": "The generated command starts no tunnel. Stop foreground relay/tunnel processes with Ctrl+C and verify closure.",
+        "kb": "package-actions",
+    },
+    "actions_tunnel": {
+        "meaning": "A manual Cloudflare Quick Tunnel or Tailscale Funnel recipe, never executed by Studio.",
+        "guidance": "Review the command and vendor requirements. Quick Tunnels are temporary testing; Funnel requires account/policy permission.",
+        "pitfall": "Publishing exposes scoped evidence to relay-token holders. No OAuth, per-user identity or production gateway certification is supplied.",
+        "kb": "package-actions",
+    },
     "package_qc_suite": {
         "meaning": "Reviewed questions and exact expected source IDs shipped inside the package corpus.",
         "guidance": "Paste an existing Testing JSON case list or cases object. Include source_id or expected_sources; optional answer runs require correct_answer. Run /qc locally after installation.",
