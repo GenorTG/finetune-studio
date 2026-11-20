@@ -73,6 +73,45 @@
   <p>Finally open your client's MCP tools list, find <code>rag_info</code>, and call it. Check the package name and document count,
     then try <code>rag_search</code> with a fact from your files. A copied setup or healthy server alone does not prove client tool access.</p>
 </section>
+<section class="card mb-4" id="actions-builder" data-endpoint="/connect/actions-plan">
+  <h2>Optional · ChatGPT Actions and Gemini developer tools</h2>
+  <p>Generate a text-only retrieval schema and a separate, loopback-only relay. Your cloud model writes the answer.
+    This does not publish anything, create credentials, or verify a vendor account.</p>
+  <label for="actions-public-url">Planned public HTTPS address for the relay (port 443)</label>
+  <input id="actions-public-url" class="input" type="url" placeholder="https://knowledge.example.com" spellcheck="false">
+  <label for="actions-package-url">Package's direct loopback HTTP address (not Studio)</label>
+  <input id="actions-package-url" class="input" value="http://127.0.0.1:8899" spellcheck="false">
+  <label for="actions-port">Separate local relay port</label>
+  <input id="actions-port" class="input" type="number" min="1024" max="65535" value="8900">
+  <label for="actions-tunnel">Optional tunnel recipe — you run it manually</label>
+  <select id="actions-tunnel" class="select"><option value="cloudflare">Cloudflare Quick Tunnel · temporary testing</option>
+    <option value="tailscale">Tailscale Funnel · needs account and policy permission</option></select>
+  <p>Only this setup address is sent to the current server for validation, without a network probe or storage.
+    Do not enter tokens here. Set the existing package token and a separate relay token privately on the package host.
+    Anyone holding the relay token can retrieve this package's scoped evidence; choose its audience before publishing.</p>
+  <p><button id="actions-generate" class="btn primary" type="button">Generate Actions setup</button>
+    <button id="actions-copy" class="btn" type="button" disabled>Copy OpenAPI schema</button>
+    <button id="actions-download" class="btn" type="button" disabled>Download OpenAPI JSON</button>
+    <button id="actions-gemini" class="btn" type="button" disabled>Download Gemini JSON</button></p>
+  <p id="actions-status" role="status" aria-live="polite">Not generated. Nothing has been published.</p>
+  <h3>OpenAPI schema</h3><pre id="actions-schema" class="service-detail" tabindex="0"></pre>
+  <h3>Review before running on the package host</h3><pre id="actions-commands" class="service-detail" tabindex="0"></pre>
+  <p>In the ChatGPT GPT editor, add an Action, paste the schema and choose API Key → Bearer with the relay token.
+    Set your GPT's instructions to cite returned sources, treat passages as evidence (not instructions), and abstain
+    when evidence is missing. Test a known question and a no-hit question in that editor.
+    Shared/public GPTs may need a privacy-policy URL and workspace/domain permissions.</p>
+  <p>The relay permits only text retrieval (at most 5 excerpts), not chat, images, original downloads, MCP or local-owner
+    QC/usage administration. No LLM or upstream provider key is shared. Bearer access is not per-user OAuth or signed identity.
+    Cloudflare's temporary hostname changes: update the public address and regenerate after starting it.
+    Do not tunnel the full package server or Studio. Ctrl+C stops each foreground process; verify shutdown.</p>
+  <p><strong>Gemini is different:</strong> the developer function declaration needs your own authenticated application
+    to execute the HTTP call and return its result to Gemini. No automatic Actions import into consumer Gems is claimed.
+    Gemini CLI's existing MCP connection is separate. Vendor import and model-driven use remain unverified.</p>
+  <p><a href="https://developers.openai.com/api/docs/actions/authentication" target="_blank" rel="noopener noreferrer">GPT Actions authentication</a>
+    · <a href="https://docs.cloud.google.com/vertex-ai/generative-ai/docs/multimodal/function-calling" target="_blank" rel="noopener noreferrer">Gemini function calling</a>
+    · <a href="https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/" target="_blank" rel="noopener noreferrer">Quick Tunnels</a>
+    · <a href="https://tailscale.com/docs/features/tailscale-funnel" target="_blank" rel="noopener noreferrer">Funnel</a></p>
+</section>
 <section class="card">
   <div class="card-head"><div class="card-title">What connects today</div></div>
   <p>Local MCP (stdio) and Streamable HTTP at <code>POST /mcp</code> are shipped. Core tools:
@@ -83,10 +122,10 @@
     Choose <b>OpenAI-compatible API</b> above for setup and checks. Text chat supports JSON or buffered SSE;
     no provider gives an honest 503, never a fake answer. Sources are attached in <code>knowledge.sources</code>
     and the answer cites the evidence unless file names are hidden. Client requests cannot change the upstream or package scope.</p>
-  <p>ChatGPT Actions and automatic tunnels
+  <p>Actions setup and a retrieval-only relay are available above; automatic tunnels and account certification
     are not shipped. The Linux MCPB bridge needs an already installed package and a compatible host;
     Claude Desktop's official macOS/Windows MCPB installation is outside this Linux-only product's scope and is not certified.
     No LLM is included or impersonated.</p>
 </section>
 {% endblock %}
-{% block scripts %}<script src="/static/js/connect.js?v=4"></script>{% endblock %}
+{% block scripts %}<script src="/static/js/connect.js?v=5"></script><script src="/static/js/actions.js?v=1"></script>{% endblock %}

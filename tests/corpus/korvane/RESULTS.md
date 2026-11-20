@@ -1,5 +1,47 @@
 # Korvane corpus — first full Track A / Track B run (2026-10-08)
 
+## 2026-11-20 — R7 delivery recovered; R3 Actions local substrate
+
+Recovered R7 commits were not a failed implementation: PR247 was open with successful exact-head
+CI. Merged through policy to dev946c3b2e on2026-11-20; postmerge CI44715717418 passed
+4597 tests with20 skips. Fresh focused R7 tests:155 passed in59.17s. Fresh postmerge real browser
+repeated encrypted Studio download, owner-key challenge, no-model error, retrieval/baseline/restart,
+fault-injected found-before/missed-now regression, separate CPU-only Llama answer and saved AI judge.
+Answer was “Nine crowns per season. [1]”; recorded judge pass is not independent quality certification.
+Local evidence:.tmp/r7/1795168924112370669. Scratch5722bb13/session/processes removed; compute unchanged.
+
+R3 generates a credential-free OpenAPI3.1 text retrieval action, a Gemini developer function declaration,
+and manual Cloudflare/Tailscale tunnel recipes on both Studio and package Connect. A separate stdlib
+loopback relay enforces independent bearer auth, fixed local package origin, strict path/parameter
+allowlists, hidden-source policy, bounded text and resource limits. It forwards no owner/caller headers,
+follows no redirects/proxy environment and cannot expose QC/admin/originals/MCP/chat/images.
+
+Fresh real Studio browser project agent-test-r3-actionsc5e5f056 exported/downloaded an encrypted
+one-document Highmere package. Its native install.sh created a separate venv; the browser-generated
+relay command ran using that actual installed venv, on loopback only. Both Connect surfaces showed
+invalid-public-URL errors, successful copy, actual OpenAPI/Gemini downloads, stale-output invalidation,
+and both manual tunnel recipes. The relay rejected the package token, accepted its separate token,
+retrieved the scoped nine-crowns passage, returned an honest no-hit, and denied QC/images.
+
+Actual browser widths1270/320 checked on Studio and package; no JS errors. Readable screenshot
+inspection found a Studio nowrap Gemini button extending to382.5px despite root scroll/client both310.
+A concise label fixed it: right261.64<=310, final screenshot width310. Explicit button bounding-rect
+assertions now supplement root overflow metrics; all package controls fit too.
+Final evidence:.tmp/r3/1795170323305443451; six exported runtime/UI assets byte-match source.
+Both generators also reject a blank relay port with visible errors, rather than silently defaulting.
+Final targeted Actions/Connect/R2/QC tests:110 passed in78.44s. Broader R3/export/Guide/template
+checks before the last port-error guard:435 passed in122.15s; R7/R8/R2/scope/async compatibility:
+68 passed in66.58s. The first full CI caught a synthetic LAN literal in the rejection fixture;
+it was replaced by a reserved documentation address, without weakening public-tree hygiene. Ruff/JS/diff/codemap pass; native Studio installer reports no issues;
+140 installed packages compatible. Scratch project/session deleted, owned package/relay stopped;
+compute settings and user-owned VISION document unchanged.
+
+No tunnel, public endpoint, vendor account, new credential, paid service, foreign GPU model, gateway
+restart or release. OpenAI's Actions/TLS/auth/limits, Google Gems/developer function-calling,
+Cloudflare and Tailscale docs checked2026-11-20. Local transport is not vendor import/model-driven
+certification. Gemini declaration is not consumer Gems Actions import or an authenticated SDK app.
+Public TLS/latency and actual account/editor tests remain unverified; R4 remains unconfirmed.
+
 ## 2026-11-18 — R7 exported-package QC (bounded synthetic evidence)
 
 New package question sets use the existing Testing question/correct_answer/source_id shape plus exact

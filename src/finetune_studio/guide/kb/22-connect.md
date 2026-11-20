@@ -32,7 +32,7 @@ It checks browser-to-package transport, not the selected vendor client. HTTP acc
 - `#connect-copy-test` — copies terminal checks, without executing them.
 
 ## What to check
-Edits update recipes immediately and stay in the browser; no keys or addresses are sent to the studio.
+MCP recipe edits update immediately and stay in the browser. The separate Actions generator sends its public/loopback address configuration only to this server for validation, with no storage or external probe; no keys are entered.
 The studio makes no probes. The package rejects foreign browser Origins; its own Connect page can test the same server.
 There is no arbitrary server-side URL proxy or test against an address entered into the recipe builder.
 rag_get_document requires packaged originals; rag_answer requires answer generation and an operator-configured LLM.
@@ -57,7 +57,7 @@ Clients use the package address with /v1 and its RAG_AUTH_TOKEN, not the provide
 The package Connect page has Test retrieval API and Test answer API with immediate status and displayed JSON.
 Only these same-server buttons make requests; the studio recipe builder still makes no network probes.
 Ollama can be the operator's upstream via its OpenAI-compatible /v1 API, or use an MCP host such as Open WebUI.
-ChatGPT is not a ready-made Actions/OAuth/tunnel integration here.
+The optional Actions section generates an OpenAPI schema, a separate text-retrieval-only relay and manual tunnel recipes; see package-actions. Nothing is published automatically; OAuth and actual ChatGPT/Gemini account certification are not supplied.
 The unsigned smart-brain.mcpb bridge selects an already installed Linux package and private keyfile; it contains no knowledge or keys.
 It requires Node >=18 and an MCPB-capable Linux host; it does not install Python dependencies.
 Claude Desktop's official MCPB hosts are macOS/Windows, outside the current Linux-only scope: one-click Claude Desktop installation remains unverified and unsupported.

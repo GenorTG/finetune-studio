@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Connect can generate a ChatGPT Actions retrieval schema, Gemini developer function declaration, and manual tunnel setup for a separate authenticated text-only package relay; nothing is published automatically and vendor-account certification remains separate.
+
 - Packages can ship reviewed quality-check questions and expected sources: run retrieval without an LLM, pin a baseline and spot regressions, or generate answers then ask your configured AI judge separately from the local-owner QC page.
 
 - Packages now include local usage, feedback, error and latency diagnostics with counts-only privacy, retention, JSON exports and missing-knowledge reports you can review on Studio's Package page.

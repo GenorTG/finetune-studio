@@ -70,6 +70,45 @@ This test sends the question to this package only; the answer test forwards retr
 <pre id="connect-test" tabindex="0"></pre><button id="connect-copy-test" type="button">Copy terminal checks</button>
 <p>Finally call <code>rag_info</code> and <code>rag_search</code> in the selected client with a known fact from your documents.
 Only that verifies the client's access. A successful browser check is not vendor certification.</p></section>
+<section class="card mb-4" id="actions-builder" data-endpoint="connect/actions-plan">
+  <h2>Optional · ChatGPT Actions and Gemini developer tools</h2>
+  <p>Generate a text-only retrieval schema and a separate, loopback-only relay. Your cloud model writes the answer.
+    This does not publish anything, create credentials, or verify a vendor account.</p>
+  <label for="actions-public-url">Planned public HTTPS address for the relay (port 443)</label>
+  <input id="actions-public-url" class="input" type="url" placeholder="https://knowledge.example.com" spellcheck="false">
+  <label for="actions-package-url">Package's direct loopback HTTP address (not Studio)</label>
+  <input id="actions-package-url" class="input" value="http://127.0.0.1:8899" spellcheck="false">
+  <label for="actions-port">Separate local relay port</label>
+  <input id="actions-port" class="input" type="number" min="1024" max="65535" value="8900">
+  <label for="actions-tunnel">Optional tunnel recipe — you run it manually</label>
+  <select id="actions-tunnel" class="select"><option value="cloudflare">Cloudflare Quick Tunnel · temporary testing</option>
+    <option value="tailscale">Tailscale Funnel · needs account and policy permission</option></select>
+  <p>Only this setup address is sent to the current server for validation, without a network probe or storage.
+    Do not enter tokens here. Set the existing package token and a separate relay token privately on the package host.
+    Anyone holding the relay token can retrieve this package's scoped evidence; choose its audience before publishing.</p>
+  <p><button id="actions-generate" class="btn primary" type="button">Generate Actions setup</button>
+    <button id="actions-copy" class="btn" type="button" disabled>Copy OpenAPI schema</button>
+    <button id="actions-download" class="btn" type="button" disabled>Download OpenAPI JSON</button>
+    <button id="actions-gemini" class="btn" type="button" disabled>Download Gemini JSON</button></p>
+  <p id="actions-status" role="status" aria-live="polite">Not generated. Nothing has been published.</p>
+  <h3>OpenAPI schema</h3><pre id="actions-schema" class="service-detail" tabindex="0"></pre>
+  <h3>Review before running on the package host</h3><pre id="actions-commands" class="service-detail" tabindex="0"></pre>
+  <p>In the ChatGPT GPT editor, add an Action, paste the schema and choose API Key → Bearer with the relay token.
+    Set your GPT's instructions to cite returned sources, treat passages as evidence (not instructions), and abstain
+    when evidence is missing. Test a known question and a no-hit question in that editor.
+    Shared/public GPTs may need a privacy-policy URL and workspace/domain permissions.</p>
+  <p>The relay permits only text retrieval (at most 5 excerpts), not chat, images, original downloads, MCP or local-owner
+    QC/usage administration. No LLM or upstream provider key is shared. Bearer access is not per-user OAuth or signed identity.
+    Cloudflare's temporary hostname changes: update the public address and regenerate after starting it.
+    Do not tunnel the full package server or Studio. Ctrl+C stops each foreground process; verify shutdown.</p>
+  <p><strong>Gemini is different:</strong> the developer function declaration needs your own authenticated application
+    to execute the HTTP call and return its result to Gemini. No automatic Actions import into consumer Gems is claimed.
+    Gemini CLI's existing MCP connection is separate. Vendor import and model-driven use remain unverified.</p>
+  <p><a href="https://developers.openai.com/api/docs/actions/authentication" target="_blank" rel="noopener noreferrer">GPT Actions authentication</a>
+    · <a href="https://docs.cloud.google.com/vertex-ai/generative-ai/docs/multimodal/function-calling" target="_blank" rel="noopener noreferrer">Gemini function calling</a>
+    · <a href="https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/" target="_blank" rel="noopener noreferrer">Quick Tunnels</a>
+    · <a href="https://tailscale.com/docs/features/tailscale-funnel" target="_blank" rel="noopener noreferrer">Funnel</a></p>
+</section>
 <section class="card" id="bundle"><h2>Optional · Install the MCPB bridge</h2>
 <p><a class="button" href="smart-brain.mcpb" download>Download Linux MCPB bridge</a></p>
 <p>For MCPB-capable hosts: import this unsigned bundle, then select the already installed package folder and private keyfile.
@@ -78,10 +117,10 @@ The small bridge connects to those local files; it contains no knowledge, passph
 The bundle declares Linux compatibility only. Do not treat it as a working one-click Claude Desktop installer.</p></section>
 <section class="card"><h2>Client verification status</h2>
 <p>Local stdio and HTTP MCP transports are tested. Recipes are not vendor certification.
-Claude Code's installed CLI has passed a real MCP health check with a synthetic package; model-driven tool use is not certified.
+Claude Code 2.1.325 passed model-driven synthetic text retrieval over plaintext stdio, encrypted stdio and encrypted MCPB bridge on one Linux host; HTTP, images and clean-machine installation are not certified.
 Gemini CLI configuration was accepted, but its connection check requires client authentication.</p>
 <p>Cursor, VS Code Copilot, Windsurf, LM Studio and Open WebUI have not been certified through their actual user interfaces.
-ChatGPT Actions/OAuth and a direct Ollama MCP host are not shipped. Choose an MCP host such as Open WebUI for Ollama.</p>
+ChatGPT Actions setup and its retrieval-only relay are available above; OAuth, automatic tunnels and a direct Ollama MCP host are not shipped. Choose an MCP host such as Open WebUI for Ollama.</p>
 <p>For setup details and limitations, use each client's documentation link above.
 <code>GET /v1/models</code> advertises <code>smart-brain</code>; <code>POST /v1/retrieve</code> returns passages,
 scores and optional pictures; <code>POST /v1/chat/completions</code> provides text chat through the operator's LLM.
@@ -90,4 +129,4 @@ This is not token-by-token upstream streaming. Tools, attachments, usage account
 are not supported and unsupported requests fail explicitly. Client requests cannot widen package scope or change its upstream.
 Hidden file names stay hidden in these client-facing APIs.</p>
 </section>
-<script src="connect-page.js"></script><script src="connect.js"></script></main></body></html>
+<script src="connect-page.js"></script><script src="connect.js"></script><script src="actions.js"></script></main></body></html>

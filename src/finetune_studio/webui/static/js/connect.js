@@ -49,8 +49,8 @@ function connectRecipes(client, folder, keyfile, address, listenerPort = '') {
       'export RAG_LLM_PROVIDER=openai\nexport RAG_LLM_BASE_URL=http://127.0.0.1:11434/v1\n' +
       'export RAG_LLM_MODEL=YOUR_INSTALLED_MODEL\n# Set RAG_LLM_API_KEY privately if your provider needs it.\n' +
       '# For Claude use RAG_LLM_PROVIDER=anthropic and its /v1 base URL.'],
-    chatgpt: ['Not an automated connection: this package has no OAuth discovery, public tunnel or GPT Actions adapter. Do not paste a localhost URL into a cloud client. A compatible remote MCP client must support your bearer authentication and reach an HTTPS server. Check account and connector requirements first.',
-      'https://platform.openai.com/docs/guides/tools-connectors-mcp', 'No ready-to-install ChatGPT configuration is shipped.'],
+    chatgpt: ['Use the optional Actions setup section below to generate an OpenAPI schema, a retrieval-only relay and opt-in manual tunnel commands. Nothing is published automatically. Cloud clients need public HTTPS, the separate relay bearer token and vendor-account setup. This is not OAuth or actual ChatGPT certification.',
+      'https://developers.openai.com/api/docs/actions/introduction', 'Generate the schema in Actions setup below, then configure API Key → Bearer in the GPT editor.'],
     ollama: ['Ollama is a model runtime, not the MCP host in this setup. Use Open WebUI or another MCP host with an Ollama tool-capable model, then connect the package there.',
       'https://docs.ollama.com/capabilities/tool-calling', 'Choose Open WebUI above for the package connection.']
   };
