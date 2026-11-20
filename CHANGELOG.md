@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Packages can ship reviewed quality-check questions and expected sources: run retrieval without an LLM, pin a baseline and spot regressions, or generate answers then ask your configured AI judge separately from the local-owner QC page.
+
 - Packages now include local usage, feedback, error and latency diagnostics with counts-only privacy, retention, JSON exports and missing-knowledge reports you can review on Studio's Package page.
 
 - New Smart Brain exports offer an OpenAI-compatible “knowledge + your LLM” text-chat endpoint, raw retrieval with sources/scores/pictures, and Connect setup/API checks; missing operator providers return an honest error.

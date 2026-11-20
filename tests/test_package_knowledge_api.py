@@ -90,14 +90,14 @@ def upstream() -> Iterator[tuple[str, list[dict]]]:
 @contextlib.contextmanager
 def host(corpus_dir: Path, tmp_path: Path, *, upstream_url: str = "", provider: str = "openai",
          model: str = "test-model", encrypted: bool = False, hidden: bool = False,
-         llm_body: dict | None = None) -> Iterator[tuple[str, Path]]:
+         llm_body: dict | None = None, qc_cases: list[dict] | None = None) -> Iterator[tuple[str, Path]]:
     config = BrainExportConfig(encrypt=encrypted, kdf_log_n=10, hide_file_names=hidden,
                                answer_enabled=bool(upstream_url), llm_base_url=upstream_url, llm_model=model,
                                llm_provider=provider, semantic_search=False, reranker_enabled=False,
                                llm_body=llm_body or {})
     archive = build_package(corpus_dir, tmp_path / "api.tar.gz", config=config,
                             passphrase="synthetic-r2-passphrase" if encrypted else None,
-                            documents={"c2"}, scope={"label": "Highmere only"})
+                            documents={"c2"}, scope={"label": "Highmere only"}, qc_cases=qc_cases)
     root = packages._extract(archive.path, tmp_path / "export")
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))

@@ -318,6 +318,7 @@ class StandaloneRequest(ExportConfigPatch):
     """Export request: optional overrides + the (never stored) passphrase."""
 
     name: str | None = Field(default=None, max_length=120)   # the package's name (shown in its versions; file name)
+    qc_cases: list[dict[str, Any]] = Field(default_factory=list, max_length=100)
     audience: Literal["internal", "public", "other"] | None = None   # a label: who uses it (staff / customers)
     passphrase: str | None = Field(default=None, repr=False)
     scope: DocumentScope | None = None    # which documents go in (None: all, or the base version's scope; {}: all)
@@ -330,7 +331,7 @@ class StandaloneRequest(ExportConfigPatch):
 def _patch_values(p: ExportConfigPatch) -> dict[str, Any]:
     values = {k: v for k, v in p.model_dump().items()
               if v is not None and k not in ("scope", "name", "audience", "passphrase", "new_version_of", "version", "allow_widen",
-                        "new_passphrase")}
+                        "new_passphrase", "qc_cases")}
     conn = values.pop("llm_connection", None)
     if conn:
         values = {**connection_llm_settings(conn), **values}   # a typed endpoint or model wins
@@ -568,7 +569,7 @@ async def brain_standalone(pid: str, body: StandaloneRequest | None = None):
             build_package, corpus, out_path, name=title, config=cfg,
             passphrase=(req.passphrase or None), identity=brain_identity.package_record(pid), originals=originals,
             documents=keep, scope=scope_record, package=record, changes_md=changes_md,
-            changes_md_public=changes_md_public)
+            changes_md_public=changes_md_public, qc_cases=req.qc_cases)
     except FileNotFoundError as e:
         raise HTTPException(status_code=409, detail=str(e)) from e
     except ValueError as e:

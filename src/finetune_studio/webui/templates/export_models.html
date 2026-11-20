@@ -60,6 +60,20 @@
     <a class="btn primary ml-2" href="/projects/{{ pid }}/brain" data-link>Build the Smart Brain</a>
   </div>
   <div id="package-form-body">
+      <fieldset class="brain-layers mb-2" id="package-qc">
+        <legend class="text-xs font-semibold">Quality checks shipped inside the package</legend>
+        <p>Paste a reviewed Testing suite JSON (a case list, or an object with <b>cases</b>).
+          Use exact <b>source_id</b> or <b>expected_sources</b> document IDs from this package's selected scope.
+          Each case needs a unique name and question; optional answer runs also need correct_answer.
+          Unanswerable cases use expect_abstain: true and no sources. At most 100 cases.</p>
+        <label for="mcp-qc-suite">Question set JSON (blank = no self-tests, including for a new version)</label>
+        <textarea id="mcp-qc-suite" class="input w-full" rows="5" spellcheck="false"
+          placeholder='[{"name":"price","question":"What is the price?","source_id":"document-id","correct_answer":"Reviewed answer"}]'></textarea>
+        <p class="text-xs muted">The suite is encrypted with the knowledge. Outside-scope source IDs reject the export.
+          Review question/answer text for the selected audience too. On the installed package, open <b>/qc</b>:
+          run retrieval without an LLM, pin a reviewed baseline, inspect regressions, optionally Run answers then Judge answers.
+          Transcripts are private plaintext local history. No automatic fleet/update execution is provided.</p>
+      </fieldset>
       <fieldset class="brain-layers mb-2" id="mcp-identity-row">
         <legend class="text-xs font-semibold">Who it is for</legend>
         <div class="grid grid-12 gap-3 items-end">
@@ -1069,6 +1083,15 @@
     var note = document.getElementById('mcp-pkg-note');
     var passEl = document.getElementById('mcp-pass');
     var body = mcpVals();
+    try {
+      var rawSuite = document.getElementById('mcp-qc-suite').value.trim();
+      var suite = rawSuite ? JSON.parse(rawSuite) : [];
+      body.qc_cases = Array.isArray(suite) ? suite : suite.cases;
+      if (!Array.isArray(body.qc_cases)) throw new Error('Use a JSON case list or an object with cases.');
+    } catch (e) {
+      note.textContent = 'Invalid quality-check suite: ' + e.message;
+      return;
+    }
     if (passEl.value && body.encrypt) body.passphrase = passEl.value;
     if (allowWiden === true) body.allow_widen = true;
     if (note) note.textContent = body.include_models

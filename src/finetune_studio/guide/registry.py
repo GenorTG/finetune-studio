@@ -209,6 +209,7 @@ def _controls() -> dict[str, Control]:
         ("benchmarks.compare", "benchmarks", "#cmp-run-btn", "Run comparison"),
         # export
         ("export.package_versions", "export", "#package-versions", "Package versions and their changes"),
+        ("export.package_qc", "export", "#package-qc", "Ship a reviewed package question set and run local quality checks"),
         ("export.package_usage", "export", "#package-usage", "Package usage and missing-knowledge document suggestions"),
         ("export.usage_gap_file", "export", "#usage-gap-file", "Choose a package missing-knowledge JSON report"),
         ("export.usage_gap_import", "export", "#usage-gap-import", "Import package diagnostic suggestions without changing knowledge"),
@@ -291,6 +292,7 @@ def _fields() -> dict[tuple[str, str], Field]:
     f: list[Field] = [
         Field("connect", "connect_client", "#connect-client", "choice", "AI client or knowledge API",
               choices=("claude-code", "claude-desktop", "cursor", "vscode", "windsurf", "gemini", "lmstudio", "openwebui", "chatgpt", "ollama", "knowledge-api")),
+        Field("export", "package_qc_suite", "#mcp-qc-suite", "text", "Package quality-check suite JSON"),
         Field("connect", "connect_path", "#connect-path", "text", "Extracted package folder"),
         Field("connect", "connect_keyfile", "#connect-keyfile", "text", "Passphrase file path (never the passphrase)"),
         Field("connect", "connect_url", "#connect-url", "text", "Package HTTP address"),
