@@ -275,6 +275,9 @@ def test_config_templates_ui_and_safety(client, tmp_path, monkeypatch):
     for vendor in bots.VENDORS:
         plan = bots.setup_plan(vendor)
         assert not plan["network_checked"] and not plan["public_exposure_started"]
+        if vendor == "discord":
+            assert "contexts" not in plan["registration"] and "integration_types" not in plan["registration"]
+            assert "/guilds/REPLACE_TEAM_ID/commands" in plan["registration_endpoint"]
         with pytest.raises(ValueError):
             bots.validate_config(plan["config"])
         response = client.get("/connect/bots-plan", params={"vendor": vendor})

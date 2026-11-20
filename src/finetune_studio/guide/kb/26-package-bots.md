@@ -25,7 +25,8 @@ Generation creates no account, key, registration, ingress or message. Local HTTP
    Preserve it across restarts. Use a separate file/config/bridge/scoped package for a different audience.
 6. Separately review public HTTPS ingress targeting ONLY the bridge and register the vendor interface.
    Slack: app manifest slash-command URL /slack, commands permission, workspace installation.
-   Discord: register the downloaded guild command, install with application commands permission, set the
+   Discord: POST the downloaded guild command to the generated guild registration endpoint (not the global
+   command endpoint; global-only context fields are omitted), install with application commands permission, set the
    interaction endpoint /discord; Discord validates a signed PING before accepting the URL.
    Teams: team settings → Apps → create outgoing webhook; callback /teams; copy its HMAC key privately.
    Teams policy/tenant permissions may disallow this. This is not an Azure Bot Framework/OAuth application.

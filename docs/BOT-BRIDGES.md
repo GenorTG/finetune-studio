@@ -28,7 +28,8 @@ targeting ONLY the bridge. Do not expose Studio/full package or put credentials 
 - Slack: create/install a workspace app, use the downloaded registration manifest with a real HTTPS /slack
   command URL, grant commands permission. /brain replies are ephemeral. Workspace policy may require approval.
 - Discord: create an application, register the downloaded guild-only /brain command via the application-commands
-  API, install it with applications.commands permission, set a real HTTPS /discord interaction endpoint.
+  API (POST /api/v10/applications/APP_ID/guilds/GUILD_ID/commands), install it with applications.commands permission,
+  set a real HTTPS /discord interaction endpoint. The template omits global-command-only context fields.
   A correctly signed PING is required. Replies are deferred ephemeral; no gateway bot or message-content scope.
 - Teams: a permitted team owner creates an outgoing webhook in team Apps, callback HTTPS /teams.
   The generated object is a setup worksheet, NOT an importable Azure app manifest. The webhook behaves as

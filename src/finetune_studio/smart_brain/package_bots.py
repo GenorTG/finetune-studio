@@ -55,7 +55,6 @@ def setup_plan(vendor: str, package_url: str = "http://127.0.0.1:8899", port: in
                     "usage_hint": "question", "should_escape": False}]},
                   "oauth_config": {"scopes": {"bot": ["commands"]}}},
         "discord": {"name": "brain", "description": "Ask scoped knowledge", "type": 1,
-                    "contexts": [0], "integration_types": [0],
                     "options": [{"name": "question", "description": "Question", "type": 3,
                                  "required": True, "min_length": 1, "max_length": 4000}]},
         "teams": {"name": "Smart Brain", "callback_url": "https://REPLACE_HOST/teams",
@@ -65,6 +64,10 @@ def setup_plan(vendor: str, package_url: str = "http://127.0.0.1:8899", port: in
               "discord": "DISCORD_PUBLIC_KEY"}[vendor]
     return {"status": "configuration_only", "network_checked": False, "public_exposure_started": False,
             "config": config, "registration": registration, "secret_environment": ["RAG_AUTH_TOKEN", secret],
+            "registration_endpoint": ("POST https://discord.com/api/v10/applications/REPLACE_APPLICATION_ID/"
+                                      "guilds/REPLACE_TEAM_ID/commands" if vendor == "discord" else
+                                      "Slack app manifest editor" if vendor == "slack" else
+                                      "Teams team settings > Apps > Create outgoing webhook"),
             "command": ".venv/bin/python package_bots.py --config bot-config.json",
             "listener": f"http://127.0.0.1:{port}/{vendor}"}
 
