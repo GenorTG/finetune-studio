@@ -194,7 +194,8 @@ def event(config: dict, raw: bytes) -> tuple[str, str, str, str]:
                     or channel_data.get("tenant", {}).get("id") != config["application_id"]):
                 raise PermissionError
             user = data.get("from", {}).get("id")
-            stamp = datetime.fromisoformat(data.get("timestamp", ""))
+            # Exported runtime still supports3.10, before fromisoformat accepted Z.
+            stamp = datetime.fromisoformat(data.get("timestamp", "").replace("Z", "+00:00"))  # noqa: FURB162
             if stamp.tzinfo is None or not fresh(str(stamp.timestamp())):
                 raise PermissionError
             question = re.sub(r"<at>[^<]{1,200}</at>", "", data.get("text", "")).strip()
