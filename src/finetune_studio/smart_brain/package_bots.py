@@ -92,7 +92,7 @@ def validate_config(config: dict[str, Any]) -> dict[str, Any]:
 class ReplayStore:
     """Persist only SHA256 digests and expiration, bounded and fail-closed across restarts."""
 
-    def __init__(self, path: str):
+    def __init__(self, path: str) -> None:
         target = Path(path)
         if target.is_symlink():
             raise ValueError("Replay file must not be a symlink.")
@@ -194,7 +194,8 @@ def event(config: dict, raw: bytes) -> tuple[str, str, str, str]:
                     or channel_data.get("tenant", {}).get("id") != config["application_id"]):
                 raise PermissionError
             user = data.get("from", {}).get("id")
-            stamp = datetime.fromisoformat(data.get("timestamp", ""))
+            # Exported runtime still supports3.10, before fromisoformat accepted Z.
+            stamp = datetime.fromisoformat(data.get("timestamp", "").replace("Z", "+00:00"))  # noqa: FURB162
             if stamp.tzinfo is None or not fresh(str(stamp.timestamp())):
                 raise PermissionError
             question = re.sub(r"<at>[^<]{1,200}</at>", "", data.get("text", "")).strip()
