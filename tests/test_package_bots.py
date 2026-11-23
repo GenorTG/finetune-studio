@@ -379,3 +379,23 @@ def test_output_budget_and_markup_are_bounded():
               "knowledge": {"sources": [{"filename": "*" * 120} for _ in range(5)]}}
     out = bots.answer_text(result)
     assert len(out.encode("utf-16-le")) <= 3800 and "@everyone" not in out
+
+
+def test_teams_vendor_zulu_timestamp_with_python310_parser(tmp_path, monkeypatch):
+    # Export UI promises Python3.10+. That parser accepts +00:00, not a trailing Z
+    # (native Z support was added in3.11). Exercise real signed HTTP at this boundary.
+    real_datetime = bots.datetime
+
+    class Python310Datetime:
+        @staticmethod
+        def fromisoformat(value):
+            if value.endswith("Z"):
+                raise ValueError("Invalid isoformat string on Python3.10")
+            return real_datetime.fromisoformat(value)
+
+    monkeypatch.setattr(bots, "datetime", Python310Datetime)
+    data = payload("teams")
+    data["timestamp"] = datetime.now(UTC).isoformat().replace("+00:00", "Z")
+    with bridge(config("teams", tmp_path)) as base:
+        status, result = post(base, "teams", data)
+        assert status == 200 and result["type"] == "message"

@@ -36,6 +36,7 @@ targeting ONLY the bridge. Do not expose Studio/full package or put credentials 
   an @mention bot in PUBLIC channels only; replies appear in that channel and are visible to all its members.
   application_id binds the tenant ID; team/channel/user IDs come from the authenticated activity.
   The five-second response deadline requires a warm fast package/LLM; slow calls return unavailable.
+  UTC Z timestamps are normalized for the exported runtime's Python 3.10 parser compatibility.
   This does not implement a full Azure Bot with deferred conversation replies.
 
 These account actions and public deployment were NOT performed during implementation.

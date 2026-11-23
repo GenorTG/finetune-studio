@@ -9,6 +9,8 @@ turns that section into the release's notes.
 
 ## [Unreleased]
 
+- Accept Teams' UTC `Z` timestamps in bot bridges on the exported package's Python 3.10 compatibility path.
+
 - Generate Slack, Teams and Discord bot bridge templates in Connect; installed Linux packages can answer signed, audience-bound chat commands with scoped sources through your configured LLM. Local testing only; accounts and public deployment remain operator setup.
 
 - Connect can generate a ChatGPT Actions retrieval schema, Gemini developer function declaration, and manual tunnel setup for a separate authenticated text-only package relay; nothing is published automatically and vendor-account certification remains separate.
